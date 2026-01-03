@@ -1,20 +1,54 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initCommand } from "./init.js";
 
 describe("Init command", () => {
-    describe("given the init command is executed", () => {
-        it('prints "hello init" to the console', async () => {
-            // Arrange
-            const consoleLogSpy = vi.spyOn(console, "log").mockImplementation();
+    describe("when prompting for project type", () => {
+        let mockPrompt: ReturnType<typeof vi.fn>;
+
+        beforeEach(() => {
+            mockPrompt = vi.fn().mockResolvedValue("CLI");
+        });
+
+        it("should display a prompt asking what type of project is being initialized", async () => {
+            // Arrange - done in beforeEach
 
             // Act
-            await initCommand.run();
+            await initCommand.run({ prompt: mockPrompt });
 
             // Assert
-            expect(consoleLogSpy).toHaveBeenCalledWith("hello init");
+            expect(mockPrompt).toHaveBeenCalledWith(
+                "What type of project are you initializing?",
+                expect.objectContaining({
+                    type: "select",
+                }),
+            );
+        });
 
-            // Cleanup
-            consoleLogSpy.mockRestore();
+        it("should present four project type options", async () => {
+            // Arrange - done in beforeEach
+
+            // Act
+            await initCommand.run({ prompt: mockPrompt });
+
+            // Assert
+            expect(mockPrompt).toHaveBeenCalledWith(
+                expect.any(String),
+                expect.objectContaining({
+                    options: ["CLI", "webapp", "REST API", "GraphQL API"],
+                }),
+            );
+        });
+
+        it("should capture the user selection", async () => {
+            // Arrange
+            const expectedSelection = "CLI";
+            mockPrompt.mockResolvedValue(expectedSelection);
+
+            // Act
+            await initCommand.run({ prompt: mockPrompt });
+
+            // Assert
+            expect(mockPrompt).toHaveBeenCalled();
         });
     });
 });
