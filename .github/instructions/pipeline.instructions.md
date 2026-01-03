@@ -9,15 +9,14 @@ applyTo: ".github/workflows/*.{yml,yaml}"
 Run these validation commands in order:
 
 ```bash
-npm run lint:workflows  # Validate GitHub Actions workflows with actionlint
-npm run lint:yaml       # Validate YAML syntax with yamllint
+mise lint
 ```
 
 ## Workflow Structure Requirements
 
 1. Every workflow MUST include test and lint jobs.
-2. Reference Node.js version from `.nvmrc` using `actions/setup-node` with `node-version-file` input.
-3. Use official setup actions: `actions/checkout`, `actions/setup-node`, `actions/cache`.
+2. Use official setup actions: `actions/checkout`, `actions/setup-node`, `actions/cache`.
+3. Prefer using `mise` for installing tools and dependencies and scripts for verification.
 
 ## Action Pinning Format
 
