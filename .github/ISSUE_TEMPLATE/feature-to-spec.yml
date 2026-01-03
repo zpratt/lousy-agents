@@ -44,6 +44,7 @@ body:
         Optional: Specific prompt engineering for the agent.
         This will be posted as a comment to guide the bot.
       placeholder: |
-        Create your final output in the .github/specs/ directory.
+        Create your final output in the .github/specs directory and ensure requirements are captured in the EARS format.
+        Review ./instructions/spec.instructions.md for more details and use this as your guide.
     validations:
       required: false
