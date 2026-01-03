@@ -105,8 +105,10 @@ async function createCliScaffolding(targetDir: string): Promise<void> {
             await mkdir(instructionsDir, { recursive: true });
             consola.success(`Created directory: ${instructionsDir}`);
         } catch (error) {
+            const errorMessage =
+                error instanceof Error ? error.message : String(error);
             consola.error(
-                `Failed to create instructions directory at "${instructionsDir}".`,
+                `Failed to create instructions directory at "${instructionsDir}": ${errorMessage}`,
             );
             throw error;
         }
@@ -122,8 +124,10 @@ async function createCliScaffolding(targetDir: string): Promise<void> {
             );
             consola.success(`Created file: ${copilotInstructionsFile}`);
         } catch (error) {
+            const errorMessage =
+                error instanceof Error ? error.message : String(error);
             consola.error(
-                `Failed to create Copilot instructions file at "${copilotInstructionsFile}".`,
+                `Failed to create Copilot instructions file at "${copilotInstructionsFile}": ${errorMessage}`,
             );
             throw error;
         }
@@ -154,10 +158,13 @@ export const initCommand = defineCommand({
         // Validate the user input at runtime
         const parseResult = ProjectTypeSchema.safeParse(rawProjectType);
         if (!parseResult.success) {
+            const validOptions = ProjectTypeSchema.options.join(", ");
             consola.error(
-                `Invalid project type selected: ${String(rawProjectType)}`,
+                `Invalid project type selected: ${String(rawProjectType)}. Valid options are: ${validOptions}`,
             );
-            throw new Error("Invalid project type");
+            throw new Error(
+                `Invalid project type. Expected one of: ${validOptions}`,
+            );
         }
 
         const projectType = parseResult.data;
