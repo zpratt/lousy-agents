@@ -1,0 +1,76 @@
+min_version = "2024.9.5"
+
+[settings]
+experimental = true
+idiomatic_version_file_enable_tools = ["node"]
+
+[env]
+_.file = '.env'
+
+[hooks]
+enter = "mise i -q && npm i"
+
+[tools]
+actionlint = "1.7.9"
+jq = "1.8.1"
+markdownlint-cli2 = "0.17.2"
+pipx = "latest"
+shellcheck = "0.11.0"
+trivy = "0.68.1"
+yamllint = "1.37.1" # Created with `mise use --pin yamllint`
+
+[tasks.yamllint]
+description = "Running yamllint locally on all yaml files"
+run = "yamllint -c ./.yamllintrc ."
+hide = true
+
+[tasks.trivy-fs]
+description = "Running trivy against local files"
+run = "trivy fs --ignorefile .trivyignore ."
+hide = true
+
+[tasks.actionlint]
+description = "Running actionlint against GitHub Actions workflows"
+run = "actionlint"
+hide = true
+
+[tasks.markdownlint]
+description = "Running markdownlint against markdown files"
+run = "markdownlint-cli2 '**/*.md' '#node_modules' '#terraform/.terraform' '#.venv' '#venv'"
+hide = true
+
+[tasks.shellcheck]
+description = "Running shellcheck against shell scripts"
+run = "shellcheck *.sh"
+hide = true
+
+[tasks.format-check]
+description = "Checking code formatting + static analysis"
+hide = true
+run = "npm run lint"
+
+[tasks.lint]
+description = "Run all required linting tools (in parallel)"
+run = [
+    { tasks = ['actionlint', 'yamllint', 'markdownlint', 'shellcheck', 'format-check']}, # These run in parallel!
+    { task = 'trivy-fs'},
+    { task = 'trivy-image'}
+]
+
+[tasks.test]
+description = "Run unit tests in this project"
+run = "npm test"
+
+[tasks.ci] # only dependencies to be run
+description = 'Run CI tasks'
+run = [
+    { task = 'lint'},
+    { task = 'test'}
+]
+
+[tasks.format-fix]
+description = "Fixing format issues"
+hide = true
+run = [
+    "npm run lint:fix"
+]

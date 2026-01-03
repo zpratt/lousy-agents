@@ -1,0 +1,60 @@
+[[tools.actionlint]]
+version = "1.7.9"
+backend = "aqua:rhysd/actionlint"
+"platforms.linux-arm64" = { checksum = "sha256:6b82a3b8c808bf1bcd39a95aced22fc1a026eef08ede410f81e274af8deadbbc", url = "https://github.com/rhysd/actionlint/releases/download/v1.7.9/actionlint_1.7.9_linux_arm64.tar.gz"}
+"platforms.linux-x64" = { checksum = "sha256:233b280d05e100837f4af1433c7b40a5dcb306e3aa68fb4f17f8a7f45a7df7b4", url = "https://github.com/rhysd/actionlint/releases/download/v1.7.9/actionlint_1.7.9_linux_amd64.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:855e49e823fc68c6371fd6967e359cde11912d8d44fed343283c8e6e943bd789", url = "https://github.com/rhysd/actionlint/releases/download/v1.7.9/actionlint_1.7.9_darwin_arm64.tar.gz"}
+"platforms.macos-x64" = { checksum = "sha256:f89a910e90e536f60df7c504160247db01dd67cab6f08c064c1c397b76c91a79", url = "https://github.com/rhysd/actionlint/releases/download/v1.7.9/actionlint_1.7.9_darwin_amd64.tar.gz"}
+"platforms.windows-x64" = { checksum = "sha256:7c8b10a93723838bc3533f6e1886d868fdbb109b81606ebe6d1a533d11d8e978", url = "https://github.com/rhysd/actionlint/releases/download/v1.7.9/actionlint_1.7.9_windows_amd64.zip"}
+
+[[tools.jq]]
+version = "1.8.1"
+backend = "aqua:jqlang/jq"
+"platforms.linux-arm64" = { checksum = "sha256:6bc62f25981328edd3cfcfe6fe51b073f2d7e7710d7ef7fcdac28d4e384fc3d4", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-arm64"}
+"platforms.linux-x64" = { checksum = "sha256:020468de7539ce70ef1bceaf7cde2e8c4f2ca6c3afb84642aabc5c97d9fc2a0d", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-linux-amd64"}
+"platforms.macos-arm64" = { checksum = "sha256:a9fe3ea2f86dfc72f6728417521ec9067b343277152b114f4e98d8cb0e263603", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-arm64"}
+"platforms.macos-x64" = { checksum = "sha256:e80dbe0d2a2597e3c11c404f03337b981d74b4a8504b70586c354b7697a7c27f", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-macos-amd64"}
+"platforms.windows-x64" = { checksum = "sha256:23cb60a1354eed6bcc8d9b9735e8c7b388cd1fdcb75726b93bc299ef22dd9334", url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-windows-amd64.exe"}
+
+[[tools.markdownlint-cli2]]
+version = "0.17.2"
+backend = "npm:markdownlint-cli2"
+
+[[tools.node]]
+version = "24.12.0"
+backend = "core:node"
+"platforms.linux-arm64" = { checksum = "sha256:9b2a2eeb98a8eb37361224e2a1d060300ad2dd143af58dfdb16de785df0f1228", url = "https://nodejs.org/dist/v24.12.0/node-v24.12.0-linux-arm64.tar.gz"}
+"platforms.linux-x64" = { checksum = "sha256:6159227e0af7d7c3c6bb2fa900452b04a6cb8841a702a79acc613209d70b04d0", url = "https://nodejs.org/dist/v24.12.0/node-v24.12.0-linux-x64.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:319f221adc5e44ff0ed57e8a441b2284f02b8dc6fc87b8eb92a6a93643fd8080", url = "https://nodejs.org/dist/v24.12.0/node-v24.12.0-darwin-arm64.tar.gz"}
+"platforms.macos-x64" = { checksum = "sha256:b82ea4c62fd08e250cab59d625e75d77cc5b0a3d60c6698ebee4545c88a169c5", url = "https://nodejs.org/dist/v24.12.0/node-v24.12.0-darwin-x64.tar.gz"}
+"platforms.windows-x64" = { checksum = "sha256:9c125f61ae947b52e779095830f9cac267846a043ef7192183c84016aaad2812", url = "https://nodejs.org/dist/v24.12.0/node-v24.12.0-win-x64.zip"}
+
+[[tools.pipx]]
+version = "1.8.0"
+backend = "aqua:pypa/pipx"
+"platforms.linux-arm64" = { checksum = "sha256:b9eabd835dffe0677e36bd99416fc9837c592bd8c079235379bed3dfe043c601", url = "https://github.com/pypa/pipx/releases/download/1.8.0/pipx.pyz"}
+"platforms.linux-x64" = { checksum = "sha256:b9eabd835dffe0677e36bd99416fc9837c592bd8c079235379bed3dfe043c601", url = "https://github.com/pypa/pipx/releases/download/1.8.0/pipx.pyz"}
+"platforms.macos-arm64" = { checksum = "sha256:b9eabd835dffe0677e36bd99416fc9837c592bd8c079235379bed3dfe043c601", url = "https://github.com/pypa/pipx/releases/download/1.8.0/pipx.pyz"}
+"platforms.macos-x64" = { checksum = "sha256:b9eabd835dffe0677e36bd99416fc9837c592bd8c079235379bed3dfe043c601", url = "https://github.com/pypa/pipx/releases/download/1.8.0/pipx.pyz"}
+
+[[tools.shellcheck]]
+version = "0.11.0"
+backend = "aqua:koalaman/shellcheck"
+"platforms.linux-arm64" = { checksum = "sha256:12b331c1d2db6b9eb13cfca64306b1b157a86eb69db83023e261eaa7e7c14588", url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.aarch64.tar.xz"}
+"platforms.linux-x64" = { checksum = "sha256:8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198", url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz"}
+"platforms.macos-arm64" = { checksum = "sha256:56affdd8de5527894dca6dc3d7e0a99a873b0f004d7aabc30ae407d3f48b0a79", url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.aarch64.tar.xz"}
+"platforms.macos-x64" = { checksum = "sha256:3c89db4edcab7cf1c27bff178882e0f6f27f7afdf54e859fa041fca10febe4c6", url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.x86_64.tar.xz"}
+"platforms.windows-x64" = { checksum = "sha256:8a4e35ab0b331c85d73567b12f2a444df187f483e5079ceffa6bda1faa2e740e", url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.zip"}
+
+[[tools.trivy]]
+version = "0.68.1"
+backend = "aqua:aquasecurity/trivy"
+"platforms.linux-arm64" = { checksum = "sha256:b29ea550f573afbcae3c86fb2b5e0ebba76b7cb0965e3787c4e8cb884d2c1d57", url = "https://github.com/aquasecurity/trivy/releases/download/v0.68.1/trivy_0.68.1_Linux-ARM64.tar.gz"}
+"platforms.linux-x64" = { checksum = "sha256:63e37242088e418651931f891963c19554faa19f0591fe6b40b606152051df2f", url = "https://github.com/aquasecurity/trivy/releases/download/v0.68.1/trivy_0.68.1_Linux-64bit.tar.gz"}
+"platforms.macos-arm64" = { checksum = "sha256:4dd3d2e74e1b6f6f7fd5fbf55489727698f586d6a6a0cff3421031a05b80bcac", url = "https://github.com/aquasecurity/trivy/releases/download/v0.68.1/trivy_0.68.1_macOS-ARM64.tar.gz"}
+"platforms.macos-x64" = { checksum = "sha256:d5b5bd3b3c3626d223c3981cc40f4709f00a6327a681b588d2fc64a3aa9d02c5", url = "https://github.com/aquasecurity/trivy/releases/download/v0.68.1/trivy_0.68.1_macOS-64bit.tar.gz"}
+"platforms.windows-x64" = { checksum = "sha256:600fc65bdb486e160efeedf8fff8ef6be8e9d2e82f2ea4db82ad23263ed5f902", url = "https://github.com/aquasecurity/trivy/releases/download/v0.68.1/trivy_0.68.1_windows-64bit.zip"}
+
+[[tools.yamllint]]
+version = "1.37.1"
+backend = "pipx:yamllint"
