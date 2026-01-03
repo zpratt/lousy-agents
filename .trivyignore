@@ -1,0 +1,11 @@
+# Trivy ignore file
+# Add CVE IDs or package names to ignore
+
+# Ignore test/dev dependencies
+node_modules/
+.venv/
+venv/
+
+# Ignore build artifacts
+dist/
+build/

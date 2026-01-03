@@ -11,6 +11,7 @@ rules:
   line-length:
     max: 120
     level: warning
+
   document-start: disable
   truthy: disable
   comments:

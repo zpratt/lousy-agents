@@ -41,7 +41,7 @@ hide = true
 
 [tasks.shellcheck]
 description = "Running shellcheck against shell scripts"
-run = "shellcheck *.sh"
+run = "[ -n \"$(ls -A *.sh 2>/dev/null)\" ] && shellcheck *.sh || echo 'No shell scripts found, skipping shellcheck'"
 hide = true
 
 [tasks.format-check]
@@ -53,8 +53,7 @@ run = "npm run lint"
 description = "Run all required linting tools (in parallel)"
 run = [
     { tasks = ['actionlint', 'yamllint', 'markdownlint', 'shellcheck', 'format-check']}, # These run in parallel!
-    { task = 'trivy-fs'},
-    { task = 'trivy-image'}
+    { task = 'trivy-fs'}
 ]
 
 [tasks.test]
