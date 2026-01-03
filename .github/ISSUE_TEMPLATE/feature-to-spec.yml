@@ -1,0 +1,40 @@
+name: Copilot Feature To Spec
+description: Create a detailed spec for the Copilot coding agent to implement.
+title: "[Spec]: "
+labels: ["copilot-ready", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Copilot Specification
+        Please fill out the details below. This structure is designed to be parsed by the Copilot Agent.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context & Goal
+      description: What is the high-level goal? What part of the codebase does this affect?
+      placeholder: "e.g., We need to add a rate-limiting middleware to the API gateway..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: How will we verify this is done?
+      placeholder: "e.g., I run `node dist/index.js init`. I see a .github directory with ..."
+    validations:
+      required: true
+
+  # ---------------------------------------------------------
+  # This section triggers the GitHub Script integration
+  # ---------------------------------------------------------
+  - type: textarea
+    id: agent-instructions
+    attributes:
+      label: Extra Instructions
+      description: (Optional) Any specific prompt engineering for the agent? This will be posted as a comment to guide the bot.
+      placeholder: "Create your final output in the .github/specs/ directory."
+    validations:
+      required: false
