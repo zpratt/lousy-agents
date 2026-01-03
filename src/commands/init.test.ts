@@ -3,14 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { initCommand } from "./init.js";
+import { initCommand, PROJECT_TYPE_OPTIONS } from "./init.js";
 
 const chance = new Chance();
 
 describe("Init command", () => {
     describe("when prompting for project type", () => {
         let mockPrompt: ReturnType<typeof vi.fn>;
-        const projectTypeOptions = ["CLI", "webapp", "REST API", "GraphQL API"];
 
         beforeEach(() => {
             mockPrompt = vi.fn().mockResolvedValue("CLI");
@@ -53,7 +52,7 @@ describe("Init command", () => {
             expect(mockPrompt).toHaveBeenCalledWith(
                 expect.any(String),
                 expect.objectContaining({
-                    options: projectTypeOptions,
+                    options: PROJECT_TYPE_OPTIONS,
                 }),
             );
         });

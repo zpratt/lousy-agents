@@ -6,7 +6,7 @@ import { consola } from "consola";
 import { z } from "zod";
 
 const ProjectTypeSchema = z.enum(["CLI", "webapp", "REST API", "GraphQL API"]);
-const PROJECT_TYPE_OPTIONS = ProjectTypeSchema.options;
+export const PROJECT_TYPE_OPTIONS = ProjectTypeSchema.options;
 
 const CLI_INSTRUCTIONS_TEMPLATE = `# Copilot Instructions for CLI Projects
 
