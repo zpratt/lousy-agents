@@ -44,7 +44,7 @@ jobs:
 
       - name: Verify development environment
         run: |
-          echo "=== Python Environment ==="
+          echo "=== Node Environment ==="
           node --version
           npm --version
 
