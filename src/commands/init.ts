@@ -1,15 +1,55 @@
+import { access, mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { defineCommand } from "citty";
 import { consola } from "consola";
 
 type ProjectType = "CLI" | "webapp" | "REST API" | "GraphQL API";
+
+const CLI_INSTRUCTIONS_TEMPLATE = `# CLI Project Instructions
+
+This is a CLI project initialized with lousy-agents.
+
+## Getting Started
+
+Follow the instructions in this directory to configure your CLI project.
+`;
+
+async function fileExists(path: string): Promise<boolean> {
+    try {
+        await access(path);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+async function createCliScaffolding(targetDir: string): Promise<void> {
+    const githubDir = join(targetDir, ".github");
+    const instructionsDir = join(githubDir, "instructions");
+    const copilotInstructionsFile = join(githubDir, "copilot-instructions.md");
+
+    // Create .github/instructions directory if it doesn't exist
+    if (!(await fileExists(instructionsDir))) {
+        await mkdir(instructionsDir, { recursive: true });
+    }
+
+    // Create .github/copilot-instructions.md file if it doesn't exist
+    if (!(await fileExists(copilotInstructionsFile))) {
+        await writeFile(copilotInstructionsFile, CLI_INSTRUCTIONS_TEMPLATE);
+    }
+}
 
 export const initCommand = defineCommand({
     meta: {
         name: "init",
         description: "Initialize a new project with lousy agents scaffolding",
     },
-    run: async (context?: { prompt?: typeof consola.prompt }) => {
+    run: async (context?: {
+        prompt?: typeof consola.prompt;
+        targetDir?: string;
+    }) => {
         const promptFn = context?.prompt || consola.prompt;
+        const targetDir = context?.targetDir || process.cwd();
 
         const projectType = await promptFn<{
             type: "select";
@@ -20,5 +60,9 @@ export const initCommand = defineCommand({
         });
 
         console.log(`Selected project type: ${projectType}`);
+
+        if (projectType === "CLI") {
+            await createCliScaffolding(targetDir);
+        }
     },
 });
