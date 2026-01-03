@@ -142,11 +142,15 @@ export const initCommand = defineCommand({
     },
     run: async (context: CommandContext) => {
         // Support dependency injection for testing via context.data
+        // Runtime checks for type safety
         const targetDir =
-            (context.data?.targetDir as string | undefined) || process.cwd();
+            typeof context.data?.targetDir === "string"
+                ? context.data.targetDir
+                : process.cwd();
         const promptFn =
-            (context.data?.prompt as typeof consola.prompt | undefined) ||
-            consola.prompt.bind(consola);
+            typeof context.data?.prompt === "function"
+                ? context.data.prompt
+                : consola.prompt.bind(consola);
 
         const rawProjectType = await promptFn(
             "What type of project are you initializing?",
