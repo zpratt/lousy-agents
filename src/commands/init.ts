@@ -1,5 +1,6 @@
 import { access, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
 
@@ -39,17 +40,31 @@ async function createCliScaffolding(targetDir: string): Promise<void> {
     }
 }
 
+// Allow for dependency injection for testing
+let _promptOverride: typeof consola.prompt | undefined;
+let _targetDir: string | undefined;
+
+export function _setTestDependencies(deps: {
+    prompt?: typeof consola.prompt;
+    targetDir?: string;
+}): void {
+    _promptOverride = deps.prompt;
+    _targetDir = deps.targetDir;
+}
+
+export function _resetTestDependencies(): void {
+    _promptOverride = undefined;
+    _targetDir = undefined;
+}
+
 export const initCommand = defineCommand({
     meta: {
         name: "init",
         description: "Initialize a new project with lousy agents scaffolding",
     },
-    run: async (context?: {
-        prompt?: typeof consola.prompt;
-        targetDir?: string;
-    }) => {
-        const promptFn = context?.prompt || consola.prompt;
-        const targetDir = context?.targetDir || process.cwd();
+    run: async (_context: CommandContext) => {
+        const targetDir = _targetDir || process.cwd();
+        const promptFn = _promptOverride || consola.prompt.bind(consola);
 
         const projectType = await promptFn<{
             type: "select";

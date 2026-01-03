@@ -2,7 +2,11 @@ import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { initCommand } from "./init.js";
+import {
+    _resetTestDependencies,
+    _setTestDependencies,
+    initCommand,
+} from "./init.js";
 
 describe("Init command", () => {
     describe("when prompting for project type", () => {
@@ -10,13 +14,22 @@ describe("Init command", () => {
 
         beforeEach(() => {
             mockPrompt = vi.fn().mockResolvedValue("CLI");
+            _setTestDependencies({ prompt: mockPrompt });
+        });
+
+        afterEach(() => {
+            _resetTestDependencies();
         });
 
         it("should display a prompt asking what type of project is being initialized", async () => {
             // Arrange - done in beforeEach
 
             // Act
-            await initCommand.run({ prompt: mockPrompt });
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+            });
 
             // Assert
             expect(mockPrompt).toHaveBeenCalledWith(
@@ -31,7 +44,11 @@ describe("Init command", () => {
             // Arrange - done in beforeEach
 
             // Act
-            await initCommand.run({ prompt: mockPrompt });
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+            });
 
             // Assert
             expect(mockPrompt).toHaveBeenCalledWith(
@@ -48,7 +65,11 @@ describe("Init command", () => {
             mockPrompt.mockResolvedValue(expectedSelection);
 
             // Act
-            await initCommand.run({ prompt: mockPrompt });
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+            });
 
             // Assert
             expect(mockPrompt).toHaveBeenCalled();
@@ -63,9 +84,11 @@ describe("Init command", () => {
             mockPrompt = vi.fn().mockResolvedValue("CLI");
             testDir = join(tmpdir(), `lousy-agents-test-${Date.now()}`);
             await mkdir(testDir, { recursive: true });
+            _setTestDependencies({ prompt: mockPrompt, targetDir: testDir });
         });
 
         afterEach(async () => {
+            _resetTestDependencies();
             await rm(testDir, { recursive: true, force: true });
         });
 
@@ -75,8 +98,9 @@ describe("Init command", () => {
 
             // Act
             await initCommand.run({
-                prompt: mockPrompt,
-                targetDir: testDir,
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
             });
 
             // Assert
@@ -93,8 +117,9 @@ describe("Init command", () => {
 
             // Act
             await initCommand.run({
-                prompt: mockPrompt,
-                targetDir: testDir,
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
             });
 
             // Assert
@@ -114,8 +139,9 @@ describe("Init command", () => {
 
             // Act
             await initCommand.run({
-                prompt: mockPrompt,
-                targetDir: testDir,
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
             });
 
             // Assert
@@ -137,8 +163,9 @@ describe("Init command", () => {
 
             // Act
             await initCommand.run({
-                prompt: mockPrompt,
-                targetDir: testDir,
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
             });
 
             // Assert
