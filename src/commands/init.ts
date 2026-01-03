@@ -36,7 +36,11 @@ async function createCliScaffolding(targetDir: string): Promise<void> {
 
     // Create .github/copilot-instructions.md file if it doesn't exist
     if (!(await fileExists(copilotInstructionsFile))) {
-        await writeFile(copilotInstructionsFile, CLI_INSTRUCTIONS_TEMPLATE);
+        await writeFile(
+            copilotInstructionsFile,
+            CLI_INSTRUCTIONS_TEMPLATE,
+            "utf-8",
+        );
     }
 }
 
@@ -66,15 +70,15 @@ export const initCommand = defineCommand({
         const targetDir = _targetDir || process.cwd();
         const promptFn = _promptOverride || consola.prompt.bind(consola);
 
-        const projectType = await promptFn<{
-            type: "select";
-            options: ProjectType[];
-        }>("What type of project are you initializing?", {
-            type: "select",
-            options: ["CLI", "webapp", "REST API", "GraphQL API"],
-        });
+        const projectType = (await promptFn(
+            "What type of project are you initializing?",
+            {
+                type: "select",
+                options: ["CLI", "webapp", "REST API", "GraphQL API"],
+            },
+        )) as ProjectType;
 
-        console.log(`Selected project type: ${projectType}`);
+        consola.success(`Selected project type: ${projectType}`);
 
         if (projectType === "CLI") {
             await createCliScaffolding(targetDir);
