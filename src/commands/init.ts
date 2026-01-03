@@ -6,6 +6,7 @@ import { consola } from "consola";
 import { z } from "zod";
 
 const ProjectTypeSchema = z.enum(["CLI", "webapp", "REST API", "GraphQL API"]);
+const PROJECT_TYPE_OPTIONS = ProjectTypeSchema.options;
 
 const CLI_INSTRUCTIONS_TEMPLATE = `# Copilot Instructions for CLI Projects
 
@@ -94,6 +95,10 @@ async function fileExists(path: string): Promise<boolean> {
     }
 }
 
+function formatErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
 async function createCliScaffolding(targetDir: string): Promise<void> {
     const githubDir = join(targetDir, ".github");
     const instructionsDir = join(githubDir, "instructions");
@@ -105,10 +110,8 @@ async function createCliScaffolding(targetDir: string): Promise<void> {
             await mkdir(instructionsDir, { recursive: true });
             consola.success(`Created directory: ${instructionsDir}`);
         } catch (error) {
-            const errorMessage =
-                error instanceof Error ? error.message : String(error);
             consola.error(
-                `Failed to create instructions directory at "${instructionsDir}": ${errorMessage}`,
+                `Failed to create instructions directory at "${instructionsDir}": ${formatErrorMessage(error)}`,
             );
             throw error;
         }
@@ -124,10 +127,8 @@ async function createCliScaffolding(targetDir: string): Promise<void> {
             );
             consola.success(`Created file: ${copilotInstructionsFile}`);
         } catch (error) {
-            const errorMessage =
-                error instanceof Error ? error.message : String(error);
             consola.error(
-                `Failed to create Copilot instructions file at "${copilotInstructionsFile}": ${errorMessage}`,
+                `Failed to create Copilot instructions file at "${copilotInstructionsFile}": ${formatErrorMessage(error)}`,
             );
             throw error;
         }
@@ -151,14 +152,14 @@ export const initCommand = defineCommand({
             "What type of project are you initializing?",
             {
                 type: "select",
-                options: ["CLI", "webapp", "REST API", "GraphQL API"],
+                options: PROJECT_TYPE_OPTIONS,
             },
         );
 
         // Validate the user input at runtime
         const parseResult = ProjectTypeSchema.safeParse(rawProjectType);
         if (!parseResult.success) {
-            const validOptions = ProjectTypeSchema.options.join(", ");
+            const validOptions = PROJECT_TYPE_OPTIONS.join(", ");
             consola.error(
                 `Invalid project type selected: ${String(rawProjectType)}. Valid options are: ${validOptions}`,
             );
