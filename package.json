@@ -1,0 +1,31 @@
+{
+    "name": "lousy-agents",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "bin": {
+        "lousy-agents": "./dist/index.js"
+    },
+    "scripts": {
+        "dev": "tsx src/index.ts",
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "test": "vitest run",
+        "lint": "biome check .",
+        "lint:fix": "biome check --write .",
+        "lint:workflows": "actionlint",
+        "lint:yaml": "yamllint ."
+    },
+    "dependencies": {
+        "c12": "3.3.3",
+        "citty": "0.1.6"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "2.3.11",
+        "@types/node": "24.10.4",
+        "tsx": "4.21.0",
+        "typescript": "5.9.3",
+        "vitest": "4.0.16",
+        "whatwg-fetch": "3.6.20"
+    }
+}
