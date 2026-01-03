@@ -54,6 +54,69 @@ describe('ComponentName', () => {
 13. Test unhappy paths and edge cases, not just happy paths.
 14. Every assertion should explain the expected behavior.
 15. Write tests that would FAIL if production code regressed.
+16. **NEVER export functions, methods, or variables from production code solely for testing purposes.**
+17. **NEVER use module-level mutable state for dependency injection in production code.**
+
+## Dependency Injection for Testing
+
+When you need to inject dependencies for testing:
+
+- **DO** use constructor parameters, function parameters, or framework-provided mechanisms (e.g., context objects).
+- **DO** pass test doubles through the existing public API of the code under test.
+- **DO NOT** export special test-only functions like `_setTestDependencies()` or `_resetTestDependencies()`.
+- **DO NOT** modify module-level state from tests.
+
+### Good Example (Dependency Injection via Parameters)
+
+```typescript
+// Production code
+export const initCommand = defineCommand({
+  run: async (context: CommandContext) => {
+    const prompt = context.data?.prompt || consola.prompt;
+    const result = await prompt("What is your name?");
+    // ... use result
+  },
+});
+
+// Test code
+it("should prompt the user", async () => {
+  const mockPrompt = vi.fn().mockResolvedValue("John");
+  
+  await initCommand.run({
+    rawArgs: [],
+    args: { _: [] },
+    cmd: initCommand,
+    data: { prompt: mockPrompt },
+  });
+  
+  expect(mockPrompt).toHaveBeenCalledWith("What is your name?");
+});
+```
+
+### Bad Example (Test-Only Exports)
+
+```typescript
+// ❌ BAD: Production code
+let _promptOverride: any;
+
+export function _setTestDependencies(deps: any) {
+  _promptOverride = deps.prompt;
+}
+
+export const initCommand = defineCommand({
+  run: async () => {
+    const prompt = _promptOverride || consola.prompt;
+    // ...
+  },
+});
+
+// ❌ BAD: Test code
+import { _setTestDependencies, initCommand } from "./init.js";
+
+beforeEach(() => {
+  _setTestDependencies({ prompt: mockPrompt });
+});
+```
 
 ## Dependencies
 

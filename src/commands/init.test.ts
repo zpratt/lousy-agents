@@ -1,39 +1,37 @@
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-    _resetTestDependencies,
-    _setTestDependencies,
-    initCommand,
-} from "./init.js";
+import { initCommand } from "./init.js";
+
+const chance = new Chance();
 
 describe("Init command", () => {
     describe("when prompting for project type", () => {
         let mockPrompt: ReturnType<typeof vi.fn>;
+        const projectTypeOptions = ["CLI", "webapp", "REST API", "GraphQL API"];
 
         beforeEach(() => {
             mockPrompt = vi.fn().mockResolvedValue("CLI");
-            _setTestDependencies({ prompt: mockPrompt });
-        });
-
-        afterEach(() => {
-            _resetTestDependencies();
         });
 
         it("should display a prompt asking what type of project is being initialized", async () => {
-            // Arrange - done in beforeEach
+            // Arrange
+            const expectedMessage =
+                "What type of project are you initializing?";
 
             // Act
             await initCommand.run({
                 rawArgs: [],
                 args: { _: [] },
                 cmd: initCommand,
+                data: { prompt: mockPrompt },
             });
 
             // Assert
             expect(mockPrompt).toHaveBeenCalledWith(
-                "What type of project are you initializing?",
+                expectedMessage,
                 expect.objectContaining({
                     type: "select",
                 }),
@@ -48,31 +46,60 @@ describe("Init command", () => {
                 rawArgs: [],
                 args: { _: [] },
                 cmd: initCommand,
+                data: { prompt: mockPrompt },
             });
 
             // Assert
             expect(mockPrompt).toHaveBeenCalledWith(
                 expect.any(String),
                 expect.objectContaining({
-                    options: ["CLI", "webapp", "REST API", "GraphQL API"],
+                    options: projectTypeOptions,
                 }),
             );
         });
 
-        it("should capture the user selection", async () => {
+        it("should validate and use the selected project type when CLI is chosen", async () => {
             // Arrange
-            const expectedSelection = "CLI";
-            mockPrompt.mockResolvedValue(expectedSelection);
+            const selectedType = "CLI";
+            mockPrompt.mockResolvedValue(selectedType);
+            const testDir = join(tmpdir(), `test-${chance.guid()}`);
+            await mkdir(testDir, { recursive: true });
 
-            // Act
-            await initCommand.run({
-                rawArgs: [],
-                args: { _: [] },
-                cmd: initCommand,
-            });
+            try {
+                // Act
+                await initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                });
 
-            // Assert
-            expect(mockPrompt).toHaveBeenCalled();
+                // Assert - verify scaffolding was created for CLI type
+                const instructionsDir = join(
+                    testDir,
+                    ".github",
+                    "instructions",
+                );
+                await expect(access(instructionsDir)).resolves.toBeUndefined();
+            } finally {
+                await rm(testDir, { recursive: true, force: true });
+            }
+        });
+
+        it("should reject invalid project type selections", async () => {
+            // Arrange
+            const invalidType = chance.word();
+            mockPrompt.mockResolvedValue(invalidType);
+
+            // Act & Assert
+            await expect(
+                initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt },
+                }),
+            ).rejects.toThrow("Invalid project type");
         });
     });
 
@@ -82,13 +109,11 @@ describe("Init command", () => {
 
         beforeEach(async () => {
             mockPrompt = vi.fn().mockResolvedValue("CLI");
-            testDir = join(tmpdir(), `lousy-agents-test-${Date.now()}`);
+            testDir = join(tmpdir(), `test-${chance.guid()}`);
             await mkdir(testDir, { recursive: true });
-            _setTestDependencies({ prompt: mockPrompt, targetDir: testDir });
         });
 
         afterEach(async () => {
-            _resetTestDependencies();
             await rm(testDir, { recursive: true, force: true });
         });
 
@@ -101,6 +126,7 @@ describe("Init command", () => {
                 rawArgs: [],
                 args: { _: [] },
                 cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
             });
 
             // Assert
@@ -120,6 +146,7 @@ describe("Init command", () => {
                 rawArgs: [],
                 args: { _: [] },
                 cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
             });
 
             // Assert
@@ -128,25 +155,28 @@ describe("Init command", () => {
             ).resolves.toBeUndefined();
             const content = await readFile(copilotInstructionsFile, "utf-8");
             expect(content.length).toBeGreaterThan(0);
+            expect(content).toContain("CLI project");
         });
 
         it("should preserve existing .github/instructions directory", async () => {
             // Arrange
             const instructionsDir = join(testDir, ".github", "instructions");
             const existingFile = join(instructionsDir, "existing.md");
+            const existingContent = chance.paragraph();
             await mkdir(instructionsDir, { recursive: true });
-            await writeFile(existingFile, "existing content");
+            await writeFile(existingFile, existingContent);
 
             // Act
             await initCommand.run({
                 rawArgs: [],
                 args: { _: [] },
                 cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
             });
 
             // Assert
             const content = await readFile(existingFile, "utf-8");
-            expect(content).toBe("existing content");
+            expect(content).toBe(existingContent);
         });
 
         it("should preserve existing .github/copilot-instructions.md file", async () => {
@@ -156,8 +186,7 @@ describe("Init command", () => {
                 githubDir,
                 "copilot-instructions.md",
             );
-            const existingContent =
-                "# Existing Instructions\n\nDo not modify this.";
+            const existingContent = `# ${chance.sentence()}\n\n${chance.paragraph()}`;
             await mkdir(githubDir, { recursive: true });
             await writeFile(copilotInstructionsFile, existingContent);
 
@@ -166,11 +195,81 @@ describe("Init command", () => {
                 rawArgs: [],
                 args: { _: [] },
                 cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
             });
 
             // Assert
             const content = await readFile(copilotInstructionsFile, "utf-8");
             expect(content).toBe(existingContent);
+        });
+    });
+
+    describe("when non-CLI project types are selected", () => {
+        let mockPrompt: ReturnType<typeof vi.fn>;
+        let testDir: string;
+
+        beforeEach(async () => {
+            testDir = join(tmpdir(), `test-${chance.guid()}`);
+            await mkdir(testDir, { recursive: true });
+        });
+
+        afterEach(async () => {
+            await rm(testDir, { recursive: true, force: true });
+        });
+
+        it("should not create CLI scaffolding when webapp is selected", async () => {
+            // Arrange
+            mockPrompt = vi.fn().mockResolvedValue("webapp");
+            const instructionsDir = join(testDir, ".github", "instructions");
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            await expect(access(instructionsDir)).rejects.toThrow();
+        });
+
+        it("should not create CLI scaffolding when REST API is selected", async () => {
+            // Arrange
+            mockPrompt = vi.fn().mockResolvedValue("REST API");
+            const copilotInstructionsFile = join(
+                testDir,
+                ".github",
+                "copilot-instructions.md",
+            );
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            await expect(access(copilotInstructionsFile)).rejects.toThrow();
+        });
+
+        it("should not create CLI scaffolding when GraphQL API is selected", async () => {
+            // Arrange
+            mockPrompt = vi.fn().mockResolvedValue("GraphQL API");
+            const githubDir = join(testDir, ".github");
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            await expect(access(githubDir)).rejects.toThrow();
         });
     });
 });
