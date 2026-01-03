@@ -8,31 +8,36 @@ applyTo: "**"
 
 ## Commands
 
-Run `nvm use` before any npm command. During development, use file-scoped commands for faster feedback, and run the full validation suite (`npx biome check && npm test && npm run build`) before commits.
+Mise manages all tools and Node versions. If you haven't activated mise in your shell, run `mise activate` once or prefix commands with `mise exec --`. During development, use file-scoped commands for faster feedback, and run the full validation suite (`mise run ci && npm run build`) before commits.
 
 ```bash
-# ALWAYS run first
-nvm use
+# One-time shell setup (or add to ~/.zshrc)
+eval "$(mise activate zsh)"
 
 # Core commands
-npm install              # Install deps (updates package-lock.json)
-npm test                 # Run tests (vitest)
+mise run test            # Run tests (vitest)
 npm run build            # Production build
-npx biome check          # Lint check
-npx biome check --write  # Auto-fix lint/format
+mise run format-check    # Lint check
+mise run format-fix      # Auto-fix lint/format
 
 # File-scoped (faster feedback)
 npx biome check path/to/file.ts
 npm test path/to/file.test.ts
 
 # Validation suite (run before commits)
-npx biome check && npm test && npm run build
+mise run ci && npm run build
+
+# Linting tasks
+mise run actionlint      # Validate GitHub Actions (actionlint)
+mise run yamllint        # Validate YAML (yamllint)
+mise run lint            # Run all linting tools in parallel
 
 # Other
 npm audit                # Security check
-npm run lint:workflows   # Validate GitHub Actions (actionlint)
-npm run lint:yaml        # Validate YAML (yamllint)
+npm install              # Install deps (updates package-lock.json)
 ```
+
+**Note**: In GitHub Actions, `jdx/mise-action` automatically activates mise and makes all tools available in PATH. No additional setup needed in CI.
 
 ## Workflow: TDD Required
 
@@ -40,11 +45,11 @@ Follow this exact sequence for ALL code changes. Work in small increments — ma
 
 1. **Research**: Search codebase for existing patterns, components, utilities. Use Context7 MCP tools for library/API documentation.
 2. **Write failing test**: Create test describing desired behavior
-3. **Verify failure**: Run `npm test` — confirm clear failure message
+3. **Verify failure**: Run `mise run test` — confirm clear failure message
 4. **Implement minimal code**: Write just enough to pass
-5. **Verify pass**: Run `npm test` — confirm pass
+5. **Verify pass**: Run `mise run test` — confirm pass
 6. **Refactor**: Clean up, remove duplication, keep tests green
-7. **Validate**: `npx biome check && npm test && npm run build`
+7. **Validate**: `mise run ci && npm run build`
 
 Task is NOT complete until all validation passes.
 
@@ -256,7 +261,6 @@ describe('fetchUserById', () => {
 ## Boundaries
 
 **✅ Always do:**
-- Run `nvm use` before any npm command
 - Write tests before implementation (TDD)
 - Run lint and tests after every change
 - Run full validation before commits
