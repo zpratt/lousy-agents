@@ -153,8 +153,7 @@ describe("Init command", () => {
                 access(copilotInstructionsFile),
             ).resolves.toBeUndefined();
             const content = await readFile(copilotInstructionsFile, "utf-8");
-            expect(content.length).toBeGreaterThan(0);
-            expect(content).toContain("CLI project");
+            expect(content).toBe("");
         });
 
         it("should preserve existing .github/instructions directory", async () => {
