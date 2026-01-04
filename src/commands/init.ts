@@ -1,13 +1,9 @@
-import { join } from "node:path";
 import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
 import { z } from "zod";
 import { getProjectStructure } from "../lib/config.js";
-import {
-    createFilesystemStructure,
-    fileExists,
-} from "../lib/filesystem-structure.js";
+import { createFilesystemStructure } from "../lib/filesystem-structure.js";
 
 const ProjectTypeSchema = z.enum(["CLI", "webapp", "REST API", "GraphQL API"]);
 export const PROJECT_TYPE_OPTIONS = ProjectTypeSchema.options;
@@ -26,25 +22,7 @@ async function createCliScaffolding(targetDir: string): Promise<void> {
             return;
         }
 
-        // Check which nodes don't exist before creating
-        const nodesToCreate = [];
-        for (const node of cliStructure.nodes) {
-            const fullPath = join(targetDir, node.path);
-            if (!(await fileExists(fullPath))) {
-                nodesToCreate.push(node);
-            }
-        }
-
         await createFilesystemStructure(cliStructure, targetDir);
-
-        // Report success only for nodes that were created
-        for (const node of nodesToCreate) {
-            if (node.type === "directory") {
-                consola.success(`Created directory: ${targetDir}/${node.path}`);
-            } else if (node.type === "file") {
-                consola.success(`Created file: ${targetDir}/${node.path}`);
-            }
-        }
     } catch (error) {
         consola.error(
             `Failed to create CLI scaffolding: ${formatErrorMessage(error)}`,
@@ -65,25 +43,7 @@ async function createWebappScaffolding(targetDir: string): Promise<void> {
             return;
         }
 
-        // Check which nodes don't exist before creating
-        const nodesToCreate = [];
-        for (const node of webappStructure.nodes) {
-            const fullPath = join(targetDir, node.path);
-            if (!(await fileExists(fullPath))) {
-                nodesToCreate.push(node);
-            }
-        }
-
         await createFilesystemStructure(webappStructure, targetDir);
-
-        // Report success only for nodes that were created
-        for (const node of nodesToCreate) {
-            if (node.type === "directory") {
-                consola.success(`Created directory: ${targetDir}/${node.path}`);
-            } else if (node.type === "file") {
-                consola.success(`Created file: ${targetDir}/${node.path}`);
-            }
-        }
     } catch (error) {
         consola.error(
             `Failed to create webapp scaffolding: ${formatErrorMessage(error)}`,
