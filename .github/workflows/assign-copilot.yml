@@ -11,43 +11,42 @@ permissions:
 jobs:
   assign-agent:
     runs-on: ubuntu-latest
-    # Safety check
-    if: contains(github.event.issue.labels.*.name, 'copilot-ready')
     steps:
       - name: Assign and Instruct Copilot
-        uses: actions/github-script@v7
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
         with:
           script: |
             const issue = context.payload.issue;
 
-            try {
-              await github.rest.issues.addAssignees({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issue.number,
-                assignees: ['Copilot']
-              });
-              console.log("Successfully assigned Copilot.");
-            } catch (error) {
-              // Error assigning Copilot (it might already be assigned)
-              console.log("Error: " + error);
+            // Check if issue has the copilot-ready label
+            const hasCopilotLabel = issue.labels.some(label => label.name === 'copilot-ready');
+
+            if (!hasCopilotLabel) {
+              console.log("Issue does not have 'copilot-ready' label. Skipping.");
+              return;
             }
 
             const body = issue.body || "";
             const pattern = /### Extra Instructions\s+([\s\S]*?)(?=\n###|$)/;
             const match = body.match(pattern);
 
+            // Always mention @copilot to trigger assignment and provide context
+            let comment = "@copilot";
+
             if (match && match[1].trim().length > 0) {
               const instructions = match[1].trim();
-              const comment = `@copilot ${instructions}`;
-
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issue.number,
-                body: comment
-              });
-              console.log("Posted instructions to issue.");
+              comment = `@copilot ${instructions}`;
+              console.log("Found extra instructions, mentioning Copilot with instructions.");
             } else {
-              console.log("No instructions found.");
+              comment = "@copilot Please work on this issue according to the specification provided.";
+              console.log("No extra instructions found, mentioning Copilot with default message.");
             }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: comment
+            });
+
+            console.log("Successfully mentioned Copilot in issue comment.");

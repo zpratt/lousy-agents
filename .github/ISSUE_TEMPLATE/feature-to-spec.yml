@@ -36,15 +36,16 @@ body:
   # ---------------------------------------------------------
   # This section triggers the GitHub Script integration
   # ---------------------------------------------------------
-  - type: textarea
+  - type: markdown
     id: agent-instructions
     attributes:
       label: Extra Instructions
       description: |
-        Optional: Specific prompt engineering for the agent.
+        Specific prompt engineering for the agent.
         This will be posted as a comment to guide the bot.
-      placeholder: |
-        Create your final output in the .github/specs directory and ensure requirements are captured in the EARS format.
-        Review ./instructions/spec.instructions.md for more details and use this as your guide.
+      value: |
+        1. Review ./instructions/spec.instructions.md for more details and use this as your guide.
+        1. Create your final spec output in the .github/specs directory and ensure requirements are captured in the EARS format.
+        1. If you need to make assumptions, ask questions on the issue.
     validations:
       required: false
