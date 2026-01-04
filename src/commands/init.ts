@@ -53,6 +53,45 @@ async function createCliScaffolding(targetDir: string): Promise<void> {
     }
 }
 
+async function createWebappScaffolding(targetDir: string): Promise<void> {
+    try {
+        // Load the webapp structure from configuration
+        const webappStructure = await getProjectStructure("webapp");
+
+        if (!webappStructure) {
+            consola.warn(
+                "No webapp project structure defined in configuration",
+            );
+            return;
+        }
+
+        // Check which nodes don't exist before creating
+        const nodesToCreate = [];
+        for (const node of webappStructure.nodes) {
+            const fullPath = join(targetDir, node.path);
+            if (!(await fileExists(fullPath))) {
+                nodesToCreate.push(node);
+            }
+        }
+
+        await createFilesystemStructure(webappStructure, targetDir);
+
+        // Report success only for nodes that were created
+        for (const node of nodesToCreate) {
+            if (node.type === "directory") {
+                consola.success(`Created directory: ${targetDir}/${node.path}`);
+            } else if (node.type === "file") {
+                consola.success(`Created file: ${targetDir}/${node.path}`);
+            }
+        }
+    } catch (error) {
+        consola.error(
+            `Failed to create webapp scaffolding: ${formatErrorMessage(error)}`,
+        );
+        throw error;
+    }
+}
+
 export const initCommand = defineCommand({
     meta: {
         name: "init",
@@ -97,6 +136,11 @@ export const initCommand = defineCommand({
             await createCliScaffolding(targetDir);
             consola.info(
                 "CLI project scaffolding complete. Check the .github directory for instructions.",
+            );
+        } else if (projectType === "webapp") {
+            await createWebappScaffolding(targetDir);
+            consola.info(
+                "Webapp project scaffolding complete. Run 'npm install' to install dependencies.",
             );
         } else {
             consola.info(

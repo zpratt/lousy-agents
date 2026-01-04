@@ -202,11 +202,12 @@ describe("Init command", () => {
         });
     });
 
-    describe("when non-CLI project types are selected", () => {
+    describe("when webapp project type is selected", () => {
         let mockPrompt: ReturnType<typeof vi.fn>;
         let testDir: string;
 
         beforeEach(async () => {
+            mockPrompt = vi.fn().mockResolvedValue("webapp");
             testDir = join(tmpdir(), `test-${chance.guid()}`);
             await mkdir(testDir, { recursive: true });
         });
@@ -215,9 +216,102 @@ describe("Init command", () => {
             await rm(testDir, { recursive: true, force: true });
         });
 
-        it("should not create CLI scaffolding when webapp is selected", async () => {
+        it("should create package.json when it does not exist", async () => {
             // Arrange
-            mockPrompt = vi.fn().mockResolvedValue("webapp");
+            const packageJsonFile = join(testDir, "package.json");
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            await expect(access(packageJsonFile)).resolves.toBeUndefined();
+            const content = await readFile(packageJsonFile, "utf-8");
+            expect(content).toContain("next");
+        });
+
+        it("should create TypeScript configuration files when they do not exist", async () => {
+            // Arrange - done in beforeEach
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            const tsConfigFile = join(testDir, "tsconfig.json");
+            await expect(access(tsConfigFile)).resolves.toBeUndefined();
+            const content = await readFile(tsConfigFile, "utf-8");
+            expect(content).toContain("next-env.d.ts");
+        });
+
+        it("should create Next.js configuration when it does not exist", async () => {
+            // Arrange
+            const nextConfigFile = join(testDir, "next.config.ts");
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            await expect(access(nextConfigFile)).resolves.toBeUndefined();
+        });
+
+        it("should create Vitest configuration files when they do not exist", async () => {
+            // Arrange
+            const vitestConfigFile = join(testDir, "vitest.config.ts");
+            const vitestSetupFile = join(testDir, "vitest.setup.ts");
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            await expect(access(vitestConfigFile)).resolves.toBeUndefined();
+            await expect(access(vitestSetupFile)).resolves.toBeUndefined();
+        });
+
+        it("should create .github/copilot-instructions.md with webapp content when it does not exist", async () => {
+            // Arrange
+            const copilotInstructionsFile = join(
+                testDir,
+                ".github",
+                "copilot-instructions.md",
+            );
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            await expect(
+                access(copilotInstructionsFile),
+            ).resolves.toBeUndefined();
+            const content = await readFile(copilotInstructionsFile, "utf-8");
+            expect(content).toContain("Next.js");
+        });
+
+        it("should create .github/instructions directory with instruction files", async () => {
+            // Arrange
             const instructionsDir = join(testDir, ".github", "instructions");
 
             // Act
@@ -229,7 +323,53 @@ describe("Init command", () => {
             });
 
             // Assert
-            await expect(access(instructionsDir)).rejects.toThrow();
+            await expect(access(instructionsDir)).resolves.toBeUndefined();
+            await expect(
+                access(join(instructionsDir, "test.instructions.md")),
+            ).resolves.toBeUndefined();
+            await expect(
+                access(join(instructionsDir, "spec.instructions.md")),
+            ).resolves.toBeUndefined();
+            await expect(
+                access(join(instructionsDir, "pipeline.instructions.md")),
+            ).resolves.toBeUndefined();
+        });
+
+        it("should preserve existing package.json file", async () => {
+            // Arrange
+            const packageJsonFile = join(testDir, "package.json");
+            const existingContent = JSON.stringify(
+                { name: chance.word(), version: "1.0.0" },
+                null,
+                2,
+            );
+            await writeFile(packageJsonFile, existingContent);
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            const content = await readFile(packageJsonFile, "utf-8");
+            expect(content).toBe(existingContent);
+        });
+    });
+
+    describe("when non-CLI project types are selected", () => {
+        let mockPrompt: ReturnType<typeof vi.fn>;
+        let testDir: string;
+
+        beforeEach(async () => {
+            testDir = join(tmpdir(), `test-${chance.guid()}`);
+            await mkdir(testDir, { recursive: true });
+        });
+
+        afterEach(async () => {
+            await rm(testDir, { recursive: true, force: true });
         });
 
         it("should not create CLI scaffolding when REST API is selected", async () => {
