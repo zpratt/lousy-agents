@@ -1,9 +1,13 @@
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { access } from "node:fs/promises";
 import { join } from "node:path";
 import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
 import { z } from "zod";
+import {
+    CLI_PROJECT_STRUCTURE,
+    createFilesystemStructure,
+} from "../lib/filesystem-structure.js";
 
 const ProjectTypeSchema = z.enum(["CLI", "webapp", "REST API", "GraphQL API"]);
 export const PROJECT_TYPE_OPTIONS = ProjectTypeSchema.options;
@@ -22,34 +26,31 @@ function formatErrorMessage(error: unknown): string {
 }
 
 async function createCliScaffolding(targetDir: string): Promise<void> {
-    const githubDir = join(targetDir, ".github");
-    const instructionsDir = join(githubDir, "instructions");
-    const copilotInstructionsFile = join(githubDir, "copilot-instructions.md");
-
-    // Create .github/instructions directory if it doesn't exist
-    if (!(await fileExists(instructionsDir))) {
-        try {
-            await mkdir(instructionsDir, { recursive: true });
-            consola.success(`Created directory: ${instructionsDir}`);
-        } catch (error) {
-            consola.error(
-                `Failed to create instructions directory at "${instructionsDir}": ${formatErrorMessage(error)}`,
-            );
-            throw error;
+    try {
+        // Check which nodes don't exist before creating
+        const nodesToCreate = [];
+        for (const node of CLI_PROJECT_STRUCTURE.nodes) {
+            const fullPath = join(targetDir, node.path);
+            if (!(await fileExists(fullPath))) {
+                nodesToCreate.push(node);
+            }
         }
-    }
 
-    // Create .github/copilot-instructions.md file if it doesn't exist
-    if (!(await fileExists(copilotInstructionsFile))) {
-        try {
-            await writeFile(copilotInstructionsFile, "", "utf-8");
-            consola.success(`Created file: ${copilotInstructionsFile}`);
-        } catch (error) {
-            consola.error(
-                `Failed to create Copilot instructions file at "${copilotInstructionsFile}": ${formatErrorMessage(error)}`,
-            );
-            throw error;
+        await createFilesystemStructure(CLI_PROJECT_STRUCTURE, targetDir);
+
+        // Report success only for nodes that were created
+        for (const node of nodesToCreate) {
+            if (node.type === "directory") {
+                consola.success(`Created directory: ${targetDir}/${node.path}`);
+            } else if (node.type === "file") {
+                consola.success(`Created file: ${targetDir}/${node.path}`);
+            }
         }
+    } catch (error) {
+        consola.error(
+            `Failed to create CLI scaffolding: ${formatErrorMessage(error)}`,
+        );
+        throw error;
     }
 }
 

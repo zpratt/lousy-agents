@@ -135,6 +135,41 @@ None - this feature does not persist state beyond file system operations.
 
 ---
 
+### Task 3: Create declarative filesystem structure definition
+
+**Depends on**: Task 2
+
+**Objective**: Separate filesystem structure definition from the implementation that creates it
+
+**Context**: As more directories and files will be added to the skeleton created by `init`, we need a declarative way to define the desired filesystem structure. This allows for easier maintenance and extension without modifying the core scaffolding logic.
+
+**Affected files**:
+- `src/lib/filesystem-structure.ts` (new) — Define types and structure for declarative filesystem definitions
+- `src/commands/init.ts` — Refactor to use declarative structure
+- `src/commands/init.test.ts` — Update tests to work with new structure
+
+**Requirements**:
+- The system shall support declaratively defining a filesystem tree structure
+- The system shall support defining both directories and files within the tree
+- The system shall support defining file content (initially empty for CLI project type)
+- The structure definition shall be separate from the code that creates it
+- The implementation shall remain simple and focused on the current scope (CLI project type)
+
+**Verification**:
+- [ ] `npm test src/commands/init.test.ts` passes
+- [ ] `mise run format-check` passes
+- [ ] Test validates declarative structure is used correctly
+- [ ] Manual test: Run `npm link && lousy-agents init`, select "CLI", verify files are created
+
+**Done when**:
+- [ ] All verification steps pass
+- [ ] No new errors in affected files
+- [ ] Filesystem structure is defined declaratively
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [ ] Manual verification confirms expected behavior
+
+---
+
 ## Out of Scope
 
 - Implementation of scaffolding for "webapp", "REST API", and "GraphQL API" project types (future work)
