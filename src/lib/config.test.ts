@@ -116,6 +116,25 @@ describe("Config", () => {
             }
         });
 
+        it("should include directory nodes for .github and .github/instructions in webapp structure", async () => {
+            // Act
+            const structure = await getProjectStructure("webapp");
+
+            // Assert
+            expect(structure).toBeDefined();
+            const directoryNodes = structure?.nodes.filter(
+                (node) => node.type === "directory",
+            );
+            const githubDir = directoryNodes?.find(
+                (node) => node.path === ".github",
+            );
+            const instructionsDir = directoryNodes?.find(
+                (node) => node.path === ".github/instructions",
+            );
+            expect(githubDir).toBeDefined();
+            expect(instructionsDir).toBeDefined();
+        });
+
         it("should return webapp structure for webapp project type", async () => {
             // Act
             const structure = await getProjectStructure("webapp");
