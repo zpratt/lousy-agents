@@ -1,5 +1,6 @@
 import { access, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { consola } from "consola";
 
 /**
  * Represents a file to be created in the filesystem
@@ -58,16 +59,19 @@ export async function createFilesystemStructure(
 
         // Skip if already exists to preserve existing files/directories
         if (await fileExists(fullPath)) {
+            consola.debug(`Skipping existing: ${fullPath}`);
             continue;
         }
 
         if (node.type === "directory") {
             await mkdir(fullPath, { recursive: true });
+            consola.debug(`Created directory: ${fullPath}`);
         } else if (node.type === "file") {
             // Create parent directories if they don't exist
             const dir = dirname(fullPath);
             await mkdir(dir, { recursive: true });
             await writeFile(fullPath, node.content, "utf-8");
+            consola.debug(`Created file: ${fullPath}`);
         }
     }
 }
