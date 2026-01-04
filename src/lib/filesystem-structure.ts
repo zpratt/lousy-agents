@@ -1,5 +1,5 @@
 import { access, mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 /**
  * Represents a file to be created in the filesystem
@@ -33,7 +33,7 @@ export interface FilesystemStructure {
 /**
  * Checks if a file or directory exists
  */
-async function fileExists(path: string): Promise<boolean> {
+export async function fileExists(path: string): Promise<boolean> {
     try {
         await access(path);
         return true;
@@ -45,6 +45,7 @@ async function fileExists(path: string): Promise<boolean> {
 /**
  * Creates the filesystem structure defined by the given structure definition
  * Preserves existing files and directories without modification
+ * Automatically creates parent directories for files
  * @param structure The declarative filesystem structure to create
  * @param targetDir The base directory where the structure should be created
  */
@@ -63,24 +64,10 @@ export async function createFilesystemStructure(
         if (node.type === "directory") {
             await mkdir(fullPath, { recursive: true });
         } else if (node.type === "file") {
+            // Create parent directories if they don't exist
+            const dir = dirname(fullPath);
+            await mkdir(dir, { recursive: true });
             await writeFile(fullPath, node.content, "utf-8");
         }
     }
 }
-
-/**
- * CLI project filesystem structure definition
- */
-export const CLI_PROJECT_STRUCTURE: FilesystemStructure = {
-    nodes: [
-        {
-            type: "directory",
-            path: ".github/instructions",
-        },
-        {
-            type: "file",
-            path: ".github/copilot-instructions.md",
-            content: "",
-        },
-    ],
-};

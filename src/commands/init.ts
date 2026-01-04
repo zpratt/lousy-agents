@@ -1,25 +1,16 @@
-import { access } from "node:fs/promises";
 import { join } from "node:path";
 import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
 import { z } from "zod";
+import { getProjectStructure } from "../lib/config.js";
 import {
-    CLI_PROJECT_STRUCTURE,
     createFilesystemStructure,
+    fileExists,
 } from "../lib/filesystem-structure.js";
 
 const ProjectTypeSchema = z.enum(["CLI", "webapp", "REST API", "GraphQL API"]);
 export const PROJECT_TYPE_OPTIONS = ProjectTypeSchema.options;
-
-async function fileExists(path: string): Promise<boolean> {
-    try {
-        await access(path);
-        return true;
-    } catch {
-        return false;
-    }
-}
 
 function formatErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
@@ -27,16 +18,24 @@ function formatErrorMessage(error: unknown): string {
 
 async function createCliScaffolding(targetDir: string): Promise<void> {
     try {
+        // Load the CLI structure from configuration
+        const cliStructure = await getProjectStructure("CLI");
+
+        if (!cliStructure) {
+            consola.warn("No CLI project structure defined in configuration");
+            return;
+        }
+
         // Check which nodes don't exist before creating
         const nodesToCreate = [];
-        for (const node of CLI_PROJECT_STRUCTURE.nodes) {
+        for (const node of cliStructure.nodes) {
             const fullPath = join(targetDir, node.path);
             if (!(await fileExists(fullPath))) {
                 nodesToCreate.push(node);
             }
         }
 
-        await createFilesystemStructure(CLI_PROJECT_STRUCTURE, targetDir);
+        await createFilesystemStructure(cliStructure, targetDir);
 
         // Report success only for nodes that were created
         for (const node of nodesToCreate) {

@@ -4,7 +4,6 @@ import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-    CLI_PROJECT_STRUCTURE,
     createFilesystemStructure,
     type FilesystemStructure,
 } from "./filesystem-structure.js";
@@ -176,30 +175,28 @@ describe("Filesystem Structure", () => {
                 access(join(testDir, "dir2", "file2.txt")),
             ).resolves.toBeUndefined();
         });
-    });
 
-    describe("CLI_PROJECT_STRUCTURE", () => {
-        it("should define .github/instructions directory", () => {
-            // Assert
-            const directoryNodes = CLI_PROJECT_STRUCTURE.nodes.filter(
-                (node) => node.type === "directory",
-            );
-            expect(directoryNodes).toContainEqual({
-                type: "directory",
-                path: ".github/instructions",
-            });
-        });
+        it("should create parent directories for files in nested paths", async () => {
+            // Arrange
+            const fileContent = chance.paragraph();
+            const structure: FilesystemStructure = {
+                nodes: [
+                    {
+                        type: "file",
+                        path: "nested/dir/file.txt",
+                        content: fileContent,
+                    },
+                ],
+            };
 
-        it("should define .github/copilot-instructions.md file", () => {
+            // Act
+            await createFilesystemStructure(structure, testDir);
+
             // Assert
-            const fileNodes = CLI_PROJECT_STRUCTURE.nodes.filter(
-                (node) => node.type === "file",
-            );
-            expect(fileNodes).toContainEqual({
-                type: "file",
-                path: ".github/copilot-instructions.md",
-                content: "",
-            });
+            const filePath = join(testDir, "nested", "dir", "file.txt");
+            await expect(access(filePath)).resolves.toBeUndefined();
+            const content = await readFile(filePath, "utf-8");
+            expect(content).toBe(fileContent);
         });
     });
 });
