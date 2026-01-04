@@ -58,12 +58,72 @@ describe("Config", () => {
             expect(structure?.nodes.length).toBeGreaterThan(0);
         });
 
-        it("should return undefined for webapp project type (not yet defined)", async () => {
+        it("should include package.json in webapp structure", async () => {
             // Act
             const structure = await getProjectStructure("webapp");
 
             // Assert
-            expect(structure).toBeUndefined();
+            expect(structure).toBeDefined();
+            const fileNodes = structure?.nodes.filter(
+                (node) => node.type === "file" && node.path === "package.json",
+            );
+            expect(fileNodes?.length).toBe(1);
+            expect(fileNodes?.[0].content).toContain("next");
+        });
+
+        it("should include configuration files in webapp structure", async () => {
+            // Act
+            const structure = await getProjectStructure("webapp");
+
+            // Assert
+            expect(structure).toBeDefined();
+            const configFiles = [
+                "tsconfig.json",
+                "next.config.ts",
+                "vitest.config.ts",
+                "vitest.setup.ts",
+                "biome.json",
+                ".editorconfig",
+                ".nvmrc",
+            ];
+
+            for (const fileName of configFiles) {
+                const fileNode = structure?.nodes.find(
+                    (node) => node.type === "file" && node.path === fileName,
+                );
+                expect(fileNode).toBeDefined();
+            }
+        });
+
+        it("should include GitHub instructions in webapp structure", async () => {
+            // Act
+            const structure = await getProjectStructure("webapp");
+
+            // Assert
+            expect(structure).toBeDefined();
+            const githubFiles = [
+                ".github/copilot-instructions.md",
+                ".github/instructions/test.instructions.md",
+                ".github/instructions/spec.instructions.md",
+                ".github/instructions/pipeline.instructions.md",
+            ];
+
+            for (const fileName of githubFiles) {
+                const fileNode = structure?.nodes.find(
+                    (node) => node.type === "file" && node.path === fileName,
+                );
+                expect(fileNode).toBeDefined();
+            }
+        });
+
+        it("should return webapp structure for webapp project type", async () => {
+            // Act
+            const structure = await getProjectStructure("webapp");
+
+            // Assert
+            expect(structure).toBeDefined();
+            expect(structure?.nodes).toBeDefined();
+            expect(structure?.nodes.length).toBeGreaterThan(0);
         });
 
         it("should return undefined for REST API project type (not yet defined)", async () => {
