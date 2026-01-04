@@ -51,12 +51,9 @@ function readTemplateFile(relativePath: string): string {
         return readFileSync(join(WEBAPP_TEMPLATE_DIR, relativePath), "utf-8");
     } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        consola.error(
-            `Failed to read template file ${relativePath}: ${message}`,
-        );
-        throw new Error(
-            `Failed to read template file ${relativePath}: ${message}`,
-        );
+        const errorMsg = `Failed to read template file ${relativePath}: ${message}`;
+        consola.error(errorMsg);
+        throw new Error(errorMsg);
     }
 }
 
