@@ -18,11 +18,14 @@
     },
     "dependencies": {
         "c12": "3.3.3",
-        "citty": "0.1.6"
+        "citty": "0.1.6",
+        "zod": "3.24.1"
     },
     "devDependencies": {
         "@biomejs/biome": "2.3.11",
+        "@types/chance": "1.1.6",
         "@types/node": "24.10.4",
+        "chance": "1.1.12",
         "tsx": "4.21.0",
         "typescript": "5.9.3",
         "vitest": "4.0.16",
