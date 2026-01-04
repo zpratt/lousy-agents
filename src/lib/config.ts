@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "c12";
+import { consola } from "consola";
 import type { FilesystemStructure } from "./filesystem-structure.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -48,7 +49,7 @@ function readTemplateFile(relativePath: string): string {
     try {
         return readFileSync(join(WEBAPP_TEMPLATE_DIR, relativePath), "utf-8");
     } catch (error) {
-        console.warn(
+        consola.warn(
             `Warning: Could not read template file ${relativePath}:`,
             error,
         );
