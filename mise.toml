@@ -15,6 +15,7 @@ actionlint = "1.7.9"
 jq = "1.8.1"
 markdownlint-cli2 = "0.17.2"
 pipx = "latest"
+"pipx:check-jsonschema" = "latest"
 shellcheck = "0.11.0"
 trivy = "0.68.1"
 yamllint = "1.37.1" # Created with `mise use --pin yamllint`
@@ -44,6 +45,11 @@ description = "Running shellcheck against shell scripts"
 run = "[ -n \"$(ls -A *.sh 2>/dev/null)\" ] && shellcheck *.sh || echo 'No shell scripts found, skipping shellcheck'"
 hide = true
 
+[tasks.check-issue-forms]
+description = "Validating GitHub issue form templates against JSON schema"
+run = "check-jsonschema --schemafile https://json.schemastore.org/github-issue-forms.json .github/ISSUE_TEMPLATE/*.yml"
+hide = true
+
 [tasks.format-check]
 description = "Checking code formatting + static analysis"
 hide = true
@@ -52,7 +58,7 @@ run = "npm run lint"
 [tasks.lint]
 description = "Run all required linting tools (in parallel)"
 run = [
-    { tasks = ['actionlint', 'yamllint', 'markdownlint', 'shellcheck', 'format-check']}, # These run in parallel!
+    { tasks = ['actionlint', 'yamllint', 'markdownlint', 'shellcheck', 'check-issue-forms', 'format-check']}, # These run in parallel!
     { task = 'trivy-fs'}
 ]
 
