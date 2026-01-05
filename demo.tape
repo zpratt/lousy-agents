@@ -11,6 +11,7 @@ Set TypingSpeed 100ms
 
 # Show the command
 Type "mkdir -p demo && cd demo"
+Enter
 Type "ls -l"
 Enter
 Sleep 1s
