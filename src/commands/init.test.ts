@@ -410,4 +410,183 @@ describe("Init command", () => {
             await expect(access(githubDir)).rejects.toThrow();
         });
     });
+
+    describe("when using CLI arguments", () => {
+        let testDir: string;
+
+        beforeEach(async () => {
+            testDir = join(tmpdir(), `test-${chance.guid()}`);
+            await mkdir(testDir, { recursive: true });
+        });
+
+        afterEach(async () => {
+            await rm(testDir, { recursive: true, force: true });
+        });
+
+        it("should use provided --kind argument without prompting when CLI is specified", async () => {
+            // Arrange
+            const mockPrompt = vi.fn();
+
+            // Act
+            await initCommand.run({
+                rawArgs: ["--kind", "CLI"],
+                args: { _: [], kind: "CLI" },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            expect(mockPrompt).not.toHaveBeenCalled();
+            const instructionsDir = join(testDir, ".github", "instructions");
+            await expect(access(instructionsDir)).resolves.toBeUndefined();
+        });
+
+        it("should use provided --kind argument without prompting when webapp is specified", async () => {
+            // Arrange
+            const mockPrompt = vi.fn();
+
+            // Act
+            await initCommand.run({
+                rawArgs: ["--kind", "webapp"],
+                args: { _: [], kind: "webapp" },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            expect(mockPrompt).not.toHaveBeenCalled();
+            const packageJsonFile = join(testDir, "package.json");
+            await expect(access(packageJsonFile)).resolves.toBeUndefined();
+        });
+
+        it("should display error for invalid --kind value", async () => {
+            // Arrange
+            const invalidKind = chance.word();
+            const mockPrompt = vi.fn();
+
+            // Act & Assert
+            await expect(
+                initCommand.run({
+                    rawArgs: ["--kind", invalidKind],
+                    args: { _: [], kind: invalidKind },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                }),
+            ).rejects.toThrow("Invalid project type");
+            expect(mockPrompt).not.toHaveBeenCalled();
+        });
+
+        it("should fall back to interactive prompt when --kind is not provided", async () => {
+            // Arrange
+            const mockPrompt = vi.fn().mockResolvedValue("CLI");
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            expect(mockPrompt).toHaveBeenCalledWith(
+                "What type of project are you initializing?",
+                expect.objectContaining({
+                    type: "select",
+                }),
+            );
+        });
+
+        it("should produce identical output whether using CLI arg or interactive prompt for CLI type", async () => {
+            // Arrange
+            const cliTestDir = join(tmpdir(), `test-cli-${chance.guid()}`);
+            const promptTestDir = join(
+                tmpdir(),
+                `test-prompt-${chance.guid()}`,
+            );
+            await mkdir(cliTestDir, { recursive: true });
+            await mkdir(promptTestDir, { recursive: true });
+            const mockPrompt = vi.fn().mockResolvedValue("CLI");
+
+            try {
+                // Act - using CLI arg
+                await initCommand.run({
+                    rawArgs: ["--kind", "CLI"],
+                    args: { _: [], kind: "CLI" },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: cliTestDir },
+                });
+
+                // Act - using interactive prompt
+                await initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: promptTestDir },
+                });
+
+                // Assert - both should create the same structure
+                const cliInstructionsDir = join(
+                    cliTestDir,
+                    ".github",
+                    "instructions",
+                );
+                const promptInstructionsDir = join(
+                    promptTestDir,
+                    ".github",
+                    "instructions",
+                );
+                await expect(
+                    access(cliInstructionsDir),
+                ).resolves.toBeUndefined();
+                await expect(
+                    access(promptInstructionsDir),
+                ).resolves.toBeUndefined();
+            } finally {
+                await rm(cliTestDir, { recursive: true, force: true });
+                await rm(promptTestDir, { recursive: true, force: true });
+            }
+        });
+
+        it("should produce identical output whether using CLI arg or interactive prompt for webapp type", async () => {
+            // Arrange
+            const cliTestDir = join(tmpdir(), `test-cli-${chance.guid()}`);
+            const promptTestDir = join(
+                tmpdir(),
+                `test-prompt-${chance.guid()}`,
+            );
+            await mkdir(cliTestDir, { recursive: true });
+            await mkdir(promptTestDir, { recursive: true });
+            const mockPrompt = vi.fn().mockResolvedValue("webapp");
+
+            try {
+                // Act - using CLI arg
+                await initCommand.run({
+                    rawArgs: ["--kind", "webapp"],
+                    args: { _: [], kind: "webapp" },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: cliTestDir },
+                });
+
+                // Act - using interactive prompt
+                await initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: promptTestDir },
+                });
+
+                // Assert - both should create the same structure
+                const cliPackageJson = join(cliTestDir, "package.json");
+                const promptPackageJson = join(promptTestDir, "package.json");
+                await expect(access(cliPackageJson)).resolves.toBeUndefined();
+                await expect(
+                    access(promptPackageJson),
+                ).resolves.toBeUndefined();
+            } finally {
+                await rm(cliTestDir, { recursive: true, force: true });
+                await rm(promptTestDir, { recursive: true, force: true });
+            }
+        });
+    });
 });
