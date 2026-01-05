@@ -88,13 +88,13 @@ None - this feature adds a new input method but does not change data models or p
 - Spec document shall include implementation tasks with verification steps
 
 **Verification**:
-- [ ] Spec document exists in `.github/specs/` directory
-- [ ] All acceptance criteria use EARS notation
-- [ ] Personas and value assessment are documented
+- [x] Spec document exists in `.github/specs/` directory
+- [x] All acceptance criteria use EARS notation
+- [x] Personas and value assessment are documented
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] Spec follows format defined in `.github/instructions/spec.instructions.md`
+- [x] All verification steps pass
+- [x] Spec follows format defined in `.github/instructions/spec.instructions.md`
 
 ---
 
@@ -115,15 +115,15 @@ None - this feature adds a new input method but does not change data models or p
 - If the user provides an invalid value for `--kind`, then the CLI shall display an error message listing valid options
 
 **Verification**:
-- [ ] `npm run build` succeeds
-- [ ] `mise run format-check` passes
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [x] `npm run build` succeeds
+- [x] `mise run format-check` passes
+- [x] Code follows patterns in `.github/copilot-instructions.md`
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] Argument configuration is added to init command
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] Argument configuration is added to init command
+- [x] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -145,16 +145,16 @@ None - this feature adds a new input method but does not change data models or p
 - The CLI shall produce identical output whether the project type is provided via CLI option or interactive prompt
 
 **Verification**:
-- [ ] `npm run build` succeeds
-- [ ] `mise run format-check` passes
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [x] `npm run build` succeeds
+- [x] `mise run format-check` passes
+- [x] Code follows patterns in `.github/copilot-instructions.md`
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] Command uses CLI argument when provided
-- [ ] Command falls back to interactive prompt when argument not provided
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] Command uses CLI argument when provided
+- [x] Command falls back to interactive prompt when argument not provided
+- [x] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -177,17 +177,17 @@ None - this feature adds a new input method but does not change data models or p
 - The CLI shall produce identical output whether the project type is provided via CLI option or interactive prompt
 
 **Verification**:
-- [ ] `npm test` passes
-- [ ] `mise run format-check` passes
-- [ ] Tests follow patterns in `.github/instructions/test.instructions.md`
-- [ ] All new code paths have test coverage
+- [x] `npm test` passes
+- [x] `mise run format-check` passes
+- [x] Tests follow patterns in `.github/instructions/test.instructions.md`
+- [x] All new code paths have test coverage
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] Tests cover CLI argument scenarios
-- [ ] Tests verify backward compatibility
-- [ ] Tests follow patterns in `.github/instructions/test.instructions.md`
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] Tests cover CLI argument scenarios
+- [x] Tests verify backward compatibility
+- [x] Tests follow patterns in `.github/instructions/test.instructions.md`
 
 ---
 
@@ -208,19 +208,19 @@ None - this feature adds a new input method but does not change data models or p
 - When the user runs `lousy-agents init --kind CLI`, the CLI shall create CLI scaffolding without prompting
 
 **Verification**:
-- [ ] `npm run build` succeeds
-- [ ] `node dist/index.js init --help` displays option information
-- [ ] `node dist/index.js init --kind CLI` creates CLI scaffolding without prompts
-- [ ] `node dist/index.js init --kind webapp` creates webapp scaffolding without prompts
-- [ ] `node dist/index.js init --kind invalid` displays error with valid options
-- [ ] `node dist/index.js init` displays interactive prompt as before
-- [ ] `mise run ci && npm run build` passes
+- [x] `npm run build` succeeds
+- [x] `node dist/index.js init --help` displays option information
+- [x] `node dist/index.js init --kind CLI` creates CLI scaffolding without prompts
+- [x] `node dist/index.js init --kind webapp` creates webapp scaffolding without prompts
+- [x] `node dist/index.js init --kind invalid` displays error with valid options
+- [x] `node dist/index.js init` displays interactive prompt as before
+- [x] `mise run ci && npm run build` passes
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] Feature works correctly in manual testing
-- [ ] All acceptance criteria satisfied
-- [ ] Full validation suite passes
+- [x] All verification steps pass
+- [x] Feature works correctly in manual testing
+- [x] All acceptance criteria satisfied
+- [x] Full validation suite passes
 
 ---
 
