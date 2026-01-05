@@ -497,7 +497,10 @@ describe("Init command", () => {
             );
         });
 
-        it("should produce identical output whether using CLI arg or interactive prompt for CLI type", async () => {
+        async function testIdenticalOutputForProjectType(
+            projectType: string,
+            verifyPath: string,
+        ): Promise<void> {
             // Arrange
             const cliTestDir = join(tmpdir(), `test-cli-${chance.guid()}`);
             const promptTestDir = join(
@@ -506,13 +509,13 @@ describe("Init command", () => {
             );
             await mkdir(cliTestDir, { recursive: true });
             await mkdir(promptTestDir, { recursive: true });
-            const mockPrompt = vi.fn().mockResolvedValue("CLI");
+            const mockPrompt = vi.fn().mockResolvedValue(projectType);
 
             try {
                 // Act - using CLI arg
                 await initCommand.run({
-                    rawArgs: ["--kind", "CLI"],
-                    args: { _: [], kind: "CLI" },
+                    rawArgs: ["--kind", projectType],
+                    args: { _: [], kind: projectType },
                     cmd: initCommand,
                     data: { prompt: mockPrompt, targetDir: cliTestDir },
                 });
@@ -526,67 +529,25 @@ describe("Init command", () => {
                 });
 
                 // Assert - both should create the same structure
-                const cliInstructionsDir = join(
-                    cliTestDir,
-                    ".github",
-                    "instructions",
-                );
-                const promptInstructionsDir = join(
-                    promptTestDir,
-                    ".github",
-                    "instructions",
-                );
-                await expect(
-                    access(cliInstructionsDir),
-                ).resolves.toBeUndefined();
-                await expect(
-                    access(promptInstructionsDir),
-                ).resolves.toBeUndefined();
+                const cliPath = join(cliTestDir, verifyPath);
+                const promptPath = join(promptTestDir, verifyPath);
+                await expect(access(cliPath)).resolves.toBeUndefined();
+                await expect(access(promptPath)).resolves.toBeUndefined();
             } finally {
                 await rm(cliTestDir, { recursive: true, force: true });
                 await rm(promptTestDir, { recursive: true, force: true });
             }
+        }
+
+        it("should produce identical output whether using CLI arg or interactive prompt for CLI type", async () => {
+            await testIdenticalOutputForProjectType(
+                "CLI",
+                ".github/instructions",
+            );
         });
 
         it("should produce identical output whether using CLI arg or interactive prompt for webapp type", async () => {
-            // Arrange
-            const cliTestDir = join(tmpdir(), `test-cli-${chance.guid()}`);
-            const promptTestDir = join(
-                tmpdir(),
-                `test-prompt-${chance.guid()}`,
-            );
-            await mkdir(cliTestDir, { recursive: true });
-            await mkdir(promptTestDir, { recursive: true });
-            const mockPrompt = vi.fn().mockResolvedValue("webapp");
-
-            try {
-                // Act - using CLI arg
-                await initCommand.run({
-                    rawArgs: ["--kind", "webapp"],
-                    args: { _: [], kind: "webapp" },
-                    cmd: initCommand,
-                    data: { prompt: mockPrompt, targetDir: cliTestDir },
-                });
-
-                // Act - using interactive prompt
-                await initCommand.run({
-                    rawArgs: [],
-                    args: { _: [] },
-                    cmd: initCommand,
-                    data: { prompt: mockPrompt, targetDir: promptTestDir },
-                });
-
-                // Assert - both should create the same structure
-                const cliPackageJson = join(cliTestDir, "package.json");
-                const promptPackageJson = join(promptTestDir, "package.json");
-                await expect(access(cliPackageJson)).resolves.toBeUndefined();
-                await expect(
-                    access(promptPackageJson),
-                ).resolves.toBeUndefined();
-            } finally {
-                await rm(cliTestDir, { recursive: true, force: true });
-                await rm(promptTestDir, { recursive: true, force: true });
-            }
+            await testIdenticalOutputForProjectType("webapp", "package.json");
         });
     });
 });
