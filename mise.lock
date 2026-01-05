@@ -7,6 +7,10 @@ backend = "aqua:rhysd/actionlint"
 "platforms.macos-x64" = { checksum = "sha256:f89a910e90e536f60df7c504160247db01dd67cab6f08c064c1c397b76c91a79", url = "https://github.com/rhysd/actionlint/releases/download/v1.7.9/actionlint_1.7.9_darwin_amd64.tar.gz"}
 "platforms.windows-x64" = { checksum = "sha256:7c8b10a93723838bc3533f6e1886d868fdbb109b81606ebe6d1a533d11d8e978", url = "https://github.com/rhysd/actionlint/releases/download/v1.7.9/actionlint_1.7.9_windows_amd64.zip"}
 
+[[tools.ffmpeg]]
+version = "8.0.1"
+backend = "asdf:ffmpeg"
+
 [[tools.jq]]
 version = "1.8.1"
 backend = "aqua:jqlang/jq"
@@ -58,6 +62,11 @@ backend = "aqua:aquasecurity/trivy"
 "platforms.macos-arm64" = { checksum = "sha256:4dd3d2e74e1b6f6f7fd5fbf55489727698f586d6a6a0cff3421031a05b80bcac", url = "https://github.com/aquasecurity/trivy/releases/download/v0.68.1/trivy_0.68.1_macOS-ARM64.tar.gz"}
 "platforms.macos-x64" = { checksum = "sha256:d5b5bd3b3c3626d223c3981cc40f4709f00a6327a681b588d2fc64a3aa9d02c5", url = "https://github.com/aquasecurity/trivy/releases/download/v0.68.1/trivy_0.68.1_macOS-64bit.tar.gz"}
 "platforms.windows-x64" = { checksum = "sha256:600fc65bdb486e160efeedf8fff8ef6be8e9d2e82f2ea4db82ad23263ed5f902", url = "https://github.com/aquasecurity/trivy/releases/download/v0.68.1/trivy_0.68.1_windows-64bit.zip"}
+
+[[tools.vhs]]
+version = "0.10.0"
+backend = "aqua:charmbracelet/vhs"
+"platforms.macos-arm64" = { checksum = "sha256:dc256c403305ac8ba623563d0ef3241a38024f35b27c705f79d523e9da618012", url = "https://github.com/charmbracelet/vhs/releases/download/v0.10.0/vhs_0.10.0_Darwin_arm64.tar.gz"}
 
 [[tools.yamllint]]
 version = "1.37.1"

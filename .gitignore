@@ -44,6 +44,9 @@ build/Release
 node_modules/
 jspm_packages/
 
+# Demo directory
+demo/
+
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
 
@@ -120,4 +123,3 @@ dist
 .pnp.*
 
 # End of https://mrkandreev.name/snippets/gitignore-generator/#Node
-

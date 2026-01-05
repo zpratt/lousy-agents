@@ -2,6 +2,8 @@
 
 **Turn "lousy" AI outputs into production-grade code.**
 
+![Demo](media/demo.gif)
+
 Ever asked an AI to write code and gotten a mess? You're not alone. This repository is a reference library of **patterns, instructions, and feedback loops** designed to make GitHub Copilot and other coding agents highly effective.
 
 ## 📖 Table of Contents
