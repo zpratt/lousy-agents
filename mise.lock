@@ -59,6 +59,11 @@ backend = "aqua:aquasecurity/trivy"
 "platforms.macos-x64" = { checksum = "sha256:d5b5bd3b3c3626d223c3981cc40f4709f00a6327a681b588d2fc64a3aa9d02c5", url = "https://github.com/aquasecurity/trivy/releases/download/v0.68.1/trivy_0.68.1_macOS-64bit.tar.gz"}
 "platforms.windows-x64" = { checksum = "sha256:600fc65bdb486e160efeedf8fff8ef6be8e9d2e82f2ea4db82ad23263ed5f902", url = "https://github.com/aquasecurity/trivy/releases/download/v0.68.1/trivy_0.68.1_windows-64bit.zip"}
 
+[[tools.vhs]]
+version = "0.10.0"
+backend = "aqua:charmbracelet/vhs"
+"platforms.macos-arm64" = { checksum = "sha256:dc256c403305ac8ba623563d0ef3241a38024f35b27c705f79d523e9da618012", url = "https://github.com/charmbracelet/vhs/releases/download/v0.10.0/vhs_0.10.0_Darwin_arm64.tar.gz"}
+
 [[tools.yamllint]]
 version = "1.37.1"
 backend = "pipx:yamllint"
