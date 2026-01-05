@@ -45,6 +45,7 @@ body:
         1. Review ./instructions/spec.instructions.md for more details and use this as your guide for the feature specification.
         2. Ensure you review all other repository instructions before starting work to understand engineering requirements.
         3. Create your final spec output in the .github/specs directory and ensure requirements are captured in the EARS format.
-        4. If you need to make assumptions, ask questions on the issue.
+        4. As you complete each task in the spec, mark the checkboxes as complete in the spec file using [x] notation.
+        5. If you need to make assumptions, ask questions on the issue.
     validations:
       required: false
