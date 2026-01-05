@@ -8,6 +8,15 @@ import { createFilesystemStructure } from "../lib/filesystem-structure.js";
 const ProjectTypeSchema = z.enum(["CLI", "webapp", "REST API", "GraphQL API"]);
 export const PROJECT_TYPE_OPTIONS = ProjectTypeSchema.options;
 
+const initArgs = {
+    kind: {
+        type: "string" as const,
+        description: `Project type: ${PROJECT_TYPE_OPTIONS.join(", ")}`,
+    },
+};
+
+type InitArgs = typeof initArgs;
+
 function formatErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
@@ -57,7 +66,8 @@ export const initCommand = defineCommand({
         name: "init",
         description: "Initialize a new project with lousy agents scaffolding",
     },
-    run: async (context: CommandContext) => {
+    args: initArgs,
+    run: async (context: CommandContext<InitArgs>) => {
         // Support dependency injection for testing via context.data
         // Runtime checks for type safety
         const targetDir =
@@ -69,13 +79,19 @@ export const initCommand = defineCommand({
                 ? context.data.prompt
                 : consola.prompt.bind(consola);
 
-        const rawProjectType = await promptFn(
-            "What type of project are you initializing?",
-            {
-                type: "select",
-                options: PROJECT_TYPE_OPTIONS,
-            },
-        );
+        // Use CLI argument if provided, otherwise prompt
+        let rawProjectType: unknown;
+        if (context.args.kind) {
+            rawProjectType = context.args.kind;
+        } else {
+            rawProjectType = await promptFn(
+                "What type of project are you initializing?",
+                {
+                    type: "select",
+                    options: PROJECT_TYPE_OPTIONS,
+                },
+            );
+        }
 
         // Validate the user input at runtime
         const parseResult = ProjectTypeSchema.safeParse(rawProjectType);
