@@ -9,24 +9,44 @@ Set Theme "Catppuccin Mocha"
 Set PlaybackSpeed 0.5
 Set TypingSpeed 100ms
 
-# Show the command
+# Create demo directory and show it's empty
 Type "mkdir -p demo && cd demo"
 Enter
 Sleep 1s
-Type "ls -l"
+Type "ls -la"
 Enter
 Sleep 1s
 
-# Run lousy-agents init
+# Demo 1: Interactive mode
+Type "# Interactive mode - select from menu"
+Enter
+Sleep 500ms
 Type "npx lousy-agents init"
 Enter
 Sleep 3s
 
-# Select webapp option (assuming it's an interactive prompt)
-# Adjust the arrow keys/selection based on actual prompt behavior
+# Select webapp option
 Down
 Enter
 Sleep 2s
+
+# Show the generated file structure
+Type "tree -L 2 -a"
+Enter
+Sleep 3s
+
+# Clean up for next demo
+Type "cd .. && rm -rf demo && mkdir demo && cd demo"
+Enter
+Sleep 1s
+
+# Demo 2: Non-interactive mode with --kind flag
+Type "# Non-interactive mode - use --kind flag"
+Enter
+Sleep 500ms
+Type "npx lousy-agents init --kind webapp"
+Enter
+Sleep 3s
 
 # Show the generated file structure
 Type "tree -L 2 -a"
