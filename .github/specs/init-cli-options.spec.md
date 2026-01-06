@@ -27,10 +27,10 @@ so that I can **scaffold a new project with a single command without interactive
 
 #### Acceptance Criteria
 
-- When the user runs `lousy-agents init --kind webapp`, the CLI shall create webapp scaffolding without prompting
-- When the user runs `lousy-agents init --kind CLI`, the CLI shall create CLI scaffolding without prompting
-- When the user runs `lousy-agents init` without the `--kind` option, the CLI shall display the interactive prompt as before
-- If the user provides an invalid value for `--kind`, then the CLI shall display an error message listing valid options
+- When `lousy-agents init --kind webapp` is executed, the CLI shall create webapp scaffolding without prompting
+- When `lousy-agents init --kind CLI` is executed, the CLI shall create CLI scaffolding without prompting
+- When `lousy-agents init` is executed without the `--kind` option, the CLI shall display the interactive prompt
+- If an invalid value for `--kind` is provided, then the CLI shall display an error message listing valid options
 - The CLI shall produce identical output whether the project type is provided via CLI option or interactive prompt
 - The CLI shall support `--help` to display available options and their descriptions
 

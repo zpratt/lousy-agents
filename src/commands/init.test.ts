@@ -497,10 +497,10 @@ describe("Init command", () => {
             );
         });
 
-        async function testIdenticalOutputForProjectType(
-            projectType: string,
-            verifyPath: string,
-        ): Promise<void> {
+        it.each([
+            ["CLI", ".github/instructions"],
+            ["webapp", "package.json"],
+        ])("should create identical project structure for %s type regardless of input method", async (projectType: string, verifyPath: string) => {
             // Arrange
             const cliTestDir = join(tmpdir(), `test-cli-${chance.guid()}`);
             const promptTestDir = join(
@@ -525,7 +525,10 @@ describe("Init command", () => {
                     rawArgs: [],
                     args: { _: [] },
                     cmd: initCommand,
-                    data: { prompt: mockPrompt, targetDir: promptTestDir },
+                    data: {
+                        prompt: mockPrompt,
+                        targetDir: promptTestDir,
+                    },
                 });
 
                 // Assert - both should create the same structure
@@ -537,17 +540,6 @@ describe("Init command", () => {
                 await rm(cliTestDir, { recursive: true, force: true });
                 await rm(promptTestDir, { recursive: true, force: true });
             }
-        }
-
-        it("should produce identical output whether using CLI arg or interactive prompt for CLI type", async () => {
-            await testIdenticalOutputForProjectType(
-                "CLI",
-                ".github/instructions",
-            );
-        });
-
-        it("should produce identical output whether using CLI arg or interactive prompt for webapp type", async () => {
-            await testIdenticalOutputForProjectType("webapp", "package.json");
         });
     });
 });

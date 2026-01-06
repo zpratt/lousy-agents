@@ -80,18 +80,12 @@ export const initCommand = defineCommand({
                 : consola.prompt.bind(consola);
 
         // Use CLI argument if provided, otherwise prompt
-        let rawProjectType: unknown;
-        if (context.args.kind) {
-            rawProjectType = context.args.kind;
-        } else {
-            rawProjectType = await promptFn(
-                "What type of project are you initializing?",
-                {
-                    type: "select",
-                    options: PROJECT_TYPE_OPTIONS,
-                },
-            );
-        }
+        const rawProjectType: unknown = context.args.kind
+            ? context.args.kind
+            : await promptFn("What type of project are you initializing?", {
+                  type: "select",
+                  options: PROJECT_TYPE_OPTIONS,
+              });
 
         // Validate the user input at runtime
         const parseResult = ProjectTypeSchema.safeParse(rawProjectType);
