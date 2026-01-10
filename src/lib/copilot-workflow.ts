@@ -5,6 +5,8 @@ import { fileExists } from "./filesystem-structure.js";
 import {
     GITHUB_TOKEN_EXPR,
     getActionDisplayName,
+    getActionVerifyCommand,
+    getActionVersionFileWith,
     getPinnedActionReference,
 } from "./pinned-actions.js";
 
@@ -303,23 +305,7 @@ export function determineMissingSetupSteps(
 function getSetupActionWith(
     candidate: VersionFileCandidate,
 ): Record<string, unknown> | undefined {
-    switch (candidate.setupAction) {
-        case "actions/setup-node":
-            return { "node-version-file": candidate.file };
-        case "actions/setup-python":
-            return { "python-version-file": candidate.file };
-        case "actions/setup-java":
-            return {
-                "java-version-file": candidate.file,
-                distribution: "temurin",
-            };
-        case "actions/setup-go":
-            return { "go-version-file": candidate.file };
-        case "ruby/setup-ruby":
-            return { "ruby-version": candidate.file };
-        default:
-            return undefined;
-    }
+    return getActionVersionFileWith(candidate.setupAction, candidate.file);
 }
 
 /**
@@ -396,7 +382,7 @@ export function generateCopilotWorkflowContent(
 
     // Add version verification for each runtime
     for (const step of allSteps) {
-        const verifyCmd = getVersionVerifyCommand(step.action);
+        const verifyCmd = getActionVerifyCommand(step.action);
         if (verifyCmd) {
             lines.push(`          ${verifyCmd}`);
         }
@@ -405,21 +391,6 @@ export function generateCopilotWorkflowContent(
     lines.push("");
 
     return lines.join("\n");
-}
-
-/**
- * Gets a version verification command for a runtime
- */
-function getVersionVerifyCommand(action: string): string | undefined {
-    const cmdMap: Record<string, string> = {
-        "actions/setup-node": "node --version && npm --version",
-        "actions/setup-python": "python --version",
-        "actions/setup-java": "java --version",
-        "actions/setup-go": "go version",
-        "ruby/setup-ruby": "ruby --version",
-        "jdx/mise-action": "mise --version",
-    };
-    return cmdMap[action];
 }
 
 /**
