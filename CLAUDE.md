@@ -12,7 +12,7 @@ When writing or modifying test files (`*.test.ts`, `*.spec.ts`, `*.test.tsx`, `*
 
 ### Mandatory
 
-Run `npm test` after modifying or creating tests to verify all tests pass.
+Run `mise test` after modifying or creating tests to verify all tests pass.
 
 ### Test File Structure
 
@@ -326,8 +326,8 @@ so that I can **<outcome>**.
 
 Every task must include verification steps:
 
-- `npm test` passes
-- `npm run lint` passes
+- `mise test` passes
+- `mise lint` passes
 - Specific behavior checks
 
 Prefer automated checks (commands, tests) over subjective criteria.
