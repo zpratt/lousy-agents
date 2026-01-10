@@ -371,7 +371,7 @@ mise lint
 ### Workflow Structure Requirements
 
 1. Every workflow MUST include test and lint jobs
-2. Use official setup actions: `actions/checkout`, `actions/setup-node`, `actions/cache`
+2. Use official actions for checkout and tooling via mise: `actions/checkout`, `jdx/mise-action`
 3. Prefer using `mise` for installing tools and dependencies and scripts for verification
 
 ### Action Pinning Format
