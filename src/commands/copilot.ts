@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
+import { type Document, isMap, isSeq, parseDocument } from "yaml";
 import {
     analyzeCopilotWorkflowNeeds,
     type CopilotWorkflowAnalysis,
@@ -46,65 +47,102 @@ export interface CopilotScaffoldResult {
 const GITHUB_TOKEN_EXPR = "$" + "{{ github.token }}";
 
 /**
- * Appends missing setup steps to an existing workflow file
+ * Creates a step object for insertion into the workflow
+ */
+function createStepObject(step: WorkflowSetupStep): Record<string, unknown> {
+    const stepObj: Record<string, unknown> = {
+        name: `Setup ${getActionDisplayName(step.action)}`,
+        uses: getPinnedActionForAppend(step.action),
+    };
+
+    // Build the 'with' object
+    const withObj: Record<string, unknown> = {};
+
+    if (step.with) {
+        Object.assign(withObj, step.with);
+    }
+
+    // Add github_token for mise-action
+    if (step.action === "jdx/mise-action") {
+        withObj.github_token = GITHUB_TOKEN_EXPR;
+    }
+
+    if (Object.keys(withObj).length > 0) {
+        stepObj.with = withObj;
+    }
+
+    return stepObj;
+}
+
+/**
+ * Finds the index to insert new steps (before verification step or at end)
+ */
+function findInsertIndex(steps: unknown[]): number {
+    for (let i = 0; i < steps.length; i++) {
+        const step = steps[i] as Record<string, unknown>;
+        if (
+            step.name &&
+            typeof step.name === "string" &&
+            step.name.includes("Verify")
+        ) {
+            return i;
+        }
+    }
+    return steps.length;
+}
+
+/**
+ * Appends missing setup steps to an existing workflow file using proper YAML parsing
+ * Preserves the original formatting and indentation
  */
 async function appendMissingSteps(
     workflowPath: string,
     missingSteps: WorkflowSetupStep[],
 ): Promise<string> {
     const content = await readFile(workflowPath, "utf-8");
-    const lines = content.split("\n");
 
-    // Find the verification step or the last step
-    let insertIndex = lines.length - 1;
-    for (let i = 0; i < lines.length; i++) {
-        if (lines[i].includes("Verify development environment")) {
-            // Insert before the verification step
-            insertIndex = i - 1;
-            // Go back to find the start of the step
-            while (
-                insertIndex > 0 &&
-                !lines[insertIndex].trim().startsWith("- name:")
-            ) {
-                insertIndex--;
-            }
-            break;
-        }
+    // Parse the document preserving comments and formatting
+    const doc: Document = parseDocument(content);
+
+    // Get the jobs section
+    const root = doc.contents;
+    if (!isMap(root)) {
+        throw new Error("Invalid workflow: root is not a map");
     }
 
-    // Generate step content for missing steps
-    const newStepLines: string[] = [];
-    for (const step of missingSteps) {
-        newStepLines.push("");
-        newStepLines.push(
-            `      - name: Setup ${getActionDisplayName(step.action)}`,
-        );
-        newStepLines.push(
-            `        uses: ${getPinnedActionForAppend(step.action)}`,
-        );
-
-        if (step.with && Object.keys(step.with).length > 0) {
-            newStepLines.push("        with:");
-            for (const [key, value] of Object.entries(step.with)) {
-                newStepLines.push(
-                    `          ${key}: ${formatYamlValue(value)}`,
-                );
-            }
-        }
-
-        // Add github_token for mise-action
-        if (step.action === "jdx/mise-action") {
-            if (!step.with) {
-                newStepLines.push("        with:");
-            }
-            newStepLines.push(`          github_token: ${GITHUB_TOKEN_EXPR}`);
-        }
+    const jobs = root.get("jobs");
+    if (!isMap(jobs)) {
+        throw new Error("Invalid workflow: jobs is not a map");
     }
 
-    // Insert the new steps
-    lines.splice(insertIndex, 0, ...newStepLines);
+    // Find the first job (typically 'copilot-setup-steps')
+    const firstJobKey = jobs.items[0]?.key;
+    if (!firstJobKey) {
+        throw new Error("Invalid workflow: no jobs found");
+    }
 
-    return lines.join("\n");
+    const job = jobs.get(firstJobKey);
+    if (!isMap(job)) {
+        throw new Error("Invalid workflow: job is not a map");
+    }
+
+    const steps = job.get("steps");
+    if (!isSeq(steps)) {
+        throw new Error("Invalid workflow: steps is not a sequence");
+    }
+
+    // Convert steps to JS array to find insert position
+    const stepsArray = steps.toJSON() as unknown[];
+    const insertIndex = findInsertIndex(stepsArray);
+
+    // Insert new steps at the correct position
+    for (let i = 0; i < missingSteps.length; i++) {
+        const newStep = createStepObject(missingSteps[i]);
+        steps.items.splice(insertIndex + i, 0, doc.createNode(newStep));
+    }
+
+    // Convert back to string, preserving formatting
+    return doc.toString();
 }
 
 /**
@@ -162,16 +200,6 @@ function getPinnedActionForAppend(action: string): string {
         return `${action}@${pinned.sha}  # ${pinned.version}`;
     }
     return action;
-}
-
-function formatYamlValue(value: unknown): string {
-    if (typeof value === "string") {
-        if (value.includes(":") || value.includes("#") || value.includes("'")) {
-            return `"${value}"`;
-        }
-        return `'${value}'`;
-    }
-    return String(value);
 }
 
 /**
