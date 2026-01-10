@@ -29,6 +29,16 @@ const copilotArgs = {
 type CopilotArgs = typeof copilotArgs;
 
 /**
+ * Represents a step object in a workflow YAML file
+ */
+interface WorkflowStepYaml {
+    name?: string;
+    uses?: string;
+    with?: Record<string, unknown>;
+    run?: string;
+}
+
+/**
  * Context data for dependency injection in tests
  */
 export interface CopilotCommandData {
@@ -77,14 +87,10 @@ function createStepObject(step: WorkflowSetupStep): Record<string, unknown> {
 /**
  * Finds the index to insert new steps (before verification step or at end)
  */
-function findInsertIndex(steps: unknown[]): number {
+function findInsertIndex(steps: WorkflowStepYaml[]): number {
     for (let i = 0; i < steps.length; i++) {
-        const step = steps[i] as Record<string, unknown>;
-        if (
-            step.name &&
-            typeof step.name === "string" &&
-            step.name.includes("Verify")
-        ) {
+        const step = steps[i];
+        if (step.name?.includes("Verify")) {
             return i;
         }
     }
@@ -132,7 +138,7 @@ async function appendMissingSteps(
     }
 
     // Convert steps to JS array to find insert position
-    const stepsArray = steps.toJSON() as unknown[];
+    const stepsArray = steps.toJSON() as WorkflowStepYaml[];
     const insertIndex = findInsertIndex(stepsArray);
 
     // Insert new steps at the correct position
@@ -163,7 +169,9 @@ export const copilotCommand = defineCommand({
             "Scaffold or update the Copilot Setup Steps workflow for GitHub Copilot Coding Agent",
     },
     args: copilotArgs,
-    run: async (context: CommandContext<CopilotArgs>) => {
+    run: async (
+        context: CommandContext<CopilotArgs>,
+    ): Promise<CopilotScaffoldResult> => {
         // Support dependency injection for testing via context.data
         const targetDir =
             typeof context.data?.targetDir === "string"
@@ -207,6 +215,14 @@ export const copilotCommand = defineCommand({
         );
 
         if (analysis.existingCopilotWorkflow) {
+            // Type narrowing: when existingCopilotWorkflow is true, path is always defined
+            const existingPath = analysis.existingCopilotWorkflowPath;
+            if (!existingPath) {
+                throw new Error(
+                    "Internal error: existingCopilotWorkflow is true but path is undefined",
+                );
+            }
+
             // Check for missing steps
             const missingSteps = determineMissingSetupSteps(analysis);
 
@@ -214,10 +230,10 @@ export const copilotCommand = defineCommand({
                 consola.success("Copilot Setup Steps workflow is up to date!");
                 return {
                     action: "unchanged",
-                    path: analysis.existingCopilotWorkflowPath,
+                    path: existingPath,
                     missingSteps: [],
                     analysis,
-                } as CopilotScaffoldResult;
+                };
             }
 
             consola.info("Missing setup steps in existing workflow:");
@@ -231,15 +247,13 @@ export const copilotCommand = defineCommand({
                 );
                 return {
                     action: "updated",
-                    path: analysis.existingCopilotWorkflowPath,
+                    path: existingPath,
                     missingSteps,
                     analysis,
-                } as CopilotScaffoldResult;
+                };
             }
 
             // Append missing steps to existing workflow
-            // Safe to access path since existingCopilotWorkflow is true
-            const existingPath = analysis.existingCopilotWorkflowPath as string;
             const updatedContent = await appendMissingSteps(
                 existingPath,
                 missingSteps,
@@ -251,10 +265,10 @@ export const copilotCommand = defineCommand({
             );
             return {
                 action: "updated",
-                path: analysis.existingCopilotWorkflowPath,
+                path: existingPath,
                 missingSteps,
                 analysis,
-            } as CopilotScaffoldResult;
+            };
         }
 
         // Generate new workflow
@@ -273,7 +287,7 @@ export const copilotCommand = defineCommand({
                     existingCopilotWorkflowSteps: [],
                 }),
                 analysis,
-            } as CopilotScaffoldResult;
+            };
         }
 
         // Ensure workflows directory exists
@@ -305,6 +319,6 @@ export const copilotCommand = defineCommand({
                 existingCopilotWorkflowSteps: [],
             }),
             analysis,
-        } as CopilotScaffoldResult;
+        };
     },
 });
