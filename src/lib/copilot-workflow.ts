@@ -2,16 +2,14 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { fileExists } from "./filesystem-structure.js";
-import { getPinnedActionReference } from "./pinned-actions.js";
+import {
+    GITHUB_TOKEN_EXPR,
+    getActionDisplayName,
+    getPinnedActionReference,
+} from "./pinned-actions.js";
 
 // Re-export for backwards compatibility
 export { PINNED_ACTIONS } from "./pinned-actions.js";
-
-/**
- * GitHub Actions expression for github.token
- * Split to avoid linter false positive about template strings
- */
-const GITHUB_TOKEN_EXPR = "$" + "{{ github.token }}";
 
 /**
  * Represents a detected version file and its corresponding setup action
@@ -407,21 +405,6 @@ export function generateCopilotWorkflowContent(
     lines.push("");
 
     return lines.join("\n");
-}
-
-/**
- * Gets a display name for an action
- */
-function getActionDisplayName(action: string): string {
-    const nameMap: Record<string, string> = {
-        "actions/setup-node": "Node.js",
-        "actions/setup-python": "Python",
-        "actions/setup-java": "Java",
-        "actions/setup-go": "Go",
-        "ruby/setup-ruby": "Ruby",
-        "jdx/mise-action": "mise",
-    };
-    return nameMap[action] || action;
 }
 
 /**

@@ -12,7 +12,11 @@ import {
     type WorkflowSetupStep,
 } from "../lib/copilot-workflow.js";
 import { fileExists } from "../lib/filesystem-structure.js";
-import { getPinnedActionReference } from "../lib/pinned-actions.js";
+import {
+    GITHUB_TOKEN_EXPR,
+    getActionDisplayName,
+    getPinnedActionReference,
+} from "../lib/pinned-actions.js";
 
 const copilotArgs = {
     dry: {
@@ -41,11 +45,6 @@ export interface CopilotScaffoldResult {
     missingSteps: WorkflowSetupStep[];
     analysis: CopilotWorkflowAnalysis;
 }
-
-/**
- * GitHub Actions expression for github.token
- */
-const GITHUB_TOKEN_EXPR = "$" + "{{ github.token }}";
 
 /**
  * Creates a step object for insertion into the workflow
@@ -144,21 +143,6 @@ async function appendMissingSteps(
 
     // Convert back to string, preserving formatting
     return doc.toString();
-}
-
-/**
- * Gets display name for an action
- */
-function getActionDisplayName(action: string): string {
-    const nameMap: Record<string, string> = {
-        "actions/setup-node": "Node.js",
-        "actions/setup-python": "Python",
-        "actions/setup-java": "Java",
-        "actions/setup-go": "Go",
-        "ruby/setup-ruby": "Ruby",
-        "jdx/mise-action": "mise",
-    };
-    return nameMap[action] || action;
 }
 
 /**
