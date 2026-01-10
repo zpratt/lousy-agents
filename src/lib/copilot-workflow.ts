@@ -1,6 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
+import { z } from "zod";
 import { fileExists } from "./filesystem-structure.js";
 import {
     GITHUB_TOKEN_EXPR,
@@ -12,6 +13,28 @@ import {
 
 // Re-export for backwards compatibility
 export { PINNED_ACTIONS } from "./pinned-actions.js";
+
+/**
+ * Zod schema for a workflow step
+ */
+const WorkflowStepSchema = z.object({
+    uses: z.string().optional(),
+    with: z.record(z.unknown()).optional(),
+});
+
+/**
+ * Zod schema for a workflow job
+ */
+const WorkflowJobSchema = z.object({
+    steps: z.array(WorkflowStepSchema).optional(),
+});
+
+/**
+ * Zod schema for a GitHub Actions workflow file
+ */
+const WorkflowSchema = z.object({
+    jobs: z.record(WorkflowJobSchema).optional(),
+});
 
 /**
  * Represents a detected version file and its corresponding setup action
@@ -117,23 +140,14 @@ export async function parseWorkflowSetupSteps(
 
     try {
         const content = await readFile(workflowPath, "utf-8");
-        const workflow = parseYaml(content) as {
-            jobs?: Record<
-                string,
-                {
-                    steps?: Array<{
-                        uses?: string;
-                        with?: Record<string, unknown>;
-                    }>;
-                }
-            >;
-        };
+        const parsed = parseYaml(content);
+        const result = WorkflowSchema.safeParse(parsed);
 
-        if (!workflow?.jobs) {
+        if (!result.success || !result.data.jobs) {
             return setupSteps;
         }
 
-        for (const job of Object.values(workflow.jobs)) {
+        for (const job of Object.values(result.data.jobs)) {
             if (!job.steps) continue;
 
             for (const step of job.steps) {
