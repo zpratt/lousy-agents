@@ -28,9 +28,10 @@ so that I can **automatically include appropriate setup steps in my Copilot work
 #### Acceptance Criteria
 
 - When the user runs the scaffold command, the system shall scan the repository root for `mise.toml` configuration files
-- When the user runs the scaffold command, the system shall scan the repository root for idiomatic version files (`.nvmrc`, `.python-version`, `.java-version`, `.ruby-version`, `.go-version`)
+- When the user runs the scaffold command, the system shall scan the repository root for idiomatic version files (`.nvmrc`, `.node-version`, `.python-version`, `.java-version`, `.ruby-version`, `.go-version`)
 - When `mise.toml` is detected, the system shall queue the `jdx/mise-action` step as a candidate for the Copilot Setup Steps workflow
 - When `.nvmrc` is detected and `mise.toml` is not present, the system shall queue the `actions/setup-node` step as a candidate
+- When `.node-version` is detected and `mise.toml` is not present, the system shall queue the `actions/setup-node` step as a candidate
 - When `.python-version` is detected and `mise.toml` is not present, the system shall queue the `actions/setup-python` step as a candidate
 - When `.java-version` is detected and `mise.toml` is not present, the system shall queue the `actions/setup-java` step as a candidate
 - When `.ruby-version` is detected and `mise.toml` is not present, the system shall queue the `actions/setup-ruby` step as a candidate
