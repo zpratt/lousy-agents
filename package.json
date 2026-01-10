@@ -19,6 +19,7 @@
     "dependencies": {
         "c12": "3.3.3",
         "citty": "0.1.6",
+        "yaml": "^2.7.0",
         "zod": "3.24.1"
     },
     "devDependencies": {
