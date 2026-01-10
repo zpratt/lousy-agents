@@ -2,6 +2,10 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { fileExists } from "./filesystem-structure.js";
+import { getPinnedActionReference } from "./pinned-actions.js";
+
+// Re-export for backwards compatibility
+export { PINNED_ACTIONS } from "./pinned-actions.js";
 
 /**
  * GitHub Actions expression for github.token
@@ -254,55 +258,6 @@ export async function analyzeCopilotWorkflowNeeds(
 }
 
 /**
- * Pinned action versions for reproducibility
- * Format: action@sha # version
- */
-export const PINNED_ACTIONS: Record<string, { sha: string; version: string }> =
-    {
-        "actions/checkout": {
-            sha: "11bd71901bbe5b1630ceea73d27597364c9af683",
-            version: "v4.2.2",
-        },
-        "actions/setup-node": {
-            sha: "39370e3970a6d050c480ffad4ff0ed4d3fdee5af",
-            version: "v4.1.0",
-        },
-        "actions/setup-python": {
-            sha: "0b93645e9fea7318ecaed2b359559ac225c90a2b",
-            version: "v5.3.0",
-        },
-        "actions/setup-java": {
-            sha: "7a6d8a8234af8eb26422e24e3006232cccaa061b",
-            version: "v4.6.0",
-        },
-        "actions/setup-go": {
-            sha: "3041bf56c941b39c61721a86cd11f3bb1338122a",
-            version: "v5.2.0",
-        },
-        "ruby/setup-ruby": {
-            sha: "a4effe49ee8ee5b8224aba0bcf7754adb0aeb1e4",
-            version: "v1.202.0",
-        },
-        "jdx/mise-action": {
-            sha: "146a28175021df8ca24f8ee1828cc2a60f980bd5",
-            version: "v3.5.1",
-        },
-    };
-
-/**
- * Generates a pinned action reference
- * @param action The action name (e.g., "actions/setup-node")
- * @returns Pinned reference string with SHA and version comment
- */
-export function getPinnedAction(action: string): string {
-    const pinned = PINNED_ACTIONS[action];
-    if (pinned) {
-        return `${action}@${pinned.sha}  # ${pinned.version}`;
-    }
-    return action;
-}
-
-/**
  * Determines which setup steps are missing from the existing Copilot workflow
  * @param analysis The complete analysis of the repository
  * @returns Array of setup steps that should be added
@@ -404,7 +359,7 @@ export function generateCopilotWorkflowContent(
         "",
         "    steps:",
         "      - name: Checkout code",
-        `        uses: ${getPinnedAction("actions/checkout")}`,
+        `        uses: ${getPinnedActionReference("actions/checkout")}`,
     ];
 
     // Determine all setup steps needed
@@ -417,7 +372,7 @@ export function generateCopilotWorkflowContent(
     for (const step of allSteps) {
         lines.push("");
         lines.push(`      - name: Setup ${getActionDisplayName(step.action)}`);
-        lines.push(`        uses: ${getPinnedAction(step.action)}`);
+        lines.push(`        uses: ${getPinnedActionReference(step.action)}`);
 
         if (step.with && Object.keys(step.with).length > 0) {
             lines.push("        with:");

@@ -12,6 +12,7 @@ import {
     type WorkflowSetupStep,
 } from "../lib/copilot-workflow.js";
 import { fileExists } from "../lib/filesystem-structure.js";
+import { getPinnedActionReference } from "../lib/pinned-actions.js";
 
 const copilotArgs = {
     dry: {
@@ -52,7 +53,7 @@ const GITHUB_TOKEN_EXPR = "$" + "{{ github.token }}";
 function createStepObject(step: WorkflowSetupStep): Record<string, unknown> {
     const stepObj: Record<string, unknown> = {
         name: `Setup ${getActionDisplayName(step.action)}`,
-        uses: getPinnedActionForAppend(step.action),
+        uses: getPinnedActionReference(step.action),
     };
 
     // Build the 'with' object
@@ -158,48 +159,6 @@ function getActionDisplayName(action: string): string {
         "jdx/mise-action": "mise",
     };
     return nameMap[action] || action;
-}
-
-/**
- * Pinned action versions (duplicated for append functionality)
- */
-const PINNED_ACTIONS: Record<string, { sha: string; version: string }> = {
-    "actions/checkout": {
-        sha: "11bd71901bbe5b1630ceea73d27597364c9af683",
-        version: "v4.2.2",
-    },
-    "actions/setup-node": {
-        sha: "39370e3970a6d050c480ffad4ff0ed4d3fdee5af",
-        version: "v4.1.0",
-    },
-    "actions/setup-python": {
-        sha: "0b93645e9fea7318ecaed2b359559ac225c90a2b",
-        version: "v5.3.0",
-    },
-    "actions/setup-java": {
-        sha: "7a6d8a8234af8eb26422e24e3006232cccaa061b",
-        version: "v4.6.0",
-    },
-    "actions/setup-go": {
-        sha: "3041bf56c941b39c61721a86cd11f3bb1338122a",
-        version: "v5.2.0",
-    },
-    "ruby/setup-ruby": {
-        sha: "a4effe49ee8ee5b8224aba0bcf7754adb0aeb1e4",
-        version: "v1.202.0",
-    },
-    "jdx/mise-action": {
-        sha: "146a28175021df8ca24f8ee1828cc2a60f980bd5",
-        version: "v3.5.1",
-    },
-};
-
-function getPinnedActionForAppend(action: string): string {
-    const pinned = PINNED_ACTIONS[action];
-    if (pinned) {
-        return `${action}@${pinned.sha}  # ${pinned.version}`;
-    }
-    return action;
 }
 
 /**

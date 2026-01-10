@@ -9,11 +9,11 @@ import {
     detectVersionFiles,
     determineMissingSetupSteps,
     generateCopilotWorkflowContent,
-    getPinnedAction,
     PINNED_ACTIONS,
     parseAllWorkflowSetupSteps,
     parseWorkflowSetupSteps,
 } from "./copilot-workflow.js";
+import { getPinnedActionReference } from "./pinned-actions.js";
 
 const chance = new Chance();
 
@@ -616,13 +616,13 @@ jobs:
         });
     });
 
-    describe("getPinnedAction", () => {
+    describe("getPinnedActionReference", () => {
         it("should return pinned action with SHA and version comment for known actions", () => {
             // Arrange
             const action = "actions/setup-node";
 
             // Act
-            const result = getPinnedAction(action);
+            const result = getPinnedActionReference(action);
 
             // Assert
             expect(result).toContain(action);
@@ -635,7 +635,7 @@ jobs:
             const action = "unknown/action";
 
             // Act
-            const result = getPinnedAction(action);
+            const result = getPinnedActionReference(action);
 
             // Assert
             expect(result).toBe(action);
