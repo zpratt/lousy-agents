@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { defineCommand, runMain } from "citty";
+import { copilotCommand } from "./commands/copilot.js";
 import { initCommand } from "./commands/init.js";
 
 const main = defineCommand({
@@ -11,6 +12,7 @@ const main = defineCommand({
     },
     subCommands: {
         init: initCommand,
+        copilot: copilotCommand,
     },
 });
 
