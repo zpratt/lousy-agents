@@ -118,15 +118,175 @@ so that I can **keep my workflow synchronized with my project's environment conf
 
 ### Components Affected
 
-- `src/commands/copilot-setup.ts` (new) — Main command implementation for Copilot Setup Steps scaffold
+**Commands Layer:**
+- `src/commands/copilot-setup.ts` (new) — Main CLI command that orchestrates environment detection and workflow generation
 - `src/commands/copilot-setup.test.ts` (new) — Tests for the scaffold command
-- `src/lib/environment-detector.ts` (new) — Module for detecting environment configuration files
-- `src/lib/environment-detector.test.ts` (new) — Tests for environment detection
-- `src/lib/workflow-parser.ts` (new) — Module for parsing GitHub Actions workflow files
-- `src/lib/workflow-parser.test.ts` (new) — Tests for workflow parsing
-- `src/lib/workflow-generator.ts` (new) — Module for generating/updating Copilot Setup Steps workflow
-- `src/lib/workflow-generator.test.ts` (new) — Tests for workflow generation
+
+**Entities Layer:**
+- `src/entities/copilot-setup.ts` (new) — Core domain types (SetupStepCandidate, VersionFile, DetectedEnvironment)
+- `src/entities/index.ts` (new) — Exports entity types
+
+**Gateways Layer:**
+- `src/gateways/environment-gateway.ts` (new) — Interface for detecting environment configuration files
+- `src/gateways/workflow-gateway.ts` (new) — Interface for parsing/writing workflow files
+- `src/gateways/file-system-workflow-gateway.ts` (new) — File system implementation of WorkflowGateway
+- `src/gateways/action-version-gateway.ts` (new) — Interface for looking up action versions
+- `src/gateways/action-version-gateway.test.ts` (new) — Tests for action version lookup
+- `src/gateways/file-system-utils.ts` (new) — Shared file system utilities
+- `src/gateways/index.ts` (new) — Exports gateway interfaces and implementations
+
+**Use Cases Layer:**
+- `src/use-cases/copilot-setup.ts` (new) — Business logic for candidate building, workflow generation/update
+- `src/use-cases/copilot-setup.test.ts` (new) — Tests for use case logic
+- `src/use-cases/setup-step-discovery.ts` (new) — Reusable step discovery logic
+- `src/use-cases/setup-step-discovery.test.ts` (new) — Tests for step discovery
+- `src/use-cases/index.ts` (new) — Exports use case functions
+
+**Configuration:**
+- `src/lib/copilot-setup-config.ts` (new) — c12 configuration for version files and setup actions
+- `src/lib/copilot-setup-config.test.ts` (new) — Tests for configuration loading
+
+**CLI Registration:**
 - `src/index.ts` — Register new command with CLI
+
+### Data Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                                    CLI Layer                                         │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐    │
+│  │                        copilot-setup command                                 │    │
+│  │                    (src/commands/copilot-setup.ts)                           │    │
+│  │                                                                              │    │
+│  │  Orchestrates: detection → parsing → merging → generation/update            │    │
+│  └──────────────────────────────────┬──────────────────────────────────────────┘    │
+└─────────────────────────────────────┼───────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                                Use Cases Layer                                       │
+│                                                                                      │
+│  ┌────────────────────────────┐     ┌────────────────────────────────┐              │
+│  │    copilot-setup.ts        │     │   setup-step-discovery.ts      │              │
+│  │                            │     │                                │              │
+│  │ • buildCandidatesFrom-     │     │ • parseActionName()            │              │
+│  │   Environment()            │     │ • isSetupAction()              │              │
+│  │ • generateWorkflowContent()│     │ • getExistingActionsFrom-      │              │
+│  │ • updateWorkflowWith-      │◄────┤   Workflow()                   │              │
+│  │   MissingSteps()           │     │ • findMissingCandidates()      │              │
+│  │                            │     │ • mergeCandidates()            │              │
+│  └─────────────┬──────────────┘     │ • deduplicateCandidates()      │              │
+│                │                    └────────────────────────────────┘              │
+└────────────────┼────────────────────────────────────────────────────────────────────┘
+                 │
+                 ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                                Gateways Layer                                        │
+│                                                                                      │
+│  ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐       │
+│  │  EnvironmentGateway  │  │   WorkflowGateway    │  │ ActionVersionGateway │       │
+│  │                      │  │                      │  │                      │       │
+│  │ • detectEnvironment()│  │ • parseWorkflowsFor- │  │ • getVersion()       │       │
+│  │                      │  │   SetupActions()     │  │ • getCheckoutVersion │       │
+│  │                      │  │ • copilotSetupWork-  │  │                      │       │
+│  │                      │  │   flowExists()       │  │                      │       │
+│  │                      │  │ • readCopilotSetup-  │  │                      │       │
+│  │                      │  │   Workflow()         │  │                      │       │
+│  │                      │  │ • writeCopilotSetup- │  │                      │       │
+│  │                      │  │   Workflow()         │  │                      │       │
+│  └──────────┬───────────┘  └──────────┬───────────┘  └──────────┬───────────┘       │
+└─────────────┼──────────────────────────┼──────────────────────────┼──────────────────┘
+              │                          │                          │
+              ▼                          ▼                          ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                              External Resources                                      │
+│                                                                                      │
+│  ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐       │
+│  │    File System       │  │   .github/workflows  │  │  Configuration       │       │
+│  │                      │  │                      │  │  (c12)               │       │
+│  │ • mise.toml          │  │ • *.yml workflow     │  │                      │       │
+│  │ • .nvmrc             │  │   files              │  │ • lousy-agents.json  │       │
+│  │ • .python-version    │  │ • copilot-setup-     │  │ • versionFiles       │       │
+│  │ • .java-version      │  │   steps.yml          │  │ • setupActions       │       │
+│  │ • .ruby-version      │  │                      │  │ • setupActionPatterns│       │
+│  │ • .go-version        │  │                      │  │                      │       │
+│  │ • .node-version      │  │                      │  │                      │       │
+│  └──────────────────────┘  └──────────────────────┘  └──────────────────────┘       │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+
+                              Data Flow Sequence
+                              ==================
+
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   User      │     │  Command    │     │  Use Cases  │     │  Gateways   │
+└──────┬──────┘     └──────┬──────┘     └──────┬──────┘     └──────┬──────┘
+       │                   │                   │                   │
+       │ copilot-setup     │                   │                   │
+       │──────────────────>│                   │                   │
+       │                   │                   │                   │
+       │                   │ detectEnvironment()                   │
+       │                   │───────────────────────────────────────>│
+       │                   │                   │                   │
+       │                   │          DetectedEnvironment          │
+       │                   │<───────────────────────────────────────│
+       │                   │                   │                   │
+       │                   │ parseWorkflowsForSetupActions()       │
+       │                   │───────────────────────────────────────>│
+       │                   │                   │                   │
+       │                   │       SetupStepCandidate[]            │
+       │                   │<───────────────────────────────────────│
+       │                   │                   │                   │
+       │                   │ buildCandidatesFromEnvironment()      │
+       │                   │──────────────────>│                   │
+       │                   │                   │ getVersion()      │
+       │                   │                   │──────────────────>│
+       │                   │                   │<──────────────────│
+       │                   │<──────────────────│                   │
+       │                   │                   │                   │
+       │                   │ mergeCandidates() │                   │
+       │                   │──────────────────>│                   │
+       │                   │<──────────────────│                   │
+       │                   │                   │                   │
+       │                   │ [if exists] readCopilotSetupWorkflow()│
+       │                   │───────────────────────────────────────>│
+       │                   │<───────────────────────────────────────│
+       │                   │                   │                   │
+       │                   │ generateWorkflowContent() or          │
+       │                   │ updateWorkflowWithMissingSteps()      │
+       │                   │──────────────────>│                   │
+       │                   │<──────────────────│                   │
+       │                   │                   │                   │
+       │                   │ writeCopilotSetupWorkflow()           │
+       │                   │───────────────────────────────────────>│
+       │                   │<───────────────────────────────────────│
+       │                   │                   │                   │
+       │   Success message │                   │                   │
+       │<──────────────────│                   │                   │
+       │                   │                   │                   │
+```
+
+### Architecture Notes
+
+The implementation follows CLEAN Architecture principles with clear separation of concerns:
+
+1. **Entities Layer** (`src/entities/`): Core domain types (`SetupStepCandidate`, `VersionFile`, `DetectedEnvironment`) that are independent of any frameworks or external systems.
+
+2. **Use Cases Layer** (`src/use-cases/`): Application business logic that orchestrates entities and gateways. Key modules:
+   - `copilot-setup.ts`: Candidate building, workflow generation/update
+   - `setup-step-discovery.ts`: Reusable step discovery logic
+
+3. **Gateways Layer** (`src/gateways/`): Interfaces to external systems (file system, configuration). This abstraction enables:
+   - Easy testing via mock gateways
+   - Future remote API integration (e.g., `ActionVersionGateway` could fetch versions from GitHub)
+   - Separation of I/O concerns from business logic
+
+4. **Commands Layer** (`src/commands/`): CLI entry points that wire together use cases and gateways
+
+**Key Architectural Decisions:**
+- Configuration-driven: Setup actions and version files are defined in c12 configuration, not hardcoded
+- Gateway pattern: All external I/O is abstracted behind interfaces for testability
+- Step discovery is extracted to a separate module for reuse across different workflow types
+- Async version lookup enables future GitHub API integration
 
 ### Dependencies
 
