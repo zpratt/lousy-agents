@@ -3,8 +3,11 @@ import { join } from "node:path";
 import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
-import { detectEnvironment } from "../lib/environment-detector.js";
-import { fileExists } from "../lib/filesystem-structure.js";
+import {
+    createEnvironmentGateway,
+    createWorkflowGateway,
+    fileExists,
+} from "../gateways/index.js";
 import {
     buildCandidatesFromEnvironment,
     findMissingCandidates,
@@ -12,13 +15,7 @@ import {
     getExistingActionsFromWorkflow,
     mergeCandidates,
     updateWorkflowWithMissingSteps,
-    writeCopilotSetupWorkflow,
-} from "../lib/workflow-generator.js";
-import {
-    copilotSetupWorkflowExists,
-    parseWorkflowsForSetupActions,
-    readCopilotSetupWorkflow,
-} from "../lib/workflow-parser.js";
+} from "../use-cases/copilot-setup.js";
 
 const copilotSetupArgs = {};
 
@@ -41,10 +38,15 @@ export const copilotSetupCommand = defineCommand({
                 ? context.data.targetDir
                 : process.cwd();
 
+        // Create gateways
+        const environmentGateway = createEnvironmentGateway();
+        const workflowGateway = createWorkflowGateway();
+
         consola.info("Detecting environment configuration...");
 
         // Step 1: Detect environment configuration files
-        const environment = await detectEnvironment(targetDir);
+        const environment =
+            await environmentGateway.detectEnvironment(targetDir);
 
         if (environment.hasMise) {
             consola.success("Found mise.toml - will use mise-action");
@@ -62,7 +64,7 @@ export const copilotSetupCommand = defineCommand({
         const workflowsDirExists = await fileExists(workflowsDir);
 
         const workflowCandidates = workflowsDirExists
-            ? await parseWorkflowsForSetupActions(targetDir)
+            ? await workflowGateway.parseWorkflowsForSetupActions(targetDir)
             : [];
 
         if (workflowCandidates.length > 0) {
@@ -90,7 +92,8 @@ export const copilotSetupCommand = defineCommand({
         }
 
         // Step 5: Check if copilot-setup-steps.yml already exists
-        const workflowExists = await copilotSetupWorkflowExists(targetDir);
+        const workflowExists =
+            await workflowGateway.copilotSetupWorkflowExists(targetDir);
 
         // Ensure workflows directory exists
         if (!workflowsDirExists) {
@@ -103,7 +106,8 @@ export const copilotSetupCommand = defineCommand({
                 "Found existing copilot-setup-steps.yml - checking for missing steps...",
             );
 
-            const existingWorkflow = await readCopilotSetupWorkflow(targetDir);
+            const existingWorkflow =
+                await workflowGateway.readCopilotSetupWorkflow(targetDir);
             const existingActions =
                 getExistingActionsFromWorkflow(existingWorkflow);
 
@@ -129,7 +133,10 @@ export const copilotSetupCommand = defineCommand({
                 missingCandidates,
             );
 
-            await writeCopilotSetupWorkflow(targetDir, updatedContent);
+            await workflowGateway.writeCopilotSetupWorkflow(
+                targetDir,
+                updatedContent,
+            );
 
             consola.success(
                 `Updated copilot-setup-steps.yml with ${missingCandidates.length} new step(s)`,
@@ -139,7 +146,7 @@ export const copilotSetupCommand = defineCommand({
             consola.info("Creating new copilot-setup-steps.yml workflow...");
 
             const content = await generateWorkflowContent(allCandidates);
-            await writeCopilotSetupWorkflow(targetDir, content);
+            await workflowGateway.writeCopilotSetupWorkflow(targetDir, content);
 
             const stepCount = allCandidates.length + 1; // +1 for checkout
             consola.success(
