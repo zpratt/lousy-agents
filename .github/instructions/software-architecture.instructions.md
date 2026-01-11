@@ -126,16 +126,23 @@ export class ParseWorkflowsUseCase {
 - MAY use framework-specific code
 - MUST NOT contain business logic
 
+### Class-Based Adapters with Constructor Injection
+
 ```typescript
 // src/gateways/file-system-workflow-gateway.ts
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
+import type { ConsolaInstance } from 'consola';
 import type { SetupStepCandidate } from '../entities/version-file';
 import type { WorkflowGateway } from '../use-cases/parse-workflows';
 
+// Use constructor injection for all dependencies
 export class FileSystemWorkflowGateway implements WorkflowGateway {
+  constructor(private readonly logger: ConsolaInstance) {}
+
   async parseWorkflowsForSetupActions(targetDir: string): Promise<SetupStepCandidate[]> {
+    this.logger.debug('Parsing workflows in directory:', targetDir);
     const workflowsDir = join(targetDir, '.github', 'workflows');
     const files = await readdir(workflowsDir);
     const yamlFiles = files.filter(f => f.endsWith('.yml') || f.endsWith('.yaml'));
@@ -151,6 +158,7 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
       candidates.push(...steps);
     }
 
+    this.logger.info(`Found ${candidates.length} setup step candidates`);
     return candidates;
   }
 
@@ -158,6 +166,40 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
     // Implementation details...
     return [];
   }
+}
+```
+
+### Factory Function Pattern (Alternative)
+
+Factory functions are an alternative to class-based adapters. They're useful for simpler adapters or when you prefer functional composition.
+
+```typescript
+// src/gateways/action-version-gateway.ts
+import type { ConsolaInstance } from 'consola';
+
+export interface ActionVersionGateway {
+  getVersion(action: string): Promise<string>;
+}
+
+// Factory function that returns an object implementing the port
+export function createActionVersionGateway(
+  logger: ConsolaInstance,
+  baseUrl = 'https://api.github.com'
+): ActionVersionGateway {
+  return {
+    async getVersion(action: string): Promise<string> {
+      logger.debug('Fetching version for action:', action);
+      const [owner, repo] = action.split('/');
+      const response = await fetch(`${baseUrl}/repos/${owner}/${repo}/releases/latest`);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch version for ${action}: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data.tag_name;
+    }
+  };
 }
 ```
 
@@ -209,15 +251,25 @@ export function createCopilotSetupCommand(parseWorkflows: ParseWorkflowsUseCase)
 ```typescript
 // src/index.ts (composition root)
 import { defineCommand, runMain } from 'citty';
+import { createConsola } from 'consola';
 import { ParseWorkflowsUseCase } from './use-cases/parse-workflows';
 import { FileSystemWorkflowGateway } from './gateways/file-system-workflow-gateway';
 import { FileSystemEnvironmentGateway } from './gateways/environment-gateway';
+import { createActionVersionGateway } from './gateways/action-version-gateway';
 import { createCopilotSetupCommand } from './commands/copilot-setup';
 
 export function createContainer() {
-  // Wire up dependencies
-  const workflowGateway = new FileSystemWorkflowGateway();
-  const environmentGateway = new FileSystemEnvironmentGateway();
+  // Create shared dependencies
+  const logger = createConsola({ level: 3 });
+
+  // Wire up dependencies using constructor injection for classes
+  const workflowGateway = new FileSystemWorkflowGateway(logger);
+  const environmentGateway = new FileSystemEnvironmentGateway(logger);
+
+  // Wire up dependencies using factory functions
+  const actionVersionGateway = createActionVersionGateway(logger);
+
+  // Inject all dependencies into use cases
   const parseWorkflowsUseCase = new ParseWorkflowsUseCase(
     workflowGateway,
     environmentGateway
@@ -239,6 +291,72 @@ const main = defineCommand({
 
 runMain(main);
 ```
+
+## Dependency Injection Patterns
+
+### Constructor Injection (Preferred)
+
+Always use constructor injection for dependencies. This makes dependencies explicit and enables easy testing.
+
+```typescript
+// ✅ Good - Constructor injection
+export class FileSystemWorkflowGateway implements WorkflowGateway {
+  constructor(
+    private readonly logger: ConsolaInstance,
+    private readonly config: Config
+  ) {}
+
+  async parseWorkflows(dir: string): Promise<SetupStepCandidate[]> {
+    this.logger.debug('Parsing workflows');
+    // ...
+  }
+}
+
+// ❌ Bad - No dependency injection (hard to test, tightly coupled)
+export class FileSystemWorkflowGateway implements WorkflowGateway {
+  async parseWorkflows(dir: string): Promise<SetupStepCandidate[]> {
+    console.log('Parsing workflows'); // Direct coupling to console
+    // ...
+  }
+}
+```
+
+### Factory Functions
+
+Factory functions are an alternative pattern that returns objects implementing ports. Useful for simpler adapters.
+
+```typescript
+// Factory function with dependency injection
+export function createActionVersionGateway(
+  logger: ConsolaInstance
+): ActionVersionGateway {
+  return {
+    async getVersion(action: string): Promise<string> {
+      logger.debug('Fetching version for:', action);
+      // Implementation...
+      return 'v1.0.0';
+    }
+  };
+}
+
+// In composition root:
+const logger = createConsola();
+const gateway = createActionVersionGateway(logger);
+```
+
+### Choosing Between Patterns
+
+- **Use classes with constructor injection** when:
+  - The adapter has multiple methods
+  - You need private helper methods
+  - State management is needed
+
+- **Use factory functions** when:
+  - The adapter is simple (1-2 methods)
+  - You prefer functional composition
+  - You want to avoid `this` keyword complexity
+
+Both patterns achieve the same goal: explicit dependency injection and testability.
 
 ## Import Rules Summary
 
