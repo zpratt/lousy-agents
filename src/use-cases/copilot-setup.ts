@@ -13,6 +13,7 @@ import { stringify as stringifyYaml } from "yaml";
 import type {
     DetectedEnvironment,
     SetupStepCandidate,
+    VersionFile,
     VersionFileType,
     WorkflowStep,
 } from "../entities/copilot-setup.js";
@@ -55,10 +56,33 @@ export async function buildCandidatesFromEnvironment(
     }
 
     // Otherwise, add individual setup actions for each version file
+    return buildCandidatesFromVersionFiles(
+        environment.versionFiles,
+        versionTypeToAction,
+        versionFileConfigKeys,
+        versionGateway,
+    );
+}
+
+/**
+ * Builds setup step candidates from individual version files
+ * @param versionFiles Array of version files to process
+ * @param versionTypeToAction Map from version file type to action name
+ * @param versionFileConfigKeys Map from version file type to config key
+ * @param versionGateway Gateway for looking up action versions
+ * @returns Array of setup step candidates
+ */
+async function buildCandidatesFromVersionFiles(
+    versionFiles: VersionFile[],
+    versionTypeToAction: Partial<Record<VersionFileType, string>>,
+    versionFileConfigKeys: Partial<Record<VersionFileType, string>>,
+    versionGateway: ActionVersionGateway,
+): Promise<SetupStepCandidate[]> {
+    const candidates: SetupStepCandidate[] = [];
     // Track which types we've already added to deduplicate (e.g., .nvmrc and .node-version)
     const addedTypes = new Set<VersionFileType>();
 
-    for (const versionFile of environment.versionFiles) {
+    for (const versionFile of versionFiles) {
         if (addedTypes.has(versionFile.type)) {
             continue;
         }
