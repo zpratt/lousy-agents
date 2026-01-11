@@ -121,34 +121,27 @@ const DEFAULT_CONFIG: CopilotSetupConfig = {
 };
 
 /**
- * Cached configuration
- */
-let cachedConfig: CopilotSetupConfig | null = null;
-
-/**
  * Loads the copilot-setup configuration using c12
  * Falls back to defaults if no configuration is found
  */
 export async function loadCopilotSetupConfig(): Promise<CopilotSetupConfig> {
-    if (cachedConfig) {
-        return cachedConfig;
-    }
-
     const { config } = await loadConfig<CopilotSetupConfig>({
         name: "lousy-agents",
         defaults: DEFAULT_CONFIG,
         packageJson: "copilotSetup",
     });
 
-    cachedConfig = config || DEFAULT_CONFIG;
-    return cachedConfig;
+    return config || DEFAULT_CONFIG;
 }
 
 /**
  * Resets the cached configuration (useful for testing)
+ *
+ * This function is retained for backwards compatibility but is a no-op
+ * because configuration is no longer cached at module scope.
  */
 export function resetCopilotSetupConfigCache(): void {
-    cachedConfig = null;
+    // no in-memory cache to reset
 }
 
 /**
