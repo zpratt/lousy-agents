@@ -49,6 +49,6 @@ body:
         5. Break down the feature into manageable tasks with clear descriptions.
         6. As you complete each task in the spec, mark the checkboxes as complete in the spec file using [x] notation.
         7. If you need to make assumptions, ask questions on the issue.
-        8. Use the all diagrams to inform your implementation plan.
+        8. Use all the diagrams to inform your implementation plan.
     validations:
       required: false
