@@ -1,6 +1,8 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { stringify as stringifyYaml } from "yaml";
+import type { ActionVersionGateway } from "./action-version-gateway.js";
+import { createActionVersionGateway } from "./action-version-gateway.js";
 import type {
     DetectedEnvironment,
     VersionFileType,
@@ -16,19 +18,6 @@ const VERSION_TYPE_TO_ACTION: Record<VersionFileType, string> = {
     java: "actions/setup-java",
     ruby: "actions/setup-ruby",
     go: "actions/setup-go",
-};
-
-/**
- * Default versions for setup actions
- */
-const DEFAULT_ACTION_VERSIONS: Record<string, string> = {
-    "actions/checkout": "v4",
-    "actions/setup-node": "v4",
-    "actions/setup-python": "v5",
-    "actions/setup-java": "v4",
-    "actions/setup-ruby": "v1",
-    "actions/setup-go": "v5",
-    "jdx/mise-action": "v2",
 };
 
 /**
@@ -54,18 +43,21 @@ export interface WorkflowStep {
 /**
  * Builds setup step candidates from detected environment
  * @param environment The detected environment configuration
+ * @param versionGateway Optional gateway for looking up action versions (defaults to local)
  * @returns Array of setup step candidates
  */
-export function buildCandidatesFromEnvironment(
+export async function buildCandidatesFromEnvironment(
     environment: DetectedEnvironment,
-): SetupStepCandidate[] {
+    versionGateway: ActionVersionGateway = createActionVersionGateway(),
+): Promise<SetupStepCandidate[]> {
     const candidates: SetupStepCandidate[] = [];
 
     // If mise.toml is present, add mise-action only
     if (environment.hasMise) {
+        const miseVersion = await versionGateway.getVersion("jdx/mise-action");
         candidates.push({
             action: "jdx/mise-action",
-            version: DEFAULT_ACTION_VERSIONS["jdx/mise-action"],
+            version: miseVersion,
             source: "version-file",
         });
         return candidates;
@@ -83,10 +75,11 @@ export function buildCandidatesFromEnvironment(
 
         const action = VERSION_TYPE_TO_ACTION[versionFile.type];
         const configKey = VERSION_FILE_CONFIG_KEYS[versionFile.type];
+        const version = await versionGateway.getVersion(action);
 
         candidates.push({
             action,
-            version: DEFAULT_ACTION_VERSIONS[action],
+            version,
             config: {
                 [configKey]: versionFile.filename,
             },
@@ -160,17 +153,25 @@ function candidateToStep(candidate: SetupStepCandidate): WorkflowStep {
 /**
  * Generates the Copilot Setup Steps workflow content
  * @param candidates The setup step candidates to include
+ * @param versionGateway Optional gateway for looking up action versions (defaults to local)
  * @returns The workflow YAML content as a string
  */
-export function generateWorkflowContent(
+export async function generateWorkflowContent(
     candidates: SetupStepCandidate[],
-): string {
+    versionGateway: ActionVersionGateway = createActionVersionGateway(),
+): Promise<string> {
     const steps: WorkflowStep[] = [];
 
     // Always start with checkout
+    const checkoutVersion = await versionGateway.getVersion("actions/checkout");
+    if (!checkoutVersion) {
+        throw new Error(
+            "Failed to get version for actions/checkout from version gateway",
+        );
+    }
     steps.push({
         name: "Checkout code",
-        uses: `actions/checkout@${DEFAULT_ACTION_VERSIONS["actions/checkout"]}`,
+        uses: `actions/checkout@${checkoutVersion}`,
     });
 
     // Add all setup step candidates
@@ -281,15 +282,17 @@ export function findMissingCandidates(
  * Updates an existing workflow by appending missing setup steps
  * @param existingWorkflow The parsed existing workflow
  * @param missingCandidates Candidates to add to the workflow
+ * @param versionGateway Optional gateway for looking up action versions (defaults to local)
  * @returns The updated workflow YAML content
  */
-export function updateWorkflowWithMissingSteps(
+export async function updateWorkflowWithMissingSteps(
     existingWorkflow: unknown,
     missingCandidates: SetupStepCandidate[],
-): string {
+    versionGateway: ActionVersionGateway = createActionVersionGateway(),
+): Promise<string> {
     if (!existingWorkflow || typeof existingWorkflow !== "object") {
         // If we can't parse the existing workflow, generate a new one
-        return generateWorkflowContent(missingCandidates);
+        return generateWorkflowContent(missingCandidates, versionGateway);
     }
 
     // Deep clone the workflow
@@ -300,20 +303,20 @@ export function updateWorkflowWithMissingSteps(
 
     const jobs = workflow.jobs as Record<string, unknown> | undefined;
     if (!jobs) {
-        return generateWorkflowContent(missingCandidates);
+        return generateWorkflowContent(missingCandidates, versionGateway);
     }
 
     // Find the main job (usually 'copilot-setup-steps' or similar)
     const jobNames = Object.keys(jobs);
     if (jobNames.length === 0) {
-        return generateWorkflowContent(missingCandidates);
+        return generateWorkflowContent(missingCandidates, versionGateway);
     }
 
     const mainJobName = jobNames[0];
     const mainJob = jobs[mainJobName] as Record<string, unknown>;
 
     if (!mainJob || !Array.isArray(mainJob.steps)) {
-        return generateWorkflowContent(missingCandidates);
+        return generateWorkflowContent(missingCandidates, versionGateway);
     }
 
     // Append missing steps

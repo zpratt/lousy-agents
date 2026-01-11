@@ -75,7 +75,7 @@ export const copilotSetupCommand = defineCommand({
         }
 
         // Step 3: Build candidates from environment
-        const envCandidates = buildCandidatesFromEnvironment(environment);
+        const envCandidates = await buildCandidatesFromEnvironment(environment);
 
         // Step 4: Merge candidates (workflow takes precedence)
         const allCandidates = mergeCandidates(
@@ -124,7 +124,7 @@ export const copilotSetupCommand = defineCommand({
                 .join(", ");
             consola.info(`Adding missing setup steps: ${missingNames}`);
 
-            const updatedContent = updateWorkflowWithMissingSteps(
+            const updatedContent = await updateWorkflowWithMissingSteps(
                 existingWorkflow,
                 missingCandidates,
             );
@@ -138,7 +138,7 @@ export const copilotSetupCommand = defineCommand({
             // Create new workflow
             consola.info("Creating new copilot-setup-steps.yml workflow...");
 
-            const content = generateWorkflowContent(allCandidates);
+            const content = await generateWorkflowContent(allCandidates);
             await writeCopilotSetupWorkflow(targetDir, content);
 
             const stepCount = allCandidates.length + 1; // +1 for checkout

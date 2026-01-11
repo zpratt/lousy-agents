@@ -21,7 +21,7 @@ const chance = new Chance();
 describe("Workflow Generator", () => {
     describe("buildCandidatesFromEnvironment", () => {
         describe("when mise.toml is detected", () => {
-            it("should return only mise-action candidate when mise.toml is present", () => {
+            it("should return only mise-action candidate when mise.toml is present", async () => {
                 // Arrange
                 const environment: DetectedEnvironment = {
                     hasMise: true,
@@ -31,7 +31,8 @@ describe("Workflow Generator", () => {
                 };
 
                 // Act
-                const result = buildCandidatesFromEnvironment(environment);
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
 
                 // Assert
                 expect(result).toHaveLength(1);
@@ -43,7 +44,7 @@ describe("Workflow Generator", () => {
         });
 
         describe("when version files are detected without mise", () => {
-            it("should create setup-node candidate from .nvmrc", () => {
+            it("should create setup-node candidate from .nvmrc", async () => {
                 // Arrange
                 const environment: DetectedEnvironment = {
                     hasMise: false,
@@ -53,7 +54,8 @@ describe("Workflow Generator", () => {
                 };
 
                 // Act
-                const result = buildCandidatesFromEnvironment(environment);
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
 
                 // Assert
                 expect(result).toContainEqual(
@@ -64,7 +66,7 @@ describe("Workflow Generator", () => {
                 );
             });
 
-            it("should create setup-python candidate from .python-version", () => {
+            it("should create setup-python candidate from .python-version", async () => {
                 // Arrange
                 const environment: DetectedEnvironment = {
                     hasMise: false,
@@ -78,7 +80,8 @@ describe("Workflow Generator", () => {
                 };
 
                 // Act
-                const result = buildCandidatesFromEnvironment(environment);
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
 
                 // Assert
                 expect(result).toContainEqual(
@@ -89,7 +92,7 @@ describe("Workflow Generator", () => {
                 );
             });
 
-            it("should deduplicate candidates for same type (e.g., .nvmrc and .node-version)", () => {
+            it("should deduplicate candidates for same type (e.g., .nvmrc and .node-version)", async () => {
                 // Arrange
                 const environment: DetectedEnvironment = {
                     hasMise: false,
@@ -104,7 +107,8 @@ describe("Workflow Generator", () => {
                 };
 
                 // Act
-                const result = buildCandidatesFromEnvironment(environment);
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
 
                 // Assert
                 const nodeCandidates = result.filter(
@@ -113,7 +117,7 @@ describe("Workflow Generator", () => {
                 expect(nodeCandidates).toHaveLength(1);
             });
 
-            it("should create candidates for multiple different version file types", () => {
+            it("should create candidates for multiple different version file types", async () => {
                 // Arrange
                 const environment: DetectedEnvironment = {
                     hasMise: false,
@@ -133,7 +137,8 @@ describe("Workflow Generator", () => {
                 };
 
                 // Act
-                const result = buildCandidatesFromEnvironment(environment);
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
 
                 // Assert
                 expect(result).toHaveLength(3);
@@ -150,7 +155,7 @@ describe("Workflow Generator", () => {
         });
 
         describe("when no configuration files exist", () => {
-            it("should return empty array when no version files detected", () => {
+            it("should return empty array when no version files detected", async () => {
                 // Arrange
                 const environment: DetectedEnvironment = {
                     hasMise: false,
@@ -158,7 +163,8 @@ describe("Workflow Generator", () => {
                 };
 
                 // Act
-                const result = buildCandidatesFromEnvironment(environment);
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
 
                 // Assert
                 expect(result).toHaveLength(0);
@@ -225,7 +231,7 @@ describe("Workflow Generator", () => {
     });
 
     describe("generateWorkflowContent", () => {
-        it("should generate valid YAML workflow content", () => {
+        it("should generate valid YAML workflow content", async () => {
             // Arrange
             const candidates: SetupStepCandidate[] = [
                 {
@@ -236,7 +242,7 @@ describe("Workflow Generator", () => {
             ];
 
             // Act
-            const content = generateWorkflowContent(candidates);
+            const content = await generateWorkflowContent(candidates);
             const parsed = parseYaml(content);
 
             // Assert
@@ -244,7 +250,7 @@ describe("Workflow Generator", () => {
             expect(parsed.jobs["copilot-setup-steps"]).toBeDefined();
         });
 
-        it("should include checkout step as first step", () => {
+        it("should include checkout step as first step", async () => {
             // Arrange
             const candidates: SetupStepCandidate[] = [
                 {
@@ -255,7 +261,7 @@ describe("Workflow Generator", () => {
             ];
 
             // Act
-            const content = generateWorkflowContent(candidates);
+            const content = await generateWorkflowContent(candidates);
             const parsed = parseYaml(content);
 
             // Assert
@@ -263,7 +269,7 @@ describe("Workflow Generator", () => {
             expect(steps[0].uses).toContain("actions/checkout");
         });
 
-        it("should include all setup step candidates", () => {
+        it("should include all setup step candidates", async () => {
             // Arrange
             const candidates: SetupStepCandidate[] = [
                 {
@@ -279,7 +285,7 @@ describe("Workflow Generator", () => {
             ];
 
             // Act
-            const content = generateWorkflowContent(candidates);
+            const content = await generateWorkflowContent(candidates);
             const parsed = parseYaml(content);
 
             // Assert
@@ -296,12 +302,12 @@ describe("Workflow Generator", () => {
             ).toBe(true);
         });
 
-        it("should include proper workflow triggers", () => {
+        it("should include proper workflow triggers", async () => {
             // Arrange
             const candidates: SetupStepCandidate[] = [];
 
             // Act
-            const content = generateWorkflowContent(candidates);
+            const content = await generateWorkflowContent(candidates);
             const parsed = parseYaml(content);
 
             // Assert
@@ -310,12 +316,12 @@ describe("Workflow Generator", () => {
             expect(parsed.on.pull_request).toBeDefined();
         });
 
-        it("should include proper permissions", () => {
+        it("should include proper permissions", async () => {
             // Arrange
             const candidates: SetupStepCandidate[] = [];
 
             // Act
-            const content = generateWorkflowContent(candidates);
+            const content = await generateWorkflowContent(candidates);
             const parsed = parseYaml(content);
 
             // Assert
@@ -324,7 +330,7 @@ describe("Workflow Generator", () => {
             expect(job.permissions.contents).toBe("read");
         });
 
-        it("should preserve config in with block", () => {
+        it("should preserve config in with block", async () => {
             // Arrange
             const candidates: SetupStepCandidate[] = [
                 {
@@ -336,7 +342,7 @@ describe("Workflow Generator", () => {
             ];
 
             // Act
-            const content = generateWorkflowContent(candidates);
+            const content = await generateWorkflowContent(candidates);
             const parsed = parseYaml(content);
 
             // Assert
@@ -427,7 +433,7 @@ describe("Workflow Generator", () => {
     });
 
     describe("updateWorkflowWithMissingSteps", () => {
-        it("should append missing steps to existing workflow", () => {
+        it("should append missing steps to existing workflow", async () => {
             // Arrange
             const existingWorkflow = {
                 name: "Copilot Setup Steps",
@@ -446,7 +452,7 @@ describe("Workflow Generator", () => {
             ];
 
             // Act
-            const content = updateWorkflowWithMissingSteps(
+            const content = await updateWorkflowWithMissingSteps(
                 existingWorkflow,
                 missingCandidates,
             );
@@ -458,7 +464,7 @@ describe("Workflow Generator", () => {
             expect(steps[1].uses).toContain("actions/setup-node");
         });
 
-        it("should preserve existing workflow content", () => {
+        it("should preserve existing workflow content", async () => {
             // Arrange
             const existingWorkflow = {
                 name: "My Custom Workflow",
@@ -473,7 +479,7 @@ describe("Workflow Generator", () => {
             const missingCandidates: SetupStepCandidate[] = [];
 
             // Act
-            const content = updateWorkflowWithMissingSteps(
+            const content = await updateWorkflowWithMissingSteps(
                 existingWorkflow,
                 missingCandidates,
             );

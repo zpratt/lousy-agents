@@ -84,9 +84,10 @@ so that I can **quickly set up the required workflow for GitHub Copilot Coding A
 
 #### Notes
 
-- The workflow should follow GitHub Actions best practices for Copilot setup
-- Setup steps should be ordered logically (checkout first, then language setup)
-- The workflow should include appropriate permissions for Copilot agent
+- The workflow should be named `Copilot Setup Steps` and stored at `.github/workflows/copilot-setup-steps.yml`
+- The workflow should define `workflow_dispatch` and `pull_request` triggers so that Copilot runs both on demand and for pull request validation
+- The workflow should request the minimum required permissions for Copilot agent execution, including `contents: read` and `id-token: write`
+- Setup steps should be ordered logically (checkout first, then language/runtime setup and tooling installation)
 
 ### Story 4: Update Existing Copilot Setup Steps Workflow
 
