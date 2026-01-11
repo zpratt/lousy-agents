@@ -11,12 +11,14 @@ import type {
 import { createWorkflowGateway } from "../gateways/workflow-gateway.js";
 import {
     buildCandidatesFromEnvironment,
-    findMissingCandidates,
     generateWorkflowContent,
-    getExistingActionsFromWorkflow,
-    mergeCandidates,
     updateWorkflowWithMissingSteps,
 } from "./copilot-setup.js";
+import {
+    findMissingCandidates,
+    getExistingActionsFromWorkflow,
+    mergeCandidates,
+} from "./setup-step-discovery.js";
 
 const chance = new Chance();
 

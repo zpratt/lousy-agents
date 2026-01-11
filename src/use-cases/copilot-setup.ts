@@ -25,13 +25,6 @@ import {
     loadCopilotSetupConfig,
 } from "../lib/copilot-setup-config.js";
 
-// Re-export from setup-step-discovery for backward compatibility
-export {
-    findMissingCandidates,
-    getExistingActionsFromWorkflow,
-    mergeCandidates,
-} from "./setup-step-discovery.js";
-
 /**
  * Builds setup step candidates from detected environment
  * @param environment The detected environment configuration

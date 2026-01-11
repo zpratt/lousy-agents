@@ -10,12 +10,14 @@ import {
 } from "../gateways/index.js";
 import {
     buildCandidatesFromEnvironment,
-    findMissingCandidates,
     generateWorkflowContent,
-    getExistingActionsFromWorkflow,
-    mergeCandidates,
     updateWorkflowWithMissingSteps,
 } from "../use-cases/copilot-setup.js";
+import {
+    findMissingCandidates,
+    getExistingActionsFromWorkflow,
+    mergeCandidates,
+} from "../use-cases/setup-step-discovery.js";
 
 const copilotSetupArgs = {};
 
