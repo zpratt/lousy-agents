@@ -242,7 +242,7 @@ export function createCopilotSetupCommand(parseWorkflows: ParseWorkflowsUseCase)
 
 ## Layer 4: Infrastructure
 
-**Location:** `src/infrastructure/`
+**Location:** `src/index.ts` (composition root)
 
 - Composition root wires dependencies
 - Framework configuration lives here
