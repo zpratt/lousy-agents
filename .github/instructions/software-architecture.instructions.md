@@ -28,7 +28,7 @@ src/
 
 ## Layer 1: Entities
 
-**Location:** `src/domain/entities/`
+**Location:** `src/entities/`
 
 - MUST NOT import from any other layer
 - MUST NOT depend on frameworks or infrastructure
@@ -59,13 +59,13 @@ export function isValidVersionFileType(type: string): type is VersionFileType {
 
 **Violations:**
 - Importing Zod, Prisma, or any framework
-- Importing from `application/`, `adapters/`, or `infrastructure/`
+- Importing from `src/use-cases/`, `src/gateways/`, `src/commands/`, or `src/lib/`
 - Database operations or HTTP calls
 - Using global APIs like `crypto.randomUUID()` or `Date.now()`
 
 ## Layer 2: Use Cases
 
-**Location:** `src/application/use-cases/`
+**Location:** `src/use-cases/`
 
 - MUST only import from entities and ports (interfaces)
 - MUST define input/output DTOs
@@ -114,12 +114,12 @@ export class ParseWorkflowsUseCase {
 
 **Violations:**
 - Importing `yaml`, `citty`, or any framework
-- Importing from `gateways/`, `commands/`, or `lib/`
+- Importing from `src/gateways/`, `src/commands/`, or `src/lib/`
 - File system operations or HTTP calls
 
 ## Layer 3: Adapters
 
-**Location:** `src/adapters/`
+**Location:** `src/gateways/`, `src/commands/`, `src/lib/`
 
 - MUST implement ports defined by use cases
 - MAY import from entities and use cases
@@ -242,7 +242,7 @@ export function createCopilotSetupCommand(parseWorkflows: ParseWorkflowsUseCase)
 
 ## Layer 4: Infrastructure
 
-**Location:** `src/infrastructure/`
+**Location:** `src/` (root level, e.g., `src/index.ts`)
 
 - Composition root wires dependencies
 - Framework configuration lives here
