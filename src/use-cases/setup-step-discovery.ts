@@ -24,22 +24,29 @@ export function isSetupAction(actionName: string, patterns: string[]): boolean {
 }
 
 /**
- * Extracts existing setup actions from a parsed workflow
- * @param workflow The parsed workflow object
- * @returns Set of action names already present
+ * Step object extracted from a workflow
  */
-export function getExistingActionsFromWorkflow(workflow: unknown): Set<string> {
-    const actions = new Set<string>();
+interface WorkflowStepInfo {
+    uses: string;
+    with?: Record<string, unknown>;
+}
 
+/**
+ * Iterates over all steps in a workflow that have a "uses" field
+ * @param workflow The parsed workflow object
+ * @param callback Function to call for each step with a "uses" field
+ */
+function forEachWorkflowStep(
+    workflow: unknown,
+    callback: (step: WorkflowStepInfo) => void,
+): void {
     if (!workflow || typeof workflow !== "object") {
-        return actions;
+        return;
     }
 
-    const workflowObj = workflow as Record<string, unknown>;
-    const jobs = workflowObj.jobs;
-
+    const jobs = (workflow as Record<string, unknown>).jobs;
     if (!jobs || typeof jobs !== "object") {
-        return actions;
+        return;
     }
 
     for (const job of Object.values(jobs as Record<string, unknown>)) {
@@ -47,9 +54,7 @@ export function getExistingActionsFromWorkflow(workflow: unknown): Set<string> {
             continue;
         }
 
-        const jobObj = job as Record<string, unknown>;
-        const steps = jobObj.steps;
-
+        const steps = (job as Record<string, unknown>).steps;
         if (!Array.isArray(steps)) {
             continue;
         }
@@ -63,10 +68,30 @@ export function getExistingActionsFromWorkflow(workflow: unknown): Set<string> {
             const uses = stepObj.uses;
 
             if (typeof uses === "string") {
-                actions.add(parseActionName(uses));
+                const withConfig = stepObj.with;
+                callback({
+                    uses,
+                    with:
+                        withConfig && typeof withConfig === "object"
+                            ? (withConfig as Record<string, unknown>)
+                            : undefined,
+                });
             }
         }
     }
+}
+
+/**
+ * Extracts existing setup actions from a parsed workflow
+ * @param workflow The parsed workflow object
+ * @returns Set of action names already present
+ */
+export function getExistingActionsFromWorkflow(workflow: unknown): Set<string> {
+    const actions = new Set<string>();
+
+    forEachWorkflowStep(workflow, (step) => {
+        actions.add(parseActionName(step.uses));
+    });
 
     return actions;
 }
@@ -110,6 +135,15 @@ export function mergeCandidates(
 }
 
 /**
+ * Extracts version from a "uses" string
+ * @example "actions/setup-node@v4" -> "v4"
+ */
+function extractVersionFromUses(uses: string): string | undefined {
+    const atIndex = uses.indexOf("@");
+    return atIndex !== -1 ? uses.substring(atIndex + 1) : undefined;
+}
+
+/**
  * Extracts setup step candidates from a parsed workflow based on action patterns
  * @param workflow The parsed workflow object
  * @param patterns List of action patterns to detect
@@ -121,65 +155,18 @@ export function extractSetupStepsFromWorkflow(
 ): SetupStepCandidate[] {
     const candidates: SetupStepCandidate[] = [];
 
-    if (!workflow || typeof workflow !== "object") {
-        return candidates;
-    }
+    forEachWorkflowStep(workflow, (step) => {
+        const action = parseActionName(step.uses);
 
-    const workflowObj = workflow as Record<string, unknown>;
-    const jobs = workflowObj.jobs;
-
-    if (!jobs || typeof jobs !== "object") {
-        return candidates;
-    }
-
-    for (const job of Object.values(jobs as Record<string, unknown>)) {
-        if (!job || typeof job !== "object") {
-            continue;
+        if (isSetupAction(action, patterns)) {
+            candidates.push({
+                action,
+                version: extractVersionFromUses(step.uses),
+                config: step.with,
+                source: "workflow",
+            });
         }
-
-        const jobObj = job as Record<string, unknown>;
-        const steps = jobObj.steps;
-
-        if (!Array.isArray(steps)) {
-            continue;
-        }
-
-        for (const step of steps) {
-            if (!step || typeof step !== "object") {
-                continue;
-            }
-
-            const stepObj = step as Record<string, unknown>;
-            const uses = stepObj.uses;
-
-            if (typeof uses !== "string") {
-                continue;
-            }
-
-            const action = parseActionName(uses);
-
-            if (isSetupAction(action, patterns)) {
-                // Extract version from uses string
-                const atIndex = uses.indexOf("@");
-                const version =
-                    atIndex !== -1 ? uses.substring(atIndex + 1) : undefined;
-
-                // Extract 'with' configuration
-                const withConfig = stepObj.with;
-                const config =
-                    withConfig && typeof withConfig === "object"
-                        ? (withConfig as Record<string, unknown>)
-                        : undefined;
-
-                candidates.push({
-                    action,
-                    version,
-                    config,
-                    source: "workflow",
-                });
-            }
-        }
-    }
+    });
 
     return candidates;
 }
