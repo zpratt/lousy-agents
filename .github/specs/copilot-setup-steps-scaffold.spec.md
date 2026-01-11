@@ -151,118 +151,70 @@ so that I can **keep my workflow synchronized with my project's environment conf
 
 ### Data Flow Diagram
 
+```mermaid
+flowchart TB
+    subgraph CLI["CLI Layer"]
+        CMD["copilot-setup command<br/>(src/commands/copilot-setup.ts)<br/><br/>Orchestrates: detection → parsing → merging → generation/update"]
+    end
+
+    subgraph UseCases["Use Cases Layer"]
+        CS["copilot-setup.ts<br/>• buildCandidatesFromEnvironment()<br/>• generateWorkflowContent()<br/>• updateWorkflowWithMissingSteps()"]
+        SSD["setup-step-discovery.ts<br/>• parseActionName()<br/>• isSetupAction()<br/>• getExistingActionsFromWorkflow()<br/>• findMissingCandidates()<br/>• mergeCandidates()<br/>• deduplicateCandidates()"]
+        SSD --> CS
+    end
+
+    subgraph Gateways["Gateways Layer"]
+        EG["EnvironmentGateway<br/>• detectEnvironment()"]
+        WG["WorkflowGateway<br/>• parseWorkflowsForSetupActions()<br/>• copilotSetupWorkflowExists()<br/>• readCopilotSetupWorkflow()<br/>• writeCopilotSetupWorkflow()"]
+        AVG["ActionVersionGateway<br/>• getVersion()<br/>• getCheckoutVersion()"]
+    end
+
+    subgraph External["External Resources"]
+        FS["File System<br/>• mise.toml<br/>• .nvmrc<br/>• .python-version<br/>• .java-version<br/>• .ruby-version<br/>• .go-version<br/>• .node-version"]
+        WF[".github/workflows<br/>• *.yml workflow files<br/>• copilot-setup-steps.yml"]
+        CFG["Configuration (c12)<br/>• lousy-agents.json<br/>• versionFiles<br/>• setupActions<br/>• setupActionPatterns"]
+    end
+
+    CMD --> CS
+    CS --> EG
+    CS --> WG
+    CS --> AVG
+    EG --> FS
+    WG --> WF
+    AVG --> CFG
 ```
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                                    CLI Layer                                         │
-│  ┌─────────────────────────────────────────────────────────────────────────────┐    │
-│  │                        copilot-setup command                                 │    │
-│  │                    (src/commands/copilot-setup.ts)                           │    │
-│  │                                                                              │    │
-│  │  Orchestrates: detection → parsing → merging → generation/update            │    │
-│  └──────────────────────────────────┬──────────────────────────────────────────┘    │
-└─────────────────────────────────────┼───────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                                Use Cases Layer                                       │
-│                                                                                      │
-│  ┌────────────────────────────┐     ┌────────────────────────────────┐              │
-│  │    copilot-setup.ts        │     │   setup-step-discovery.ts      │              │
-│  │                            │     │                                │              │
-│  │ • buildCandidatesFrom-     │     │ • parseActionName()            │              │
-│  │   Environment()            │     │ • isSetupAction()              │              │
-│  │ • generateWorkflowContent()│     │ • getExistingActionsFrom-      │              │
-│  │ • updateWorkflowWith-      │◄────┤   Workflow()                   │              │
-│  │   MissingSteps()           │     │ • findMissingCandidates()      │              │
-│  │                            │     │ • mergeCandidates()            │              │
-│  └─────────────┬──────────────┘     │ • deduplicateCandidates()      │              │
-│                │                    └────────────────────────────────┘              │
-└────────────────┼────────────────────────────────────────────────────────────────────┘
-                 │
-                 ▼
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                                Gateways Layer                                        │
-│                                                                                      │
-│  ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐       │
-│  │  EnvironmentGateway  │  │   WorkflowGateway    │  │ ActionVersionGateway │       │
-│  │                      │  │                      │  │                      │       │
-│  │ • detectEnvironment()│  │ • parseWorkflowsFor- │  │ • getVersion()       │       │
-│  │                      │  │   SetupActions()     │  │ • getCheckoutVersion │       │
-│  │                      │  │ • copilotSetupWork-  │  │                      │       │
-│  │                      │  │   flowExists()       │  │                      │       │
-│  │                      │  │ • readCopilotSetup-  │  │                      │       │
-│  │                      │  │   Workflow()         │  │                      │       │
-│  │                      │  │ • writeCopilotSetup- │  │                      │       │
-│  │                      │  │   Workflow()         │  │                      │       │
-│  └──────────┬───────────┘  └──────────┬───────────┘  └──────────┬───────────┘       │
-└─────────────┼──────────────────────────┼──────────────────────────┼──────────────────┘
-              │                          │                          │
-              ▼                          ▼                          ▼
-┌─────────────────────────────────────────────────────────────────────────────────────┐
-│                              External Resources                                      │
-│                                                                                      │
-│  ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐       │
-│  │    File System       │  │   .github/workflows  │  │  Configuration       │       │
-│  │                      │  │                      │  │  (c12)               │       │
-│  │ • mise.toml          │  │ • *.yml workflow     │  │                      │       │
-│  │ • .nvmrc             │  │   files              │  │ • lousy-agents.json  │       │
-│  │ • .python-version    │  │ • copilot-setup-     │  │ • versionFiles       │       │
-│  │ • .java-version      │  │   steps.yml          │  │ • setupActions       │       │
-│  │ • .ruby-version      │  │                      │  │ • setupActionPatterns│       │
-│  │ • .go-version        │  │                      │  │                      │       │
-│  │ • .node-version      │  │                      │  │                      │       │
-│  └──────────────────────┘  └──────────────────────┘  └──────────────────────┘       │
-└─────────────────────────────────────────────────────────────────────────────────────┘
 
-                              Data Flow Sequence
-                              ==================
+### Data Flow Sequence
 
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   User      │     │  Command    │     │  Use Cases  │     │  Gateways   │
-└──────┬──────┘     └──────┬──────┘     └──────┬──────┘     └──────┬──────┘
-       │                   │                   │                   │
-       │ copilot-setup     │                   │                   │
-       │──────────────────>│                   │                   │
-       │                   │                   │                   │
-       │                   │ detectEnvironment()                   │
-       │                   │───────────────────────────────────────>│
-       │                   │                   │                   │
-       │                   │          DetectedEnvironment          │
-       │                   │<───────────────────────────────────────│
-       │                   │                   │                   │
-       │                   │ parseWorkflowsForSetupActions()       │
-       │                   │───────────────────────────────────────>│
-       │                   │                   │                   │
-       │                   │       SetupStepCandidate[]            │
-       │                   │<───────────────────────────────────────│
-       │                   │                   │                   │
-       │                   │ buildCandidatesFromEnvironment()      │
-       │                   │──────────────────>│                   │
-       │                   │                   │ getVersion()      │
-       │                   │                   │──────────────────>│
-       │                   │                   │<──────────────────│
-       │                   │<──────────────────│                   │
-       │                   │                   │                   │
-       │                   │ mergeCandidates() │                   │
-       │                   │──────────────────>│                   │
-       │                   │<──────────────────│                   │
-       │                   │                   │                   │
-       │                   │ [if exists] readCopilotSetupWorkflow()│
-       │                   │───────────────────────────────────────>│
-       │                   │<───────────────────────────────────────│
-       │                   │                   │                   │
-       │                   │ generateWorkflowContent() or          │
-       │                   │ updateWorkflowWithMissingSteps()      │
-       │                   │──────────────────>│                   │
-       │                   │<──────────────────│                   │
-       │                   │                   │                   │
-       │                   │ writeCopilotSetupWorkflow()           │
-       │                   │───────────────────────────────────────>│
-       │                   │<───────────────────────────────────────│
-       │                   │                   │                   │
-       │   Success message │                   │                   │
-       │<──────────────────│                   │                   │
-       │                   │                   │                   │
+```mermaid
+sequenceDiagram
+    participant User
+    participant Command as copilot-setup
+    participant UseCases as Use Cases
+    participant Gateways
+
+    User->>Command: copilot-setup
+    Command->>Gateways: detectEnvironment()
+    Gateways-->>Command: DetectedEnvironment
+    Command->>Gateways: parseWorkflowsForSetupActions()
+    Gateways-->>Command: SetupStepCandidate[]
+    Command->>UseCases: buildCandidatesFromEnvironment()
+    UseCases->>Gateways: getVersion()
+    Gateways-->>UseCases: version string
+    UseCases-->>Command: SetupStepCandidate[]
+    Command->>UseCases: mergeCandidates()
+    UseCases-->>Command: merged candidates
+    alt workflow exists
+        Command->>Gateways: readCopilotSetupWorkflow()
+        Gateways-->>Command: existing workflow
+        Command->>UseCases: updateWorkflowWithMissingSteps()
+    else new workflow
+        Command->>UseCases: generateWorkflowContent()
+    end
+    UseCases-->>Command: workflow content
+    Command->>Gateways: writeCopilotSetupWorkflow()
+    Gateways-->>Command: success
+    Command-->>User: Success message
 ```
 
 ### Architecture Notes

@@ -180,6 +180,10 @@ so that I can **<outcome>**.
 
 <If applicable: new fields, schemas, or state changes>
 
+### Diagrams
+
+<Include Mermaid diagrams to visualize data flow, architecture, or sequences>
+
 ### Open Questions
 
 - [ ] <Unresolved technical or product question>
@@ -367,6 +371,54 @@ and confirm they pass.
 ## Constraints
 
 - **Avoid vague appeals to things like "best practices"** — These sorts terms are subjective and can change. Be specific about what you recommend and why.
+
+## Diagram Requirements
+
+All diagrams in specs must use **Mermaid** syntax for consistency and GitHub rendering support.
+
+### Supported Diagram Types
+
+| Diagram Type | Mermaid Type | Use Case |
+|--------------|--------------|----------|
+| Data Flow | `flowchart TB` or `flowchart LR` | Show how data moves between components |
+| Sequence | `sequenceDiagram` | Show interaction order between actors/systems |
+| State | `stateDiagram-v2` | Show state transitions |
+| Entity Relationship | `erDiagram` | Show data model relationships |
+| Class | `classDiagram` | Show object relationships and structure |
+
+### Example: Data Flow Diagram
+
+````markdown
+```mermaid
+flowchart TB
+    subgraph CLI["CLI Layer"]
+        CMD["command"]
+    end
+    subgraph UseCases["Use Cases Layer"]
+        UC["use case logic"]
+    end
+    CMD --> UC
+```
+````
+
+### Example: Sequence Diagram
+
+````markdown
+```mermaid
+sequenceDiagram
+    participant User
+    participant System
+    User->>System: request
+    System-->>User: response
+```
+````
+
+### Guidelines
+
+- Use subgraphs to group related components by architectural layer
+- Include descriptive labels for each node
+- Show data types flowing between components where relevant
+- For complex flows, prefer sequence diagrams to show interaction order
 
 ## Integration with Engineering Guidance
 
