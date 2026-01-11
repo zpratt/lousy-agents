@@ -35,19 +35,23 @@ src/
 
 - MUST NOT import from any other layer
 - MUST NOT depend on frameworks or infrastructure
+- MUST NOT depend on global APIs (e.g., `crypto.randomUUID()`, `Date.now()`)
 - MUST be plain TypeScript objects/classes with business logic
 - MAY contain validation and business rules
+- ID generation and timestamps should be passed as parameters or handled by use cases
 
 ```typescript
 // src/domain/entities/user.ts
 export interface User {
   readonly id: string;
   readonly email: string;
+  readonly name: string;
   readonly createdAt: Date;
 }
 
-export function createUser(props: Omit<User, 'id' | 'createdAt'>): User {
-  return { id: crypto.randomUUID(), ...props, createdAt: new Date() };
+// Accept all properties including id and createdAt
+export function createUser(props: User): User {
+  return { ...props };
 }
 
 export function isValidEmail(email: string): boolean {
@@ -59,6 +63,7 @@ export function isValidEmail(email: string): boolean {
 - Importing Zod, Prisma, or any framework
 - Importing from `application/`, `adapters/`, or `infrastructure/`
 - Database operations or HTTP calls
+- Using global APIs like `crypto.randomUUID()` or `Date.now()`
 
 ## Layer 2: Use Cases
 
@@ -83,16 +88,33 @@ export interface UserRepository {
   findByEmail(email: string): Promise<User | null>;
 }
 
+export interface IdGenerator {
+  generate(): string;
+}
+
 export class CreateUserUseCase {
-  constructor(private readonly userRepository: UserRepository) {}
+  constructor(
+    private readonly userRepository: UserRepository,
+    private readonly idGenerator: IdGenerator
+  ) {}
 
   async execute(input: CreateUserInput): Promise<CreateUserOutput> {
-    if (!isValidEmail(input.email)) throw new Error('Invalid email');
-    
+    if (!isValidEmail(input.email)) {
+      throw new Error(`Invalid email format: ${input.email}`);
+    }
+
     const existing = await this.userRepository.findByEmail(input.email);
-    if (existing) throw new Error('Email exists');
-    
-    const user = createUser(input);
+    if (existing) {
+      throw new Error(`User with email ${input.email} already exists`);
+    }
+
+    // ID generation happens at use case layer, not in entity
+    const user = createUser({
+      id: this.idGenerator.generate(),
+      email: input.email,
+      name: input.name,
+      createdAt: new Date()
+    });
     await this.userRepository.save(user);
     return { user };
   }
@@ -136,6 +158,7 @@ export class PrismaUserRepository implements UserRepository {
 // src/adapters/controllers/user-controller.ts
 import { z } from 'zod';
 import type { CreateUserUseCase } from '../../application/use-cases/create-user';
+// Request and Response types from Web API (built into Node.js 18+)
 
 const Schema = z.object({ email: z.string().email(), name: z.string() });
 
@@ -165,14 +188,22 @@ export class UserController {
 ```typescript
 // src/infrastructure/composition-root.ts
 import { PrismaClient } from '@prisma/client';
-import { CreateUserUseCase } from '../application/use-cases/create-user';
+import { CreateUserUseCase, type IdGenerator } from '../application/use-cases/create-user';
 import { PrismaUserRepository } from '../adapters/repositories/prisma-user-repository';
 import { UserController } from '../adapters/controllers/user-controller';
+
+// Adapter for ID generation using crypto API
+class CryptoIdGenerator implements IdGenerator {
+  generate(): string {
+    return crypto.randomUUID();
+  }
+}
 
 export function createContainer() {
   const prisma = new PrismaClient();
   const userRepository = new PrismaUserRepository(prisma);
-  const createUserUseCase = new CreateUserUseCase(userRepository);
+  const idGenerator = new CryptoIdGenerator();
+  const createUserUseCase = new CreateUserUseCase(userRepository, idGenerator);
   return { userController: new UserController(createUserUseCase) };
 }
 ```
