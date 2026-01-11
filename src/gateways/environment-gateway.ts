@@ -8,26 +8,13 @@ import { join } from "node:path";
 import type {
     DetectedEnvironment,
     VersionFile,
-    VersionFileType,
 } from "../entities/copilot-setup.js";
+import {
+    type CopilotSetupConfig,
+    getVersionFilenameToTypeMap,
+    loadCopilotSetupConfig,
+} from "../lib/copilot-setup-config.js";
 import { fileExists } from "./file-system-utils.js";
-
-/**
- * Mapping of version file names to their types
- */
-const VERSION_FILE_MAPPING: Record<string, VersionFileType> = {
-    ".nvmrc": "node",
-    ".node-version": "node",
-    ".python-version": "python",
-    ".java-version": "java",
-    ".ruby-version": "ruby",
-    ".go-version": "go",
-};
-
-/**
- * List of supported version file names
- */
-export const SUPPORTED_VERSION_FILES = Object.keys(VERSION_FILE_MAPPING);
 
 /**
  * Interface for environment detection gateway
@@ -54,19 +41,31 @@ async function readVersionFileContent(filePath: string): Promise<string> {
  * File system implementation of the environment gateway
  */
 export class FileSystemEnvironmentGateway implements EnvironmentGateway {
+    private config: CopilotSetupConfig | null = null;
+
+    private async getConfig(): Promise<CopilotSetupConfig> {
+        if (!this.config) {
+            this.config = await loadCopilotSetupConfig();
+        }
+        return this.config;
+    }
+
     async detectEnvironment(targetDir: string): Promise<DetectedEnvironment> {
         const miseTomlPath = join(targetDir, "mise.toml");
         const hasMise = await fileExists(miseTomlPath);
 
+        const config = await this.getConfig();
+        const filenameToType = getVersionFilenameToTypeMap(config);
+
         const versionFiles: VersionFile[] = [];
 
-        for (const [filename, type] of Object.entries(VERSION_FILE_MAPPING)) {
-            const filePath = join(targetDir, filename);
+        for (const fileConfig of config.versionFiles) {
+            const filePath = join(targetDir, fileConfig.filename);
             if (await fileExists(filePath)) {
                 const version = await readVersionFileContent(filePath);
                 versionFiles.push({
-                    type,
-                    filename,
+                    type: filenameToType[fileConfig.filename],
+                    filename: fileConfig.filename,
                     version: version || undefined,
                 });
             }

@@ -17,6 +17,7 @@
         "lint:yaml": "yamllint ."
     },
     "dependencies": {
+        "@github-actions-workflow-ts/lib": "^2.1.0",
         "c12": "3.3.3",
         "citty": "0.1.6",
         "yaml": "2.8.0",

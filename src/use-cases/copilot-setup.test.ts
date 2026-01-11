@@ -194,8 +194,8 @@ describe("Workflow Generator", () => {
                 },
             ];
 
-            // Act
-            const result = mergeCandidates(envCandidates, workflowCandidates);
+            // Act - workflow candidates passed first to take precedence
+            const result = mergeCandidates(workflowCandidates, envCandidates);
 
             // Assert
             expect(result).toHaveLength(1);

@@ -81,8 +81,8 @@ export const copilotSetupCommand = defineCommand({
 
         // Step 4: Merge candidates (workflow takes precedence)
         const allCandidates = mergeCandidates(
-            envCandidates,
             workflowCandidates,
+            envCandidates,
         );
 
         if (allCandidates.length === 0) {
