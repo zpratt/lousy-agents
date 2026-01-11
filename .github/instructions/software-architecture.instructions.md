@@ -18,15 +18,12 @@ Dependencies point inward only. Outer layers depend on inner layers, never the r
 
 ```
 src/
-├── domain/entities/           # Layer 1
-├── application/
-│   ├── use-cases/             # Layer 2
-│   └── ports/                 # Interfaces for external dependencies
-├── adapters/
-│   ├── controllers/           # Layer 3: HTTP handling
-│   ├── repositories/          # Layer 3: Data access
-│   └── gateways/              # Layer 3: External services
-└── infrastructure/            # Layer 4: Composition root, config
+├── entities/                  # Layer 1: Business domain entities
+├── use-cases/                 # Layer 2: Application business rules
+├── gateways/                  # Layer 3: External system adapters (file system, APIs)
+├── commands/                  # Layer 3: CLI command handlers
+├── lib/                       # Layer 3: Configuration and utilities
+└── index.ts                   # Layer 4: Composition root
 ```
 
 ## Layer 1: Entities
@@ -41,21 +38,22 @@ src/
 - ID generation and timestamps should be passed as parameters or handled by use cases
 
 ```typescript
-// src/domain/entities/user.ts
-export interface User {
-  readonly id: string;
-  readonly email: string;
-  readonly name: string;
-  readonly createdAt: Date;
+// src/entities/version-file.ts
+export type VersionFileType = "node" | "python" | "java" | "ruby" | "go";
+
+export interface VersionFile {
+  readonly type: VersionFileType;
+  readonly filename: string;
+  readonly version?: string;
 }
 
-// Accept all properties including id and createdAt
-export function createUser(props: User): User {
-  return { ...props };
+export interface DetectedEnvironment {
+  readonly hasMise: boolean;
+  readonly versionFiles: VersionFile[];
 }
 
-export function isValidEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+export function isValidVersionFileType(type: string): type is VersionFileType {
+  return ["node", "python", "java", "ruby", "go"].includes(type);
 }
 ```
 
@@ -75,56 +73,49 @@ export function isValidEmail(email: string): boolean {
 - MUST NOT import concrete implementations
 
 ```typescript
-// src/application/use-cases/create-user.ts
-import type { User } from '../../domain/entities/user';
-import { createUser, isValidEmail } from '../../domain/entities/user';
+// src/use-cases/parse-workflows.ts
+import type { DetectedEnvironment, SetupStepCandidate } from '../entities/version-file';
 
-export interface CreateUserInput { email: string; name: string; }
-export interface CreateUserOutput { user: User; }
+export interface ParseWorkflowsInput { targetDir: string; }
+export interface ParseWorkflowsOutput { candidates: SetupStepCandidate[]; }
 
 // Ports - interfaces for dependencies
-export interface UserRepository {
-  save(user: User): Promise<void>;
-  findByEmail(email: string): Promise<User | null>;
+export interface WorkflowGateway {
+  parseWorkflowsForSetupActions(targetDir: string): Promise<SetupStepCandidate[]>;
 }
 
-export interface IdGenerator {
-  generate(): string;
+export interface EnvironmentGateway {
+  detectEnvironment(targetDir: string): Promise<DetectedEnvironment>;
 }
 
-export class CreateUserUseCase {
+export class ParseWorkflowsUseCase {
   constructor(
-    private readonly userRepository: UserRepository,
-    private readonly idGenerator: IdGenerator
+    private readonly workflowGateway: WorkflowGateway,
+    private readonly environmentGateway: EnvironmentGateway
   ) {}
 
-  async execute(input: CreateUserInput): Promise<CreateUserOutput> {
-    if (!isValidEmail(input.email)) {
-      throw new Error(`Invalid email format: ${input.email}`);
+  async execute(input: ParseWorkflowsInput): Promise<ParseWorkflowsOutput> {
+    if (!input.targetDir) {
+      throw new Error('Target directory is required');
     }
 
-    const existing = await this.userRepository.findByEmail(input.email);
-    if (existing) {
-      throw new Error(`User with email ${input.email} already exists`);
+    const environment = await this.environmentGateway.detectEnvironment(input.targetDir);
+
+    // Don't parse workflows if mise is detected (different strategy)
+    if (environment.hasMise) {
+      return { candidates: [] };
     }
 
-    // ID generation happens at use case layer, not in entity
-    const user = createUser({
-      id: this.idGenerator.generate(),
-      email: input.email,
-      name: input.name,
-      createdAt: new Date()
-    });
-    await this.userRepository.save(user);
-    return { user };
+    const candidates = await this.workflowGateway.parseWorkflowsForSetupActions(input.targetDir);
+    return { candidates };
   }
 }
 ```
 
 **Violations:**
-- Importing `PrismaClient`, `express`, or any framework
-- Importing from `adapters/` or `infrastructure/`
-- Direct database or HTTP operations
+- Importing `yaml`, `citty`, or any framework
+- Importing from `gateways/`, `commands/`, or `lib/`
+- File system operations or HTTP calls
 
 ## Layer 3: Adapters
 
@@ -136,46 +127,76 @@ export class CreateUserUseCase {
 - MUST NOT contain business logic
 
 ```typescript
-// src/adapters/repositories/prisma-user-repository.ts
-import type { PrismaClient } from '@prisma/client';
-import type { User } from '../../domain/entities/user';
-import type { UserRepository } from '../../application/use-cases/create-user';
+// src/gateways/file-system-workflow-gateway.ts
+import { readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { parse as parseYaml } from 'yaml';
+import type { SetupStepCandidate } from '../entities/version-file';
+import type { WorkflowGateway } from '../use-cases/parse-workflows';
 
-export class PrismaUserRepository implements UserRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+export class FileSystemWorkflowGateway implements WorkflowGateway {
+  async parseWorkflowsForSetupActions(targetDir: string): Promise<SetupStepCandidate[]> {
+    const workflowsDir = join(targetDir, '.github', 'workflows');
+    const files = await readdir(workflowsDir);
+    const yamlFiles = files.filter(f => f.endsWith('.yml') || f.endsWith('.yaml'));
 
-  async save(user: User): Promise<void> {
-    await this.prisma.user.create({ data: user });
+    const candidates: SetupStepCandidate[] = [];
+
+    for (const file of yamlFiles) {
+      const content = await readFile(join(workflowsDir, file), 'utf-8');
+      const workflow = parseYaml(content);
+
+      // Extract setup actions from workflow steps
+      const steps = this.extractStepsFromWorkflow(workflow);
+      candidates.push(...steps);
+    }
+
+    return candidates;
   }
 
-  async findByEmail(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { email } });
+  private extractStepsFromWorkflow(workflow: unknown): SetupStepCandidate[] {
+    // Implementation details...
+    return [];
   }
 }
 ```
 
 ```typescript
-// src/adapters/controllers/user-controller.ts
+// src/commands/copilot-setup.ts
 import { z } from 'zod';
-import type { CreateUserUseCase } from '../../application/use-cases/create-user';
-// Request and Response types from Web API (built into Node.js 18+)
+import type { ParseWorkflowsUseCase } from '../use-cases/parse-workflows';
+import { defineCommand } from 'citty';
 
-const Schema = z.object({ email: z.string().email(), name: z.string() });
+const OptionsSchema = z.object({
+  directory: z.string().default(process.cwd())
+});
 
-export class UserController {
-  constructor(private readonly createUser: CreateUserUseCase) {}
-
-  async handleCreate(request: Request): Promise<Response> {
-    const body = Schema.parse(await request.json());
-    const result = await this.createUser.execute(body);
-    return Response.json(result, { status: 201 });
-  }
+export function createCopilotSetupCommand(parseWorkflows: ParseWorkflowsUseCase) {
+  return defineCommand({
+    meta: {
+      name: 'copilot-setup',
+      description: 'Analyze project and generate Copilot setup steps'
+    },
+    args: {
+      directory: {
+        type: 'string',
+        description: 'Target directory to analyze'
+      }
+    },
+    async run({ args }) {
+      const options = OptionsSchema.parse(args);
+      const result = await parseWorkflows.execute({ targetDir: options.directory });
+      console.log(`Found ${result.candidates.length} setup step candidates`);
+      return result;
+    }
+  });
 }
 ```
 
 **Violations:**
-- Business logic (age checks, discount calculations, validation rules)
+- Business logic (validation rules, workflow filtering decisions)
 - Domain decisions that should be in entities or use cases
+- Complex parsing logic that belongs in use cases
 
 ## Layer 4: Infrastructure
 
@@ -186,46 +207,57 @@ export class UserController {
 - MAY import from all layers
 
 ```typescript
-// src/infrastructure/composition-root.ts
-import { PrismaClient } from '@prisma/client';
-import { CreateUserUseCase, type IdGenerator } from '../application/use-cases/create-user';
-import { PrismaUserRepository } from '../adapters/repositories/prisma-user-repository';
-import { UserController } from '../adapters/controllers/user-controller';
-
-// Adapter for ID generation using crypto API
-class CryptoIdGenerator implements IdGenerator {
-  generate(): string {
-    return crypto.randomUUID();
-  }
-}
+// src/index.ts (composition root)
+import { defineCommand, runMain } from 'citty';
+import { ParseWorkflowsUseCase } from './use-cases/parse-workflows';
+import { FileSystemWorkflowGateway } from './gateways/file-system-workflow-gateway';
+import { FileSystemEnvironmentGateway } from './gateways/environment-gateway';
+import { createCopilotSetupCommand } from './commands/copilot-setup';
 
 export function createContainer() {
-  const prisma = new PrismaClient();
-  const userRepository = new PrismaUserRepository(prisma);
-  const idGenerator = new CryptoIdGenerator();
-  const createUserUseCase = new CreateUserUseCase(userRepository, idGenerator);
-  return { userController: new UserController(createUserUseCase) };
+  // Wire up dependencies
+  const workflowGateway = new FileSystemWorkflowGateway();
+  const environmentGateway = new FileSystemEnvironmentGateway();
+  const parseWorkflowsUseCase = new ParseWorkflowsUseCase(
+    workflowGateway,
+    environmentGateway
+  );
+
+  return {
+    copilotSetupCommand: createCopilotSetupCommand(parseWorkflowsUseCase)
+  };
 }
+
+// CLI entry point
+const container = createContainer();
+const main = defineCommand({
+  meta: { name: 'lousy-agents' },
+  subCommands: {
+    'copilot-setup': container.copilotSetupCommand
+  }
+});
+
+runMain(main);
 ```
 
 ## Import Rules Summary
 
-| From | Entities | Use Cases | Adapters | Infrastructure |
-|------|----------|-----------|----------|----------------|
+| From | Entities | Use Cases | Gateways/Commands/Lib | Index (Root) |
+|------|----------|-----------|----------------------|--------------|
 | Entities | ✓ | ✗ | ✗ | ✗ |
 | Use Cases | ✓ | ✓ | ✗ | ✗ |
-| Adapters | ✓ | ✓ | ✓ | ✗ |
-| Infrastructure | ✓ | ✓ | ✓ | ✓ |
+| Gateways/Commands/Lib | ✓ | ✓ | ✓ | ✗ |
+| Index (Root) | ✓ | ✓ | ✓ | ✓ |
 
 ## Anti-Patterns
 
 **Anemic Domain Model:** Entities as data-only containers with logic in services. Put business rules in entities.
 
-**Leaky Abstractions:** Ports exposing `sql: string` or `PrismaTransaction`. Use domain concepts only.
+**Leaky Abstractions:** Ports exposing `yaml: string` or `FileHandle`. Use domain concepts only.
 
-**Business Logic in Adapters:** Age checks or discount calculations in controllers. Move to entities/use cases.
+**Business Logic in Adapters:** File parsing decisions or validation rules in gateways. Move to entities/use cases.
 
-**Framework Coupling:** Use cases accepting `Request`/`Response`. Use plain DTOs.
+**Framework Coupling:** Use cases accepting CLI `args` objects. Use plain DTOs.
 
 ## Code Review Checklist
 
