@@ -1,12 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
     getVersionFileConfigKeyMap,
     getVersionFilenameToTypeMap,
     getVersionTypeToActionMap,
     loadCopilotSetupConfig,
+    resetCopilotSetupConfigCache,
 } from "./copilot-setup-config.js";
 
 describe("Copilot Setup Config", () => {
+    beforeEach(() => {
+        resetCopilotSetupConfigCache();
+    });
+
     describe("loadCopilotSetupConfig", () => {
         it("should return default configuration", async () => {
             // Act
