@@ -138,6 +138,42 @@ function candidateToStep(candidate: SetupStepCandidate): WorkflowStep {
 }
 
 /**
+ * Converts an array of SetupStepCandidate to typed Step objects
+ * @param candidates The setup step candidates to convert
+ * @returns Array of typed Step objects
+ */
+function buildStepsFromCandidates(candidates: SetupStepCandidate[]): Step[] {
+    return candidates.map((candidate) => {
+        const stepData = candidateToStep(candidate);
+        return new Step({
+            name: generateStepName(candidate.action),
+            uses: stepData.uses,
+            with: stepData.with as GeneratedWorkflowTypes.Env | undefined,
+        });
+    });
+}
+
+/**
+ * Appends missing setup steps to an existing workflow's job steps array
+ * @param steps The existing steps array to append to
+ * @param missingCandidates The candidates to add as new steps
+ */
+function appendMissingStepsToJob(
+    steps: unknown[],
+    missingCandidates: SetupStepCandidate[],
+): void {
+    for (const candidate of missingCandidates) {
+        const stepData = candidateToStep(candidate);
+        const newStep = new Step({
+            name: generateStepName(candidate.action),
+            uses: stepData.uses,
+            with: stepData.with as GeneratedWorkflowTypes.Env | undefined,
+        });
+        steps.push(newStep.step);
+    }
+}
+
+/**
  * Generates the Copilot Setup Steps workflow content using typed workflow builder
  * @param candidates The setup step candidates to include
  * @param versionGateway Optional gateway for looking up action versions (defaults to local)
@@ -154,28 +190,14 @@ export async function generateWorkflowContent(
         );
     }
 
-    // Build steps using the typed Step class
-    const steps: Step[] = [];
-
-    // Always start with checkout
-    steps.push(
+    // Build steps: checkout first, then all setup step candidates
+    const steps: Step[] = [
         new Step({
             name: "Checkout code",
             uses: `actions/checkout@${checkoutVersion}`,
         }),
-    );
-
-    // Add all setup step candidates
-    for (const candidate of candidates) {
-        const stepData = candidateToStep(candidate);
-        steps.push(
-            new Step({
-                name: generateStepName(candidate.action),
-                uses: stepData.uses,
-                with: stepData.with as GeneratedWorkflowTypes.Env | undefined,
-            }),
-        );
-    }
+        ...buildStepsFromCandidates(candidates),
+    ];
 
     // Build job using typed NormalJob class
     const job = new NormalJob("copilot-setup-steps", {
@@ -248,17 +270,8 @@ export async function updateWorkflowWithMissingSteps(
         return generateWorkflowContent(missingCandidates, versionGateway);
     }
 
-    // Append missing steps using the typed Step class to ensure proper format
-    const steps = mainJob.steps as unknown[];
-    for (const candidate of missingCandidates) {
-        const stepData = candidateToStep(candidate);
-        const newStep = new Step({
-            name: generateStepName(candidate.action),
-            uses: stepData.uses,
-            with: stepData.with as GeneratedWorkflowTypes.Env | undefined,
-        });
-        steps.push(newStep.step);
-    }
+    // Append missing steps to the existing job
+    appendMissingStepsToJob(mainJob.steps as unknown[], missingCandidates);
 
     return `---\n${stringifyYaml(workflow, { lineWidth: 0 })}`;
 }
