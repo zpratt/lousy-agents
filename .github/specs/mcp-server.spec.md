@@ -30,12 +30,15 @@ so that I can **access workflow management tools directly from my AI assistant**
 - The MCP server shall be configurable via VS Code's `mcp.json` configuration file
 - When configured with a local path, the MCP server shall start via Node.js execution
 - The MCP server shall expose available tools through the MCP protocol's `tools/list` method
-- If the MCP server fails to start, then the system shall return a descriptive error message
+- When the `tools/list` method is called, the MCP server shall return a list of all registered tools with their schemas
+- If the configured path to the MCP server entry file is invalid, then the system shall return a descriptive error indicating the file cannot be found
+- If Node.js is not found on the system PATH when starting the MCP server, then the system shall return a descriptive error indicating that Node.js is required to run the MCP server
+- If the MCP server fails to start for any other reason, then the system shall return a descriptive error message
 
 #### Notes
 
-- MCP servers can be configured to run locally via `node` execution of a JavaScript entry point
-- The server should support both stdio transport for VS Code integration
+- MCP servers can be configured to run locally either via `node` execution of a JavaScript entry point (for example, `node path/to/dist/mcp-server.js`) or via the installed `lousy-agents-mcp` CLI defined in the package's `bin` field
+- The server should support stdio transport for VS Code integration regardless of whether it is launched via `node` or the `lousy-agents-mcp` command
 
 ---
 
@@ -47,7 +50,7 @@ so that I can **quickly scaffold the required workflow without leaving my conver
 
 #### Acceptance Criteria
 
-- When the `create_copilot_setup_workflow` tool is called with a target directory, the MCP server shall detect environment configuration files
+- When the `create_copilot_setup_workflow` tool is called with a target directory, the MCP server shall scan the directory for environment configuration files (such as `mise.toml`, `.mise.toml`, `.node-version`, `.tool-versions`) and include any detected configurations in the tool response payload
 - When the `create_copilot_setup_workflow` tool is called with a target directory, the MCP server shall parse existing workflows for setup actions
 - When the `create_copilot_setup_workflow` tool is called and no `copilot-setup-steps.yml` exists, the MCP server shall create a new workflow file
 - When the `create_copilot_setup_workflow` tool is called and `copilot-setup-steps.yml` exists, the MCP server shall update the workflow with missing steps
@@ -579,7 +582,7 @@ The MCP server implementation follows the same Clean Architecture principles as 
 
 **Context**: This is the main tool that wraps the copilot-setup command functionality
 
-**Depends on**: Task 5
+**Depends on**: Tasks 3 (environment detection), 4 (workflow parsing), and 5 (integration)
 
 **Affected files**:
 - `src/mcp/server.ts` — Tool implemented inline with other tools
