@@ -1,6 +1,10 @@
 ---
 
 extends: default
+
+ignore:
+  - node_modules/
+
 rules:
   braces:
     level: warning
