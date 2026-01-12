@@ -53,5 +53,38 @@ Type "tree -L 2 -a"
 Enter
 Sleep 3s
 
+# Demo 3: copilot-setup command - detect and generate workflow
+Type "cd .. && rm -rf demo && mkdir demo && cd demo"
+Enter
+Sleep 1s
+
+Type "# Demo: Generate Copilot setup workflow"
+Enter
+Sleep 500ms
+
+# Create a sample project with .nvmrc
+Type "echo '20.11.0' > .nvmrc"
+Enter
+Sleep 500ms
+
+Type "mkdir -p .github/workflows"
+Enter
+Sleep 500ms
+
+# Show what we have
+Type "ls -la"
+Enter
+Sleep 2s
+
+# Run copilot-setup
+Type "npx lousy-agents copilot-setup"
+Enter
+Sleep 3s
+
+# Show the generated workflow
+Type "cat .github/workflows/copilot-setup-steps.yml"
+Enter
+Sleep 5s
+
 # Hold the final frame
 Sleep 2s
