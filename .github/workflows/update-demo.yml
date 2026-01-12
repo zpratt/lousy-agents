@@ -12,7 +12,6 @@ name: Update Demo GIF
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   update-demo:
