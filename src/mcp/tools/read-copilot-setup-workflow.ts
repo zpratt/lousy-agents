@@ -3,50 +3,13 @@
  */
 
 import { createWorkflowGateway, fileExists } from "../../gateways/index.js";
+import { extractAllWorkflowSteps } from "../../use-cases/setup-step-discovery.js";
 import {
     errorResponse,
     successResponse,
     type ToolArgs,
     type ToolHandler,
 } from "./types.js";
-
-/**
- * Extracts steps from a workflow object.
- */
-function extractWorkflowSteps(workflowObj: Record<string, unknown>): Array<{
-    name?: string;
-    uses?: string;
-    with?: Record<string, unknown>;
-}> {
-    const steps: Array<{
-        name?: string;
-        uses?: string;
-        with?: Record<string, unknown>;
-    }> = [];
-
-    const jobs = workflowObj?.jobs as Record<string, unknown> | undefined;
-    if (!jobs) {
-        return steps;
-    }
-
-    for (const job of Object.values(jobs)) {
-        const jobObj = job as Record<string, unknown>;
-        const jobSteps = jobObj?.steps;
-        if (!Array.isArray(jobSteps)) {
-            continue;
-        }
-        for (const step of jobSteps) {
-            const stepObj = step as Record<string, unknown>;
-            steps.push({
-                name: stepObj.name as string | undefined,
-                uses: stepObj.uses as string | undefined,
-                with: stepObj.with as Record<string, unknown> | undefined,
-            });
-        }
-    }
-
-    return steps;
-}
 
 /**
  * Reads the existing Copilot Setup Steps workflow.
@@ -75,7 +38,7 @@ export const readCopilotSetupWorkflowHandler: ToolHandler = async (
 
     const workflow = await workflowGateway.readCopilotSetupWorkflow(dir);
     const workflowObj = workflow as Record<string, unknown>;
-    const steps = extractWorkflowSteps(workflowObj);
+    const steps = extractAllWorkflowSteps(workflow);
 
     return successResponse({
         exists: true,

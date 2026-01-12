@@ -131,7 +131,6 @@ export const createCopilotSetupWorkflowHandler: ToolHandler = async (
     const workflowGateway = createWorkflowGateway();
     const workflowsDir = join(dir, ".github", "workflows");
     const workflowsDirExists = await fileExists(workflowsDir);
-    const workflowPath = join(workflowsDir, "copilot-setup-steps.yml");
 
     // Gather all candidates
     const allCandidates = await gatherCandidates(dir, workflowsDirExists);
@@ -140,6 +139,9 @@ export const createCopilotSetupWorkflowHandler: ToolHandler = async (
     if (!workflowsDirExists) {
         await mkdir(workflowsDir, { recursive: true });
     }
+
+    // Get the correct workflow path (supports both .yml and .yaml extensions)
+    const workflowPath = await workflowGateway.getCopilotSetupWorkflowPath(dir);
 
     // Check if workflow exists and create/update accordingly
     const workflowExists =

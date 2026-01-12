@@ -7,6 +7,10 @@ import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { fileExists } from "../../gateways/index.js";
 import {
+    type ActionReference,
+    extractActionsFromWorkflow,
+} from "../../use-cases/setup-step-discovery.js";
+import {
     errorResponse,
     successResponse,
     type ToolArgs,
@@ -14,59 +18,11 @@ import {
 } from "./types.js";
 
 /**
- * Action reference with name and version.
- */
-interface ActionReference {
-    name: string;
-    version: string;
-}
-
-/**
  * Workflow with action references.
  */
 interface WorkflowActions {
     file: string;
     actions: ActionReference[];
-}
-
-/**
- * Extracts action references from a parsed workflow.
- */
-function extractActionsFromWorkflow(workflow: unknown): ActionReference[] {
-    const actions: ActionReference[] = [];
-
-    if (!workflow || typeof workflow !== "object") {
-        return actions;
-    }
-
-    const workflowObj = workflow as Record<string, unknown>;
-    if (!workflowObj.jobs || typeof workflowObj.jobs !== "object") {
-        return actions;
-    }
-
-    for (const job of Object.values(
-        workflowObj.jobs as Record<string, unknown>,
-    )) {
-        if (!job || typeof job !== "object") continue;
-        const jobObj = job as Record<string, unknown>;
-        if (!Array.isArray(jobObj.steps)) continue;
-
-        for (const step of jobObj.steps) {
-            if (!step || typeof step !== "object") continue;
-            const stepObj = step as Record<string, unknown>;
-            const uses = stepObj.uses;
-            if (typeof uses !== "string") continue;
-
-            const atIndex = uses.indexOf("@");
-            if (atIndex !== -1) {
-                const name = uses.substring(0, atIndex);
-                const version = uses.substring(atIndex + 1);
-                actions.push({ name, version });
-            }
-        }
-    }
-
-    return actions;
 }
 
 /**

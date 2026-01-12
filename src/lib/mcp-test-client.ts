@@ -8,6 +8,18 @@
 import { type ChildProcess, spawn } from "node:child_process";
 
 /**
+ * Time to wait for the MCP server process to start and be ready
+ * to accept connections. Allows for process initialization overhead.
+ */
+const SERVER_STARTUP_DELAY_MS = 100;
+
+/**
+ * Maximum time to wait for a response from the MCP server
+ * before considering the request timed out.
+ */
+const REQUEST_TIMEOUT_MS = 5000;
+
+/**
  * MCP client for testing.
  * Sends JSON-RPC messages to the MCP server and receives responses.
  */
@@ -60,7 +72,7 @@ export class McpTestClient {
             this.isStarted = true;
 
             // Give the server a moment to start
-            setTimeout(resolve, 100);
+            setTimeout(resolve, SERVER_STARTUP_DELAY_MS);
         });
     }
 
@@ -121,7 +133,7 @@ export class McpTestClient {
             const timeout = setTimeout(() => {
                 this.pendingResponses.delete(id);
                 reject(new Error(`Request timeout for ${method}`));
-            }, 5000);
+            }, REQUEST_TIMEOUT_MS);
 
             // Check if stdin is still writable before writing
             if (!this.process?.stdin?.writable) {
