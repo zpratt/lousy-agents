@@ -19,14 +19,22 @@ export interface WorkflowGateway {
     ): Promise<SetupStepCandidate[]>;
 
     /**
-     * Checks if the copilot-setup-steps.yml workflow exists
+     * Checks if the copilot-setup-steps workflow exists (supports .yml and .yaml)
      * @param targetDir The repository root directory
      * @returns True if the workflow exists
      */
     copilotSetupWorkflowExists(targetDir: string): Promise<boolean>;
 
     /**
-     * Reads and parses the existing copilot-setup-steps.yml workflow
+     * Gets the path to the Copilot Setup Steps workflow file.
+     * Returns the actual path if it exists, or the default path if it doesn't.
+     * @param targetDir The repository root directory
+     * @returns The workflow file path
+     */
+    getCopilotSetupWorkflowPath(targetDir: string): Promise<string>;
+
+    /**
+     * Reads and parses the existing copilot-setup-steps workflow (supports .yml and .yaml)
      * @param targetDir The repository root directory
      * @returns The parsed workflow object or null if it doesn't exist
      */
