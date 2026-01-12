@@ -207,14 +207,20 @@ export function parseActionVersion(uses: string): string | undefined {
 
 /**
  * Action reference with name and version.
+ * @example { name: "actions/setup-node", version: "v4" }
+ * @example { name: "actions/checkout", version: "b4ffde65f46336ab88eb53be808477a3936bae11" }
  */
 export interface ActionReference {
+    /** The action name without version (e.g., "actions/setup-node") */
     name: string;
+    /** The version, tag, or commit SHA (e.g., "v4", "main", "a1b2c3d4") */
     version: string;
 }
 
 /**
- * Extracts all action references from a workflow
+ * Extracts all action references from a workflow.
+ * Only includes actions that have a version specified (format: "action@version").
+ * Actions without versions are skipped as they represent incomplete references.
  * @param workflow The parsed workflow object
  * @returns Array of action references with name and version
  */
@@ -226,6 +232,7 @@ export function extractActionsFromWorkflow(
     forEachWorkflowStep(workflow, (step) => {
         const name = parseActionName(step.uses);
         const version = parseActionVersion(step.uses);
+        // Skip actions without versions - these are incomplete references
         if (version) {
             actions.push({ name, version });
         }
