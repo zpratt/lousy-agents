@@ -163,7 +163,7 @@ This will:
 **Version Files**:
 - `.nvmrc`, `.node-version` → adds `actions/setup-node`
 - `.python-version` → adds `actions/setup-python`
-- `.ruby-version` → adds `ruby/setup-ruby`
+- `.ruby-version` → adds `actions/setup-ruby`
 - `.java-version` → adds `actions/setup-java`
 - `.go-version` → adds `actions/setup-go`
 
