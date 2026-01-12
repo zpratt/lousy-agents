@@ -46,7 +46,7 @@ const TOOLS: ToolConfig[] = [
     {
         name: "read_copilot_setup_workflow",
         description:
-            "Read the existing Copilot Setup Steps workflow (copilot-setup-steps.yml) from a target directory",
+            "Read the existing Copilot Setup Steps workflow (copilot-setup-steps.yml or .yaml) from a target directory",
         handler: readCopilotSetupWorkflowHandler,
     },
     {
@@ -64,25 +64,21 @@ const TOOLS: ToolConfig[] = [
 ];
 
 /**
- * Creates and configures the MCP server with all tools.
+ * Shared input schema for tools that operate on a target directory.
  */
-export function createMcpServer(): McpServer {
-    const server = new McpServer({
-        name: "lousy-agents",
-        version: "0.1.0",
-    });
+const targetDirInputSchema = {
+    targetDir: z
+        .string()
+        .optional()
+        .describe(
+            "Target directory to operate on. Defaults to current working directory.",
+        ),
+};
 
-    // Define shared input schema for tools
-    const targetDirInputSchema = {
-        targetDir: z
-            .string()
-            .optional()
-            .describe(
-                "Target directory to operate on. Defaults to current working directory.",
-            ),
-    };
-
-    // Register all tools
+/**
+ * Registers all MCP tools on the server.
+ */
+function registerTools(server: McpServer): void {
     // TypeScript has deep type inference issues with MCP SDK generics
     const registerTool = server.registerTool.bind(server) as unknown as (
         name: string,
@@ -103,6 +99,18 @@ export function createMcpServer(): McpServer {
             tool.handler,
         );
     }
+}
+
+/**
+ * Creates and configures the MCP server with all tools.
+ */
+export function createMcpServer(): McpServer {
+    const server = new McpServer({
+        name: "lousy-agents",
+        version: "0.1.0",
+    });
+
+    registerTools(server);
 
     return server;
 }

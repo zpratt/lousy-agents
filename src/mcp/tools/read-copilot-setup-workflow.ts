@@ -2,7 +2,6 @@
  * MCP tool handler for reading existing Copilot Setup Steps workflow.
  */
 
-import { join } from "node:path";
 import { createWorkflowGateway, fileExists } from "../../gateways/index.js";
 import {
     errorResponse,
@@ -26,21 +25,23 @@ function extractWorkflowSteps(workflowObj: Record<string, unknown>): Array<{
     }> = [];
 
     const jobs = workflowObj?.jobs as Record<string, unknown> | undefined;
-    if (jobs) {
-        for (const job of Object.values(jobs)) {
-            const jobObj = job as Record<string, unknown>;
-            if (Array.isArray(jobObj?.steps)) {
-                for (const step of jobObj.steps) {
-                    const stepObj = step as Record<string, unknown>;
-                    steps.push({
-                        name: stepObj.name as string | undefined,
-                        uses: stepObj.uses as string | undefined,
-                        with: stepObj.with as
-                            | Record<string, unknown>
-                            | undefined,
-                    });
-                }
-            }
+    if (!jobs) {
+        return steps;
+    }
+
+    for (const job of Object.values(jobs)) {
+        const jobObj = job as Record<string, unknown>;
+        const jobSteps = jobObj?.steps;
+        if (!Array.isArray(jobSteps)) {
+            continue;
+        }
+        for (const step of jobSteps) {
+            const stepObj = step as Record<string, unknown>;
+            steps.push({
+                name: stepObj.name as string | undefined,
+                uses: stepObj.uses as string | undefined,
+                with: stepObj.with as Record<string, unknown> | undefined,
+            });
         }
     }
 
@@ -61,16 +62,12 @@ export const readCopilotSetupWorkflowHandler: ToolHandler = async (
 
     const workflowGateway = createWorkflowGateway();
     const exists = await workflowGateway.copilotSetupWorkflowExists(dir);
+    const workflowPath = await workflowGateway.getCopilotSetupWorkflowPath(dir);
 
     if (!exists) {
         return successResponse({
             exists: false,
-            workflowPath: join(
-                dir,
-                ".github",
-                "workflows",
-                "copilot-setup-steps.yml",
-            ),
+            workflowPath,
             message:
                 "Copilot Setup Steps workflow does not exist. Use create_copilot_setup_workflow to create it.",
         });
@@ -82,12 +79,7 @@ export const readCopilotSetupWorkflowHandler: ToolHandler = async (
 
     return successResponse({
         exists: true,
-        workflowPath: join(
-            dir,
-            ".github",
-            "workflows",
-            "copilot-setup-steps.yml",
-        ),
+        workflowPath,
         workflow: {
             name: workflowObj?.name || "Copilot Setup Steps",
             steps,
