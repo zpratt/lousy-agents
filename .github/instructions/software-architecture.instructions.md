@@ -28,7 +28,7 @@ src/
 
 ## Layer 1: Entities
 
-**Location:** `src/domain/entities/`
+**Location:** `src/entities/`
 
 - MUST NOT import from any other layer
 - MUST NOT depend on frameworks or infrastructure
@@ -59,13 +59,13 @@ export function isValidVersionFileType(type: string): type is VersionFileType {
 
 **Violations:**
 - Importing Zod, Prisma, or any framework
-- Importing from `application/`, `adapters/`, or `infrastructure/`
+- Importing from `src/use-cases/`, `src/gateways/`, `src/commands/`, or `src/lib/`
 - Database operations or HTTP calls
 - Using global APIs like `crypto.randomUUID()` or `Date.now()`
 
 ## Layer 2: Use Cases
 
-**Location:** `src/application/use-cases/`
+**Location:** `src/use-cases/`
 
 - MUST only import from entities and ports (interfaces)
 - MUST define input/output DTOs
@@ -119,7 +119,7 @@ export class ParseWorkflowsUseCase {
 
 ## Layer 3: Adapters
 
-**Location:** `src/adapters/`
+**Location:** `src/gateways/`, `src/commands/`, and `src/lib/`
 
 - MUST implement ports defined by use cases
 - MAY import from entities and use cases
@@ -176,10 +176,15 @@ Factory functions are an alternative to class-based adapters. They're useful for
 ```typescript
 // src/gateways/action-version-gateway.ts
 import type { ConsolaInstance } from 'consola';
+import { z } from 'zod';
 
 export interface ActionVersionGateway {
   getVersion(action: string): Promise<string>;
 }
+
+const GitHubReleaseSchema = z.object({
+  tag_name: z.string()
+});
 
 // Factory function that returns an object implementing the port
 export function createActionVersionGateway(
@@ -196,8 +201,9 @@ export function createActionVersionGateway(
         throw new Error(`Failed to fetch version for ${action}: ${response.status}`);
       }
 
-      const data = await response.json();
-      return data.tag_name;
+      const data: unknown = await response.json();
+      const release = GitHubReleaseSchema.parse(data);
+      return release.tag_name;
     }
   };
 }
