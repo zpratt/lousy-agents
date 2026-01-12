@@ -14,6 +14,9 @@ npx lousy-agents init --kind webapp
 
 # Or use interactive mode to choose your project type
 npx lousy-agents init
+
+# Generate GitHub Copilot setup workflow from your project configuration
+npx lousy-agents copilot-setup
 ```
 
 ## Table of Contents
@@ -47,7 +50,11 @@ AI coding assistants work best when given clear constraints. Without structure, 
 
 ### CLI Scaffolding Tool
 
-The `lousy-agents` CLI scaffolds new projects with everything needed for effective AI-assisted development:
+The `lousy-agents` CLI provides two main commands:
+
+#### `init` - Project Scaffolding
+
+Scaffolds new projects with everything needed for effective AI-assisted development:
 
 **Webapp Projects** (`--kind webapp`):
 - Next.js + React + TypeScript configuration
@@ -61,6 +68,18 @@ The `lousy-agents` CLI scaffolds new projects with everything needed for effecti
 **CLI Projects** (`--kind CLI`):
 - `.github/instructions` directory structure
 - GitHub Copilot instructions for CLI development
+
+#### `copilot-setup` - Workflow Generation
+
+Analyzes your project and automatically generates a GitHub Actions workflow (`copilot-setup-steps.yml`) that configures the environment for GitHub Copilot:
+
+- **Environment Detection**: Scans for mise.toml, .nvmrc, .python-version, and other version files
+- **Workflow Analysis**: Parses existing workflows to identify setup actions already in use
+- **Smart Merging**: Combines detected environment with existing workflow patterns
+- **Incremental Updates**: Only adds missing setup steps to existing workflows
+- **Zero Configuration**: Works out of the box for common project setups
+
+This workflow ensures GitHub Copilot has the same environment context as your CI/CD pipelines, improving code suggestions and reducing hallucinations.
 
 ### Spec-Driven Development
 
@@ -90,7 +109,9 @@ npm install -g lousy-agents
 
 ## Usage
 
-### Interactive Mode
+### Scaffolding Projects with `init`
+
+#### Interactive Mode
 
 Run the init command and select your project type from the menu:
 
@@ -104,7 +125,7 @@ You'll be prompted to choose from:
 - REST API (coming soon)
 - GraphQL API (coming soon)
 
-### Non-Interactive Mode
+#### Non-Interactive Mode
 
 Specify the project type directly:
 
@@ -113,11 +134,77 @@ npx lousy-agents init --kind webapp
 npx lousy-agents init --kind CLI
 ```
 
-### Help
+#### Help
 
 ```bash
 npx lousy-agents --help
 npx lousy-agents init --help
+```
+
+### Generating Copilot Workflows with `copilot-setup`
+
+The `copilot-setup` command analyzes your project and generates a GitHub Actions workflow that sets up the environment for GitHub Copilot.
+
+#### Basic Usage
+
+Run from your project root:
+
+```bash
+npx lousy-agents copilot-setup
+```
+
+This will:
+1. Detect environment configuration files (mise.toml, .nvmrc, .python-version, etc.)
+2. Parse existing GitHub Actions workflows for setup actions
+3. Generate or update `.github/workflows/copilot-setup-steps.yml`
+
+#### What It Detects
+
+**Version Files**:
+- `.nvmrc`, `.node-version` → adds `actions/setup-node`
+- `.python-version` → adds `actions/setup-python`
+- `.ruby-version` → adds `ruby/setup-ruby`
+- `.java-version` → adds `actions/setup-java`
+- `.go-version` → adds `actions/setup-go`
+
+**Tool Configuration**:
+- `mise.toml` → adds `jdx/mise-action` (replaces individual setup actions)
+
+**Existing Workflows**:
+- Scans `.github/workflows/*.yml` for setup actions
+- Preserves existing configuration
+
+#### Examples
+
+**Create workflow for Node.js project**:
+
+```bash
+# Project has .nvmrc
+npx lousy-agents copilot-setup
+# Creates workflow with actions/setup-node
+```
+
+**Create workflow for mise project**:
+
+```bash
+# Project has mise.toml
+npx lousy-agents copilot-setup
+# Creates workflow with jdx/mise-action
+```
+
+**Update existing workflow**:
+
+```bash
+# Already has copilot-setup-steps.yml
+# Add .python-version file
+npx lousy-agents copilot-setup
+# Adds actions/setup-python to existing workflow
+```
+
+#### Help
+
+```bash
+npx lousy-agents copilot-setup --help
 ```
 
 ## Roadmap
