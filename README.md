@@ -4,6 +4,12 @@
 
 ![Demo](media/demo.gif)
 
+## TL;DR
+
+A CLI tool that scaffolds projects with the structure AI coding assistants need to be effective. Run `npx lousy-agents init` to create a new project with testing, linting, and GitHub Copilot configuration. Run `npx lousy-agents copilot-setup` in existing projects to generate a workflow that gives Copilot your environment context.
+
+---
+
 Lousy Agents is a CLI scaffolding tool that sets up your projects with the structure, instructions, and feedback loops that AI coding assistants need to be effective. One command gives you a production-ready development environment with testing, linting, and AI assistant configuration.
 
 ## Quick Start
