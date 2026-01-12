@@ -255,16 +255,18 @@ flowchart TB
         AI["AI Assistant<br/>(GitHub Copilot, Claude, etc.)"]
     end
 
-    subgraph MCP["MCP Server Layer"]
-        SERVER["MCP Server<br/>(src/mcp/server.ts)<br/><br/>Handles MCP protocol<br/>Routes tool calls"]
+    subgraph MCP["MCP Server Layer (src/mcp/)"]
+        SERVER["server.ts<br/>MCP protocol handler<br/>Tool registration"]
         
-        subgraph Tools["MCP Tools"]
-            T1["create_copilot_setup_workflow"]
-            T2["read_copilot_setup_workflow"]
-            T3["discover_environment"]
-            T4["discover_workflow_setup_actions"]
-            T5["analyze_action_versions"]
+        subgraph Tools["tools/ - Individual Tool Modules"]
+            T1["create-copilot-setup-workflow.ts"]
+            T2["read-copilot-setup-workflow.ts"]
+            T3["discover-environment.ts"]
+            T4["discover-workflow-setup-actions.ts"]
+            T5["analyze-action-versions.ts"]
         end
+
+        TYPES["tools/types.ts<br/>Shared types & utilities"]
     end
 
     subgraph UseCases["Use Cases Layer"]
@@ -287,6 +289,12 @@ flowchart TB
     SERVER --> T3
     SERVER --> T4
     SERVER --> T5
+    
+    T1 --> TYPES
+    T2 --> TYPES
+    T3 --> TYPES
+    T4 --> TYPES
+    T5 --> TYPES
     
     T1 --> CS
     T1 --> SSD

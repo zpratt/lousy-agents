@@ -22,8 +22,13 @@ src/
 ├── use-cases/                 # Layer 2: Application business rules
 ├── gateways/                  # Layer 3: External system adapters (file system, APIs)
 ├── commands/                  # Layer 3: CLI command handlers
+├── mcp/                       # Layer 3: MCP protocol adapters
+│   ├── tools/                 # Individual MCP tool handlers
+│   ├── server.ts              # MCP server setup and tool registration
+│   └── index.ts               # MCP module exports
 ├── lib/                       # Layer 3: Configuration and utilities
-└── index.ts                   # Layer 4: Composition root
+├── index.ts                   # Layer 4: Composition root (CLI)
+└── mcp-server.ts              # Layer 4: Composition root (MCP server)
 ```
 
 ## Layer 1: Entities
