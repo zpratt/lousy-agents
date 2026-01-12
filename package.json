@@ -4,7 +4,8 @@
     "private": true,
     "type": "module",
     "bin": {
-        "lousy-agents": "./dist/index.js"
+        "lousy-agents": "./dist/index.js",
+        "lousy-agents-mcp": "./dist/mcp-server.js"
     },
     "scripts": {
         "dev": "tsx src/index.ts",
@@ -18,6 +19,7 @@
     },
     "dependencies": {
         "@github-actions-workflow-ts/lib": "2.1.0",
+        "@modelcontextprotocol/sdk": "1.25.2",
         "c12": "3.3.3",
         "citty": "0.1.6",
         "consola": "3.4.2",
