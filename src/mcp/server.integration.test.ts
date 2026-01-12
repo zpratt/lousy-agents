@@ -3,8 +3,12 @@
  *
  * These tests verify the MCP server works correctly when started via npx
  * as a user would in their VS Code mcp.json configuration.
+ *
+ * NOTE: These tests require the project to be built first (`npm run build`).
+ * They will be skipped if the dist/mcp-server.js file doesn't exist.
  */
 
+import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,7 +18,10 @@ import { McpTestClient } from "../lib/mcp-test-client.js";
 
 const chance = new Chance();
 
-describe("MCP Server Integration Tests", () => {
+// Check if dist file exists - skip tests if not built
+const distExists = existsSync(join(process.cwd(), "dist", "mcp-server.js"));
+
+describe.skipIf(!distExists)("MCP Server Integration Tests", () => {
     let client: McpTestClient;
     let testDir: string;
 
