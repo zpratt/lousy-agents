@@ -50,7 +50,7 @@ AI coding assistants work best when given clear constraints. Without structure, 
 
 ### CLI Scaffolding Tool
 
-The `lousy-agents` CLI provides two main commands:
+The `lousy-agents` CLI provides the following main commands:
 
 #### `init` - Project Scaffolding
 

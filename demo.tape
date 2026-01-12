@@ -62,8 +62,8 @@ Type "# Demo: Generate Copilot setup workflow"
 Enter
 Sleep 500ms
 
-# Create a sample project with .nvmrc
-Type "echo '20.11.0' > .nvmrc"
+# Create a sample project with .nvmrc (using Node 22 LTS)
+Type "echo '22.11.0' > .nvmrc"
 Enter
 Sleep 500ms
 
