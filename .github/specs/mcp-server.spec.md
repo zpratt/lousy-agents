@@ -228,7 +228,7 @@ interface DiscoverSetupActionsResult {
     action: string;
     version?: string;
     config?: Record<string, unknown>;
-    sourceWorkflow: string;
+    source: "version-file" | "workflow";
   }>;
   message: string;
 }
