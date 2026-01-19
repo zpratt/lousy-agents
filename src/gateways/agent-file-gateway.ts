@@ -74,7 +74,7 @@ export class FileSystemAgentFileGateway implements AgentFileGateway {
         content: string,
     ): Promise<void> {
         const filePath = this.getAgentFilePath(targetDir, agentName);
-        await writeFile(filePath, content);
+        await writeFile(filePath, content, { encoding: "utf-8" });
     }
 }
 
