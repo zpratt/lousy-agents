@@ -3,11 +3,25 @@
  * Orchestrates entity logic with gateway operations.
  */
 
+import { z } from "zod";
 import {
     generateAgentContent,
     normalizeAgentName,
 } from "../entities/copilot-agent.js";
 import type { AgentFileGateway } from "../gateways/agent-file-gateway.js";
+
+/**
+ * Schema for validating agent name input
+ * Validates that the input is a non-empty string with reasonable constraints
+ */
+const AgentNameSchema = z
+    .string()
+    .min(1, "Agent name is required")
+    .max(100, "Agent name must be 100 characters or less")
+    .regex(
+        /^[a-zA-Z0-9\s_-]+$/,
+        "Agent name can only contain letters, numbers, spaces, hyphens, and underscores",
+    );
 
 /**
  * Result of the create copilot agent operation
@@ -35,10 +49,22 @@ export class CreateCopilotAgentUseCase {
         targetDir: string,
         agentName: string,
     ): Promise<CreateCopilotAgentResult> {
-        // Normalize the agent name
-        const normalizedName = normalizeAgentName(agentName);
+        // Validate the agent name using Zod schema
+        const validationResult = AgentNameSchema.safeParse(agentName);
+        if (!validationResult.success) {
+            const errorMessage =
+                validationResult.error.issues[0]?.message ??
+                "Invalid agent name";
+            return {
+                success: false,
+                error: errorMessage,
+            };
+        }
 
-        // Validate that the normalized name is not empty
+        // Normalize the agent name
+        const normalizedName = normalizeAgentName(validationResult.data);
+
+        // Validate that the normalized name is not empty (handles whitespace-only input)
         if (!normalizedName) {
             return {
                 success: false,

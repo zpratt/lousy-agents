@@ -165,4 +165,38 @@ describe("CreateCopilotAgentUseCase", () => {
             expect(result.error).toContain("Agent name is required");
         });
     });
+
+    describe("given an agent name that is too long", () => {
+        it("should return an error result", async () => {
+            // Arrange
+            const gateway = createMockGateway();
+            const useCase = new CreateCopilotAgentUseCase(gateway);
+            const targetDir = "/test/dir";
+            const agentName = "a".repeat(101);
+
+            // Act
+            const result = await useCase.execute(targetDir, agentName);
+
+            // Assert
+            expect(result.success).toBe(false);
+            expect(result.error).toContain("100 characters or less");
+        });
+    });
+
+    describe("given an agent name with invalid characters", () => {
+        it("should return an error result for special characters", async () => {
+            // Arrange
+            const gateway = createMockGateway();
+            const useCase = new CreateCopilotAgentUseCase(gateway);
+            const targetDir = "/test/dir";
+            const agentName = "test@agent!";
+
+            // Act
+            const result = await useCase.execute(targetDir, agentName);
+
+            // Assert
+            expect(result.success).toBe(false);
+            expect(result.error).toContain("can only contain");
+        });
+    });
 });

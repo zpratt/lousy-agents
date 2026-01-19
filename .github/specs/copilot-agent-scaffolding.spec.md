@@ -209,7 +209,7 @@ sequenceDiagram
 
 ### Open Questions
 
-- [x] Should the agent name in the frontmatter be the original name or normalized name? — Use original name for display, normalized for filename
+- [x] Should the agent name in the frontmatter be the original name or normalized name? — Use normalized name consistently for both frontmatter display and filename
 
 ---
 
