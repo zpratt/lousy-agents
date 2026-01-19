@@ -157,6 +157,8 @@ interface ResolvedVersion {
 
 **Updated CreateWorkflowResult:**
 
+The existing response format is extended with optional fields for version resolution. This maintains backward compatibility with existing clients.
+
 ```typescript
 interface CreateWorkflowResult {
   success: boolean;
@@ -165,12 +167,17 @@ interface CreateWorkflowResult {
   stepsAdded: string[];
   message: string;
   
-  // New fields for version resolution
-  workflowTemplate: string;
-  actionsToResolve: ActionToResolve[];
-  instructions: string;
+  // New optional fields for version resolution (backward compatible)
+  /** The generated workflow content, included when workflow is created/updated */
+  workflowTemplate?: string;
+  /** Actions that need version resolution, empty when all versions are resolved */
+  actionsToResolve?: ActionToResolve[];
+  /** Instructions for the LLM to resolve versions, only included when actionsToResolve is non-empty */
+  instructions?: string;
 }
 ```
+
+Note: The existing `successResponse` utility wraps results in `{ success: true, ...data }` format. The new fields are added to the data payload.
 
 ### Data Flow Diagram
 
