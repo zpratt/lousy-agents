@@ -267,9 +267,9 @@ sequenceDiagram
 
 ### Open Questions
 
-- [ ] Should we provide a separate tool for version resolution only (without workflow creation)?
-- [ ] Should we cache resolved versions to speed up subsequent calls?
-- [ ] Should we provide alternative resolution methods (e.g., npm package for local resolution)?
+- [x] Should we provide a separate tool for version resolution only (without workflow creation)? — **Yes**, a standalone tool for version resolution will be provided.
+- [x] Should we cache resolved versions to speed up subsequent calls? — **No**, caching is out of scope for the initial implementation.
+- [x] Should we provide alternative resolution methods (e.g., npm package for local resolution)? — **No**, the LLM web_fetch approach is sufficient.
 
 ---
 
@@ -458,13 +458,45 @@ sequenceDiagram
 
 ---
 
-### Task 7: Integration testing and documentation
+### Task 7: Create standalone resolve_action_versions tool
+
+**Objective**: Create a separate MCP tool for resolving action versions independently
+
+**Context**: This tool allows reuse of version resolution logic without creating/updating workflows
+
+**Depends on**: Task 2
+
+**Affected files**:
+- `src/mcp/tools/resolve-action-versions.ts` (new)
+- `src/mcp/tools/index.ts`
+- `src/mcp/server.ts` — Register new tool
+- `src/mcp/server.test.ts`
+
+**Requirements**:
+- When called with a list of actions, the tool shall return actionsToResolve array
+- The tool shall accept optional resolvedVersions to process previously resolved actions
+- The tool shall return instructions for version resolution
+
+**Verification**:
+- [ ] `npm test src/mcp/server.test.ts` passes
+- [ ] `mise run format-check` passes
+- [ ] Tool can be called independently of workflow creation
+
+**Done when**:
+- [ ] All verification steps pass
+- [ ] No new errors in affected files
+- [ ] Tool provides standalone version resolution
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
+
+---
+
+### Task 8: Integration testing and documentation
 
 **Objective**: Perform end-to-end testing and update documentation
 
 **Context**: Final verification ensures the feature works correctly
 
-**Depends on**: Task 6
+**Depends on**: Task 6, Task 7
 
 **Affected files**:
 - `README.md` — Update MCP tool documentation
@@ -473,6 +505,7 @@ sequenceDiagram
 **Requirements**:
 - Manual test shall verify full resolution flow
 - Documentation shall explain the version resolution pattern
+- Documentation shall document the standalone resolve_action_versions tool
 - Full validation suite shall pass
 
 **Verification**:
@@ -492,15 +525,14 @@ sequenceDiagram
 ## Out of Scope
 
 - Automatic version resolution via GitHub API (delegated to LLM)
-- Caching of resolved versions (future enhancement)
+- Caching of resolved versions (not needed for initial implementation)
 - Version comparison or update detection
 - Integration with Dependabot or Renovate
 - Support for non-GitHub action sources
+- Alternative resolution methods (npm package for local resolution)
 
 ## Future Considerations
 
-- Add version caching to speed up repeated resolution
-- Add `resolve_action_versions` standalone tool for reuse
 - Support for action pinning in other workflow files (not just copilot-setup-steps)
 - Add version staleness warnings when workflows are read
 - Integration with security advisory databases for vulnerable action detection
