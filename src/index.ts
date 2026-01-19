@@ -3,6 +3,7 @@
 import { defineCommand, runMain } from "citty";
 import { copilotSetupCommand } from "./commands/copilot-setup.js";
 import { initCommand } from "./commands/init.js";
+import { newCommand } from "./commands/new.js";
 
 const main = defineCommand({
     meta: {
@@ -12,6 +13,7 @@ const main = defineCommand({
     },
     subCommands: {
         init: initCommand,
+        new: newCommand,
         "copilot-setup": copilotSetupCommand,
     },
 });
