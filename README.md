@@ -33,7 +33,7 @@ npx lousy-agents copilot-setup
 - [Installation](#installation)
 - [Usage](#usage)
 - [Roadmap](#roadmap)
-- [MCP Server](#mcp-server)
+- [Documentation](#documentation)
 - [Reference Example](#reference-example)
 
 ## Who This Is For
@@ -55,38 +55,14 @@ AI coding assistants work best when given clear constraints. Without structure, 
 
 ## Features
 
-### CLI Scaffolding Tool
+### CLI Commands
 
-The `lousy-agents` CLI provides the following main commands:
+- **[`init`](docs/init.md)** - Scaffold new projects with testing, linting, and Copilot configuration
+- **[`copilot-setup`](docs/copilot-setup.md)** - Generate GitHub Actions workflows for Copilot environment setup
 
-#### `init` - Project Scaffolding
+### MCP Server
 
-Scaffolds new projects with everything needed for effective AI-assisted development:
-
-**Webapp Projects** (`--kind webapp`):
-- Next.js + React + TypeScript configuration
-- Vitest testing setup with React Testing Library
-- Biome linting and formatting
-- GitHub Copilot instructions tailored for webapp development
-- VSCode configuration with recommended extensions
-- Dev Container setup for one-click environments
-- EditorConfig and Node.js version management
-
-**CLI Projects** (`--kind CLI`):
-- `.github/instructions` directory structure
-- GitHub Copilot instructions for CLI development
-
-#### `copilot-setup` - Workflow Generation
-
-Analyzes your project and automatically generates a GitHub Actions workflow (`copilot-setup-steps.yml`) that configures the environment for GitHub Copilot:
-
-- **Environment Detection**: Scans for mise.toml, .nvmrc, .python-version, and other version files
-- **Workflow Analysis**: Parses existing workflows to identify setup actions already in use
-- **Smart Merging**: Combines detected environment with existing workflow patterns
-- **Incremental Updates**: Only adds missing setup steps to existing workflows
-- **Zero Configuration**: Works out of the box for common project setups
-
-This workflow ensures GitHub Copilot has the same environment context as your CI/CD pipelines, improving code suggestions and reducing hallucinations.
+- **[MCP Server](docs/mcp-server.md)** - Model Context Protocol server for AI assistant integration
 
 ### Spec-Driven Development
 
@@ -116,102 +92,24 @@ npm install -g lousy-agents
 
 ## Usage
 
-### Scaffolding Projects with `init`
+For detailed documentation on each command, see:
 
-#### Interactive Mode
+- **[`init` command](docs/init.md)** - Scaffold new projects
+- **[`copilot-setup` command](docs/copilot-setup.md)** - Generate Copilot workflows
+- **[MCP Server](docs/mcp-server.md)** - AI assistant integration
 
-Run the init command and select your project type from the menu:
+### Quick Examples
 
-```bash
-npx lousy-agents init
-```
-
-You'll be prompted to choose from:
-- CLI
-- webapp
-- REST API (coming soon)
-- GraphQL API (coming soon)
-
-#### Non-Interactive Mode
-
-Specify the project type directly:
+**Create a new webapp:**
 
 ```bash
 npx lousy-agents init --kind webapp
-npx lousy-agents init --kind CLI
 ```
 
-#### Help
-
-```bash
-npx lousy-agents --help
-npx lousy-agents init --help
-```
-
-### Generating Copilot Workflows with `copilot-setup`
-
-The `copilot-setup` command analyzes your project and generates a GitHub Actions workflow that sets up the environment for GitHub Copilot.
-
-#### Basic Usage
-
-Run from your project root:
+**Generate Copilot setup workflow:**
 
 ```bash
 npx lousy-agents copilot-setup
-```
-
-This will:
-1. Detect environment configuration files (mise.toml, .nvmrc, .python-version, etc.)
-2. Parse existing GitHub Actions workflows for setup actions
-3. Generate or update `.github/workflows/copilot-setup-steps.yml`
-
-#### What It Detects
-
-**Version Files**:
-- `.nvmrc`, `.node-version` → adds `actions/setup-node`
-- `.python-version` → adds `actions/setup-python`
-- `.ruby-version` → adds `actions/setup-ruby`
-- `.java-version` → adds `actions/setup-java`
-- `.go-version` → adds `actions/setup-go`
-
-**Tool Configuration**:
-- `mise.toml` → adds `jdx/mise-action` (replaces individual setup actions)
-
-**Existing Workflows**:
-- Scans `.github/workflows/*.yml` for setup actions
-- Preserves existing configuration
-
-#### Examples
-
-**Create workflow for Node.js project**:
-
-```bash
-# Project has .nvmrc
-npx lousy-agents copilot-setup
-# Creates workflow with actions/setup-node
-```
-
-**Create workflow for mise project**:
-
-```bash
-# Project has mise.toml
-npx lousy-agents copilot-setup
-# Creates workflow with jdx/mise-action
-```
-
-**Update existing workflow**:
-
-```bash
-# Already has copilot-setup-steps.yml
-# Add .python-version file
-npx lousy-agents copilot-setup
-# Adds actions/setup-python to existing workflow
-```
-
-#### Help
-
-```bash
-npx lousy-agents copilot-setup --help
 ```
 
 ## Roadmap
@@ -224,54 +122,11 @@ npx lousy-agents copilot-setup --help
 | Scaffolding for GraphQL APIs | Not Started |
 | MCP server package | ✅ Complete |
 
-## MCP Server
+## Documentation
 
-Lousy Agents includes an MCP (Model Context Protocol) server that exposes workflow management tools to AI assistants like GitHub Copilot. This allows you to manage Copilot Setup Steps workflows directly from your AI assistant conversations.
-
-### Available Tools
-
-| Tool | Description |
-|------|-------------|
-| `discover_environment` | Detect environment configuration files (mise.toml, .nvmrc, .python-version, etc.) |
-| `discover_workflow_setup_actions` | Find setup actions in existing GitHub Actions workflows |
-| `read_copilot_setup_workflow` | Read the current Copilot Setup Steps workflow |
-| `create_copilot_setup_workflow` | Create or update the Copilot Setup Steps workflow |
-| `analyze_action_versions` | Analyze GitHub Action versions across all workflows |
-
-### VS Code Configuration
-
-Add the following to your VS Code `mcp.json` configuration file (typically at `.vscode/mcp.json` or in your user settings):
-
-```json
-{
-  "servers": {
-    "lousy-agents": {
-      "command": "npx",
-      "args": ["lousy-agents-mcp"]
-    }
-  }
-}
-```
-
-Or if you have lousy-agents installed locally:
-
-```json
-{
-  "servers": {
-    "lousy-agents": {
-      "command": "node",
-      "args": ["./node_modules/lousy-agents/dist/mcp-server.js"]
-    }
-  }
-}
-```
-
-Once configured, you can ask your AI assistant to:
-
-- "Discover what environment configuration files are in this project"
-- "Create a Copilot Setup Steps workflow for this repository"
-- "What setup actions are used in my existing workflows?"
-- "Analyze the action versions in my GitHub workflows"
+- **[`init` Command](docs/init.md)** - Project scaffolding
+- **[`copilot-setup` Command](docs/copilot-setup.md)** - Workflow generation
+- **[MCP Server](docs/mcp-server.md)** - AI assistant integration
 
 ## Reference Example
 
