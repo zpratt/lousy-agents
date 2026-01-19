@@ -32,6 +32,15 @@ interface WorkflowStepInfo {
 }
 
 /**
+ * Step object with all fields (for workflow reading)
+ */
+export interface WorkflowStepDetails {
+    name?: string;
+    uses?: string;
+    with?: Record<string, unknown>;
+}
+
+/**
  * Iterates over all steps in a workflow that have a "uses" field
  * @param workflow The parsed workflow object
  * @param callback Function to call for each step with a "uses" field
@@ -79,6 +88,59 @@ function forEachWorkflowStep(
             }
         }
     }
+}
+
+/**
+ * Extracts all steps from a workflow (including steps without "uses")
+ * @param workflow The parsed workflow object
+ * @returns Array of step details
+ */
+export function extractAllWorkflowSteps(
+    workflow: unknown,
+): WorkflowStepDetails[] {
+    const steps: WorkflowStepDetails[] = [];
+
+    if (!workflow || typeof workflow !== "object") {
+        return steps;
+    }
+
+    const jobs = (workflow as Record<string, unknown>).jobs;
+    if (!jobs || typeof jobs !== "object") {
+        return steps;
+    }
+
+    for (const job of Object.values(jobs as Record<string, unknown>)) {
+        if (!job || typeof job !== "object") {
+            continue;
+        }
+
+        const jobSteps = (job as Record<string, unknown>).steps;
+        if (!Array.isArray(jobSteps)) {
+            continue;
+        }
+
+        for (const step of jobSteps) {
+            if (!step || typeof step !== "object") {
+                continue;
+            }
+
+            const stepObj = step as Record<string, unknown>;
+            const withConfig = stepObj.with;
+
+            steps.push({
+                name:
+                    typeof stepObj.name === "string" ? stepObj.name : undefined,
+                uses:
+                    typeof stepObj.uses === "string" ? stepObj.uses : undefined,
+                with:
+                    withConfig && typeof withConfig === "object"
+                        ? (withConfig as Record<string, unknown>)
+                        : undefined,
+            });
+        }
+    }
+
+    return steps;
 }
 
 /**
@@ -138,9 +200,45 @@ export function mergeCandidates(
  * Extracts version from a "uses" string
  * @example "actions/setup-node@v4" -> "v4"
  */
-function extractVersionFromUses(uses: string): string | undefined {
+export function parseActionVersion(uses: string): string | undefined {
     const atIndex = uses.indexOf("@");
     return atIndex !== -1 ? uses.substring(atIndex + 1) : undefined;
+}
+
+/**
+ * Action reference with name and version.
+ * @example { name: "actions/setup-node", version: "v4" }
+ * @example { name: "actions/checkout", version: "b4ffde65f46336ab88eb53be808477a3936bae11" }
+ */
+export interface ActionReference {
+    /** The action name without version (e.g., "actions/setup-node") */
+    name: string;
+    /** The version, tag, or commit SHA (e.g., "v4", "main", "a1b2c3d4") */
+    version: string;
+}
+
+/**
+ * Extracts all action references from a workflow.
+ * Only includes actions that have a version specified (format: "action@version").
+ * Actions without versions are skipped as they represent incomplete references.
+ * @param workflow The parsed workflow object
+ * @returns Array of action references with name and version
+ */
+export function extractActionsFromWorkflow(
+    workflow: unknown,
+): ActionReference[] {
+    const actions: ActionReference[] = [];
+
+    forEachWorkflowStep(workflow, (step) => {
+        const name = parseActionName(step.uses);
+        const version = parseActionVersion(step.uses);
+        // Skip actions without versions - these are incomplete references
+        if (version) {
+            actions.push({ name, version });
+        }
+    });
+
+    return actions;
 }
 
 /**
@@ -161,7 +259,7 @@ export function extractSetupStepsFromWorkflow(
         if (isSetupAction(action, patterns)) {
             candidates.push({
                 action,
-                version: extractVersionFromUses(step.uses),
+                version: parseActionVersion(step.uses),
                 config: step.with,
                 source: "workflow",
             });

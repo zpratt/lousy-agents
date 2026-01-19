@@ -33,6 +33,7 @@ npx lousy-agents copilot-setup
 - [Installation](#installation)
 - [Usage](#usage)
 - [Roadmap](#roadmap)
+- [MCP Server](#mcp-server)
 - [Reference Example](#reference-example)
 
 ## Who This Is For
@@ -221,7 +222,56 @@ npx lousy-agents copilot-setup --help
 | Scaffolding for CLI | Not Started |
 | Scaffolding for REST APIs | Not Started |
 | Scaffolding for GraphQL APIs | Not Started |
-| MCP server package | Not Started |
+| MCP server package | ✅ Complete |
+
+## MCP Server
+
+Lousy Agents includes an MCP (Model Context Protocol) server that exposes workflow management tools to AI assistants like GitHub Copilot. This allows you to manage Copilot Setup Steps workflows directly from your AI assistant conversations.
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `discover_environment` | Detect environment configuration files (mise.toml, .nvmrc, .python-version, etc.) |
+| `discover_workflow_setup_actions` | Find setup actions in existing GitHub Actions workflows |
+| `read_copilot_setup_workflow` | Read the current Copilot Setup Steps workflow |
+| `create_copilot_setup_workflow` | Create or update the Copilot Setup Steps workflow |
+| `analyze_action_versions` | Analyze GitHub Action versions across all workflows |
+
+### VS Code Configuration
+
+Add the following to your VS Code `mcp.json` configuration file (typically at `.vscode/mcp.json` or in your user settings):
+
+```json
+{
+  "servers": {
+    "lousy-agents": {
+      "command": "npx",
+      "args": ["lousy-agents-mcp"]
+    }
+  }
+}
+```
+
+Or if you have lousy-agents installed locally:
+
+```json
+{
+  "servers": {
+    "lousy-agents": {
+      "command": "node",
+      "args": ["./node_modules/lousy-agents/dist/mcp-server.js"]
+    }
+  }
+}
+```
+
+Once configured, you can ask your AI assistant to:
+
+- "Discover what environment configuration files are in this project"
+- "Create a Copilot Setup Steps workflow for this repository"
+- "What setup actions are used in my existing workflows?"
+- "Analyze the action versions in my GitHub workflows"
 
 ## Reference Example
 
