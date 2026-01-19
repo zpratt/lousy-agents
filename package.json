@@ -23,7 +23,7 @@
         "c12": "3.3.3",
         "citty": "0.1.6",
         "consola": "3.4.2",
-        "yaml": "2.8.0",
+        "yaml": "2.8.2",
         "zod": "4.3.5"
     },
     "devDependencies": {
