@@ -14,9 +14,9 @@ import {
     VERSION_PLACEHOLDER,
 } from "./action-resolution.js";
 
-describe("Action Resolution Use Case", () => {
-    describe("generateLookupUrl", () => {
-        it("should generate GitHub releases URL for an action", () => {
+describe("Action version resolution", () => {
+    describe("when generating a lookup URL for an action", () => {
+        it("should point to the GitHub releases page for official actions", () => {
             // Arrange
             const action = "actions/setup-node";
 
@@ -29,7 +29,7 @@ describe("Action Resolution Use Case", () => {
             );
         });
 
-        it("should handle third-party actions", () => {
+        it("should point to the GitHub releases page for third-party actions", () => {
             // Arrange
             const action = "jdx/mise-action";
 
@@ -43,8 +43,8 @@ describe("Action Resolution Use Case", () => {
         });
     });
 
-    describe("buildActionToResolve", () => {
-        it("should build ActionToResolve with correct fields", () => {
+    describe("when building resolution metadata for an action", () => {
+        it("should include the action name, placeholder, and lookup URL", () => {
             // Arrange
             const action = "actions/setup-python";
 
@@ -61,8 +61,8 @@ describe("Action Resolution Use Case", () => {
         });
     });
 
-    describe("buildActionsToResolve", () => {
-        it("should include checkout and all candidate actions", () => {
+    describe("when building a list of actions needing resolution", () => {
+        it("should include checkout action along with all detected setup actions", () => {
             // Arrange
             const candidates: SetupStepCandidate[] = [
                 { action: "actions/setup-node", source: "version-file" },
@@ -81,7 +81,7 @@ describe("Action Resolution Use Case", () => {
             ]);
         });
 
-        it("should deduplicate actions", () => {
+        it("should remove duplicate actions from the list", () => {
             // Arrange
             const candidates: SetupStepCandidate[] = [
                 { action: "actions/setup-node", source: "version-file" },
@@ -99,7 +99,7 @@ describe("Action Resolution Use Case", () => {
             ]);
         });
 
-        it("should filter out already-resolved actions", () => {
+        it("should exclude actions that have already been resolved", () => {
             // Arrange
             const candidates: SetupStepCandidate[] = [
                 { action: "actions/setup-node", source: "version-file" },
@@ -126,7 +126,7 @@ describe("Action Resolution Use Case", () => {
             expect(result[0].action).toBe("actions/setup-python");
         });
 
-        it("should return empty array when all actions are resolved", () => {
+        it("should return empty list when all actions have been resolved", () => {
             // Arrange
             const candidates: SetupStepCandidate[] = [
                 { action: "actions/setup-node", source: "version-file" },
@@ -152,8 +152,8 @@ describe("Action Resolution Use Case", () => {
         });
     });
 
-    describe("formatShaPinnedAction", () => {
-        it("should format action with SHA and version comment", () => {
+    describe("when formatting an action reference with SHA pinning", () => {
+        it("should include the SHA and version tag as a comment", () => {
             // Arrange
             const action = "actions/setup-node";
             const sha = "1a2b3c4d5e6f";
@@ -167,8 +167,8 @@ describe("Action Resolution Use Case", () => {
         });
     });
 
-    describe("findResolvedVersion", () => {
-        it("should find matching resolved version", () => {
+    describe("when looking up a resolved version for an action", () => {
+        it("should return the resolved version when it exists", () => {
             // Arrange
             const resolvedVersions: ResolvedVersion[] = [
                 {
@@ -197,7 +197,7 @@ describe("Action Resolution Use Case", () => {
             });
         });
 
-        it("should return undefined for unresolved action", () => {
+        it("should return undefined when the action has not been resolved", () => {
             // Arrange
             const resolvedVersions: ResolvedVersion[] = [
                 {
@@ -218,8 +218,8 @@ describe("Action Resolution Use Case", () => {
         });
     });
 
-    describe("getActionVersion", () => {
-        it("should return SHA-pinned format when action is resolved", () => {
+    describe("when determining the version string for an action", () => {
+        it("should use SHA-pinned format when the action has been resolved", () => {
             // Arrange
             const resolvedVersions: ResolvedVersion[] = [
                 {
@@ -239,7 +239,7 @@ describe("Action Resolution Use Case", () => {
             expect(result).toBe("abc123def456  # v4.0.0");
         });
 
-        it("should return fallback version when not resolved but fallback provided", () => {
+        it("should use fallback version when action is not resolved but fallback is provided", () => {
             // Arrange
             const fallbackVersion = "v4";
 
@@ -254,7 +254,7 @@ describe("Action Resolution Use Case", () => {
             expect(result).toBe("v4");
         });
 
-        it("should return placeholder when not resolved and no fallback", () => {
+        it("should use placeholder when action is not resolved and no fallback is provided", () => {
             // Act
             const result = getActionVersion("actions/setup-node");
 
@@ -263,8 +263,8 @@ describe("Action Resolution Use Case", () => {
         });
     });
 
-    describe("allActionsResolved", () => {
-        it("should return true when all actions are resolved", () => {
+    describe("when checking if all actions have been resolved", () => {
+        it("should return true when all required actions are resolved", () => {
             // Arrange
             const candidates: SetupStepCandidate[] = [
                 { action: "actions/setup-node", source: "version-file" },
@@ -289,7 +289,7 @@ describe("Action Resolution Use Case", () => {
             expect(result).toBe(true);
         });
 
-        it("should return false when some actions are not resolved", () => {
+        it("should return false when some required actions are still pending", () => {
             // Arrange
             const candidates: SetupStepCandidate[] = [
                 { action: "actions/setup-node", source: "version-file" },

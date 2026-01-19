@@ -4,6 +4,7 @@
  */
 
 import type { SetupStepCandidate } from "../../entities/copilot-setup.js";
+import { loadCopilotSetupConfig } from "../../lib/copilot-setup-config.js";
 import {
     buildActionsToResolve,
     buildActionToResolve,
@@ -49,14 +50,26 @@ export const resolveActionVersionsHandler: ResolveActionsHandler = async (
         });
     }
 
-    // If no specific actions provided, return common setup actions
+    // Load configuration to get supported setup actions
+    const config = await loadCopilotSetupConfig();
+
+    // Build candidates from configured setup actions and patterns
     const defaultActions: SetupStepCandidate[] = [
-        { action: "actions/setup-node", source: "version-file" },
-        { action: "actions/setup-python", source: "version-file" },
-        { action: "actions/setup-java", source: "version-file" },
-        { action: "actions/setup-go", source: "version-file" },
-        { action: "actions/setup-ruby", source: "version-file" },
-        { action: "jdx/mise-action", source: "version-file" },
+        // Add actions from setupActions config
+        ...config.setupActions.map((actionConfig) => ({
+            action: actionConfig.action,
+            source: "version-file" as const,
+        })),
+        // Add mise-action if it's in the patterns but not in setupActions
+        ...config.setupActionPatterns
+            .filter(
+                (pattern) =>
+                    !config.setupActions.some((a) => a.action === pattern),
+            )
+            .map((action) => ({
+                action,
+                source: "version-file" as const,
+            })),
     ];
 
     const actionsToResolve = buildActionsToResolve(
