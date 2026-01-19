@@ -40,7 +40,7 @@ jobs:
 
       - name: Generate demo GIF
         # v1.3.0
-        uses: charmbracelet/vhs-action@1b9acfe3b952e00ff2c15933b84091fc5f33b6e7
+        uses: charmbracelet/vhs-action@59641cdc7fadf3978db65eb8c6937ea2752f4ec3
         with:
           path: demo.tape
 
