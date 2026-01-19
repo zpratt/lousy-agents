@@ -35,7 +35,7 @@ export const newCommand = defineCommand({
 
         if (!copilotAgentName) {
             throw new Error(
-                "No resource type specified. Use --copilot-agent <name> to create a new Copilot agent.",
+                "Missing required option: --copilot-agent <name>. Example: lousy-agents new --copilot-agent security",
             );
         }
 

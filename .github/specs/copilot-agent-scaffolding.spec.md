@@ -364,15 +364,15 @@ sequenceDiagram
 - Tests shall verify directory creation when `.github/agents` doesn't exist
 
 **Verification**:
-- [ ] `npm test` passes (all tests)
-- [ ] `mise run ci && npm run build` passes
-- [ ] Manual test: Create multiple agents, verify each has correct content
+- [x] `npm test` passes (all tests)
+- [x] `mise run ci && npm run build` passes
+- [x] Manual test: Create multiple agents, verify each has correct content
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] End-to-end functionality verified
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] End-to-end functionality verified
+- [x] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
