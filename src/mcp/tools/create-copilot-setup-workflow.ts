@@ -11,6 +11,10 @@ import {
     fileExists,
 } from "../../gateways/index.js";
 import {
+    buildActionsToResolve,
+    VERSION_RESOLUTION_INSTRUCTIONS,
+} from "../../use-cases/action-resolution.js";
+import {
     buildCandidatesFromEnvironment,
     generateWorkflowContent,
     updateWorkflowWithMissingSteps,
@@ -21,10 +25,10 @@ import {
     mergeCandidates,
 } from "../../use-cases/setup-step-discovery.js";
 import {
+    type CreateWorkflowArgs,
+    type CreateWorkflowHandler,
     errorResponse,
     successResponse,
-    type ToolArgs,
-    type ToolHandler,
     type ToolResult,
 } from "./types.js";
 
@@ -60,6 +64,7 @@ async function updateExistingWorkflow(
     dir: string,
     workflowPath: string,
     allCandidates: SetupStepCandidate[],
+    args: CreateWorkflowArgs,
 ): Promise<ToolResult> {
     const workflowGateway = createWorkflowGateway();
 
@@ -72,26 +77,55 @@ async function updateExistingWorkflow(
     );
 
     if (missingCandidates.length === 0) {
+        // Build actions to resolve for version resolution metadata
+        const actionsToResolve = buildActionsToResolve(
+            allCandidates,
+            args.resolvedVersions,
+        );
+
         return successResponse({
             action: "no_changes_needed",
             workflowPath,
             stepsAdded: [],
             message:
                 "Copilot Setup Steps workflow already contains all detected setup steps. No changes needed.",
+            actionsToResolve,
+            instructions:
+                actionsToResolve.length > 0
+                    ? VERSION_RESOLUTION_INSTRUCTIONS
+                    : undefined,
         });
     }
 
+    // Generate workflow with placeholder mode and resolved versions
     const updatedContent = await updateWorkflowWithMissingSteps(
         existingWorkflow,
         missingCandidates,
+        undefined,
+        {
+            usePlaceholders: true,
+            resolvedVersions: args.resolvedVersions,
+        },
     );
     await workflowGateway.writeCopilotSetupWorkflow(dir, updatedContent);
+
+    // Build actions to resolve
+    const actionsToResolve = buildActionsToResolve(
+        allCandidates,
+        args.resolvedVersions,
+    );
 
     return successResponse({
         action: "updated",
         workflowPath,
         stepsAdded: missingCandidates.map((c) => c.action),
         message: `Updated workflow with ${missingCandidates.length} new step(s)`,
+        workflowTemplate: updatedContent,
+        actionsToResolve,
+        instructions:
+            actionsToResolve.length > 0
+                ? VERSION_RESOLUTION_INSTRUCTIONS
+                : undefined,
     });
 }
 
@@ -102,25 +136,42 @@ async function createNewWorkflow(
     dir: string,
     workflowPath: string,
     allCandidates: SetupStepCandidate[],
+    args: CreateWorkflowArgs,
 ): Promise<ToolResult> {
     const workflowGateway = createWorkflowGateway();
 
-    const content = await generateWorkflowContent(allCandidates);
+    // Generate workflow with placeholder mode and resolved versions
+    const content = await generateWorkflowContent(allCandidates, undefined, {
+        usePlaceholders: true,
+        resolvedVersions: args.resolvedVersions,
+    });
     await workflowGateway.writeCopilotSetupWorkflow(dir, content);
+
+    // Build actions to resolve
+    const actionsToResolve = buildActionsToResolve(
+        allCandidates,
+        args.resolvedVersions,
+    );
 
     return successResponse({
         action: "created",
         workflowPath,
         stepsAdded: allCandidates.map((c) => c.action),
         message: `Created workflow with ${allCandidates.length + 1} step(s) (including checkout)`,
+        workflowTemplate: content,
+        actionsToResolve,
+        instructions:
+            actionsToResolve.length > 0
+                ? VERSION_RESOLUTION_INSTRUCTIONS
+                : undefined,
     });
 }
 
 /**
  * Creates or updates the Copilot Setup Steps workflow.
  */
-export const createCopilotSetupWorkflowHandler: ToolHandler = async (
-    args: ToolArgs,
+export const createCopilotSetupWorkflowHandler: CreateWorkflowHandler = async (
+    args: CreateWorkflowArgs,
 ) => {
     const dir = args.targetDir || process.cwd();
 
@@ -148,8 +199,8 @@ export const createCopilotSetupWorkflowHandler: ToolHandler = async (
         await workflowGateway.copilotSetupWorkflowExists(dir);
 
     if (workflowExists) {
-        return updateExistingWorkflow(dir, workflowPath, allCandidates);
+        return updateExistingWorkflow(dir, workflowPath, allCandidates, args);
     }
 
-    return createNewWorkflow(dir, workflowPath, allCandidates);
+    return createNewWorkflow(dir, workflowPath, allCandidates, args);
 };

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
+import type { ActionToResolve } from "../entities/copilot-setup.js";
 import {
     analyzeActionVersionsHandler,
     createCopilotSetupWorkflowHandler,
@@ -11,6 +12,7 @@ import {
     discoverEnvironmentHandler,
     discoverWorkflowSetupActionsHandler,
     readCopilotSetupWorkflowHandler,
+    resolveActionVersionsHandler,
 } from "./server.js";
 
 const chance = new Chance();
@@ -355,6 +357,226 @@ jobs:
             } finally {
                 await rm(emptyDir, { recursive: true, force: true });
             }
+        });
+    });
+
+    describe("create_copilot_setup_workflow handler with version resolution", () => {
+        it("should return actionsToResolve when creating new workflow", async () => {
+            // Arrange
+            await writeFile(join(testDir, ".nvmrc"), "20.0.0");
+
+            // Act
+            const response = await createCopilotSetupWorkflowHandler({
+                targetDir: testDir,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.success).toBe(true);
+            expect(result.actionsToResolve).toBeDefined();
+            expect(Array.isArray(result.actionsToResolve)).toBe(true);
+            const actionsToResolve =
+                result.actionsToResolve as ActionToResolve[];
+            expect(actionsToResolve.length).toBeGreaterThan(0);
+
+            // Should include checkout and setup-node
+            const actionNames = actionsToResolve.map((a) => a.action);
+            expect(actionNames).toContain("actions/checkout");
+            expect(actionNames).toContain("actions/setup-node");
+        });
+
+        it("should include instructions when actionsToResolve is non-empty", async () => {
+            // Arrange
+            await writeFile(join(testDir, ".nvmrc"), "20.0.0");
+
+            // Act
+            const response = await createCopilotSetupWorkflowHandler({
+                targetDir: testDir,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.instructions).toBeDefined();
+            expect(typeof result.instructions).toBe("string");
+            expect(result.instructions).toContain("SHA");
+        });
+
+        it("should include workflowTemplate in response", async () => {
+            // Arrange
+            await writeFile(join(testDir, ".nvmrc"), "20.0.0");
+
+            // Act
+            const response = await createCopilotSetupWorkflowHandler({
+                targetDir: testDir,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.workflowTemplate).toBeDefined();
+            expect(typeof result.workflowTemplate).toBe("string");
+            const parsed = parseYaml(result.workflowTemplate as string);
+            expect(parsed.name).toBe("Copilot Setup Steps");
+        });
+
+        it("should use placeholder versions in workflow template", async () => {
+            // Arrange
+            await writeFile(join(testDir, ".nvmrc"), "20.0.0");
+
+            // Act
+            const response = await createCopilotSetupWorkflowHandler({
+                targetDir: testDir,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            const workflowTemplate = result.workflowTemplate as string;
+            expect(workflowTemplate).toContain("RESOLVE_VERSION");
+        });
+
+        it("should use SHA-pinned versions when resolvedVersions is provided", async () => {
+            // Arrange
+            await writeFile(join(testDir, ".nvmrc"), "20.0.0");
+            const resolvedVersions = [
+                {
+                    action: "actions/checkout",
+                    sha: "abc123def456",
+                    versionTag: "v4.1.0",
+                },
+                {
+                    action: "actions/setup-node",
+                    sha: "789xyz012abc",
+                    versionTag: "v4.0.2",
+                },
+            ];
+
+            // Act
+            const response = await createCopilotSetupWorkflowHandler({
+                targetDir: testDir,
+                resolvedVersions,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            const workflowTemplate = result.workflowTemplate as string;
+            expect(workflowTemplate).toContain("abc123def456  # v4.1.0");
+            expect(workflowTemplate).toContain("789xyz012abc  # v4.0.2");
+
+            // actionsToResolve should be empty since all are resolved
+            const actionsToResolve =
+                result.actionsToResolve as ActionToResolve[];
+            expect(actionsToResolve.length).toBe(0);
+        });
+    });
+
+    describe("resolve_action_versions handler", () => {
+        it("should return actionsToResolve for default actions", async () => {
+            // Act
+            const response = await resolveActionVersionsHandler({});
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.success).toBe(true);
+            expect(result.actionsToResolve).toBeDefined();
+            expect(Array.isArray(result.actionsToResolve)).toBe(true);
+            const actionsToResolve =
+                result.actionsToResolve as ActionToResolve[];
+            expect(actionsToResolve.length).toBeGreaterThan(0);
+
+            // Should include checkout and common setup actions
+            const actionNames = actionsToResolve.map((a) => a.action);
+            expect(actionNames).toContain("actions/checkout");
+            expect(actionNames).toContain("actions/setup-node");
+        });
+
+        it("should return lookup URLs for each action", async () => {
+            // Act
+            const response = await resolveActionVersionsHandler({});
+            const result = parseResult(response);
+
+            // Assert
+            const actionsToResolve =
+                result.actionsToResolve as ActionToResolve[];
+            for (const action of actionsToResolve) {
+                expect(action.lookupUrl).toContain("https://github.com/");
+                expect(action.lookupUrl).toContain("/releases/latest");
+                expect(action.currentPlaceholder).toBe("RESOLVE_VERSION");
+            }
+        });
+
+        it("should return specific actions when provided", async () => {
+            // Act
+            const response = await resolveActionVersionsHandler({
+                actions: ["actions/setup-python", "jdx/mise-action"],
+            });
+            const result = parseResult(response);
+
+            // Assert
+            const actionsToResolve =
+                result.actionsToResolve as ActionToResolve[];
+            expect(actionsToResolve.length).toBe(2);
+            const actionNames = actionsToResolve.map((a) => a.action);
+            expect(actionNames).toContain("actions/setup-python");
+            expect(actionNames).toContain("jdx/mise-action");
+        });
+
+        it("should filter out already-resolved actions", async () => {
+            // Arrange
+            const resolvedVersions = [
+                {
+                    action: "actions/checkout",
+                    sha: "abc123",
+                    versionTag: "v4.0.0",
+                },
+            ];
+
+            // Act
+            const response = await resolveActionVersionsHandler({
+                actions: ["actions/checkout", "actions/setup-node"],
+                resolvedVersions,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            const actionsToResolve =
+                result.actionsToResolve as ActionToResolve[];
+            expect(actionsToResolve.length).toBe(1);
+            expect(actionsToResolve[0].action).toBe("actions/setup-node");
+        });
+
+        it("should include instructions when actionsToResolve is non-empty", async () => {
+            // Act
+            const response = await resolveActionVersionsHandler({
+                actions: ["actions/setup-node"],
+            });
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.instructions).toBeDefined();
+            expect(typeof result.instructions).toBe("string");
+            expect(result.instructions).toContain("SHA");
+        });
+
+        it("should return no instructions when all actions are resolved", async () => {
+            // Arrange
+            const resolvedVersions = [
+                {
+                    action: "actions/setup-node",
+                    sha: "abc123",
+                    versionTag: "v4.0.0",
+                },
+            ];
+
+            // Act
+            const response = await resolveActionVersionsHandler({
+                actions: ["actions/setup-node"],
+                resolvedVersions,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.actionsToResolve).toHaveLength(0);
+            expect(result.instructions).toBeUndefined();
+            expect(result.message).toContain("All actions have been resolved");
         });
     });
 });

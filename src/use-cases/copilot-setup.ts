@@ -12,6 +12,7 @@ import {
 import { stringify as stringifyYaml } from "yaml";
 import type {
     DetectedEnvironment,
+    ResolvedVersion,
     SetupStepCandidate,
     VersionFile,
     VersionFileType,
@@ -25,6 +26,10 @@ import {
     getVersionTypeToActionMap,
     loadCopilotSetupConfig,
 } from "../lib/copilot-setup-config.js";
+import {
+    findResolvedVersion,
+    VERSION_PLACEHOLDER,
+} from "./action-resolution.js";
 
 /**
  * Builds setup step candidates from detected environment
@@ -121,12 +126,57 @@ function generateStepName(actionName: string): string {
 }
 
 /**
- * Converts a SetupStepCandidate to a WorkflowStep
+ * Options for converting candidates to steps
  */
-function candidateToStep(candidate: SetupStepCandidate): WorkflowStep {
-    const uses = candidate.version
-        ? `${candidate.action}@${candidate.version}`
-        : candidate.action;
+interface CandidateToStepOptions {
+    /** Whether to use placeholder versions instead of actual versions */
+    usePlaceholders?: boolean;
+    /** Resolved versions to use for SHA-pinning */
+    resolvedVersions?: ResolvedVersion[];
+}
+
+/**
+ * Gets the version string for an action based on options.
+ * Priority: resolved version > candidate version > placeholder
+ */
+function getVersionForAction(
+    action: string,
+    candidateVersion: string | undefined,
+    options?: CandidateToStepOptions,
+): string {
+    // Check if we have a resolved version (SHA-pinned)
+    if (options?.resolvedVersions) {
+        const resolved = findResolvedVersion(action, options.resolvedVersions);
+        if (resolved) {
+            return `${resolved.sha}  # ${resolved.versionTag}`;
+        }
+    }
+
+    // If using placeholders and no resolved version, return placeholder
+    if (options?.usePlaceholders) {
+        return VERSION_PLACEHOLDER;
+    }
+
+    // Fall back to candidate version or empty string
+    return candidateVersion || "";
+}
+
+/**
+ * Converts a SetupStepCandidate to a WorkflowStep
+ * @param candidate The candidate to convert
+ * @param options Optional conversion options for placeholders and resolved versions
+ */
+function candidateToStep(
+    candidate: SetupStepCandidate,
+    options?: CandidateToStepOptions,
+): WorkflowStep {
+    const version = getVersionForAction(
+        candidate.action,
+        candidate.version,
+        options,
+    );
+
+    const uses = version ? `${candidate.action}@${version}` : candidate.action;
 
     const step: WorkflowStep = { uses };
 
@@ -140,11 +190,15 @@ function candidateToStep(candidate: SetupStepCandidate): WorkflowStep {
 /**
  * Converts an array of SetupStepCandidate to typed Step objects
  * @param candidates The setup step candidates to convert
+ * @param options Optional conversion options for placeholders and resolved versions
  * @returns Array of typed Step objects
  */
-function buildStepsFromCandidates(candidates: SetupStepCandidate[]): Step[] {
+function buildStepsFromCandidates(
+    candidates: SetupStepCandidate[],
+    options?: CandidateToStepOptions,
+): Step[] {
     return candidates.map((candidate) => {
-        const stepData = candidateToStep(candidate);
+        const stepData = candidateToStep(candidate, options);
         return new Step({
             name: generateStepName(candidate.action),
             uses: stepData.uses,
@@ -157,13 +211,15 @@ function buildStepsFromCandidates(candidates: SetupStepCandidate[]): Step[] {
  * Appends missing setup steps to an existing workflow's job steps array
  * @param steps The existing steps array to append to
  * @param missingCandidates The candidates to add as new steps
+ * @param options Optional conversion options for placeholders and resolved versions
  */
 function appendMissingStepsToJob(
     steps: unknown[],
     missingCandidates: SetupStepCandidate[],
+    options?: CandidateToStepOptions,
 ): void {
     for (const candidate of missingCandidates) {
-        const stepData = candidateToStep(candidate);
+        const stepData = candidateToStep(candidate, options);
         const newStep = new Step({
             name: generateStepName(candidate.action),
             uses: stepData.uses,
@@ -174,20 +230,52 @@ function appendMissingStepsToJob(
 }
 
 /**
+ * Options for workflow content generation
+ */
+export interface GenerateWorkflowOptions {
+    /** Whether to use placeholder versions instead of gateway versions */
+    usePlaceholders?: boolean;
+    /** Resolved versions to use for SHA-pinning */
+    resolvedVersions?: ResolvedVersion[];
+}
+
+/**
  * Generates the Copilot Setup Steps workflow content using typed workflow builder
  * @param candidates The setup step candidates to include
  * @param versionGateway Optional gateway for looking up action versions (defaults to local)
+ * @param options Optional generation options for placeholders and resolved versions
  * @returns The workflow YAML content as a string
  */
 export async function generateWorkflowContent(
     candidates: SetupStepCandidate[],
     versionGateway: ActionVersionGateway = createActionVersionGateway(),
+    options?: GenerateWorkflowOptions,
 ): Promise<string> {
-    const checkoutVersion = await versionGateway.getVersion("actions/checkout");
-    if (!checkoutVersion) {
-        throw new Error(
-            "Failed to get version for actions/checkout from version gateway. Ensure the action is available in the version mapping.",
+    const stepOptions: CandidateToStepOptions = {
+        usePlaceholders: options?.usePlaceholders,
+        resolvedVersions: options?.resolvedVersions,
+    };
+
+    // Get checkout version: resolved > gateway > placeholder
+    let checkoutVersion: string;
+    if (options?.resolvedVersions) {
+        const resolved = findResolvedVersion(
+            "actions/checkout",
+            options.resolvedVersions,
         );
+        if (resolved) {
+            checkoutVersion = `${resolved.sha}  # ${resolved.versionTag}`;
+        } else if (options.usePlaceholders) {
+            checkoutVersion = VERSION_PLACEHOLDER;
+        } else {
+            checkoutVersion =
+                (await versionGateway.getVersion("actions/checkout")) || "v4";
+        }
+    } else if (options?.usePlaceholders) {
+        checkoutVersion = VERSION_PLACEHOLDER;
+    } else {
+        checkoutVersion =
+            (await versionGateway.getVersion("actions/checkout")) || "v4";
     }
 
     // Build steps: checkout first, then all setup step candidates
@@ -196,7 +284,7 @@ export async function generateWorkflowContent(
             name: "Checkout code",
             uses: `actions/checkout@${checkoutVersion}`,
         }),
-        ...buildStepsFromCandidates(candidates),
+        ...buildStepsFromCandidates(candidates, stepOptions),
     ];
 
     // Build job using typed NormalJob class
@@ -234,16 +322,22 @@ export async function generateWorkflowContent(
  * @param existingWorkflow The parsed existing workflow
  * @param missingCandidates Candidates to add to the workflow
  * @param versionGateway Optional gateway for looking up action versions (defaults to local)
+ * @param options Optional generation options for placeholders and resolved versions
  * @returns The updated workflow YAML content
  */
 export async function updateWorkflowWithMissingSteps(
     existingWorkflow: unknown,
     missingCandidates: SetupStepCandidate[],
     versionGateway: ActionVersionGateway = createActionVersionGateway(),
+    options?: GenerateWorkflowOptions,
 ): Promise<string> {
     if (!existingWorkflow || typeof existingWorkflow !== "object") {
         // If we can't parse the existing workflow, generate a new one
-        return generateWorkflowContent(missingCandidates, versionGateway);
+        return generateWorkflowContent(
+            missingCandidates,
+            versionGateway,
+            options,
+        );
     }
 
     // Deep clone the workflow
@@ -254,24 +348,44 @@ export async function updateWorkflowWithMissingSteps(
 
     const jobs = workflow.jobs as Record<string, unknown> | undefined;
     if (!jobs) {
-        return generateWorkflowContent(missingCandidates, versionGateway);
+        return generateWorkflowContent(
+            missingCandidates,
+            versionGateway,
+            options,
+        );
     }
 
     // Find the main job (usually 'copilot-setup-steps' or similar)
     const jobNames = Object.keys(jobs);
     if (jobNames.length === 0) {
-        return generateWorkflowContent(missingCandidates, versionGateway);
+        return generateWorkflowContent(
+            missingCandidates,
+            versionGateway,
+            options,
+        );
     }
 
     const mainJobName = jobNames[0];
     const mainJob = jobs[mainJobName] as Record<string, unknown>;
 
     if (!mainJob || !Array.isArray(mainJob.steps)) {
-        return generateWorkflowContent(missingCandidates, versionGateway);
+        return generateWorkflowContent(
+            missingCandidates,
+            versionGateway,
+            options,
+        );
     }
 
     // Append missing steps to the existing job
-    appendMissingStepsToJob(mainJob.steps as unknown[], missingCandidates);
+    const stepOptions: CandidateToStepOptions = {
+        usePlaceholders: options?.usePlaceholders,
+        resolvedVersions: options?.resolvedVersions,
+    };
+    appendMissingStepsToJob(
+        mainJob.steps as unknown[],
+        missingCandidates,
+        stepOptions,
+    );
 
     return `---\n${stringifyYaml(workflow, { lineWidth: 0 })}`;
 }

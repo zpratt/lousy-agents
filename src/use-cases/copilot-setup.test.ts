@@ -526,4 +526,103 @@ describe("Workflow Generator", () => {
             expect(writtenContent).toBe(content);
         });
     });
+
+    describe("generateWorkflowContent with placeholder mode", () => {
+        it("should use RESOLVE_VERSION placeholder when usePlaceholders is true", async () => {
+            // Arrange
+            const candidates: SetupStepCandidate[] = [
+                {
+                    action: "actions/setup-node",
+                    version: "v4",
+                    source: "version-file",
+                },
+            ];
+
+            // Act
+            const content = await generateWorkflowContent(
+                candidates,
+                undefined,
+                { usePlaceholders: true },
+            );
+            const parsed = parseYaml(content);
+
+            // Assert
+            const steps = parsed.jobs["copilot-setup-steps"].steps;
+            expect(steps[0].uses).toBe("actions/checkout@RESOLVE_VERSION");
+            expect(steps[1].uses).toBe("actions/setup-node@RESOLVE_VERSION");
+        });
+
+        it("should use SHA-pinned format when resolvedVersions is provided", async () => {
+            // Arrange
+            const candidates: SetupStepCandidate[] = [
+                {
+                    action: "actions/setup-node",
+                    version: "v4",
+                    source: "version-file",
+                },
+            ];
+            const resolvedVersions = [
+                {
+                    action: "actions/checkout",
+                    sha: "abc123def456",
+                    versionTag: "v4.1.0",
+                },
+                {
+                    action: "actions/setup-node",
+                    sha: "789xyz012abc",
+                    versionTag: "v4.0.2",
+                },
+            ];
+
+            // Act
+            const content = await generateWorkflowContent(
+                candidates,
+                undefined,
+                { resolvedVersions },
+            );
+            const parsed = parseYaml(content);
+
+            // Assert
+            const steps = parsed.jobs["copilot-setup-steps"].steps;
+            expect(steps[0].uses).toBe(
+                "actions/checkout@abc123def456  # v4.1.0",
+            );
+            expect(steps[1].uses).toBe(
+                "actions/setup-node@789xyz012abc  # v4.0.2",
+            );
+        });
+
+        it("should use placeholder for unresolved actions when partially resolved", async () => {
+            // Arrange
+            const candidates: SetupStepCandidate[] = [
+                {
+                    action: "actions/setup-node",
+                    version: "v4",
+                    source: "version-file",
+                },
+            ];
+            const resolvedVersions = [
+                {
+                    action: "actions/checkout",
+                    sha: "abc123def456",
+                    versionTag: "v4.1.0",
+                },
+            ];
+
+            // Act
+            const content = await generateWorkflowContent(
+                candidates,
+                undefined,
+                { usePlaceholders: true, resolvedVersions },
+            );
+            const parsed = parseYaml(content);
+
+            // Assert
+            const steps = parsed.jobs["copilot-setup-steps"].steps;
+            expect(steps[0].uses).toBe(
+                "actions/checkout@abc123def456  # v4.1.0",
+            );
+            expect(steps[1].uses).toBe("actions/setup-node@RESOLVE_VERSION");
+        });
+    });
 });

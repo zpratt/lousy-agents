@@ -293,15 +293,15 @@ sequenceDiagram
 - The `ResolvedVersion` interface shall include action, sha, and versionTag fields
 
 **Verification**:
-- [ ] `npm run build` compiles successfully
-- [ ] `mise run format-check` passes
-- [ ] Types are exported from entities/index.ts
+- [x] `npm run build` compiles successfully
+- [x] `mise run format-check` passes
+- [x] Types are exported from entities/index.ts
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] Types follow existing entity patterns
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] Types follow existing entity patterns
+- [x] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -324,15 +324,15 @@ sequenceDiagram
 - The use case shall generate consistent placeholder values
 
 **Verification**:
-- [ ] `npm test src/use-cases/action-resolution.test.ts` passes
-- [ ] `mise run format-check` passes
-- [ ] Tests cover all supported action patterns
+- [x] `npm test src/use-cases/action-resolution.test.ts` passes
+- [x] `mise run format-check` passes
+- [x] Tests cover all supported action patterns
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] Use case follows clean architecture patterns
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] Use case follows clean architecture patterns
+- [x] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -354,16 +354,16 @@ sequenceDiagram
 - The use case shall preserve existing non-placeholder versions
 
 **Verification**:
-- [ ] `npm test src/use-cases/copilot-setup.test.ts` passes
-- [ ] `mise run format-check` passes
-- [ ] Tests verify placeholder generation
-- [ ] Tests verify SHA-pinned format with comments
+- [x] `npm test src/use-cases/copilot-setup.test.ts` passes
+- [x] `mise run format-check` passes
+- [x] Tests verify placeholder generation
+- [x] Tests verify SHA-pinned format with comments
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] Workflow generation supports both modes
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] Workflow generation supports both modes
+- [x] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -384,15 +384,15 @@ sequenceDiagram
 - The response type shall include instructions string
 
 **Verification**:
-- [ ] `npm run build` compiles successfully
-- [ ] `mise run format-check` passes
-- [ ] Types are consistent with entity types
+- [x] `npm run build` compiles successfully
+- [x] `mise run format-check` passes
+- [x] Types are consistent with entity types
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] Types follow existing MCP patterns
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] Types follow existing MCP patterns
+- [x] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -415,15 +415,15 @@ sequenceDiagram
 - When resolvedVersions is provided, the handler shall use SHA-pinned versions
 
 **Verification**:
-- [ ] `npm test src/mcp/server.test.ts` passes
-- [ ] `mise run format-check` passes
-- [ ] Integration tests verify full response format
+- [x] `npm test src/mcp/server.test.ts` passes
+- [x] `mise run format-check` passes
+- [x] Integration tests verify full response format
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] Handler returns complete resolution metadata
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] Handler returns complete resolution metadata
+- [x] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -446,15 +446,15 @@ sequenceDiagram
 - The actionsToResolve array shall only include unresolved actions
 
 **Verification**:
-- [ ] `npm test src/mcp/server.test.ts` passes
-- [ ] `mise run format-check` passes
-- [ ] Tests verify incremental resolution
+- [x] `npm test src/mcp/server.test.ts` passes
+- [x] `mise run format-check` passes
+- [x] Tests verify incremental resolution
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] Incremental resolution works correctly
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] Incremental resolution works correctly
+- [x] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -478,15 +478,15 @@ sequenceDiagram
 - The tool shall return instructions for version resolution
 
 **Verification**:
-- [ ] `npm test src/mcp/server.test.ts` passes
-- [ ] `mise run format-check` passes
-- [ ] Tool can be called independently of workflow creation
+- [x] `npm test src/mcp/server.test.ts` passes
+- [x] `mise run format-check` passes
+- [x] Tool can be called independently of workflow creation
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] Tool provides standalone version resolution
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] Tool provides standalone version resolution
+- [x] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -509,16 +509,16 @@ sequenceDiagram
 - Full validation suite shall pass
 
 **Verification**:
-- [ ] `npm test` passes
-- [ ] `mise run format-check` passes
-- [ ] `mise run ci && npm run build` passes
-- [ ] README includes version resolution documentation
+- [x] `npm test` passes
+- [x] `mise run format-check` passes
+- [x] `mise run ci && npm run build` passes
+- [x] README includes version resolution documentation
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] Feature works correctly in manual testing
-- [ ] Documentation is complete
-- [ ] No regressions in existing functionality
+- [x] All verification steps pass
+- [x] Feature works correctly in manual testing
+- [x] Documentation is complete
+- [x] No regressions in existing functionality
 
 ---
 
