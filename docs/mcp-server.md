@@ -109,7 +109,7 @@ Once configured, you can ask your AI assistant to:
 - "What setup actions are used in my existing workflows?"
 - "Analyze the action versions in my GitHub workflows"
 
-## How It Works
+## Architecture
 
 The MCP server runs as a separate process that your AI assistant communicates with. It provides a structured way for AI assistants to:
 
