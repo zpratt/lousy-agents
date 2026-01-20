@@ -84,6 +84,11 @@ function getVersionForAction(
 /**
  * Builds the 'uses' value for a step, returning a YAML Scalar with comment
  * when the action has a resolved version, or a plain string otherwise.
+ *
+ * Note: The Step constructor from @github-actions-workflow-ts/lib accepts both
+ * string and Scalar at runtime, even though its TypeScript types only declare string.
+ * We use type casts when passing the return value to Step to work around this.
+ *
  * @param action The action name (e.g., "actions/setup-node")
  * @param version The version string (SHA or version tag)
  * @param options Optional conversion options for resolved versions
