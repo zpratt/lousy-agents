@@ -10,7 +10,7 @@ import {
     Step,
     Workflow,
 } from "@github-actions-workflow-ts/lib";
-import { stringify as stringifyYaml } from "yaml";
+import { Scalar, stringify as stringifyYaml } from "yaml";
 import type {
     ResolvedVersion,
     SetupStepCandidate,
@@ -66,7 +66,9 @@ function getVersionForAction(
     if (options?.resolvedVersions) {
         const resolved = findResolvedVersion(action, options.resolvedVersions);
         if (resolved) {
-            return `${resolved.sha}  # ${resolved.versionTag}`;
+            // Return only the SHA, not with the version comment embedded
+            // The comment will be added as a YAML comment by buildUsesValue
+            return resolved.sha;
         }
     }
 
@@ -77,6 +79,34 @@ function getVersionForAction(
 
     // Fall back to candidate version or empty string
     return candidateVersion || "";
+}
+
+/**
+ * Builds the 'uses' value for a step, returning a YAML Scalar with comment
+ * when the action has a resolved version, or a plain string otherwise.
+ * @param action The action name (e.g., "actions/setup-node")
+ * @param version The version string (SHA or version tag)
+ * @param options Optional conversion options for resolved versions
+ * @returns Either a Scalar with comment (for SHA-pinned) or a plain string
+ */
+function buildUsesValue(
+    action: string,
+    version: string,
+    options?: CandidateToStepOptions,
+): string | Scalar {
+    const uses = version ? `${action}@${version}` : action;
+
+    // Check if this action has a resolved version - if so, add the version as a YAML comment
+    if (options?.resolvedVersions) {
+        const resolved = findResolvedVersion(action, options.resolvedVersions);
+        if (resolved) {
+            const scalar = new Scalar(uses);
+            scalar.comment = ` ${resolved.versionTag}`;
+            return scalar;
+        }
+    }
+
+    return uses;
 }
 
 /**
@@ -116,10 +146,16 @@ function buildStepsFromCandidates(
     options?: CandidateToStepOptions,
 ): Step[] {
     return candidates.map((candidate) => {
+        const version = getVersionForAction(
+            candidate.action,
+            candidate.version,
+            options,
+        );
+        const usesValue = buildUsesValue(candidate.action, version, options);
         const stepData = candidateToStep(candidate, options);
         return new Step({
             name: generateStepName(candidate.action),
-            uses: stepData.uses,
+            uses: usesValue as string,
             with: stepData.with as GeneratedWorkflowTypes.Env | undefined,
         });
     });
@@ -137,10 +173,16 @@ function appendMissingStepsToJob(
     options?: CandidateToStepOptions,
 ): void {
     for (const candidate of missingCandidates) {
+        const version = getVersionForAction(
+            candidate.action,
+            candidate.version,
+            options,
+        );
+        const usesValue = buildUsesValue(candidate.action, version, options);
         const stepData = candidateToStep(candidate, options);
         const newStep = new Step({
             name: generateStepName(candidate.action),
-            uses: stepData.uses,
+            uses: usesValue as string,
             with: stepData.with as GeneratedWorkflowTypes.Env | undefined,
         });
         steps.push(newStep.step);
@@ -162,7 +204,8 @@ async function getCheckoutVersion(
             options.resolvedVersions,
         );
         if (resolved) {
-            return `${resolved.sha}  # ${resolved.versionTag}`;
+            // Return only the SHA, the comment will be added by buildUsesValue
+            return resolved.sha;
         }
     }
 
@@ -195,11 +238,18 @@ export async function generateWorkflowContent(
     // Get checkout version using centralized logic
     const checkoutVersion = await getCheckoutVersion(versionGateway, options);
 
+    // Build the uses value for checkout (with YAML comment if resolved)
+    const checkoutUsesValue = buildUsesValue(
+        "actions/checkout",
+        checkoutVersion,
+        stepOptions,
+    );
+
     // Build steps: checkout first, then all setup step candidates
     const steps: Step[] = [
         new Step({
             name: "Checkout code",
-            uses: `actions/checkout@${checkoutVersion}`,
+            uses: checkoutUsesValue as string,
         }),
         ...buildStepsFromCandidates(candidates, stepOptions),
     ];

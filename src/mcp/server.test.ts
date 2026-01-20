@@ -456,10 +456,10 @@ jobs:
             });
             const result = parseResult(response);
 
-            // Assert
+            // Assert - YAML comment format: "action@sha # versionTag"
             const workflowTemplate = result.workflowTemplate as string;
-            expect(workflowTemplate).toContain("abc123def456  # v4.1.0");
-            expect(workflowTemplate).toContain("789xyz012abc  # v4.0.2");
+            expect(workflowTemplate).toContain("abc123def456 # v4.1.0");
+            expect(workflowTemplate).toContain("789xyz012abc # v4.0.2");
 
             // actionsToResolve should be empty since all are resolved
             const actionsToResolve =
