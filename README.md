@@ -58,6 +58,7 @@ AI coding assistants work best when given clear constraints. Without structure, 
 ### CLI Commands
 
 - **[`init`](docs/init.md)** - Scaffold new projects with testing, linting, and Copilot configuration
+- **[`new`](docs/new.md)** - Create new resources like custom GitHub Copilot agents
 - **[`copilot-setup`](docs/copilot-setup.md)** - Generate GitHub Actions workflows for Copilot environment setup
 
 ### MCP Server
@@ -95,6 +96,7 @@ npm install -g lousy-agents
 For detailed documentation on each command, see:
 
 - **[`init` command](docs/init.md)** - Scaffold new projects
+- **[`new` command](docs/new.md)** - Create new resources
 - **[`copilot-setup` command](docs/copilot-setup.md)** - Generate Copilot workflows
 - **[MCP Server](docs/mcp-server.md)** - AI assistant integration
 
@@ -104,6 +106,12 @@ For detailed documentation on each command, see:
 
 ```bash
 npx lousy-agents init --kind webapp
+```
+
+**Create a custom Copilot agent:**
+
+```bash
+npx lousy-agents new --copilot-agent security
 ```
 
 **Generate Copilot setup workflow:**
@@ -125,6 +133,7 @@ npx lousy-agents copilot-setup
 ## Documentation
 
 - **[`init` Command](docs/init.md)** - Project scaffolding
+- **[`new` Command](docs/new.md)** - Create new resources
 - **[`copilot-setup` Command](docs/copilot-setup.md)** - Workflow generation
 - **[MCP Server](docs/mcp-server.md)** - AI assistant integration
 
