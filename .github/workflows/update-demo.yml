@@ -38,11 +38,17 @@ jobs:
       - name: Link CLI for demo
         run: npm link
 
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
       - name: Generate demo GIF
         # v1.3.0
         uses: charmbracelet/vhs-action@59641cdc7fadf3978db65eb8c6937ea2752f4ec3
         with:
           path: demo.tape
+          install-fonts: false
 
       - name: Commit and push updated demo.gif
         run: |
