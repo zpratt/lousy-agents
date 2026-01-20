@@ -83,6 +83,7 @@ jobs:
             expect(toolNames).toContain("read_copilot_setup_workflow");
             expect(toolNames).toContain("create_copilot_setup_workflow");
             expect(toolNames).toContain("analyze_action_versions");
+            expect(toolNames).toContain("resolve_action_versions");
         });
     });
 
@@ -120,6 +121,137 @@ jobs:
             >;
             expect(result.success).toBe(true);
             expect(result.workflows).toBeDefined();
+        });
+    });
+
+    describe("Version Resolution", () => {
+        it("should execute resolve_action_versions tool and return actions to resolve", async () => {
+            await client.initialize();
+            const response = (await client.callTool(
+                "resolve_action_versions",
+                {},
+            )) as { content: Array<{ text: string }> };
+
+            expect(response).toBeDefined();
+            expect(response.content).toBeDefined();
+            expect(response.content.length).toBeGreaterThan(0);
+
+            const result = JSON.parse(response.content[0].text) as Record<
+                string,
+                unknown
+            >;
+            expect(result.success).toBe(true);
+            expect(result.actionsToResolve).toBeDefined();
+            expect(Array.isArray(result.actionsToResolve)).toBe(true);
+        });
+
+        it("should resolve specific actions when provided", async () => {
+            await client.initialize();
+            const response = (await client.callTool("resolve_action_versions", {
+                actions: ["actions/setup-node", "actions/setup-python"],
+            })) as { content: Array<{ text: string }> };
+
+            expect(response).toBeDefined();
+            const result = JSON.parse(response.content[0].text) as Record<
+                string,
+                unknown
+            >;
+            expect(result.success).toBe(true);
+
+            const actionsToResolve = result.actionsToResolve as Array<{
+                action: string;
+                lookupUrl: string;
+            }>;
+            expect(actionsToResolve.length).toBe(2);
+            const actionNames = actionsToResolve.map((a) => a.action);
+            expect(actionNames).toContain("actions/setup-node");
+            expect(actionNames).toContain("actions/setup-python");
+        });
+
+        it("should include lookup URLs for each action to resolve", async () => {
+            await client.initialize();
+            const response = (await client.callTool("resolve_action_versions", {
+                actions: ["actions/checkout"],
+            })) as { content: Array<{ text: string }> };
+
+            const result = JSON.parse(response.content[0].text) as Record<
+                string,
+                unknown
+            >;
+            const actionsToResolve = result.actionsToResolve as Array<{
+                action: string;
+                lookupUrl: string;
+                currentPlaceholder: string;
+            }>;
+
+            expect(actionsToResolve.length).toBe(1);
+            expect(actionsToResolve[0].action).toBe("actions/checkout");
+            expect(actionsToResolve[0].lookupUrl).toBe(
+                "https://github.com/actions/checkout/releases/latest",
+            );
+            expect(actionsToResolve[0].currentPlaceholder).toBe(
+                "RESOLVE_VERSION",
+            );
+        });
+
+        it("should filter out already resolved actions", async () => {
+            await client.initialize();
+            const response = (await client.callTool("resolve_action_versions", {
+                actions: ["actions/checkout", "actions/setup-node"],
+                resolvedVersions: [
+                    {
+                        action: "actions/checkout",
+                        sha: "abc123def456",
+                        versionTag: "v4.0.0",
+                    },
+                ],
+            })) as { content: Array<{ text: string }> };
+
+            const result = JSON.parse(response.content[0].text) as Record<
+                string,
+                unknown
+            >;
+            const actionsToResolve = result.actionsToResolve as Array<{
+                action: string;
+            }>;
+
+            expect(actionsToResolve.length).toBe(1);
+            expect(actionsToResolve[0].action).toBe("actions/setup-node");
+        });
+
+        it("should create workflow with SHA-pinned actions when resolved versions provided", async () => {
+            await client.initialize();
+            const response = (await client.callTool(
+                "create_copilot_setup_workflow",
+                {
+                    targetDir: testDir,
+                    resolvedVersions: [
+                        {
+                            action: "actions/checkout",
+                            sha: "692973e3d937129bcbf40652eb9f2f61becf3332",
+                            versionTag: "v4.2.2",
+                        },
+                        {
+                            action: "actions/setup-node",
+                            sha: "1e60f620b9541d16bece96c5465dc8ee9832be0b",
+                            versionTag: "v4.0.4",
+                        },
+                    ],
+                },
+            )) as { content: Array<{ text: string }> };
+
+            const result = JSON.parse(response.content[0].text) as Record<
+                string,
+                unknown
+            >;
+            expect(result.success).toBe(true);
+
+            // Check that workflow template contains SHA-pinned actions
+            const workflowTemplate = result.workflowTemplate as string;
+            expect(workflowTemplate).toContain(
+                "692973e3d937129bcbf40652eb9f2f61becf3332",
+            );
+            expect(workflowTemplate).toContain("# v4.2.2");
         });
     });
 });

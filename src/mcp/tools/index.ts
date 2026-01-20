@@ -7,10 +7,16 @@ export { createCopilotSetupWorkflowHandler } from "./create-copilot-setup-workfl
 export { discoverEnvironmentHandler } from "./discover-environment.js";
 export { discoverWorkflowSetupActionsHandler } from "./discover-workflow-setup-actions.js";
 export { readCopilotSetupWorkflowHandler } from "./read-copilot-setup-workflow.js";
+export { resolveActionVersionsHandler } from "./resolve-action-versions.js";
 export {
+    type CreateWorkflowArgs,
+    type CreateWorkflowHandler,
     errorResponse,
+    type ResolveActionsArgs,
+    type ResolveActionsHandler,
     successResponse,
     type ToolArgs,
     type ToolHandler,
     type ToolResult,
+    type VersionResolutionResponse,
 } from "./types.js";

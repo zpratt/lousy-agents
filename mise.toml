@@ -38,7 +38,7 @@ hide = true
 
 [tasks.markdownlint]
 description = "Running markdownlint against markdown files"
-run = "markdownlint-cli2 '**/*.md' '#node_modules' '#terraform/.terraform' '#.venv' '#venv'"
+run = "markdownlint-cli2 '**/*.md' '#**/node_modules' '#terraform/.terraform' '#.venv' '#venv'"
 hide = true
 
 [tasks.shellcheck]
