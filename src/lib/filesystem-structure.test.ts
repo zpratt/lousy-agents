@@ -317,5 +317,25 @@ describe("Filesystem Structure", () => {
             expect(content).toContain('"private": true');
             expect(content).toContain(`"name": "${projectName}"`);
         });
+
+        it("should throw descriptive error when template syntax is invalid", async () => {
+            // Arrange
+            const invalidTemplateContent = '{"name": "<%= it.projectName"}'; // Missing closing %>
+            const structure: FilesystemStructure = {
+                nodes: [
+                    {
+                        type: "file",
+                        path: "package.json",
+                        content: invalidTemplateContent,
+                    },
+                ],
+            };
+            const templateContext: TemplateContext = { projectName: "test" };
+
+            // Act & Assert
+            await expect(
+                createFilesystemStructure(structure, testDir, templateContext),
+            ).rejects.toThrow("Template processing failed:");
+        });
     });
 });
