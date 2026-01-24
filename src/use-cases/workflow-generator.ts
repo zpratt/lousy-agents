@@ -14,7 +14,6 @@ import { Scalar, stringify as stringifyYaml } from "yaml";
 import type {
     ResolvedVersion,
     SetupStepCandidate,
-    WorkflowStep,
 } from "../entities/copilot-setup.js";
 import type { ActionVersionGateway } from "../gateways/action-version-gateway.js";
 import { createActionVersionGateway } from "../gateways/action-version-gateway.js";
@@ -115,29 +114,34 @@ function buildUsesValue(
 }
 
 /**
- * Converts a SetupStepCandidate to a WorkflowStep
- * @param candidate The candidate to convert
+ * Builds a Step object from a SetupStepCandidate
+ * @param candidate The candidate to convert to a Step
  * @param options Optional conversion options for placeholders and resolved versions
+ * @returns A typed Step object
  */
-function candidateToStep(
+function buildStepFromCandidate(
     candidate: SetupStepCandidate,
     options?: CandidateToStepOptions,
-): WorkflowStep {
+): Step {
     const version = getVersionForAction(
         candidate.action,
         candidate.version,
         options,
     );
+    const usesValue = buildUsesValue(candidate.action, version, options);
+    const withConfig =
+        candidate.config && Object.keys(candidate.config).length > 0
+            ? candidate.config
+            : undefined;
 
-    const uses = version ? `${candidate.action}@${version}` : candidate.action;
-
-    const step: WorkflowStep = { uses };
-
-    if (candidate.config && Object.keys(candidate.config).length > 0) {
-        step.with = candidate.config;
-    }
-
-    return step;
+    // The Step constructor accepts Scalar at runtime for YAML comment support,
+    // but TypeScript types only declare string. We cast the entire props object
+    // to work around this library type limitation.
+    return new Step({
+        name: generateStepName(candidate.action),
+        uses: usesValue,
+        with: withConfig,
+    } as GeneratedWorkflowTypes.Step);
 }
 
 /**
@@ -150,20 +154,9 @@ function buildStepsFromCandidates(
     candidates: SetupStepCandidate[],
     options?: CandidateToStepOptions,
 ): Step[] {
-    return candidates.map((candidate) => {
-        const version = getVersionForAction(
-            candidate.action,
-            candidate.version,
-            options,
-        );
-        const usesValue = buildUsesValue(candidate.action, version, options);
-        const stepData = candidateToStep(candidate, options);
-        return new Step({
-            name: generateStepName(candidate.action),
-            uses: usesValue as string,
-            with: stepData.with as GeneratedWorkflowTypes.Env | undefined,
-        });
-    });
+    return candidates.map((candidate) =>
+        buildStepFromCandidate(candidate, options),
+    );
 }
 
 /**
@@ -178,18 +171,7 @@ function appendMissingStepsToJob(
     options?: CandidateToStepOptions,
 ): void {
     for (const candidate of missingCandidates) {
-        const version = getVersionForAction(
-            candidate.action,
-            candidate.version,
-            options,
-        );
-        const usesValue = buildUsesValue(candidate.action, version, options);
-        const stepData = candidateToStep(candidate, options);
-        const newStep = new Step({
-            name: generateStepName(candidate.action),
-            uses: usesValue as string,
-            with: stepData.with as GeneratedWorkflowTypes.Env | undefined,
-        });
+        const newStep = buildStepFromCandidate(candidate, options);
         steps.push(newStep.step);
     }
 }
