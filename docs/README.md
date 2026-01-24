@@ -11,6 +11,11 @@ Welcome to the Lousy Agents documentation! This directory contains detailed docu
   - Interactive and non-interactive modes
   - Usage examples
 
+- **[`new` Command](new.md)** - Create new resources like custom GitHub Copilot agents
+  - Custom Copilot agents
+  - Agent file structure
+  - Usage examples
+
 - **[`copilot-setup` Command](copilot-setup.md)** - Generate GitHub Actions workflows for Copilot environment setup
   - Environment detection
   - Workflow analysis and merging
@@ -36,6 +41,15 @@ The `init` command scaffolds new projects with everything needed for effective A
 - Supported project types
 - Interactive vs non-interactive modes
 - Configuration options
+- Examples
+
+### `new`
+
+The `new` command creates new resources for your project. See the [complete new documentation](new.md) for:
+
+- Creating custom GitHub Copilot agents
+- Agent file structure and customization
+- Naming conventions
 - Examples
 
 ### `copilot-setup`
