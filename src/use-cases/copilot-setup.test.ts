@@ -582,14 +582,53 @@ describe("Workflow Generator", () => {
             );
             const parsed = parseYaml(content);
 
-            // Assert
+            // Assert - parsed YAML only contains action@sha (version is a YAML comment)
             const steps = parsed.jobs["copilot-setup-steps"].steps;
-            expect(steps[0].uses).toBe(
-                "actions/checkout@abc123def456  # v4.1.0",
+            expect(steps[0].uses).toBe("actions/checkout@abc123def456");
+            expect(steps[1].uses).toBe("actions/setup-node@789xyz012abc");
+            // Verify the raw YAML contains the version comment
+            expect(content).toContain("# v4.1.0");
+            expect(content).toContain("# v4.0.2");
+        });
+
+        it("should output SHA-pinned action references without quotes in raw YAML", async () => {
+            // Arrange
+            const candidates: SetupStepCandidate[] = [
+                {
+                    action: "actions/setup-node",
+                    version: "v4",
+                    source: "version-file",
+                },
+            ];
+            const resolvedVersions = [
+                {
+                    action: "actions/checkout",
+                    sha: "abc123def456",
+                    versionTag: "v4.1.0",
+                },
+                {
+                    action: "actions/setup-node",
+                    sha: "789xyz012abc",
+                    versionTag: "v4.0.2",
+                },
+            ];
+
+            // Act
+            const content = await generateWorkflowContent(
+                candidates,
+                undefined,
+                { resolvedVersions },
             );
-            expect(steps[1].uses).toBe(
-                "actions/setup-node@789xyz012abc  # v4.0.2",
-            );
+
+            // Assert - verify raw YAML does not contain quoted action references
+            // The YAML should have unquoted action references like:
+            //   uses: actions/checkout@abc123def456  # v4.1.0
+            // Not quoted like:
+            //   uses: "actions/checkout@abc123def456  # v4.1.0"
+            expect(content).toContain("uses: actions/checkout@abc123def456");
+            expect(content).toContain("uses: actions/setup-node@789xyz012abc");
+            expect(content).not.toContain('"actions/checkout@');
+            expect(content).not.toContain('"actions/setup-node@');
         });
 
         it("should use placeholder for unresolved actions when partially resolved", async () => {
@@ -617,12 +656,12 @@ describe("Workflow Generator", () => {
             );
             const parsed = parseYaml(content);
 
-            // Assert
+            // Assert - parsed YAML only contains action@sha (version is a YAML comment)
             const steps = parsed.jobs["copilot-setup-steps"].steps;
-            expect(steps[0].uses).toBe(
-                "actions/checkout@abc123def456  # v4.1.0",
-            );
+            expect(steps[0].uses).toBe("actions/checkout@abc123def456");
             expect(steps[1].uses).toBe("actions/setup-node@RESOLVE_VERSION");
+            // Verify the raw YAML contains the version comment
+            expect(content).toContain("# v4.1.0");
         });
     });
 });

@@ -10,11 +10,10 @@ import {
     Step,
     Workflow,
 } from "@github-actions-workflow-ts/lib";
-import { stringify as stringifyYaml } from "yaml";
+import { Scalar, stringify as stringifyYaml } from "yaml";
 import type {
     ResolvedVersion,
     SetupStepCandidate,
-    WorkflowStep,
 } from "../entities/copilot-setup.js";
 import type { ActionVersionGateway } from "../gateways/action-version-gateway.js";
 import { createActionVersionGateway } from "../gateways/action-version-gateway.js";
@@ -22,6 +21,21 @@ import {
     findResolvedVersion,
     VERSION_PLACEHOLDER,
 } from "./action-resolution.js";
+
+/**
+ * Extended step props type that supports YAML Scalar values for the 'uses' field.
+ *
+ * The @github-actions-workflow-ts/lib Step constructor accepts YAML Scalar objects
+ * at runtime (verified by tests), enabling YAML comments on action references.
+ * TypeScript types only declare string, so we extend the type to be explicit
+ * about this runtime capability.
+ *
+ * @see buildUsesValue for where Scalar values are created
+ * @see tests in copilot-setup.test.ts "SHA-pinned" for runtime verification
+ */
+type StepPropsWithScalar = Omit<GeneratedWorkflowTypes.Step, "uses"> & {
+    uses: string | Scalar;
+};
 
 /**
  * Options for converting candidates to steps
@@ -62,47 +76,79 @@ function getVersionForAction(
     candidateVersion: string | undefined,
     options?: CandidateToStepOptions,
 ): string {
-    // Check if we have a resolved version (SHA-pinned)
     if (options?.resolvedVersions) {
         const resolved = findResolvedVersion(action, options.resolvedVersions);
         if (resolved) {
-            return `${resolved.sha}  # ${resolved.versionTag}`;
+            return resolved.sha;
         }
     }
 
-    // If using placeholders and no resolved version, return placeholder
     if (options?.usePlaceholders) {
         return VERSION_PLACEHOLDER;
     }
 
-    // Fall back to candidate version or empty string
     return candidateVersion || "";
 }
 
 /**
- * Converts a SetupStepCandidate to a WorkflowStep
- * @param candidate The candidate to convert
- * @param options Optional conversion options for placeholders and resolved versions
+ * Builds the 'uses' value for a step, returning a YAML Scalar with comment
+ * when the action has a resolved version, or a plain string otherwise.
+ *
+ * Note: The Step constructor from @github-actions-workflow-ts/lib accepts both
+ * string and Scalar at runtime, even though its TypeScript types only declare string.
+ * We use type casts when passing the return value to Step to work around this.
+ *
+ * @param action The action name (e.g., "actions/setup-node")
+ * @param version The version string (SHA or version tag)
+ * @param options Optional conversion options for resolved versions
+ * @returns Either a Scalar with comment (for SHA-pinned) or a plain string
  */
-function candidateToStep(
+function buildUsesValue(
+    action: string,
+    version: string,
+    options?: CandidateToStepOptions,
+): string | Scalar {
+    const uses = version ? `${action}@${version}` : action;
+
+    if (options?.resolvedVersions) {
+        const resolved = findResolvedVersion(action, options.resolvedVersions);
+        if (resolved) {
+            const scalar = new Scalar(uses);
+            scalar.comment = ` ${resolved.versionTag}`;
+            return scalar;
+        }
+    }
+
+    return uses;
+}
+
+/**
+ * Builds a Step object from a SetupStepCandidate
+ * @param candidate The candidate to convert to a Step
+ * @param options Optional conversion options for placeholders and resolved versions
+ * @returns A typed Step object
+ */
+function buildStepFromCandidate(
     candidate: SetupStepCandidate,
     options?: CandidateToStepOptions,
-): WorkflowStep {
+): Step {
     const version = getVersionForAction(
         candidate.action,
         candidate.version,
         options,
     );
+    const usesValue = buildUsesValue(candidate.action, version, options);
+    const withConfig =
+        candidate.config && Object.keys(candidate.config).length > 0
+            ? candidate.config
+            : undefined;
 
-    const uses = version ? `${candidate.action}@${version}` : candidate.action;
-
-    const step: WorkflowStep = { uses };
-
-    if (candidate.config && Object.keys(candidate.config).length > 0) {
-        step.with = candidate.config;
-    }
-
-    return step;
+    const stepProps: StepPropsWithScalar = {
+        name: generateStepName(candidate.action),
+        uses: usesValue,
+        with: withConfig,
+    };
+    return new Step(stepProps as GeneratedWorkflowTypes.Step);
 }
 
 /**
@@ -115,14 +161,9 @@ function buildStepsFromCandidates(
     candidates: SetupStepCandidate[],
     options?: CandidateToStepOptions,
 ): Step[] {
-    return candidates.map((candidate) => {
-        const stepData = candidateToStep(candidate, options);
-        return new Step({
-            name: generateStepName(candidate.action),
-            uses: stepData.uses,
-            with: stepData.with as GeneratedWorkflowTypes.Env | undefined,
-        });
-    });
+    return candidates.map((candidate) =>
+        buildStepFromCandidate(candidate, options),
+    );
 }
 
 /**
@@ -137,12 +178,7 @@ function appendMissingStepsToJob(
     options?: CandidateToStepOptions,
 ): void {
     for (const candidate of missingCandidates) {
-        const stepData = candidateToStep(candidate, options);
-        const newStep = new Step({
-            name: generateStepName(candidate.action),
-            uses: stepData.uses,
-            with: stepData.with as GeneratedWorkflowTypes.Env | undefined,
-        });
+        const newStep = buildStepFromCandidate(candidate, options);
         steps.push(newStep.step);
     }
 }
@@ -155,23 +191,20 @@ async function getCheckoutVersion(
     versionGateway: ActionVersionGateway,
     options?: GenerateWorkflowOptions,
 ): Promise<string> {
-    // Check for resolved version first
     if (options?.resolvedVersions) {
         const resolved = findResolvedVersion(
             "actions/checkout",
             options.resolvedVersions,
         );
         if (resolved) {
-            return `${resolved.sha}  # ${resolved.versionTag}`;
+            return resolved.sha;
         }
     }
 
-    // If using placeholders, return placeholder
     if (options?.usePlaceholders) {
         return VERSION_PLACEHOLDER;
     }
 
-    // Fall back to gateway version
     return (await versionGateway.getVersion("actions/checkout")) || "v4";
 }
 
@@ -192,19 +225,21 @@ export async function generateWorkflowContent(
         resolvedVersions: options?.resolvedVersions,
     };
 
-    // Get checkout version using centralized logic
     const checkoutVersion = await getCheckoutVersion(versionGateway, options);
-
-    // Build steps: checkout first, then all setup step candidates
+    const checkoutUsesValue = buildUsesValue(
+        "actions/checkout",
+        checkoutVersion,
+        stepOptions,
+    );
+    const checkoutStepProps: StepPropsWithScalar = {
+        name: "Checkout code",
+        uses: checkoutUsesValue,
+    };
     const steps: Step[] = [
-        new Step({
-            name: "Checkout code",
-            uses: `actions/checkout@${checkoutVersion}`,
-        }),
+        new Step(checkoutStepProps as GeneratedWorkflowTypes.Step),
         ...buildStepsFromCandidates(candidates, stepOptions),
     ];
 
-    // Build job using typed NormalJob class
     const job = new NormalJob("copilot-setup-steps", {
         "runs-on": "ubuntu-latest",
         "timeout-minutes": 30,
@@ -214,7 +249,6 @@ export async function generateWorkflowContent(
         },
     }).addSteps(steps);
 
-    // Build workflow using typed Workflow class
     const workflow = new Workflow("copilot-setup-steps.yml", {
         name: "Copilot Setup Steps",
         on: {
@@ -230,7 +264,6 @@ export async function generateWorkflowContent(
         },
     }).addJob(job);
 
-    // Add YAML frontmatter and stringify
     return `---\n${stringifyYaml(workflow.workflow, { lineWidth: 0 })}`;
 }
 
@@ -249,7 +282,6 @@ export async function updateWorkflowWithMissingSteps(
     options?: GenerateWorkflowOptions,
 ): Promise<string> {
     if (!existingWorkflow || typeof existingWorkflow !== "object") {
-        // If we can't parse the existing workflow, generate a new one
         return generateWorkflowContent(
             missingCandidates,
             versionGateway,
@@ -257,7 +289,6 @@ export async function updateWorkflowWithMissingSteps(
         );
     }
 
-    // Deep clone the workflow
     const workflow = JSON.parse(JSON.stringify(existingWorkflow)) as Record<
         string,
         unknown
@@ -272,7 +303,6 @@ export async function updateWorkflowWithMissingSteps(
         );
     }
 
-    // Find the main job (usually 'copilot-setup-steps' or similar)
     const jobNames = Object.keys(jobs);
     if (jobNames.length === 0) {
         return generateWorkflowContent(
@@ -293,7 +323,6 @@ export async function updateWorkflowWithMissingSteps(
         );
     }
 
-    // Append missing steps to the existing job
     const stepOptions: CandidateToStepOptions = {
         usePlaceholders: options?.usePlaceholders,
         resolvedVersions: options?.resolvedVersions,
