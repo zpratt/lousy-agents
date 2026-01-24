@@ -23,7 +23,7 @@ Custom agents allow you to create specialized AI assistants tailored to specific
 ### Create a Custom Copilot Agent
 
 ```bash
-npx lousy-agents new --copilot-agent <name>
+npx @zpratt/lousy-agents new --copilot-agent <name>
 ```
 
 The agent name will be normalized (lowercase with hyphens) and saved to `.github/agents/<normalized-name>.md`.
@@ -33,7 +33,7 @@ The agent name will be normalized (lowercase with hyphens) and saved to `.github
 #### Create a Security Agent
 
 ```bash
-npx lousy-agents new --copilot-agent security
+npx @zpratt/lousy-agents new --copilot-agent security
 ```
 
 Creates `.github/agents/security.md` with a template for a security-focused agent.
@@ -41,7 +41,7 @@ Creates `.github/agents/security.md` with a template for a security-focused agen
 #### Create a Testing Agent
 
 ```bash
-npx lousy-agents new --copilot-agent testing
+npx @zpratt/lousy-agents new --copilot-agent testing
 ```
 
 Creates `.github/agents/testing.md` with a template for a testing-focused agent.
@@ -49,7 +49,7 @@ Creates `.github/agents/testing.md` with a template for a testing-focused agent.
 #### Create an Agent with Multi-word Name
 
 ```bash
-npx lousy-agents new --copilot-agent "code review"
+npx @zpratt/lousy-agents new --copilot-agent "code review"
 ```
 
 Creates `.github/agents/code-review.md` (spaces are converted to hyphens).
@@ -57,7 +57,7 @@ Creates `.github/agents/code-review.md` (spaces are converted to hyphens).
 ## Help
 
 ```bash
-npx lousy-agents new --help
+npx @zpratt/lousy-agents new --help
 ```
 
 ## Agent File Structure

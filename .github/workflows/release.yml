@@ -1,0 +1,59 @@
+---
+name: Release
+
+'on':
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read # for checkout
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    # Only run on main repository, not forks
+    if: github.repository == 'zpratt/lousy-agents'
+    permissions:
+      contents: write # to create GitHub releases
+      issues: write # to comment on released issues
+      pull-requests: write # to comment on released PRs
+      id-token: write # for npm trusted publishing (OIDC)
+
+    steps:
+      - name: Checkout
+        # v4.2.2
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup mise
+        # v3.5.1
+        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8
+        with:
+          github_token: ${{ github.token }}
+
+      - name: Cache npm dependencies
+        # v5.0.2
+        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify package integrity
+        run: npm audit signatures
+
+      - name: Build
+        run: npm run build
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release@24

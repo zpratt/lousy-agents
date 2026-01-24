@@ -1,8 +1,33 @@
 {
-    "name": "lousy-agents",
+    "name": "@zpratt/lousy-agents",
     "version": "0.1.0",
-    "private": true,
+    "description": "CLI scaffolding tool that sets up projects with structure, instructions, and feedback loops for AI coding assistants",
     "type": "module",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/zpratt/lousy-agents.git"
+    },
+    "author": "zpratt",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/zpratt/lousy-agents/issues"
+    },
+    "homepage": "https://github.com/zpratt/lousy-agents#readme",
+    "keywords": [
+        "cli",
+        "scaffolding",
+        "ai",
+        "copilot",
+        "github-copilot",
+        "coding-assistant",
+        "vibe-coding"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "files": [
+        "dist"
+    ],
     "bin": {
         "lousy-agents": "./dist/index.js",
         "lousy-agents-mcp": "./dist/mcp-server.js"
