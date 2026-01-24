@@ -7,6 +7,10 @@ import {
     createFilesystemStructure,
     type TemplateContext,
 } from "../lib/filesystem-structure.js";
+import {
+    getProjectNameError,
+    isValidProjectName,
+} from "../lib/project-name-validation.js";
 
 const ProjectTypeSchema = z.enum(["CLI", "webapp", "REST API", "GraphQL API"]);
 export const PROJECT_TYPE_OPTIONS = ProjectTypeSchema.options;
@@ -27,24 +31,6 @@ type InitArgs = typeof initArgs;
 
 function formatErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
-}
-
-/**
- * Validates that a project name is a valid npm package name.
- * Based on npm naming rules: lowercase, no spaces, can contain hyphens, underscores, and periods.
- * Cannot start with . or _
- */
-function isValidProjectName(name: string): boolean {
-    // npm package names must be lowercase, can contain hyphens, underscores, and periods
-    // Cannot start with . or _, must not be empty, and cannot have spaces or special chars
-    const npmPackageNamePattern = /^[a-z0-9][-a-z0-9._]*$/;
-    return (
-        name.length > 0 &&
-        name.length <= 214 &&
-        !name.startsWith(".") &&
-        !name.startsWith("_") &&
-        npmPackageNamePattern.test(name)
-    );
 }
 
 async function createCliScaffolding(targetDir: string): Promise<void> {
@@ -158,12 +144,13 @@ export const initCommand = defineCommand({
             }
 
             if (!isValidProjectName(projectName)) {
+                const errorMessage =
+                    getProjectNameError(projectName) ||
+                    "Invalid npm package name";
                 consola.error(
-                    `Invalid project name: "${projectName}". Project name must be a valid npm package name (lowercase, no spaces, can contain hyphens).`,
+                    `Invalid project name: "${projectName}". ${errorMessage}`,
                 );
-                throw new Error(
-                    "Invalid project name. Must be a valid npm package name (lowercase, no spaces, can contain hyphens).",
-                );
+                throw new Error(`Invalid project name. ${errorMessage}`);
             }
 
             const templateContext: TemplateContext = { projectName };

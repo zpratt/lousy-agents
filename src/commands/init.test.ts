@@ -799,5 +799,24 @@ describe("Init command", () => {
                 }),
             ).rejects.toThrow("Invalid project name");
         });
+
+        it("should accept valid scoped npm package names", async () => {
+            // Arrange
+            const projectName = "@myorg/my-package";
+            const mockPrompt = vi.fn();
+
+            // Act
+            await initCommand.run({
+                rawArgs: ["--kind", "webapp", "--name", projectName],
+                args: { _: [], kind: "webapp", name: projectName },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            const packageJsonFile = join(testDir, "package.json");
+            const content = await readFile(packageJsonFile, "utf-8");
+            expect(content).toContain(`"name": "${projectName}"`);
+        });
     });
 });
