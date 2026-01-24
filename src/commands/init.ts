@@ -29,6 +29,24 @@ function formatErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
 
+/**
+ * Validates that a project name is a valid npm package name.
+ * Based on npm naming rules: lowercase, no spaces, can contain hyphens and underscores,
+ * cannot start with . or _, cannot contain special characters other than - and _
+ */
+function isValidProjectName(name: string): boolean {
+    // npm package names must be lowercase, can contain hyphens, underscores, and periods
+    // Cannot start with . or _, must not be empty, and cannot have spaces or special chars
+    const npmPackageNamePattern = /^[a-z0-9][-a-z0-9._]*$/;
+    return (
+        name.length > 0 &&
+        name.length <= 214 &&
+        !name.startsWith(".") &&
+        !name.startsWith("_") &&
+        npmPackageNamePattern.test(name)
+    );
+}
+
 async function createCliScaffolding(targetDir: string): Promise<void> {
     try {
         // Load the CLI structure from configuration
@@ -137,6 +155,15 @@ export const initCommand = defineCommand({
             if (!projectName) {
                 consola.error("Project name is required for webapp projects");
                 throw new Error("Project name is required");
+            }
+
+            if (!isValidProjectName(projectName)) {
+                consola.error(
+                    `Invalid project name: "${projectName}". Project name must be a valid npm package name (lowercase, no spaces, can contain hyphens).`,
+                );
+                throw new Error(
+                    "Invalid project name. Must be a valid npm package name (lowercase, no spaces, can contain hyphens).",
+                );
             }
 
             const templateContext: TemplateContext = { projectName };

@@ -52,13 +52,17 @@ export async function fileExists(path: string): Promise<boolean> {
 }
 
 /**
+ * Singleton Eta instance for template processing
+ */
+const eta = new Eta();
+
+/**
  * Processes template content using Eta templating engine
  * @param content The template content to process
  * @param context The template context with values to substitute
  * @returns The processed content with template variables replaced
  */
 function processTemplate(content: string, context: TemplateContext): string {
-    const eta = new Eta();
     try {
         return eta.renderString(content, context);
     } catch (error) {

@@ -358,13 +358,13 @@ sequenceDiagram
 - [x] `node dist/index.js init --kind webapp --name test-project` creates correctly templated files
 - [x] Created package.json has name: "test-project"
 - [x] Created devcontainer.json has name: "test-project"
-- [ ] `mise run ci && npm run build` passes
+- [x] `mise run ci && npm run build` passes
 
 **Done when**:
-- [ ] All verification steps pass
+- [x] All verification steps pass
 - [x] Feature works correctly in manual testing
 - [x] All acceptance criteria satisfied
-- [ ] Full validation suite passes
+- [x] Full validation suite passes
 
 ---
 

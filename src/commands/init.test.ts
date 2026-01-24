@@ -677,5 +677,54 @@ describe("Init command", () => {
                 }),
             ).rejects.toThrow("Project name is required");
         });
+
+        it("should reject project names with uppercase letters", async () => {
+            // Arrange
+            const mockPrompt = vi.fn().mockResolvedValue("MyProject");
+
+            // Act & Assert
+            await expect(
+                initCommand.run({
+                    rawArgs: ["--kind", "webapp"],
+                    args: { _: [], kind: "webapp" },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                }),
+            ).rejects.toThrow("Invalid project name");
+        });
+
+        it("should reject project names with spaces", async () => {
+            // Arrange
+            const mockPrompt = vi.fn().mockResolvedValue("my project");
+
+            // Act & Assert
+            await expect(
+                initCommand.run({
+                    rawArgs: ["--kind", "webapp"],
+                    args: { _: [], kind: "webapp" },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                }),
+            ).rejects.toThrow("Invalid project name");
+        });
+
+        it("should accept valid npm package names with hyphens", async () => {
+            // Arrange
+            const projectName = "my-valid-project";
+            const mockPrompt = vi.fn();
+
+            // Act
+            await initCommand.run({
+                rawArgs: ["--kind", "webapp", "--name", projectName],
+                args: { _: [], kind: "webapp", name: projectName },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            const packageJsonFile = join(testDir, "package.json");
+            const content = await readFile(packageJsonFile, "utf-8");
+            expect(content).toContain(`"name": "${projectName}"`);
+        });
     });
 });
