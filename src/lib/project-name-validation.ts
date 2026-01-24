@@ -13,6 +13,127 @@ export interface ProjectNameValidationResult {
 }
 
 /**
+ * A validation rule that checks a condition and returns an error message if invalid
+ */
+type ValidationRule = (name: string) => string | undefined;
+
+/**
+ * Pattern for valid npm package name segments (scope or package name)
+ */
+const NPM_NAME_PATTERN = /^[a-z0-9][-a-z0-9._]*$/;
+
+/**
+ * Maximum allowed length for npm package names
+ */
+const MAX_NAME_LENGTH = 214;
+
+/**
+ * Creates validation result from error message (undefined = valid)
+ */
+const toResult = (
+    errorMessage: string | undefined,
+): ProjectNameValidationResult =>
+    errorMessage ? { isValid: false, errorMessage } : { isValid: true };
+
+/**
+ * Runs validation rules in order, returning first failure or success
+ */
+const runValidationRules = (
+    name: string,
+    rules: ValidationRule[],
+): ProjectNameValidationResult => {
+    for (const rule of rules) {
+        const error = rule(name);
+        if (error) {
+            return toResult(error);
+        }
+    }
+    return toResult(undefined);
+};
+
+// ============================================================================
+// Validation Rules
+// ============================================================================
+
+const requiredRule: ValidationRule = (name) =>
+    !name || name.length === 0 ? "Project name is required" : undefined;
+
+const maxLengthRule: ValidationRule = (name) =>
+    name.length > MAX_NAME_LENGTH
+        ? "Project name must be 214 characters or less"
+        : undefined;
+
+const noLeadingDotOrUnderscoreRule: ValidationRule = (name) =>
+    name.startsWith(".") || name.startsWith("_")
+        ? "Project name cannot start with . or _"
+        : undefined;
+
+const validCharactersRule: ValidationRule = (name) =>
+    !NPM_NAME_PATTERN.test(name)
+        ? "Project name must be lowercase and can only contain letters, numbers, hyphens, underscores, and periods"
+        : undefined;
+
+// ============================================================================
+// Scoped Package Validation
+// ============================================================================
+
+const validateScopedName = (name: string): ProjectNameValidationResult => {
+    const parts = name.split("/");
+
+    const scopeFormatRule: ValidationRule = () =>
+        parts.length !== 2
+            ? "Scoped package name must be in format @scope/name"
+            : undefined;
+
+    const scopeNotEmptyRule: ValidationRule = () =>
+        parts[0].length < 2 ? "Scope name cannot be empty" : undefined;
+
+    const scopeValidRule: ValidationRule = () => {
+        const scope = parts[0].slice(1); // Remove leading @
+        return !NPM_NAME_PATTERN.test(scope)
+            ? "Scope must be lowercase and can only contain letters, numbers, hyphens, underscores, and periods"
+            : undefined;
+    };
+
+    const packageNameNotEmptyRule: ValidationRule = () =>
+        !parts[1] || parts[1].length === 0
+            ? "Package name after scope cannot be empty"
+            : undefined;
+
+    const packageNameValidRule: ValidationRule = () =>
+        !NPM_NAME_PATTERN.test(parts[1])
+            ? "Package name must be lowercase and can only contain letters, numbers, hyphens, underscores, and periods"
+            : undefined;
+
+    const scopedRules: ValidationRule[] = [
+        scopeFormatRule,
+        scopeNotEmptyRule,
+        scopeValidRule,
+        packageNameNotEmptyRule,
+        packageNameValidRule,
+    ];
+
+    return runValidationRules(name, scopedRules);
+};
+
+// ============================================================================
+// Unscoped Package Validation
+// ============================================================================
+
+const validateUnscopedName = (name: string): ProjectNameValidationResult => {
+    const unscopedRules: ValidationRule[] = [
+        noLeadingDotOrUnderscoreRule,
+        validCharactersRule,
+    ];
+
+    return runValidationRules(name, unscopedRules);
+};
+
+// ============================================================================
+// Main Validation Function
+// ============================================================================
+
+/**
  * Validates that a project name is a valid npm package name.
  * Supports both unscoped (e.g., "my-package") and scoped (e.g., "@scope/my-package") names.
  *
@@ -27,92 +148,18 @@ export interface ProjectNameValidationResult {
  * @returns Validation result with isValid flag and optional error message
  */
 export function validateProjectName(name: string): ProjectNameValidationResult {
-    if (!name || name.length === 0) {
-        return {
-            isValid: false,
-            errorMessage: "Project name is required",
-        };
+    // Common rules that apply to all package names
+    const commonRules: ValidationRule[] = [requiredRule, maxLengthRule];
+
+    const commonResult = runValidationRules(name, commonRules);
+    if (!commonResult.isValid) {
+        return commonResult;
     }
 
-    if (name.length > 214) {
-        return {
-            isValid: false,
-            errorMessage: "Project name must be 214 characters or less",
-        };
-    }
-
-    // Pattern for unscoped package names: starts with lowercase letter or number,
-    // followed by lowercase letters, numbers, hyphens, underscores, or periods
-    const unscopedPattern = /^[a-z0-9][-a-z0-9._]*$/;
-
-    // Handle scoped package names: @scope/name
-    if (name.startsWith("@")) {
-        const parts = name.split("/");
-        if (parts.length !== 2) {
-            return {
-                isValid: false,
-                errorMessage:
-                    "Scoped package name must be in format @scope/name",
-            };
-        }
-
-        const [rawScope, packageName] = parts;
-
-        // Scope should be @scopename (at least 2 chars including @)
-        if (rawScope.length < 2) {
-            return {
-                isValid: false,
-                errorMessage: "Scope name cannot be empty",
-            };
-        }
-
-        const scope = rawScope.slice(1); // Remove leading @
-
-        // Scope pattern: starts with lowercase letter or number
-        const scopePattern = /^[a-z0-9][-a-z0-9._]*$/;
-        if (!scopePattern.test(scope)) {
-            return {
-                isValid: false,
-                errorMessage:
-                    "Scope must be lowercase and can only contain letters, numbers, hyphens, underscores, and periods",
-            };
-        }
-
-        if (!packageName || packageName.length === 0) {
-            return {
-                isValid: false,
-                errorMessage: "Package name after scope cannot be empty",
-            };
-        }
-
-        if (!unscopedPattern.test(packageName)) {
-            return {
-                isValid: false,
-                errorMessage:
-                    "Package name must be lowercase and can only contain letters, numbers, hyphens, underscores, and periods",
-            };
-        }
-
-        return { isValid: true };
-    }
-
-    // Unscoped package name validation
-    if (name.startsWith(".") || name.startsWith("_")) {
-        return {
-            isValid: false,
-            errorMessage: "Project name cannot start with . or _",
-        };
-    }
-
-    if (!unscopedPattern.test(name)) {
-        return {
-            isValid: false,
-            errorMessage:
-                "Project name must be lowercase and can only contain letters, numbers, hyphens, underscores, and periods",
-        };
-    }
-
-    return { isValid: true };
+    // Route to scoped or unscoped validation
+    return name.startsWith("@")
+        ? validateScopedName(name)
+        : validateUnscopedName(name);
 }
 
 /**
