@@ -3,7 +3,10 @@ import { defineCommand } from "citty";
 import { consola } from "consola";
 import { z } from "zod";
 import { getProjectStructure } from "../lib/config.js";
-import { createFilesystemStructure } from "../lib/filesystem-structure.js";
+import {
+    createFilesystemStructure,
+    type TemplateContext,
+} from "../lib/filesystem-structure.js";
 
 const ProjectTypeSchema = z.enum(["CLI", "webapp", "REST API", "GraphQL API"]);
 export const PROJECT_TYPE_OPTIONS = ProjectTypeSchema.options;
@@ -12,6 +15,11 @@ const initArgs = {
     kind: {
         type: "string" as const,
         description: `Project type: ${PROJECT_TYPE_OPTIONS.join(", ")}`,
+    },
+    name: {
+        type: "string" as const,
+        description:
+            "Project name (used in package.json and other config files)",
     },
 };
 
@@ -40,7 +48,10 @@ async function createCliScaffolding(targetDir: string): Promise<void> {
     }
 }
 
-async function createWebappScaffolding(targetDir: string): Promise<void> {
+async function createWebappScaffolding(
+    targetDir: string,
+    templateContext: TemplateContext,
+): Promise<void> {
     try {
         // Load the webapp structure from configuration
         const webappStructure = await getProjectStructure("webapp");
@@ -52,7 +63,11 @@ async function createWebappScaffolding(targetDir: string): Promise<void> {
             return;
         }
 
-        await createFilesystemStructure(webappStructure, targetDir);
+        await createFilesystemStructure(
+            webappStructure,
+            targetDir,
+            templateContext,
+        );
     } catch (error) {
         consola.error(
             `Failed to create webapp scaffolding: ${formatErrorMessage(error)}`,
@@ -108,7 +123,24 @@ export const initCommand = defineCommand({
                 "CLI project scaffolding complete. Check the .github directory for instructions.",
             );
         } else if (projectType === "webapp") {
-            await createWebappScaffolding(targetDir);
+            // Get project name from CLI argument or prompt
+            const rawProjectName: unknown = context.args.name
+                ? context.args.name
+                : await promptFn("What is your project name?", {
+                      type: "text",
+                      placeholder: "my-webapp",
+                  });
+
+            const projectName =
+                typeof rawProjectName === "string" ? rawProjectName.trim() : "";
+
+            if (!projectName) {
+                consola.error("Project name is required for webapp projects");
+                throw new Error("Project name is required");
+            }
+
+            const templateContext: TemplateContext = { projectName };
+            await createWebappScaffolding(targetDir, templateContext);
             consola.info(
                 "Webapp project scaffolding complete. Run 'npm install' to install dependencies.",
             );

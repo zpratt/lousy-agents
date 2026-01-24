@@ -1,5 +1,5 @@
 {
-    "name": "webapp-workshop",
+    "name": "<%= it.projectName %>",
     "image": "mcr.microsoft.com/devcontainers/javascript-node:24-bookworm",
     "features": {
         "ghcr.io/devcontainers/features/github-cli:1": {
