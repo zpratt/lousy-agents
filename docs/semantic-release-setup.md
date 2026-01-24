@@ -78,8 +78,9 @@ Or configure in `package.json`:
 Before setting up semantic-release, ensure you have:
 
 1. **npm account** at [npmjs.com](https://www.npmjs.com/signup)
-2. **Repository access** with write permissions
-3. **Conventional commits** - Start using the commit message convention (see below)
+2. **npm CLI version 11.5.1 or later** - Required for trusted publishing. Check with `npm --version`
+3. **Repository access** with write permissions
+4. **Conventional commits** - Start using the commit message convention (see below)
 
 ## Setup Steps
 
@@ -195,35 +196,44 @@ jobs:
 
 ### 3. Configure npm Trusted Publishing
 
-Trusted publishing eliminates the need for long-lived npm tokens by using GitHub's OIDC identity.
+Trusted publishing eliminates the need for long-lived npm tokens by using GitHub's OIDC (OpenID Connect) identity. With trusted publishing, npm provenance attestations are automatically generated for your packages, providing cryptographic proof of where and how your package was built.
 
-#### Step 3a: Link Your npm Account to GitHub (if not done)
+**Note:** Trusted publishing requires npm CLI version 11.5.1 or later.
 
-1. Go to [npmjs.com](https://www.npmjs.com) and sign in
-2. Navigate to **Access Tokens** in your account settings
-3. Click **Link your GitHub account** if prompted
+#### Step 3a: Initial Manual Publish (Required for New Packages)
 
-#### Step 3b: Add Trusted Publisher on npm
-
-1. Go to your package page on npm (after first manual publish) or your [npm access tokens settings](https://www.npmjs.com/settings/~/tokens)
-2. Click **Add Trusted Publisher**
-3. Configure with these values:
-
-   | Field | Value |
-   |-------|-------|
-   | Repository owner | `zpratt` |
-   | Repository name | `lousy-agents` |
-   | Workflow file | `release.yml` |
-   | Environment | (leave blank) |
-
-**Note:** For a brand new package, you'll need to do an initial manual publish first:
+For a brand new package, you must do an initial manual publish first:
 
 ```bash
 npm run build
 npm publish --access public
 ```
 
-After the first publish, configure trusted publishing and subsequent releases will be fully automated.
+#### Step 3b: Add Trusted Publisher on npm
+
+1. Go to your package settings page on [npmjs.com](https://www.npmjs.com)
+2. Find the "**Trusted Publisher**" section
+3. Click **Add Trusted Publisher** and select **GitHub Actions**
+4. Configure with these values:
+
+   | Field | Value |
+   |-------|-------|
+   | Organization or user | `zpratt` |
+   | Repository | `lousy-agents` |
+   | Workflow filename | `release.yml` |
+   | Environment name | (leave blank) |
+
+**Important:** The workflow filename must be the file that triggers the release process (e.g., `release.yml`), not any downstream reusable workflows it may call.
+
+#### Step 3c: (Recommended) Restrict Token Access
+
+After verifying trusted publishing works, restrict traditional token-based publishing for enhanced security:
+
+1. Navigate to your package's **Settings** → **Publishing access** on npmjs.com
+2. Select **"Require two-factor authentication and disallow tokens"**
+3. Save your changes
+
+This ensures only trusted publishing from your CI/CD workflow can publish the package.
 
 ### 4. Tag Existing Version (If Applicable)
 
@@ -291,8 +301,9 @@ When you push to `main`:
    - `BREAKING CHANGE:` → major bump
 4. **Package.json updated** with new version
 5. **Package published** to npm via trusted publishing
-6. **GitHub release created** with auto-generated release notes
-7. **Git tag created** (e.g., `v1.2.0`)
+6. **Provenance generated** automatically (cryptographic proof of build origin)
+7. **GitHub release created** with auto-generated release notes
+8. **Git tag created** (e.g., `v1.2.0`)
 
 If no releasable commits are found, no release is created.
 
@@ -306,6 +317,28 @@ If no releasable commits are found, no release is created.
 | `ENOPKG` | Package.json must not have `"private": true` |
 | `EINVALIDNPMTOKEN` | Configure trusted publishing or check NPM_TOKEN |
 | No release created | Ensure commits follow conventional format |
+| "Unable to authenticate" | Verify workflow filename matches exactly (case-sensitive, including `.yml` extension) |
+| Self-hosted runner fails | Trusted publishing only supports GitHub-hosted runners |
+
+### Trusted Publishing Not Working?
+
+1. **Verify npm CLI version**: Run `npm --version` - must be 11.5.1 or later
+2. **Check workflow filename**: Must match exactly what's configured on npmjs.com (case-sensitive)
+3. **Verify `id-token: write` permission**: Required in your workflow for OIDC
+4. **Check runner type**: Self-hosted runners are not currently supported
+
+### Private Dependencies
+
+If you have private npm dependencies, trusted publishing only applies to `npm publish`. You'll still need a read-only token for installing private packages:
+
+```yaml
+- name: Install dependencies
+  run: npm ci
+  env:
+    NODE_AUTH_TOKEN: ${{ secrets.NPM_READ_TOKEN }}
+```
+
+Use [granular access tokens](https://docs.npmjs.com/creating-and-viewing-access-tokens#creating-granular-access-tokens-on-the-website) with read-only permissions for this purpose.
 
 ### Debug Mode
 
