@@ -1,5 +1,5 @@
 ---
-name: Update Demo GIF
+name: Update Demo GIFs
 
 'on':
   push:
@@ -7,6 +7,7 @@ name: Update Demo GIF
       - main
     paths:
       - demo.tape
+      - new-copilot-agent.tape
       - .github/workflows/update-demo.yml
   workflow_dispatch:
 
@@ -43,22 +44,42 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
-      - name: Generate demo GIF
+      - name: Generate demo.gif
         # v1.3.0
         uses: charmbracelet/vhs-action@59641cdc7fadf3978db65eb8c6937ea2752f4ec3
         with:
           path: demo.tape
           install-fonts: false
 
-      - name: Commit and push updated demo.gif
+      - name: Generate new-copilot-agent.gif
+        # v1.3.0
+        uses: charmbracelet/vhs-action@59641cdc7fadf3978db65eb8c6937ea2752f4ec3
+        with:
+          path: new-copilot-agent.tape
+          install-fonts: false
+
+      - name: Commit and push updated demo GIFs
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
+          changed_files=""
           if [[ -n $(git status --porcelain media/demo.gif) ]]; then
             git add media/demo.gif
-            git commit -m "chore: update demo.gif [skip ci]"
+            changed_files="demo.gif"
+          fi
+          if [[ -n $(git status --porcelain media/new-copilot-agent.gif) ]]; then
+            git add media/new-copilot-agent.gif
+            if [[ -n "$changed_files" ]]; then
+              changed_files="$changed_files, new-copilot-agent.gif"
+            else
+              changed_files="new-copilot-agent.gif"
+            fi
+          fi
+
+          if [[ -n "$changed_files" ]]; then
+            git commit -m "chore: update $changed_files [skip ci]"
             git push
           else
-            echo "No changes to demo.gif"
+            echo "No changes to demo GIFs"
           fi

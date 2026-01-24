@@ -70,6 +70,11 @@ name: agent-name
 description: Brief description of what this agent does
 ---
 
+<!-- 
+This is a custom GitHub Copilot agent for repository-level use.
+Learn more: https://docs.github.com/en/copilot/how-tos/use-copilot-agents/coding-agent/create-custom-agents
+-->
+
 # agent-name Agent
 
 You are a agent-name agent specialized in {domain/responsibility}.
