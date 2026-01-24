@@ -23,6 +23,21 @@ import {
 } from "./action-resolution.js";
 
 /**
+ * Extended step props type that supports YAML Scalar values for the 'uses' field.
+ *
+ * The @github-actions-workflow-ts/lib Step constructor accepts YAML Scalar objects
+ * at runtime (verified by tests), enabling YAML comments on action references.
+ * TypeScript types only declare string, so we extend the type to be explicit
+ * about this runtime capability.
+ *
+ * @see buildUsesValue for where Scalar values are created
+ * @see tests in copilot-setup.test.ts "SHA-pinned" for runtime verification
+ */
+type StepPropsWithScalar = Omit<GeneratedWorkflowTypes.Step, "uses"> & {
+    uses: string | Scalar;
+};
+
+/**
  * Options for converting candidates to steps
  */
 interface CandidateToStepOptions {
@@ -61,22 +76,17 @@ function getVersionForAction(
     candidateVersion: string | undefined,
     options?: CandidateToStepOptions,
 ): string {
-    // Check if we have a resolved version (SHA-pinned)
     if (options?.resolvedVersions) {
         const resolved = findResolvedVersion(action, options.resolvedVersions);
         if (resolved) {
-            // Return only the SHA, not with the version comment embedded
-            // The comment will be added as a YAML comment by buildUsesValue
             return resolved.sha;
         }
     }
 
-    // If using placeholders and no resolved version, return placeholder
     if (options?.usePlaceholders) {
         return VERSION_PLACEHOLDER;
     }
 
-    // Fall back to candidate version or empty string
     return candidateVersion || "";
 }
 
@@ -100,7 +110,6 @@ function buildUsesValue(
 ): string | Scalar {
     const uses = version ? `${action}@${version}` : action;
 
-    // Check if this action has a resolved version - if so, add the version as a YAML comment
     if (options?.resolvedVersions) {
         const resolved = findResolvedVersion(action, options.resolvedVersions);
         if (resolved) {
@@ -134,14 +143,12 @@ function buildStepFromCandidate(
             ? candidate.config
             : undefined;
 
-    // The Step constructor accepts Scalar at runtime for YAML comment support,
-    // but TypeScript types only declare string. We cast the entire props object
-    // to work around this library type limitation.
-    return new Step({
+    const stepProps: StepPropsWithScalar = {
         name: generateStepName(candidate.action),
         uses: usesValue,
         with: withConfig,
-    } as GeneratedWorkflowTypes.Step);
+    };
+    return new Step(stepProps as GeneratedWorkflowTypes.Step);
 }
 
 /**
@@ -184,24 +191,20 @@ async function getCheckoutVersion(
     versionGateway: ActionVersionGateway,
     options?: GenerateWorkflowOptions,
 ): Promise<string> {
-    // Check for resolved version first
     if (options?.resolvedVersions) {
         const resolved = findResolvedVersion(
             "actions/checkout",
             options.resolvedVersions,
         );
         if (resolved) {
-            // Return only the SHA, the comment will be added by buildUsesValue
             return resolved.sha;
         }
     }
 
-    // If using placeholders, return placeholder
     if (options?.usePlaceholders) {
         return VERSION_PLACEHOLDER;
     }
 
-    // Fall back to gateway version
     return (await versionGateway.getVersion("actions/checkout")) || "v4";
 }
 
@@ -222,26 +225,21 @@ export async function generateWorkflowContent(
         resolvedVersions: options?.resolvedVersions,
     };
 
-    // Get checkout version using centralized logic
     const checkoutVersion = await getCheckoutVersion(versionGateway, options);
-
-    // Build the uses value for checkout (with YAML comment if resolved)
     const checkoutUsesValue = buildUsesValue(
         "actions/checkout",
         checkoutVersion,
         stepOptions,
     );
-
-    // Build steps: checkout first, then all setup step candidates
+    const checkoutStepProps: StepPropsWithScalar = {
+        name: "Checkout code",
+        uses: checkoutUsesValue,
+    };
     const steps: Step[] = [
-        new Step({
-            name: "Checkout code",
-            uses: checkoutUsesValue as string,
-        }),
+        new Step(checkoutStepProps as GeneratedWorkflowTypes.Step),
         ...buildStepsFromCandidates(candidates, stepOptions),
     ];
 
-    // Build job using typed NormalJob class
     const job = new NormalJob("copilot-setup-steps", {
         "runs-on": "ubuntu-latest",
         "timeout-minutes": 30,
@@ -251,7 +249,6 @@ export async function generateWorkflowContent(
         },
     }).addSteps(steps);
 
-    // Build workflow using typed Workflow class
     const workflow = new Workflow("copilot-setup-steps.yml", {
         name: "Copilot Setup Steps",
         on: {
@@ -267,7 +264,6 @@ export async function generateWorkflowContent(
         },
     }).addJob(job);
 
-    // Add YAML frontmatter and stringify
     return `---\n${stringifyYaml(workflow.workflow, { lineWidth: 0 })}`;
 }
 
@@ -286,7 +282,6 @@ export async function updateWorkflowWithMissingSteps(
     options?: GenerateWorkflowOptions,
 ): Promise<string> {
     if (!existingWorkflow || typeof existingWorkflow !== "object") {
-        // If we can't parse the existing workflow, generate a new one
         return generateWorkflowContent(
             missingCandidates,
             versionGateway,
@@ -294,7 +289,6 @@ export async function updateWorkflowWithMissingSteps(
         );
     }
 
-    // Deep clone the workflow
     const workflow = JSON.parse(JSON.stringify(existingWorkflow)) as Record<
         string,
         unknown
@@ -309,7 +303,6 @@ export async function updateWorkflowWithMissingSteps(
         );
     }
 
-    // Find the main job (usually 'copilot-setup-steps' or similar)
     const jobNames = Object.keys(jobs);
     if (jobNames.length === 0) {
         return generateWorkflowContent(
@@ -330,7 +323,6 @@ export async function updateWorkflowWithMissingSteps(
         );
     }
 
-    // Append missing steps to the existing job
     const stepOptions: CandidateToStepOptions = {
         usePlaceholders: options?.usePlaceholders,
         resolvedVersions: options?.resolvedVersions,
