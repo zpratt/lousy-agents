@@ -1,5 +1,5 @@
 {
-    "name": "copilot-with-react",
+    "name": "<%= it.projectName %>",
     "version": "0.1.0",
     "private": true,
     "scripts": {

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
     createFilesystemStructure,
     type FilesystemStructure,
+    type TemplateContext,
 } from "./filesystem-structure.js";
 
 const chance = new Chance();
@@ -197,6 +198,144 @@ describe("Filesystem Structure", () => {
             await expect(access(filePath)).resolves.toBeUndefined();
             const content = await readFile(filePath, "utf-8");
             expect(content).toBe(fileContent);
+        });
+    });
+
+    describe("template processing", () => {
+        it("should process template variables when context is provided", async () => {
+            // Arrange
+            const projectName = chance.word();
+            const templateContent = '{"name": "<%= it.projectName %>"}';
+            const structure: FilesystemStructure = {
+                nodes: [
+                    {
+                        type: "file",
+                        path: "package.json",
+                        content: templateContent,
+                    },
+                ],
+            };
+            const templateContext: TemplateContext = { projectName };
+
+            // Act
+            await createFilesystemStructure(
+                structure,
+                testDir,
+                templateContext,
+            );
+
+            // Assert
+            const filePath = join(testDir, "package.json");
+            const content = await readFile(filePath, "utf-8");
+            expect(content).toBe(`{"name": "${projectName}"}`);
+        });
+
+        it("should not process templates when no context is provided", async () => {
+            // Arrange
+            const templateContent = '{"name": "<%= it.projectName %>"}';
+            const structure: FilesystemStructure = {
+                nodes: [
+                    {
+                        type: "file",
+                        path: "package.json",
+                        content: templateContent,
+                    },
+                ],
+            };
+
+            // Act
+            await createFilesystemStructure(structure, testDir);
+
+            // Assert
+            const filePath = join(testDir, "package.json");
+            const content = await readFile(filePath, "utf-8");
+            expect(content).toBe(templateContent);
+        });
+
+        it("should process multiple template variables in the same file", async () => {
+            // Arrange
+            const projectName = chance.word();
+            const templateContent = `{
+    "name": "<%= it.projectName %>",
+    "displayName": "<%= it.projectName %>"
+}`;
+            const structure: FilesystemStructure = {
+                nodes: [
+                    {
+                        type: "file",
+                        path: "config.json",
+                        content: templateContent,
+                    },
+                ],
+            };
+            const templateContext: TemplateContext = { projectName };
+
+            // Act
+            await createFilesystemStructure(
+                structure,
+                testDir,
+                templateContext,
+            );
+
+            // Assert
+            const filePath = join(testDir, "config.json");
+            const content = await readFile(filePath, "utf-8");
+            expect(content).toContain(`"name": "${projectName}"`);
+            expect(content).toContain(`"displayName": "${projectName}"`);
+        });
+
+        it("should leave non-template content unchanged when processing", async () => {
+            // Arrange
+            const projectName = chance.word();
+            const templateContent = `{
+    "name": "<%= it.projectName %>",
+    "version": "1.0.0",
+    "private": true
+}`;
+            const structure: FilesystemStructure = {
+                nodes: [
+                    {
+                        type: "file",
+                        path: "package.json",
+                        content: templateContent,
+                    },
+                ],
+            };
+            const templateContext: TemplateContext = { projectName };
+
+            // Act
+            await createFilesystemStructure(
+                structure,
+                testDir,
+                templateContext,
+            );
+
+            // Assert
+            const filePath = join(testDir, "package.json");
+            const content = await readFile(filePath, "utf-8");
+            expect(content).toContain('"version": "1.0.0"');
+            expect(content).toContain('"private": true');
+            expect(content).toContain(`"name": "${projectName}"`);
+        });
+
+        it("should throw descriptive error when template syntax is invalid", async () => {
+            // Arrange
+            const invalidTemplateContent = '{"name": "<%= it.projectName"}'; // Missing closing %>
+            const structure: FilesystemStructure = {
+                nodes: [
+                    {
+                        type: "file",
+                        path: "package.json",
+                        content: invalidTemplateContent,
+                    },
+                ],
+            };
+            const templateContext: TemplateContext = { projectName: "test" };
+
+            // Act & Assert
+            await expect(
+                createFilesystemStructure(structure, testDir, templateContext),
+            ).rejects.toThrow("Template processing failed:");
         });
     });
 });
