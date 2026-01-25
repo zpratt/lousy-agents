@@ -205,9 +205,15 @@ describe("Init command", () => {
     describe("when webapp project type is selected", () => {
         let mockPrompt: ReturnType<typeof vi.fn>;
         let testDir: string;
+        let projectName: string;
 
         beforeEach(async () => {
-            mockPrompt = vi.fn().mockResolvedValue("webapp");
+            projectName = chance.word().toLowerCase();
+            // First call returns project type, second call returns project name
+            mockPrompt = vi
+                .fn()
+                .mockResolvedValueOnce("webapp")
+                .mockResolvedValueOnce(projectName);
             testDir = join(tmpdir(), `test-${chance.guid()}`);
             await mkdir(testDir, { recursive: true });
         });
@@ -444,11 +450,12 @@ describe("Init command", () => {
         it("should use provided --kind argument without prompting when webapp is specified", async () => {
             // Arrange
             const mockPrompt = vi.fn();
+            const projectName = chance.word().toLowerCase();
 
             // Act
             await initCommand.run({
-                rawArgs: ["--kind", "webapp"],
-                args: { _: [], kind: "webapp" },
+                rawArgs: ["--kind", "webapp", "--name", projectName],
+                args: { _: [], kind: "webapp", name: projectName },
                 cmd: initCommand,
                 data: { prompt: mockPrompt, targetDir: testDir },
             });
@@ -509,15 +516,20 @@ describe("Init command", () => {
             );
             await mkdir(cliTestDir, { recursive: true });
             await mkdir(promptTestDir, { recursive: true });
-            const mockPrompt = vi.fn().mockResolvedValue(projectType);
+            const projectName = chance.word().toLowerCase();
+            // For webapp: first call returns project type, second call returns project name
+            const mockPrompt = vi
+                .fn()
+                .mockResolvedValueOnce(projectType)
+                .mockResolvedValueOnce(projectName);
 
             try {
                 // Act - using CLI arg
                 await initCommand.run({
-                    rawArgs: ["--kind", projectType],
-                    args: { _: [], kind: projectType },
+                    rawArgs: ["--kind", projectType, "--name", projectName],
+                    args: { _: [], kind: projectType, name: projectName },
                     cmd: initCommand,
-                    data: { prompt: mockPrompt, targetDir: cliTestDir },
+                    data: { prompt: vi.fn(), targetDir: cliTestDir },
                 });
 
                 // Act - using interactive prompt
@@ -540,6 +552,271 @@ describe("Init command", () => {
                 await rm(cliTestDir, { recursive: true, force: true });
                 await rm(promptTestDir, { recursive: true, force: true });
             }
+        });
+    });
+
+    describe("when project name is provided", () => {
+        let testDir: string;
+
+        beforeEach(async () => {
+            testDir = join(tmpdir(), `test-${chance.guid()}`);
+            await mkdir(testDir, { recursive: true });
+        });
+
+        afterEach(async () => {
+            await rm(testDir, { recursive: true, force: true });
+        });
+
+        it("should use --name argument without prompting for project name", async () => {
+            // Arrange
+            const mockPrompt = vi.fn();
+            const projectName = chance.word().toLowerCase();
+
+            // Act
+            await initCommand.run({
+                rawArgs: ["--kind", "webapp", "--name", projectName],
+                args: { _: [], kind: "webapp", name: projectName },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            expect(mockPrompt).not.toHaveBeenCalled();
+        });
+
+        it("should prompt for project name when --kind webapp is provided without --name", async () => {
+            // Arrange
+            const projectName = chance.word().toLowerCase();
+            const mockPrompt = vi.fn().mockResolvedValue(projectName);
+
+            // Act
+            await initCommand.run({
+                rawArgs: ["--kind", "webapp"],
+                args: { _: [], kind: "webapp" },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            expect(mockPrompt).toHaveBeenCalledWith(
+                "What is your project name?",
+                expect.objectContaining({
+                    type: "text",
+                }),
+            );
+        });
+
+        it("should apply project name to package.json template", async () => {
+            // Arrange
+            const projectName = chance.word().toLowerCase();
+            const mockPrompt = vi.fn();
+
+            // Act
+            await initCommand.run({
+                rawArgs: ["--kind", "webapp", "--name", projectName],
+                args: { _: [], kind: "webapp", name: projectName },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            const packageJsonFile = join(testDir, "package.json");
+            const content = await readFile(packageJsonFile, "utf-8");
+            expect(content).toContain(`"name": "${projectName}"`);
+        });
+
+        it("should apply project name to devcontainer.json template", async () => {
+            // Arrange
+            const projectName = chance.word().toLowerCase();
+            const mockPrompt = vi.fn();
+
+            // Act
+            await initCommand.run({
+                rawArgs: ["--kind", "webapp", "--name", projectName],
+                args: { _: [], kind: "webapp", name: projectName },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            const devcontainerFile = join(
+                testDir,
+                ".devcontainer",
+                "devcontainer.json",
+            );
+            const content = await readFile(devcontainerFile, "utf-8");
+            expect(content).toContain(`"name": "${projectName}"`);
+        });
+
+        it("should reject empty project name", async () => {
+            // Arrange
+            const mockPrompt = vi.fn().mockResolvedValue("");
+
+            // Act & Assert
+            await expect(
+                initCommand.run({
+                    rawArgs: ["--kind", "webapp"],
+                    args: { _: [], kind: "webapp" },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                }),
+            ).rejects.toThrow("Project name is required");
+        });
+
+        it("should reject whitespace-only project name", async () => {
+            // Arrange
+            const mockPrompt = vi.fn().mockResolvedValue("   ");
+
+            // Act & Assert
+            await expect(
+                initCommand.run({
+                    rawArgs: ["--kind", "webapp"],
+                    args: { _: [], kind: "webapp" },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                }),
+            ).rejects.toThrow("Project name is required");
+        });
+
+        it("should reject project names with uppercase letters", async () => {
+            // Arrange
+            const mockPrompt = vi.fn().mockResolvedValue("MyProject");
+
+            // Act & Assert
+            await expect(
+                initCommand.run({
+                    rawArgs: ["--kind", "webapp"],
+                    args: { _: [], kind: "webapp" },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                }),
+            ).rejects.toThrow("Invalid project name");
+        });
+
+        it("should reject project names with spaces", async () => {
+            // Arrange
+            const mockPrompt = vi.fn().mockResolvedValue("my project");
+
+            // Act & Assert
+            await expect(
+                initCommand.run({
+                    rawArgs: ["--kind", "webapp"],
+                    args: { _: [], kind: "webapp" },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                }),
+            ).rejects.toThrow("Invalid project name");
+        });
+
+        it("should accept valid npm package names with hyphens", async () => {
+            // Arrange
+            const projectName = "my-valid-project";
+            const mockPrompt = vi.fn();
+
+            // Act
+            await initCommand.run({
+                rawArgs: ["--kind", "webapp", "--name", projectName],
+                args: { _: [], kind: "webapp", name: projectName },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            const packageJsonFile = join(testDir, "package.json");
+            const content = await readFile(packageJsonFile, "utf-8");
+            expect(content).toContain(`"name": "${projectName}"`);
+        });
+
+        it("should accept valid npm package names with underscores", async () => {
+            // Arrange
+            const projectName = "my_valid_project";
+            const mockPrompt = vi.fn();
+
+            // Act
+            await initCommand.run({
+                rawArgs: ["--kind", "webapp", "--name", projectName],
+                args: { _: [], kind: "webapp", name: projectName },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            const packageJsonFile = join(testDir, "package.json");
+            const content = await readFile(packageJsonFile, "utf-8");
+            expect(content).toContain(`"name": "${projectName}"`);
+        });
+
+        it("should accept valid npm package names with periods", async () => {
+            // Arrange
+            const projectName = "my.valid.project";
+            const mockPrompt = vi.fn();
+
+            // Act
+            await initCommand.run({
+                rawArgs: ["--kind", "webapp", "--name", projectName],
+                args: { _: [], kind: "webapp", name: projectName },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            const packageJsonFile = join(testDir, "package.json");
+            const content = await readFile(packageJsonFile, "utf-8");
+            expect(content).toContain(`"name": "${projectName}"`);
+        });
+
+        it("should accept valid npm package names starting with numbers", async () => {
+            // Arrange
+            const projectName = "123project";
+            const mockPrompt = vi.fn();
+
+            // Act
+            await initCommand.run({
+                rawArgs: ["--kind", "webapp", "--name", projectName],
+                args: { _: [], kind: "webapp", name: projectName },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            const packageJsonFile = join(testDir, "package.json");
+            const content = await readFile(packageJsonFile, "utf-8");
+            expect(content).toContain(`"name": "${projectName}"`);
+        });
+
+        it("should reject project names exceeding 214 characters", async () => {
+            // Arrange
+            const projectName = "a".repeat(215);
+            const mockPrompt = vi.fn();
+
+            // Act & Assert
+            await expect(
+                initCommand.run({
+                    rawArgs: ["--kind", "webapp", "--name", projectName],
+                    args: { _: [], kind: "webapp", name: projectName },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                }),
+            ).rejects.toThrow("Invalid project name");
+        });
+
+        it("should accept valid scoped npm package names", async () => {
+            // Arrange
+            const projectName = "@myorg/my-package";
+            const mockPrompt = vi.fn();
+
+            // Act
+            await initCommand.run({
+                rawArgs: ["--kind", "webapp", "--name", projectName],
+                args: { _: [], kind: "webapp", name: projectName },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            const packageJsonFile = join(testDir, "package.json");
+            const content = await readFile(packageJsonFile, "utf-8");
+            expect(content).toContain(`"name": "${projectName}"`);
         });
     });
 });
