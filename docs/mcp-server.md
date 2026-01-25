@@ -81,20 +81,20 @@ Add the following to your VS Code `mcp.json` configuration file (typically at `.
   "servers": {
     "lousy-agents": {
       "command": "npx",
-      "args": ["-y", "-p", "@zpratt/lousy-agents", "lousy-agents-mcp"]
+      "args": ["-y", "-p", "@lousy-agents/cli", "lousy-agents-mcp"]
     }
   }
 }
 ```
 
-Or if you have `@zpratt/lousy-agents` installed locally in your project:
+Or if you have `@lousy-agents/cli` installed locally in your project:
 
 ```json
 {
   "servers": {
     "lousy-agents": {
       "command": "node",
-      "args": ["./node_modules/@zpratt/lousy-agents/dist/mcp-server.js"]
+      "args": ["./node_modules/@lousy-agents/cli/dist/mcp-server.js"]
     }
   }
 }

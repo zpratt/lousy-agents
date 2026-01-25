@@ -28,19 +28,27 @@ Semantic-release automates the entire package release workflow:
 
 ## Package Naming
 
-### Recommendation: Use a Scoped Package
+### Using a Scoped Package with npm Organization
 
-**Recommended name:** `@zpratt/lousy-agents`
+**Package name:** `@lousy-agents/cli`
 
-Using a scoped package name is recommended for several reasons:
+Using a scoped package name under an npm organization provides several benefits:
 
 | Benefit | Description |
 |---------|-------------|
-| **Namespace ownership** | Scopes are tied to npm usernames or organizations, guaranteeing you own the namespace |
-| **Future packages** | Easily publish additional packages under the same scope (e.g., `@zpratt/another-tool`) |
+| **Namespace ownership** | The `@lousy-agents` scope is tied to an npm organization you control |
+| **Future packages** | Easily publish additional packages under the same scope (e.g., `@lousy-agents/core`, `@lousy-agents/mcp`) |
 | **No naming conflicts** | Avoid potential conflicts with existing or future unscoped packages |
-| **Organization support** | If you create an npm organization later, you can migrate packages easily |
-| **Clear attribution** | Users immediately know who maintains the package |
+| **Team collaboration** | npm organizations allow adding team members with different access levels |
+| **Clear branding** | Users immediately recognize packages from your project |
+
+### Prerequisites for Organization Scope
+
+Before publishing, you must create the `lousy-agents` organization on npm:
+
+1. Go to [npmjs.com/org/create](https://www.npmjs.com/org/create)
+2. Create the organization with name `lousy-agents`
+3. Free organizations can publish unlimited public packages
 
 ### Alternative: Unscoped Package
 
@@ -91,7 +99,7 @@ Make the following changes to `package.json`:
 ```diff
 {
 -   "name": "lousy-agents",
-+   "name": "@zpratt/lousy-agents",
++   "name": "@lousy-agents/cli",
     "version": "0.1.0",
 -   "private": true,
     "type": "module",
@@ -113,7 +121,7 @@ Make the following changes to `package.json`:
 
 | Change | Reason |
 |--------|--------|
-| `name` → `@zpratt/lousy-agents` | Scoped package name for namespace ownership |
+| `name` → `@lousy-agents/cli` | Scoped package name for namespace ownership |
 | Remove `"private": true` | Required to allow npm publishing |
 | Add `repository` | Required for semantic-release to link GitHub and npm |
 | Add `publishConfig.access` | Makes the scoped package public |
@@ -222,6 +230,8 @@ npm publish --access public
    | Repository | `lousy-agents` |
    | Workflow filename | `release.yml` |
    | Environment name | (leave blank) |
+
+**Note:** Use your GitHub username (`zpratt`) for the "Organization or user" field, not the npm organization name. This refers to the GitHub repository owner.
 
 **Important:** The workflow filename must be the file that triggers the release process (e.g., `release.yml`), not any downstream reusable workflows it may call.
 

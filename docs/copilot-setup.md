@@ -19,7 +19,7 @@ This workflow ensures GitHub Copilot has the same environment context as your CI
 Run from your project root:
 
 ```bash
-npx @zpratt/lousy-agents copilot-setup
+npx @lousy-agents/cli copilot-setup
 ```
 
 This will:
@@ -53,7 +53,7 @@ This will:
 
 ```bash
 # Project has .nvmrc
-npx @zpratt/lousy-agents copilot-setup
+npx @lousy-agents/cli copilot-setup
 # Creates workflow with actions/setup-node
 ```
 
@@ -61,7 +61,7 @@ npx @zpratt/lousy-agents copilot-setup
 
 ```bash
 # Project has mise.toml
-npx @zpratt/lousy-agents copilot-setup
+npx @lousy-agents/cli copilot-setup
 # Creates workflow with jdx/mise-action
 ```
 
@@ -70,14 +70,14 @@ npx @zpratt/lousy-agents copilot-setup
 ```bash
 # Already has copilot-setup-steps.yml
 # Add .python-version file
-npx @zpratt/lousy-agents copilot-setup
+npx @lousy-agents/cli copilot-setup
 # Adds actions/setup-python to existing workflow
 ```
 
 ## Help
 
 ```bash
-npx @zpratt/lousy-agents copilot-setup --help
+npx @lousy-agents/cli copilot-setup --help
 ```
 
 ## Generated Workflow Example
