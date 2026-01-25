@@ -38,6 +38,33 @@ When reviewing a spec:
 4. Identify any missing error states or edge cases
 5. Assess whether tasks are appropriately sized for the coding agent
 
+## Using the Feature-to-Spec Issue Template
+
+This repository includes a GitHub issue template for streamlined spec creation with automatic Copilot assignment.
+
+### Creating a Spec via Issue Template
+
+1. Go to **Issues** → **New Issue**
+2. Select **"Copilot Feature To Spec"** template
+3. Fill in the **Context & Goal** section describing what you want to build
+4. Fill in the **Acceptance Criteria** section with testable requirements
+5. Optionally customize the **Extra Instructions** section for agent-specific guidance
+6. Submit the issue
+
+### Automatic Copilot Assignment
+
+When you create an issue with the `copilot-ready` label (applied automatically by the template):
+
+1. The `assign-copilot.yml` workflow triggers
+2. Copilot is mentioned in a comment with your Extra Instructions
+3. Copilot begins working on the spec in `.github/specs/`
+
+### Related Files
+
+- `.github/ISSUE_TEMPLATE/feature-to-spec.yml` — The issue template
+- `.github/workflows/assign-copilot.yml` — Auto-assignment workflow
+- `.github/specs/` — Where completed specs are stored
+
 ## EARS Requirement Syntax
 
 All acceptance criteria must use EARS (Easy Approach to Requirements Syntax) patterns:

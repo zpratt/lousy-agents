@@ -54,6 +54,65 @@ describe('ComponentName', () => {
 13. Test unhappy paths and edge cases, not just happy paths.
 14. Every assertion should explain the expected behavior.
 15. Write tests that would FAIL if production code regressed.
+16. **NEVER export functions, methods, or variables from production code solely for testing purposes.**
+17. **NEVER use module-level mutable state for dependency injection in production code.**
+
+## Dependency Injection for Testing
+
+When you need to inject dependencies for testing:
+
+- **DO** use constructor parameters, function parameters, or framework-provided mechanisms (e.g., context objects).
+- **DO** pass test doubles through the existing public API of the code under test.
+- **DO NOT** export special test-only functions like `_setTestDependencies()` or `_resetTestDependencies()`.
+- **DO NOT** modify module-level state from tests.
+
+### Good Example (Dependency Injection via Parameters)
+
+```typescript
+// Production code
+export function createUserService(repository: UserRepository) {
+  return {
+    async getUser(id: string) {
+      return repository.findById(id);
+    }
+  };
+}
+
+// Test code
+it("should return user when found", async () => {
+  const mockRepository = {
+    findById: vi.fn().mockResolvedValue({ id: "1", name: "John" })
+  };
+  const service = createUserService(mockRepository);
+  
+  const result = await service.getUser("1");
+  
+  expect(result).toEqual({ id: "1", name: "John" });
+});
+```
+
+### Bad Example (Test-Only Exports)
+
+```typescript
+// ❌ BAD: Production code
+let _repositoryOverride: any;
+
+export function _setTestDependencies(deps: any) {
+  _repositoryOverride = deps.repository;
+}
+
+export function getUser(id: string) {
+  const repository = _repositoryOverride || defaultRepository;
+  return repository.findById(id);
+}
+
+// ❌ BAD: Test code
+import { _setTestDependencies, getUser } from "./user-service";
+
+beforeEach(() => {
+  _setTestDependencies({ repository: mockRepository });
+});
+```
 
 ## Dependencies
 
