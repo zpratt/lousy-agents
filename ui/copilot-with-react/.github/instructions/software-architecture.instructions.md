@@ -38,7 +38,8 @@ src/
 
 - MUST NOT import from any other layer
 - MUST NOT depend on frameworks or infrastructure
-- MUST NOT depend on global APIs (e.g., `crypto.randomUUID()`, `Date.now()`)
+- MUST NOT use non-deterministic or side-effect-producing global APIs (e.g., `crypto.randomUUID()`, `Date.now()`, `Math.random()`)
+- MAY use pure, deterministic global APIs (e.g., `Intl.NumberFormat`, `parseInt()`, `JSON.parse()`)
 - MUST be plain TypeScript objects/classes with business logic
 - MAY contain validation and business rules
 
@@ -67,7 +68,7 @@ export function formatPrice(product: Product): string {
 - Importing React, Next.js, or any framework
 - Importing from `src/use-cases/`, `src/gateways/`, `src/components/`, or `src/lib/`
 - HTTP calls or API operations
-- Using global APIs like `crypto.randomUUID()` or `Date.now()`
+- Using non-deterministic global APIs like `crypto.randomUUID()`, `Date.now()`, or `Math.random()`
 
 ## Layer 2: Use Cases
 
@@ -126,8 +127,22 @@ Gateways act as the BFF layer, calling your backend API routes and transforming 
 
 ```typescript
 // src/gateways/product-api-gateway.ts
+import { z } from 'zod';
 import type { Product } from '@/entities/product';
 import type { ProductApiGateway } from '@/use-cases/get-products';
+
+// Schema for runtime validation of API responses
+const ProductSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  price: z.number(),
+  inStock: z.boolean(),
+});
+
+const ProductsResponseSchema = z.object({
+  products: z.array(ProductSchema),
+  total: z.number(),
+});
 
 export function createProductApiGateway(baseUrl: string): ProductApiGateway {
   return {
@@ -145,7 +160,8 @@ export function createProductApiGateway(baseUrl: string): ProductApiGateway {
         throw new Error(`Failed to fetch products: ${response.status}`);
       }
 
-      return response.json();
+      const data: unknown = await response.json();
+      return ProductsResponseSchema.parse(data);
     },
   };
 }
@@ -153,7 +169,7 @@ export function createProductApiGateway(baseUrl: string): ProductApiGateway {
 
 ### React Hooks (Data Fetching Adapters)
 
-Hooks wire use cases to React components and manage loading/error states.
+Hooks wire use cases to React components and manage loading/error states. Use factory functions to enable testing with different implementations.
 
 ```typescript
 // src/hooks/use-products.ts
@@ -161,28 +177,42 @@ Hooks wire use cases to React components and manage loading/error states.
 
 import { useState, useEffect } from 'react';
 import type { Product } from '@/entities/product';
+import type { GetProductsUseCase } from '@/use-cases/get-products';
+
+interface UseProductsDeps {
+  getProductsUseCase: GetProductsUseCase;
+}
+
+// Factory to create a hook with injected dependencies
+export function createUseProductsHook({ getProductsUseCase }: UseProductsDeps) {
+  return function useProducts(category?: string) {
+    const [products, setProducts] = useState<Product[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<Error | null>(null);
+
+    useEffect(() => {
+      setLoading(true);
+      getProductsUseCase
+        .execute({ category })
+        .then(({ products }) => setProducts(products))
+        .catch(setError)
+        .finally(() => setLoading(false));
+    }, [category]);
+
+    return { products, loading, error };
+  };
+}
+
+// src/hooks/index.ts - Composition root for hooks
 import { GetProductsUseCase } from '@/use-cases/get-products';
 import { createProductApiGateway } from '@/gateways/product-api-gateway';
+import { createUseProductsHook } from './use-products';
 
 const productApi = createProductApiGateway('');
-const getProducts = new GetProductsUseCase(productApi);
+const getProductsUseCase = new GetProductsUseCase(productApi);
 
-export function useProducts(category?: string) {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    getProducts
-      .execute({ category })
-      .then(({ products }) => setProducts(products))
-      .catch(setError)
-      .finally(() => setLoading(false));
-  }, [category]);
-
-  return { products, loading, error };
-}
+// Export the fully-wired hook for use in components
+export const useProducts = createUseProductsHook({ getProductsUseCase });
 ```
 
 ### React Components (UI Adapters)
