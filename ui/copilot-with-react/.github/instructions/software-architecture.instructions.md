@@ -126,13 +126,15 @@ export class GetUserProfileUseCase {
 
 ```typescript
 // src/gateways/prisma-user-repository.ts
-import { prisma } from '@/lib/prisma';
+import type { PrismaClient } from '@prisma/client';
 import type { User } from '@/entities/user';
 import type { UserRepository } from '@/use-cases/get-user-profile';
 
 export class PrismaUserRepository implements UserRepository {
+  constructor(private readonly prisma: PrismaClient) {}
+
   async findById(userId: string): Promise<User | null> {
-    const user = await prisma.user.findUnique({
+    const user = await this.prisma.user.findUnique({
       where: { id: userId }
     });
 
@@ -154,30 +156,34 @@ export class PrismaUserRepository implements UserRepository {
 // src/components/features/user-profile.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
 import type { User } from '@/entities/user';
 
 interface UserProfileProps {
-  userId: string;
+  user: User;  // Data passed from parent, not fetched internally
 }
 
-export function UserProfile({ userId }: UserProfileProps) {
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    fetch(`/api/users/${userId}`)
-      .then(res => res.json())
-      .then(data => setUser(data.user));
-  }, [userId]);
-
-  if (!user) return <div>Loading...</div>;
-
+export function UserProfile({ user }: UserProfileProps) {
   return (
     <div>
       <h1>{user.email}</h1>
       <p>Role: {user.role}</p>
     </div>
   );
+}
+
+// Parent component or page handles data fetching
+// src/app/users/[id]/page.tsx
+import { UserProfile } from '@/components/features/user-profile';
+import { GetUserProfileUseCase } from '@/use-cases/get-user-profile';
+import { PrismaUserRepository } from '@/gateways/prisma-user-repository';
+import { prisma } from '@/lib/prisma';
+
+export default async function UserPage({ params }: { params: { id: string } }) {
+  const userRepository = new PrismaUserRepository(prisma);
+  const getUserProfile = new GetUserProfileUseCase(userRepository);
+  const { user } = await getUserProfile.execute({ userId: params.id });
+
+  return <UserProfile user={user} />;
 }
 ```
 
