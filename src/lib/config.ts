@@ -154,6 +154,13 @@ function buildWebappStructure(): FilesystemStructure {
                     ".github/instructions/pipeline.instructions.md",
                 ),
             },
+            {
+                type: "file",
+                path: ".github/instructions/software-architecture.instructions.md",
+                content: readTemplateFile(
+                    ".github/instructions/software-architecture.instructions.md",
+                ),
+            },
             // GitHub Issue Templates
             {
                 type: "directory",

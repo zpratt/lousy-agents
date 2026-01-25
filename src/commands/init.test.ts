@@ -339,6 +339,14 @@ describe("Init command", () => {
             await expect(
                 access(join(instructionsDir, "pipeline.instructions.md")),
             ).resolves.toBeUndefined();
+            await expect(
+                access(
+                    join(
+                        instructionsDir,
+                        "software-architecture.instructions.md",
+                    ),
+                ),
+            ).resolves.toBeUndefined();
         });
 
         it("should create .github/ISSUE_TEMPLATE/feature-to-spec.yml when it does not exist", async () => {
