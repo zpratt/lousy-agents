@@ -62,7 +62,9 @@ Use EARS (Easy Approach to Requirements Syntax) patterns:
 | Ubiquitous | The `<system>` shall `<response>` | Always true |
 | Event-driven | When `<trigger>`, the `<system>` shall `<response>` | Responding to event |
 | State-driven | While `<state>`, the `<system>` shall `<response>` | During a condition |
+| Optional | Where `<feature>` is enabled, the `<system>` shall `<response>` | Configurable capability |
 | Unwanted | If `<condition>`, then the `<system>` shall `<response>` | Error handling |
+| Complex | While `<state>`, when `<trigger>`, the `<system>` shall `<response>` | Combining conditions |
 
 ### Examples
 
@@ -70,7 +72,9 @@ Use EARS (Easy Approach to Requirements Syntax) patterns:
 - The API shall validate all input parameters
 - When a user submits a form, the system shall display a success message
 - While the server is under high load, the system shall queue requests
+- Where manual approval is configured, the system shall pause deployment until approved
 - If the request body is malformed, then the system shall return a 400 error
+- While branch protection is enabled, when a push is attempted, the system shall reject unauthorized changes
 ```
 
 ## Related Files

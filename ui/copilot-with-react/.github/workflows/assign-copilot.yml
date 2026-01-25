@@ -34,7 +34,14 @@ jobs:
             let comment = "@copilot";
 
             if (match && match[1].trim().length > 0) {
-              const instructions = match[1].trim();
+              let instructions = match[1].trim();
+
+              // Basic sanitization: limit length to prevent overly long comments
+              const MAX_LENGTH = 2000;
+              if (instructions.length > MAX_LENGTH) {
+                instructions = instructions.slice(0, MAX_LENGTH) + "\n\n[Instructions truncated]";
+              }
+
               comment = `@copilot ${instructions}`;
               console.log("Found extra instructions, mentioning Copilot with instructions.");
             } else {

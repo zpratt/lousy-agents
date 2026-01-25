@@ -2,7 +2,7 @@
 applyTo: "src/**/*.{ts,tsx}"
 ---
 
-# Clean Architecture Instructions
+# Clean Architecture Instructions for SPA
 
 ## The Dependency Rule
 
@@ -11,7 +11,7 @@ Dependencies point inward only. Outer layers depend on inner layers, never the r
 **Layers (innermost to outermost):**
 1. Entities — Enterprise business rules
 2. Use Cases — Application business rules
-3. Adapters — Interface converters (controllers, repositories, gateways)
+3. Adapters — Interface converters (gateways, components)
 4. Infrastructure — Frameworks, drivers, composition root
 
 ## Directory Structure
@@ -20,14 +20,15 @@ Dependencies point inward only. Outer layers depend on inner layers, never the r
 src/
 ├── entities/                  # Layer 1: Business domain entities
 ├── use-cases/                 # Layer 2: Application business rules
-├── gateways/                  # Layer 3: External system adapters (APIs, databases)
+├── gateways/                  # Layer 3: Backend-for-Frontend (BFF) API adapters
 ├── app/                       # Layer 4: Next.js App Router (pages, layouts)
-│   ├── api/                   # API route handlers
+│   ├── api/                   # BFF API routes (proxy to backend services)
 │   ├── (routes)/              # Page routes
 │   └── layout.tsx             # Root layout
 ├── components/                # Layer 3: React components (UI adapters)
 │   ├── ui/                    # Primitive UI components
 │   └── features/              # Feature-specific components
+├── hooks/                     # Layer 3: React hooks for data fetching
 └── lib/                       # Layer 3: Configuration and utilities
 ```
 
@@ -40,32 +41,32 @@ src/
 - MUST NOT depend on global APIs (e.g., `crypto.randomUUID()`, `Date.now()`)
 - MUST be plain TypeScript objects/classes with business logic
 - MAY contain validation and business rules
-- ID generation and timestamps should be passed as parameters or handled by use cases
 
 ```typescript
-// src/entities/user.ts
-export type UserRole = "admin" | "member" | "guest";
-
-export interface User {
+// src/entities/product.ts
+export interface Product {
   readonly id: string;
-  readonly email: string;
-  readonly role: UserRole;
-  readonly createdAt: Date;
+  readonly name: string;
+  readonly price: number;
+  readonly inStock: boolean;
 }
 
-export function isValidUserRole(role: string): role is UserRole {
-  return ["admin", "member", "guest"].includes(role);
+export function isAvailableForPurchase(product: Product): boolean {
+  return product.inStock && product.price > 0;
 }
 
-export function canAccessAdminPanel(user: User): boolean {
-  return user.role === "admin";
+export function formatPrice(product: Product): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(product.price);
 }
 ```
 
 **Violations:**
 - Importing React, Next.js, or any framework
 - Importing from `src/use-cases/`, `src/gateways/`, `src/components/`, or `src/lib/`
-- Database operations or HTTP calls
+- HTTP calls or API operations
 - Using global APIs like `crypto.randomUUID()` or `Date.now()`
 
 ## Layer 2: Use Cases
@@ -78,32 +79,34 @@ export function canAccessAdminPanel(user: User): boolean {
 - MUST NOT import concrete implementations
 
 ```typescript
-// src/use-cases/get-user-profile.ts
-import type { User } from '../entities/user';
+// src/use-cases/get-products.ts
+import type { Product } from '../entities/product';
 
-export interface GetUserProfileInput { userId: string; }
-export interface GetUserProfileOutput { user: User; }
-
-// Ports - interfaces for dependencies
-export interface UserRepository {
-  findById(userId: string): Promise<User | null>;
+export interface GetProductsInput {
+  category?: string;
+  limit?: number;
 }
 
-export class GetUserProfileUseCase {
-  constructor(private readonly userRepository: UserRepository) {}
+export interface GetProductsOutput {
+  products: Product[];
+  total: number;
+}
 
-  async execute(input: GetUserProfileInput): Promise<GetUserProfileOutput> {
-    if (!input.userId) {
-      throw new Error('User ID is required');
-    }
+// Port - interface for the API gateway
+export interface ProductApiGateway {
+  fetchProducts(category?: string, limit?: number): Promise<{ products: Product[]; total: number }>;
+}
 
-    const user = await this.userRepository.findById(input.userId);
+export class GetProductsUseCase {
+  constructor(private readonly productApi: ProductApiGateway) {}
 
-    if (!user) {
-      throw new Error('User not found');
-    }
+  async execute(input: GetProductsInput): Promise<GetProductsOutput> {
+    const { products, total } = await this.productApi.fetchProducts(
+      input.category,
+      input.limit
+    );
 
-    return { user };
+    return { products, total };
   }
 }
 ```
@@ -111,187 +114,258 @@ export class GetUserProfileUseCase {
 **Violations:**
 - Importing React, Next.js, or any framework
 - Importing from `gateways/`, `components/`, or `lib/`
-- Database operations or HTTP calls directly
+- Making HTTP calls directly
 
 ## Layer 3: Adapters
 
-**Location:** `src/gateways/`, `src/components/`, and `src/lib/`
+**Location:** `src/gateways/`, `src/components/`, `src/hooks/`, and `src/lib/`
 
-- MUST implement ports defined by use cases
-- MAY import from entities and use cases
-- MAY use framework-specific code
-- MUST NOT contain business logic
+### Gateways (Backend-for-Frontend API Adapters)
 
-### Gateways (Data Adapters)
+Gateways act as the BFF layer, calling your backend API routes and transforming data for the frontend.
 
 ```typescript
-// src/gateways/prisma-user-repository.ts
-import type { PrismaClient } from '@prisma/client';
-import type { User } from '@/entities/user';
-import type { UserRepository } from '@/use-cases/get-user-profile';
+// src/gateways/product-api-gateway.ts
+import type { Product } from '@/entities/product';
+import type { ProductApiGateway } from '@/use-cases/get-products';
 
-export class PrismaUserRepository implements UserRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+export function createProductApiGateway(baseUrl: string): ProductApiGateway {
+  return {
+    async fetchProducts(
+      category?: string,
+      limit?: number
+    ): Promise<{ products: Product[]; total: number }> {
+      const params = new URLSearchParams();
+      if (category) params.set('category', category);
+      if (limit) params.set('limit', String(limit));
 
-  async findById(userId: string): Promise<User | null> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId }
-    });
+      const response = await fetch(`${baseUrl}/api/products?${params}`);
 
-    if (!user) return null;
+      if (!response.ok) {
+        throw new Error(`Failed to fetch products: ${response.status}`);
+      }
 
-    return {
-      id: user.id,
-      email: user.email,
-      role: user.role as User['role'],
-      createdAt: user.createdAt,
-    };
-  }
+      return response.json();
+    },
+  };
+}
+```
+
+### React Hooks (Data Fetching Adapters)
+
+Hooks wire use cases to React components and manage loading/error states.
+
+```typescript
+// src/hooks/use-products.ts
+'use client';
+
+import { useState, useEffect } from 'react';
+import type { Product } from '@/entities/product';
+import { GetProductsUseCase } from '@/use-cases/get-products';
+import { createProductApiGateway } from '@/gateways/product-api-gateway';
+
+const productApi = createProductApiGateway('');
+const getProducts = new GetProductsUseCase(productApi);
+
+export function useProducts(category?: string) {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    getProducts
+      .execute({ category })
+      .then(({ products }) => setProducts(products))
+      .catch(setError)
+      .finally(() => setLoading(false));
+  }, [category]);
+
+  return { products, loading, error };
 }
 ```
 
 ### React Components (UI Adapters)
 
+Components receive data as props and focus purely on presentation.
+
 ```typescript
-// src/components/features/user-profile.tsx
+// src/components/features/product-list.tsx
 'use client';
 
-import type { User } from '@/entities/user';
+import type { Product } from '@/entities/product';
+import { formatPrice, isAvailableForPurchase } from '@/entities/product';
 
-interface UserProfileProps {
-  user: User;  // Data passed from parent, not fetched internally
+interface ProductListProps {
+  products: Product[];
+  onAddToCart: (product: Product) => void;
 }
 
-export function UserProfile({ user }: UserProfileProps) {
+export function ProductList({ products, onAddToCart }: ProductListProps) {
   return (
-    <div>
-      <h1>{user.email}</h1>
-      <p>Role: {user.role}</p>
-    </div>
+    <ul>
+      {products.map((product) => (
+        <li key={product.id}>
+          <span>{product.name}</span>
+          <span>{formatPrice(product)}</span>
+          <button
+            onClick={() => onAddToCart(product)}
+            disabled={!isAvailableForPurchase(product)}
+          >
+            Add to Cart
+          </button>
+        </li>
+      ))}
+    </ul>
   );
-}
-
-// Parent component or page handles data fetching
-// src/app/users/[id]/page.tsx
-import { UserProfile } from '@/components/features/user-profile';
-import { GetUserProfileUseCase } from '@/use-cases/get-user-profile';
-import { PrismaUserRepository } from '@/gateways/prisma-user-repository';
-import { prisma } from '@/lib/prisma';
-
-export default async function UserPage({ params }: { params: { id: string } }) {
-  const userRepository = new PrismaUserRepository(prisma);
-  const getUserProfile = new GetUserProfileUseCase(userRepository);
-  const { user } = await getUserProfile.execute({ userId: params.id });
-
-  return <UserProfile user={user} />;
 }
 ```
 
 **Violations:**
-- Business logic (validation rules, authorization decisions)
+- Business logic (validation rules, pricing calculations)
 - Domain decisions that should be in entities or use cases
+- Direct API calls in components (use hooks instead)
 
 ## Layer 4: Infrastructure
 
 **Location:** `src/app/` (Next.js App Router)
 
-- Framework configuration lives here
-- MAY import from all layers
-- Wires dependencies together
+The BFF API routes act as a proxy layer between your SPA and backend services.
 
 ```typescript
-// src/app/api/users/[id]/route.ts
+// src/app/api/products/route.ts
 import { NextResponse } from 'next/server';
-import { GetUserProfileUseCase } from '@/use-cases/get-user-profile';
-import { PrismaUserRepository } from '@/gateways/prisma-user-repository';
 
-const userRepository = new PrismaUserRepository();
-const getUserProfile = new GetUserProfileUseCase(userRepository);
+const BACKEND_API_URL = process.env.BACKEND_API_URL || 'https://api.example.com';
 
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const category = searchParams.get('category');
+  const limit = searchParams.get('limit');
+
   try {
-    const result = await getUserProfile.execute({ userId: params.id });
-    return NextResponse.json(result);
+    // Proxy to backend service
+    const backendUrl = new URL('/v1/products', BACKEND_API_URL);
+    if (category) backendUrl.searchParams.set('category', category);
+    if (limit) backendUrl.searchParams.set('limit', limit);
+
+    const response = await fetch(backendUrl.toString(), {
+      headers: {
+        'Authorization': `Bearer ${process.env.BACKEND_API_KEY}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Backend error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return NextResponse.json(data);
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 404 }
+      { status: 500 }
     );
   }
 }
 ```
 
-## Dependency Injection Patterns
+### Page Components (Composition Root)
 
-### Constructor Injection (Preferred)
-
-Always use constructor injection for dependencies. This makes dependencies explicit and enables easy testing.
+Pages wire together hooks and components.
 
 ```typescript
-// ✅ Good - Constructor injection
-export class PrismaUserRepository implements UserRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+// src/app/products/page.tsx
+'use client';
 
-  async findById(userId: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { id: userId } });
-  }
-}
+import { useProducts } from '@/hooks/use-products';
+import { ProductList } from '@/components/features/product-list';
+import type { Product } from '@/entities/product';
 
-// ❌ Bad - No dependency injection (hard to test, tightly coupled)
-export class PrismaUserRepository implements UserRepository {
-  async findById(userId: string): Promise<User | null> {
-    return prisma.user.findUnique({ where: { id: userId } }); // Global import
-  }
+export default function ProductsPage() {
+  const { products, loading, error } = useProducts();
+
+  const handleAddToCart = (product: Product) => {
+    // Handle add to cart action
+    console.log('Added to cart:', product.name);
+  };
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>Error: {error.message}</div>;
+
+  return <ProductList products={products} onAddToCart={handleAddToCart} />;
 }
 ```
 
-### Factory Functions
+## Dependency Injection Patterns
 
-Factory functions are an alternative pattern that returns objects implementing ports. Useful for simpler adapters.
+### Factory Functions (Preferred for SPA)
+
+Factory functions create gateway instances with injected configuration.
 
 ```typescript
-// Factory function with dependency injection
-export function createApiClient(
-  baseUrl: string
-): ApiClient {
+// ✅ Good - Factory function with dependency injection
+export function createProductApiGateway(baseUrl: string): ProductApiGateway {
   return {
-    async get<T>(path: string): Promise<T> {
-      const response = await fetch(`${baseUrl}${path}`);
-      if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
-      }
+    async fetchProducts(category?: string): Promise<{ products: Product[] }> {
+      const response = await fetch(`${baseUrl}/api/products`);
       return response.json();
-    }
+    },
   };
+}
+
+// Usage in tests
+const mockGateway = createProductApiGateway('http://mock-api');
+
+// ❌ Bad - Hardcoded URL (hard to test)
+export const productApiGateway: ProductApiGateway = {
+  async fetchProducts(): Promise<{ products: Product[] }> {
+    const response = await fetch('/api/products'); // Hardcoded
+    return response.json();
+  },
+};
+```
+
+### Constructor Injection for Classes
+
+Use constructor injection when classes are preferred.
+
+```typescript
+// ✅ Good - Constructor injection
+export class GetProductsUseCase {
+  constructor(private readonly productApi: ProductApiGateway) {}
+
+  async execute(input: GetProductsInput): Promise<GetProductsOutput> {
+    return this.productApi.fetchProducts(input.category);
+  }
 }
 ```
 
 ## Import Rules Summary
 
-| From | Entities | Use Cases | Gateways/Components/Lib | App (Infrastructure) |
-|------|----------|-----------|-------------------------|---------------------|
+| From | Entities | Use Cases | Gateways/Hooks/Components | App (Infrastructure) |
+|------|----------|-----------|---------------------------|---------------------|
 | Entities | ✓ | ✗ | ✗ | ✗ |
 | Use Cases | ✓ | ✓ | ✗ | ✗ |
-| Gateways/Components/Lib | ✓ | ✓ | ✓ | ✗ |
+| Gateways/Hooks/Components | ✓ | ✓ | ✓ | ✗ |
 | App (Infrastructure) | ✓ | ✓ | ✓ | ✓ |
 
 ## Anti-Patterns
 
 **Anemic Domain Model:** Entities as data-only containers with logic in services. Put business rules in entities.
 
-**Leaky Abstractions:** Ports exposing Prisma types or Response objects. Use domain concepts only.
+**Leaky Abstractions:** Gateways exposing fetch Response objects. Return domain types only.
 
 **Business Logic in Components:** Authorization checks or validation in React components. Move to entities/use cases.
 
-**Framework Coupling:** Use cases accepting Next.js Request objects. Use plain DTOs.
+**Direct API Calls in Components:** Components making fetch calls directly. Use hooks or gateways.
 
 ## Code Review Checklist
 
 - Entities have zero imports from other layers
 - Use cases define ports for all external dependencies
-- Adapters implement ports, contain no business logic
-- API routes wire dependencies (act as composition root)
-- Use cases testable with simple mocks (no DB, no HTTP)
+- Gateways implement ports and handle API communication
+- Hooks wire use cases to React lifecycle
+- Components receive data as props, focus on presentation
+- API routes act as BFF proxy layer
+- Use cases testable with simple mocks (no HTTP)
