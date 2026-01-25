@@ -341,6 +341,144 @@ describe("Init command", () => {
             ).resolves.toBeUndefined();
         });
 
+        it("should create .github/ISSUE_TEMPLATE/feature-to-spec.yml when it does not exist", async () => {
+            // Arrange
+            const featureToSpecFile = join(
+                testDir,
+                ".github",
+                "ISSUE_TEMPLATE",
+                "feature-to-spec.yml",
+            );
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            await expect(access(featureToSpecFile)).resolves.toBeUndefined();
+            const content = await readFile(featureToSpecFile, "utf-8");
+            expect(content).toContain("Copilot Feature To Spec");
+            expect(content).toContain("copilot-ready");
+        });
+
+        it("should create .github/workflows/assign-copilot.yml when it does not exist", async () => {
+            // Arrange
+            const assignCopilotFile = join(
+                testDir,
+                ".github",
+                "workflows",
+                "assign-copilot.yml",
+            );
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            await expect(access(assignCopilotFile)).resolves.toBeUndefined();
+            const content = await readFile(assignCopilotFile, "utf-8");
+            expect(content).toContain("Auto-Assign Copilot");
+            expect(content).toContain("@copilot");
+        });
+
+        it("should create .github/specs/README.md when it does not exist", async () => {
+            // Arrange
+            const specsReadmeFile = join(
+                testDir,
+                ".github",
+                "specs",
+                "README.md",
+            );
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            await expect(access(specsReadmeFile)).resolves.toBeUndefined();
+            const content = await readFile(specsReadmeFile, "utf-8");
+            expect(content).toContain("Specifications Directory");
+            expect(content).toContain("EARS");
+        });
+
+        it("should preserve existing feature-to-spec.yml file", async () => {
+            // Arrange
+            const issueTemplateDir = join(testDir, ".github", "ISSUE_TEMPLATE");
+            const featureToSpecFile = join(
+                issueTemplateDir,
+                "feature-to-spec.yml",
+            );
+            const existingContent = `---\nname: Custom Template\n`;
+            await mkdir(issueTemplateDir, { recursive: true });
+            await writeFile(featureToSpecFile, existingContent);
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            const content = await readFile(featureToSpecFile, "utf-8");
+            expect(content).toBe(existingContent);
+        });
+
+        it("should preserve existing assign-copilot.yml file", async () => {
+            // Arrange
+            const workflowsDir = join(testDir, ".github", "workflows");
+            const assignCopilotFile = join(workflowsDir, "assign-copilot.yml");
+            const existingContent = `---\nname: Custom Workflow\n`;
+            await mkdir(workflowsDir, { recursive: true });
+            await writeFile(assignCopilotFile, existingContent);
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            const content = await readFile(assignCopilotFile, "utf-8");
+            expect(content).toBe(existingContent);
+        });
+
+        it("should preserve existing specs directory content", async () => {
+            // Arrange
+            const specsDir = join(testDir, ".github", "specs");
+            const existingSpecFile = join(specsDir, "existing-spec.md");
+            const existingContent = `# Existing Spec\n\nSome content`;
+            await mkdir(specsDir, { recursive: true });
+            await writeFile(existingSpecFile, existingContent);
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            const content = await readFile(existingSpecFile, "utf-8");
+            expect(content).toBe(existingContent);
+        });
+
         it("should preserve existing package.json file", async () => {
             // Arrange
             const packageJsonFile = join(testDir, "package.json");
