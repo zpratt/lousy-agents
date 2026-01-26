@@ -6,7 +6,7 @@
 
 ## TL;DR
 
-A CLI tool that scaffolds projects with the structure AI coding assistants need to be effective. Run `npx lousy-agents init` to create a new project with testing, linting, and GitHub Copilot configuration. Run `npx lousy-agents copilot-setup` in existing projects to generate a workflow that gives Copilot your environment context.
+A CLI tool that scaffolds projects with the structure AI coding assistants need to be effective. Run `npx @lousy-agents/cli init` to create a new project with testing, linting, and GitHub Copilot configuration. Run `npx @lousy-agents/cli copilot-setup` in existing projects to generate a workflow that gives Copilot your environment context.
 
 ---
 
@@ -16,13 +16,13 @@ Lousy Agents is a CLI scaffolding tool that sets up your projects with the struc
 
 ```bash
 # Scaffold a new webapp project (no install required)
-npx lousy-agents init --kind webapp
+npx @lousy-agents/cli init --kind webapp
 
 # Or use interactive mode to choose your project type
-npx lousy-agents init
+npx @lousy-agents/cli init
 
 # Generate GitHub Copilot setup workflow from your project configuration
-npx lousy-agents copilot-setup
+npx @lousy-agents/cli copilot-setup
 ```
 
 ## Table of Contents
@@ -74,7 +74,7 @@ A methodology where you write clear specifications *first*, giving agents precis
 Use the `--kind` flag to skip prompts and integrate into scripts or automation:
 
 ```bash
-npx lousy-agents init --kind webapp  # No prompts, perfect for CI/CD
+npx @lousy-agents/cli init --kind webapp  # No prompts, perfect for CI/CD
 ```
 
 ## Installation
@@ -82,13 +82,13 @@ npx lousy-agents init --kind webapp  # No prompts, perfect for CI/CD
 No installation required! Use npx to run directly:
 
 ```bash
-npx lousy-agents init
+npx @lousy-agents/cli init
 ```
 
 For frequent use, install globally:
 
 ```bash
-npm install -g lousy-agents
+npm install -g @lousy-agents/cli
 ```
 
 ## Usage

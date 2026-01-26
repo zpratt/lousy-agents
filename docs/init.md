@@ -26,7 +26,7 @@ Scaffolds new projects with everything needed for effective AI-assisted developm
 Run the init command and select your project type from the menu:
 
 ```bash
-npx lousy-agents init
+npx @lousy-agents/cli init
 ```
 
 You'll be prompted to choose from:
@@ -41,8 +41,8 @@ You'll be prompted to choose from:
 Specify the project type directly:
 
 ```bash
-npx lousy-agents init --kind webapp
-npx lousy-agents init --kind CLI
+npx @lousy-agents/cli init --kind webapp
+npx @lousy-agents/cli init --kind CLI
 ```
 
 Perfect for CI/CD pipelines and automation scripts.
@@ -50,8 +50,8 @@ Perfect for CI/CD pipelines and automation scripts.
 ### Help
 
 ```bash
-npx lousy-agents --help
-npx lousy-agents init --help
+npx @lousy-agents/cli --help
+npx @lousy-agents/cli init --help
 ```
 
 ## Examples
@@ -60,14 +60,14 @@ npx lousy-agents init --help
 
 ```bash
 # Interactive mode - select from menu
-npx lousy-agents init
+npx @lousy-agents/cli init
 
 # Non-interactive mode
-npx lousy-agents init --kind webapp
+npx @lousy-agents/cli init --kind webapp
 ```
 
 ### Create a New CLI Project
 
 ```bash
-npx lousy-agents init --kind CLI
+npx @lousy-agents/cli init --kind CLI
 ```
