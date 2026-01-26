@@ -34,7 +34,7 @@
     },
     "scripts": {
         "dev": "tsx src/index.ts",
-        "build": "tsc",
+        "build": "tsc && chmod +x dist/index.js dist/mcp-server.js",
         "start": "node dist/index.js",
         "test": "vitest run",
         "lint": "biome check .",
