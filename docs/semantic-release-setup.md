@@ -62,8 +62,8 @@ The unscoped name `lousy-agents` is currently available on npm. This is simpler 
 
 By default:
 
-- **Scoped packages** are private (require paid npm account for public)
-- **Unscoped packages** are public
+- **Scoped packages** are private by default; publishing them as **public** is free (a paid plan is only required for **private** scoped packages)
+- **Unscoped packages** are public by default
 
 To publish a scoped package as public for free, use:
 
@@ -136,7 +136,10 @@ Create `.github/workflows/release.yml`:
 name: Release
 
 'on':
-  push:
+  workflow_run:
+    workflows: [CI]
+    types:
+      - completed
     branches:
       - main
 
@@ -147,8 +150,10 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    # Only run on main repository, not forks
-    if: github.repository == 'zpratt/lousy-agents'
+    # Only run on main repository, not forks, and only if CI succeeded
+    if: >
+      github.repository == 'zpratt/lousy-agents' &&
+      github.event.workflow_run.conclusion == 'success'
     permissions:
       contents: write # to create GitHub releases
       issues: write # to comment on released issues
@@ -196,6 +201,8 @@ jobs:
 
 | Setting | Purpose |
 |---------|---------|
+| `workflow_run` trigger | Ensures release only runs after CI workflow succeeds |
+| `workflow_run.conclusion == 'success'` | Additional check to confirm CI passed |
 | `fetch-depth: 0` | Required - semantic-release needs full git history |
 | `persist-credentials: false` | Security best practice when using GITHUB_TOKEN |
 | `id-token: write` | Enables npm trusted publishing via OIDC |

@@ -2,7 +2,10 @@
 name: Release
 
 'on':
-  push:
+  workflow_run:
+    workflows: [CI]
+    types:
+      - completed
     branches:
       - main
 
@@ -13,8 +16,10 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    # Only run on main repository, not forks
-    if: github.repository == 'zpratt/lousy-agents'
+    # Only run on main repository, not forks, and only if CI succeeded
+    if: >
+      github.repository == 'zpratt/lousy-agents' &&
+      github.event.workflow_run.conclusion == 'success'
     permissions:
       contents: write # to create GitHub releases
       issues: write # to comment on released issues
