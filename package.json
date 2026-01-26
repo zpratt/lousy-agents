@@ -1,6 +1,6 @@
 {
     "name": "@lousy-agents/cli",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "CLI scaffolding tool that sets up projects with structure, instructions, and feedback loops for AI coding assistants",
     "type": "module",
     "repository": {
