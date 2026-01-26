@@ -29,6 +29,7 @@
         "dist"
     ],
     "bin": {
+        "cli": "./dist/index.js",
         "lousy-agents": "./dist/index.js",
         "lousy-agents-mcp": "./dist/mcp-server.js"
     },
