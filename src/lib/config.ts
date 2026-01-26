@@ -154,6 +154,47 @@ function buildWebappStructure(): FilesystemStructure {
                     ".github/instructions/pipeline.instructions.md",
                 ),
             },
+            {
+                type: "file",
+                path: ".github/instructions/software-architecture.instructions.md",
+                content: readTemplateFile(
+                    ".github/instructions/software-architecture.instructions.md",
+                ),
+            },
+            // GitHub Issue Templates
+            {
+                type: "directory",
+                path: ".github/ISSUE_TEMPLATE",
+            },
+            {
+                type: "file",
+                path: ".github/ISSUE_TEMPLATE/feature-to-spec.yml",
+                content: readTemplateFile(
+                    ".github/ISSUE_TEMPLATE/feature-to-spec.yml",
+                ),
+            },
+            // GitHub Workflows
+            {
+                type: "directory",
+                path: ".github/workflows",
+            },
+            {
+                type: "file",
+                path: ".github/workflows/assign-copilot.yml",
+                content: readTemplateFile(
+                    ".github/workflows/assign-copilot.yml",
+                ),
+            },
+            // Specs directory
+            {
+                type: "directory",
+                path: ".github/specs",
+            },
+            {
+                type: "file",
+                path: ".github/specs/README.md",
+                content: readTemplateFile(".github/specs/README.md"),
+            },
             // VSCode configuration
             {
                 type: "directory",
