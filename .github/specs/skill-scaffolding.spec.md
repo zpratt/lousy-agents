@@ -242,17 +242,17 @@ sequenceDiagram
 - The entity shall include a comment with a link to GitHub's Agent Skills documentation
 
 **Verification**:
-- [ ] `npm test src/entities/skill.test.ts` passes
-- [ ] `mise run format-check` passes
-- [ ] Test validates name normalization handles spaces, mixed case, multiple spaces
-- [ ] Test validates generated content includes required YAML frontmatter
-- [ ] Test validates generated content includes documentation link
+- [x] `npm test src/entities/skill.test.ts` passes
+- [x] `mise run format-check` passes
+- [x] Test validates name normalization handles spaces, mixed case, multiple spaces
+- [x] Test validates generated content includes required YAML frontmatter
+- [x] Test validates generated content includes documentation link
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] Acceptance criteria for name normalization satisfied
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] Acceptance criteria for name normalization satisfied
+- [x] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -274,17 +274,17 @@ sequenceDiagram
 - If the target skill directory already exists, the gateway shall report the conflict
 
 **Verification**:
-- [ ] `npm test src/gateways/skill-file-gateway.test.ts` passes
-- [ ] `mise run format-check` passes
-- [ ] Test validates directory existence check works correctly
-- [ ] Test validates directory creation when missing
-- [ ] Test validates file writing works correctly
+- [x] `npm test src/gateways/skill-file-gateway.test.ts` passes
+- [x] `mise run format-check` passes
+- [x] Test validates directory existence check works correctly
+- [x] Test validates directory creation when missing
+- [x] Test validates file writing works correctly
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] Gateway handles all file system operations
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] Gateway handles all file system operations
+- [x] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -307,17 +307,17 @@ sequenceDiagram
 - The use case shall generate and write the SKILL.md file content
 
 **Verification**:
-- [ ] `npm test src/use-cases/create-skill.test.ts` passes
-- [ ] `mise run format-check` passes
-- [ ] Test validates successful skill creation flow
-- [ ] Test validates error returned when directory exists
-- [ ] Test validates directory creation when missing
+- [x] `npm test src/use-cases/create-skill.test.ts` passes
+- [x] `mise run format-check` passes
+- [x] Test validates successful skill creation flow
+- [x] Test validates error returned when directory exists
+- [x] Test validates directory creation when missing
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] Use case orchestrates entity and gateway correctly
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] Use case orchestrates entity and gateway correctly
+- [x] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -338,19 +338,19 @@ sequenceDiagram
 - The CLI shall display a success message when the skill is created
 
 **Verification**:
-- [ ] `npm test src/commands/new.test.ts` passes
-- [ ] `mise run format-check` passes
-- [ ] Test validates command creates skill directory and SKILL.md file
-- [ ] Test validates command shows error when directory exists
-- [ ] Test validates command displays success message
-- [ ] Manual test: Run `npm run build && node dist/index.js new skill test`, verify skill is created
+- [x] `npm test src/commands/new.test.ts` passes
+- [x] `mise run format-check` passes
+- [x] Test validates command creates skill directory and SKILL.md file
+- [x] Test validates command shows error when directory exists
+- [x] Test validates command displays success message
+- [x] Manual test: Run `npm run build && node dist/index.js new skill test`, verify skill is created
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] Subcommand is registered and functional
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
-- [ ] Manual verification confirms expected behavior
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] Subcommand is registered and functional
+- [x] Code follows patterns in `.github/copilot-instructions.md`
+- [x] Manual verification confirms expected behavior
 
 ---
 
@@ -369,15 +369,15 @@ sequenceDiagram
 - Tests shall verify directory creation when `.github/skills` doesn't exist
 
 **Verification**:
-- [ ] `npm test` passes (all tests)
-- [ ] `mise run ci && npm run build` passes
-- [ ] Manual test: Create multiple skills, verify each has correct content
+- [x] `npm test` passes (all tests)
+- [x] `mise run ci && npm run build` passes
+- [x] Manual test: Create multiple skills, verify each has correct content
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] End-to-end functionality verified
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] End-to-end functionality verified
+- [x] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
