@@ -44,7 +44,7 @@ export const skillCommand = defineCommand({
                 ? context.data.targetDir
                 : process.cwd();
 
-        const skillName = context.args.name as string;
+        const skillName = context.args.name;
 
         if (!skillName) {
             throw new Error(
@@ -82,11 +82,12 @@ export const newCommand = defineCommand({
         skill: skillCommand,
     },
     run: async (context: CommandContext<CopilotAgentArgs>) => {
-        // Check if a subcommand was invoked - if so, don't run parent logic
-        // citty invokes parent run even when subcommand runs
+        // citty runs both the subcommand's run function and the parent's run function.
+        // We need to detect when a subcommand was invoked and exit early to avoid
+        // throwing an error for missing --copilot-agent option.
         const subCommand = context.rawArgs[0];
         if (subCommand === "skill") {
-            return; // Subcommand was handled
+            return; // Subcommand was handled by skillCommand.run
         }
 
         // Support dependency injection for testing via context.data
