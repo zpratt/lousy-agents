@@ -26,7 +26,8 @@
         "access": "public"
     },
     "files": [
-        "dist"
+        "dist",
+        "ui"
     ],
     "bin": {
         "cli": "./dist/index.js",
