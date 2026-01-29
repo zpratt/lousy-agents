@@ -407,15 +407,17 @@ export class UserRepositoryImpl implements UserRepository {
 
 ## Anti-Patterns
 
-**Anemic Domain Model:** Entities as data-only containers with logic in services. Put business rules in entities.
+> ⚠️ **CRITICAL: The following anti-patterns MUST ALWAYS be avoided. Violating these patterns will result in code review rejection.**
 
-**Leaky Abstractions:** Repositories exposing Kysely types or raw SQL. Return domain entities only.
+**🚫 Anemic Domain Model:** Entities as data-only containers with logic in services. Put business rules in entities. **NEVER** create entities without behavior.
 
-**Business Logic in Routes:** Authorization checks or validation in route handlers. Move to entities/use cases.
+**🚫 Leaky Abstractions:** Repositories exposing Kysely types or raw SQL. Return domain entities only. **NEVER** expose database implementation details outside the gateway layer.
 
-**Direct Database Access in Use Cases:** Use cases making Kysely queries directly. Use repository ports.
+**🚫 Business Logic in Routes:** Authorization checks or validation in route handlers. Move to entities/use cases. **NEVER** put business rules in the route layer.
 
-**Raw SQL Strings:** Using template strings for SQL. Always use Kysely query builder for type safety.
+**🚫 Direct Database Access in Use Cases:** Use cases making Kysely queries directly. Use repository ports. **NEVER** import database libraries in use case files.
+
+**🚫 Raw SQL Strings:** Using template strings for SQL. Always use Kysely query builder for type safety. **NEVER** use string interpolation for SQL queries.
 
 ## Code Review Checklist
 
