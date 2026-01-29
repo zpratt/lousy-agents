@@ -23,16 +23,17 @@
         "vibe-coding"
     ],
     "publishConfig": {
-        "access": "public"
+        "access": "public",
+        "provenance": true
     },
     "files": [
         "dist",
         "ui"
     ],
     "bin": {
-        "cli": "./dist/index.js",
-        "lousy-agents": "./dist/index.js",
-        "lousy-agents-mcp": "./dist/mcp-server.js"
+        "cli": "dist/index.js",
+        "lousy-agents": "dist/index.js",
+        "lousy-agents-mcp": "dist/mcp-server.js"
     },
     "scripts": {
         "dev": "tsx src/index.ts",
