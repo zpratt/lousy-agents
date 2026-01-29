@@ -145,12 +145,14 @@ describe("Config", () => {
             expect(structure?.nodes.length).toBeGreaterThan(0);
         });
 
-        it("should return undefined for REST API project type (not yet defined)", async () => {
+        it("should return REST API structure for REST API project type", async () => {
             // Act
             const structure = await getProjectStructure("REST API");
 
             // Assert
-            expect(structure).toBeUndefined();
+            expect(structure).toBeDefined();
+            expect(structure?.nodes).toBeDefined();
+            expect(structure?.nodes.length).toBeGreaterThan(0);
         });
 
         it("should return undefined for GraphQL API project type (not yet defined)", async () => {

@@ -524,9 +524,13 @@ describe("Init command", () => {
             await rm(testDir, { recursive: true, force: true });
         });
 
-        it("should not create CLI scaffolding when REST API is selected", async () => {
+        it("should create REST API scaffolding when REST API is selected", async () => {
             // Arrange
-            mockPrompt = vi.fn().mockResolvedValue("REST API");
+            const projectName = "my-test-api";
+            mockPrompt = vi
+                .fn()
+                .mockResolvedValueOnce("REST API")
+                .mockResolvedValueOnce(projectName);
             const copilotInstructionsFile = join(
                 testDir,
                 ".github",
@@ -542,7 +546,9 @@ describe("Init command", () => {
             });
 
             // Assert
-            await expect(access(copilotInstructionsFile)).rejects.toThrow();
+            await expect(
+                access(copilotInstructionsFile),
+            ).resolves.toBeUndefined();
         });
 
         it("should not create CLI scaffolding when GraphQL API is selected", async () => {

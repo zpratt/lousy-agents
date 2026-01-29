@@ -221,14 +221,14 @@ The current `FilesystemNode` types need no changes as they already support file 
 - All configuration files shall follow patterns from the webapp template where applicable
 
 **Verification**:
-- [ ] `api/copilot-with-fastify/` directory exists with all configuration files
-- [ ] All JSON files are valid JSON
-- [ ] `mise run lint` passes for YAML files
+- [x] `api/copilot-with-fastify/` directory exists with all configuration files
+- [x] All JSON files are valid JSON
+- [x] `mise run lint` passes for YAML files
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] All configuration files are created with appropriate content
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] All configuration files are created with appropriate content
 
 ---
 
@@ -250,14 +250,14 @@ The current `FilesystemNode` types need no changes as they already support file 
 - Instructions shall reference Testcontainers for integration testing
 
 **Verification**:
-- [ ] `.github/copilot-instructions.md` exists in template directory
-- [ ] File includes Fastify, Kysely, and Clean Architecture guidance
-- [ ] File follows similar structure to webapp template instructions
+- [x] `.github/copilot-instructions.md` exists in template directory
+- [x] File includes Fastify, Kysely, and Clean Architecture guidance
+- [x] File follows similar structure to webapp template instructions
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] Instructions are comprehensive and tailored for REST API development
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] Instructions are comprehensive and tailored for REST API development
 
 ---
 
@@ -282,14 +282,14 @@ The current `FilesystemNode` types need no changes as they already support file 
 - All files shall follow EARS format for any requirements
 
 **Verification**:
-- [ ] All instruction files exist in `.github/instructions/` directory
-- [ ] test.instructions.md includes Testcontainers examples
-- [ ] software-architecture.instructions.md includes Kysely usage examples
+- [x] All instruction files exist in `.github/instructions/` directory
+- [x] test.instructions.md includes Testcontainers examples
+- [x] software-architecture.instructions.md includes Kysely usage examples
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] All instruction files are comprehensive and REST API-specific
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] All instruction files are comprehensive and REST API-specific
 
 ---
 
@@ -314,14 +314,14 @@ The current `FilesystemNode` types need no changes as they already support file 
 - All workflow actions shall be pinned to exact commit SHA with version comments
 
 **Verification**:
-- [ ] All workflow files exist in `.github/workflows/` directory
-- [ ] `mise run lint` passes for all YAML files
-- [ ] ci.yml includes PostgreSQL service configuration
+- [x] All workflow files exist in `.github/workflows/` directory
+- [x] `mise run lint` passes for all YAML files
+- [x] ci.yml includes PostgreSQL service configuration
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] All workflows are properly configured for REST API projects
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] All workflows are properly configured for REST API projects
 
 ---
 
@@ -344,14 +344,14 @@ The current `FilesystemNode` types need no changes as they already support file 
 - All configuration files shall follow patterns from webapp template where applicable
 
 **Verification**:
-- [ ] All VSCode and devcontainer files exist
-- [ ] All JSON files are valid JSON
-- [ ] devcontainer.json includes Docker-outside-of-Docker feature
+- [x] All VSCode and devcontainer files exist
+- [x] All JSON files are valid JSON
+- [x] devcontainer.json includes Docker-outside-of-Docker feature
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] All configuration files are appropriate for REST API development
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] All configuration files are appropriate for REST API development
 
 ---
 
@@ -372,14 +372,14 @@ The current `FilesystemNode` types need no changes as they already support file 
 - getProjectStructure shall return REST API structure for "REST API" project type
 
 **Verification**:
-- [ ] `npm test src/lib/config.test.ts` passes
-- [ ] `mise run format-check` passes
-- [ ] Code follows same pattern as webapp structure
+- [x] `npm test src/lib/config.test.ts` passes
+- [x] `mise run format-check` passes
+- [x] Code follows same pattern as webapp structure
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] REST API structure is properly configured
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] REST API structure is properly configured
 
 ---
 
@@ -401,14 +401,14 @@ The current `FilesystemNode` types need no changes as they already support file 
 - The system shall log appropriate success messages
 
 **Verification**:
-- [ ] `npm test src/commands/init.test.ts` passes
-- [ ] `mise run format-check` passes
-- [ ] Code follows same pattern as webapp scaffolding
+- [x] `npm test src/commands/init.test.ts` passes
+- [x] `mise run format-check` passes
+- [x] Code follows same pattern as webapp scaffolding
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] REST API scaffolding logic is implemented
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] REST API scaffolding logic is implemented
 
 ---
 
@@ -431,14 +431,14 @@ The current `FilesystemNode` types need no changes as they already support file 
 - Tests shall follow same testing patterns as webapp scaffolding tests
 
 **Verification**:
-- [ ] `npm test` passes
-- [ ] `mise run format-check` passes
-- [ ] All REST API scaffolding scenarios are tested
+- [x] `npm test` passes
+- [x] `mise run format-check` passes
+- [x] All REST API scaffolding scenarios are tested
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] REST API scaffolding is fully tested
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] REST API scaffolding is fully tested
 
 ---
 
@@ -458,13 +458,13 @@ The current `FilesystemNode` types need no changes as they already support file 
 - The bundle shall include all REST API template files
 
 **Verification**:
-- [ ] `npm pack --dry-run` shows `api/` directory contents included
-- [ ] `mise run ci && npm run build` passes
+- [x] `npm pack --dry-run` shows `api/` directory contents included
+- [x] `mise run ci && npm run build` passes
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] No new errors in affected files
-- [ ] Template files will be included in published package
+- [x] All verification steps pass
+- [x] No new errors in affected files
+- [x] Template files will be included in published package
 
 ---
 
@@ -487,18 +487,18 @@ The current `FilesystemNode` types need no changes as they already support file 
 - Full validation suite shall pass
 
 **Verification**:
-- [ ] `npm link` succeeds
-- [ ] `lousy-agents init` runs without errors
-- [ ] Selecting "REST API" creates expected files
-- [ ] Created files have correct content
-- [ ] Running init again preserves existing files
-- [ ] `mise run ci && npm run build` passes
+- [x] `npm link` succeeds
+- [x] `lousy-agents init` runs without errors
+- [x] Selecting "REST API" creates expected files
+- [x] Created files have correct content
+- [x] Running init again preserves existing files
+- [x] `mise run ci && npm run build` passes
 
 **Done when**:
-- [ ] All manual verification steps pass
-- [ ] Full validation suite passes
-- [ ] Feature is ready for use
-- [ ] No regressions in existing functionality
+- [x] All manual verification steps pass
+- [x] Full validation suite passes
+- [x] Feature is ready for use
+- [x] No regressions in existing functionality
 
 ---
 

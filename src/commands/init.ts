@@ -80,6 +80,34 @@ async function createWebappScaffolding(
     }
 }
 
+async function createRestApiScaffolding(
+    targetDir: string,
+    templateContext: TemplateContext,
+): Promise<void> {
+    try {
+        // Load the REST API structure from configuration
+        const restApiStructure = await getProjectStructure("REST API");
+
+        if (!restApiStructure) {
+            consola.warn(
+                "No REST API project structure defined in configuration",
+            );
+            return;
+        }
+
+        await createFilesystemStructure(
+            restApiStructure,
+            targetDir,
+            templateContext,
+        );
+    } catch (error) {
+        consola.error(
+            `Failed to create REST API scaffolding: ${formatErrorMessage(error)}`,
+        );
+        throw error;
+    }
+}
+
 export const initCommand = defineCommand({
     meta: {
         name: "init",
@@ -157,6 +185,38 @@ export const initCommand = defineCommand({
             await createWebappScaffolding(targetDir, templateContext);
             consola.info(
                 "Webapp project scaffolding complete. Run 'npm install' to install dependencies.",
+            );
+        } else if (projectType === "REST API") {
+            // Get project name from CLI argument or prompt
+            const rawProjectName: unknown = context.args.name
+                ? context.args.name
+                : await promptFn("What is your project name?", {
+                      type: "text",
+                      placeholder: "my-rest-api",
+                  });
+
+            const projectName =
+                typeof rawProjectName === "string" ? rawProjectName.trim() : "";
+
+            if (!projectName) {
+                consola.error("Project name is required for REST API projects");
+                throw new Error("Project name is required");
+            }
+
+            if (!isValidProjectName(projectName)) {
+                const errorMessage =
+                    getProjectNameError(projectName) ||
+                    "Invalid npm package name";
+                consola.error(
+                    `Invalid project name: "${projectName}". ${errorMessage}`,
+                );
+                throw new Error(`Invalid project name. ${errorMessage}`);
+            }
+
+            const templateContext: TemplateContext = { projectName };
+            await createRestApiScaffolding(targetDir, templateContext);
+            consola.info(
+                "REST API project scaffolding complete. Run 'npm install' to install dependencies.",
             );
         } else {
             consola.info(
