@@ -1,0 +1,59 @@
+---
+name: Auto-Assign Copilot on Spec Issues
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  issues: write
+
+jobs:
+  assign-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assign and Instruct Copilot
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1
+        with:
+          script: |
+            const issue = context.payload.issue;
+
+            // Check if issue has the copilot-ready label
+            const hasCopilotLabel = issue.labels.some(label => label.name === 'copilot-ready');
+
+            if (!hasCopilotLabel) {
+              console.log("Issue does not have 'copilot-ready' label. Skipping.");
+              return;
+            }
+
+            const body = issue.body || "";
+            const pattern = /### Extra Instructions\s+([\s\S]*?)(?=\n###|$)/;
+            const match = body.match(pattern);
+
+            // Always mention @copilot to trigger assignment and provide context
+            let comment = "@copilot";
+
+            if (match && match[1].trim().length > 0) {
+              let instructions = match[1].trim();
+
+              // Basic sanitization: limit length to prevent overly long comments
+              const MAX_LENGTH = 2000;
+              if (instructions.length > MAX_LENGTH) {
+                instructions = instructions.slice(0, MAX_LENGTH) + "\n\n[Instructions truncated]";
+              }
+
+              comment = `@copilot ${instructions}`;
+              console.log("Found extra instructions, mentioning Copilot with instructions.");
+            } else {
+              comment = "@copilot Please work on this issue according to the specification provided.";
+              console.log("No extra instructions found, mentioning Copilot with default message.");
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: comment
+            });
+
+            console.log("Successfully mentioned Copilot in issue comment.");
