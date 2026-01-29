@@ -190,8 +190,9 @@ async function createUser(user: Omit<User, 'id'>): Promise<User> {
     .executeTakeFirstOrThrow();
 }
 
-// ❌ Bad - raw SQL without type safety
+// ❌ Bad - raw SQL without type safety (SECURITY RISK: SQL injection vulnerability)
 async function findUser(id: string) {
+  // NEVER use string interpolation in SQL - this is vulnerable to SQL injection attacks!
   return db.raw(`SELECT * FROM users WHERE id = '${id}'`);
 }
 ```

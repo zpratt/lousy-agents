@@ -59,8 +59,9 @@ export function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-export function canUserBeDeleted(user: User): boolean {
-  const oneWeekAgo = new Date();
+// Note: currentDate is passed in to avoid non-deterministic Date() in entities
+export function canUserBeDeleted(user: User, currentDate: Date): boolean {
+  const oneWeekAgo = new Date(currentDate);
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
   return user.createdAt < oneWeekAgo;
 }
@@ -92,7 +93,7 @@ export interface CreateUserOutput {
 
 // Port - interface for the repository
 export interface UserRepository {
-  create(input: CreateUserInput): Promise<User>;
+  create(id: string, input: CreateUserInput): Promise<User>;
   findByEmail(email: string): Promise<User | null>;
 }
 
@@ -120,7 +121,8 @@ export function createUserUseCase(
         throw new Error('Email already exists');
       }
 
-      const user = await repository.create(input);
+      const id = idGenerator.generate();
+      const user = await repository.create(id, input);
       return { user };
     },
   };
@@ -147,11 +149,11 @@ import type { Database } from '../db/types.js';
 
 export function createUserRepository(db: Kysely<Database>): UserRepository {
   return {
-    async create(input: CreateUserInput): Promise<User> {
+    async create(id: string, input: CreateUserInput): Promise<User> {
       const result = await db
         .insertInto('users')
         .values({
-          id: crypto.randomUUID(),
+          id,
           name: input.name,
           email: input.email,
           created_at: new Date(),
