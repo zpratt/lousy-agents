@@ -399,6 +399,11 @@ function buildRestApiStructure(): FilesystemStructure {
                 path: ".vscode/launch.json",
                 content: readRestApiTemplateFile(".vscode/launch.json"),
             },
+            {
+                type: "file",
+                path: ".vscode/mcp.json",
+                content: readRestApiTemplateFile(".vscode/mcp.json"),
+            },
             // Devcontainer configuration
             {
                 type: "directory",
