@@ -1,0 +1,30 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Start API Locally",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": ["run", "dev"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "serverReadyAction": {
+                "pattern": "Server listening on port ([0-9]+)",
+                "uriFormat": "http://localhost:%s/health",
+                "action": "openExternally"
+            }
+        },
+        {
+            "name": "Debug Current Test File",
+            "type": "node",
+            "request": "launch",
+            "autoAttachChildProcesses": true,
+            "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
+            "program": "${workspaceFolder}/node_modules/vitest/vitest.mjs",
+            "args": ["run", "${relativeFile}"],
+            "smartStep": true,
+            "console": "integratedTerminal"
+        }
+    ]
+}

@@ -28,7 +28,8 @@
     },
     "files": [
         "dist",
-        "ui"
+        "ui",
+        "api"
     ],
     "bin": {
         "cli": "dist/index.js",
