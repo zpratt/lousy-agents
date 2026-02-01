@@ -7,7 +7,7 @@ Welcome to the Lousy Agents documentation! This directory contains detailed docu
 ### Commands
 
 - **[`init` Command](init.md)** - Scaffold new projects with testing, linting, and Copilot configuration
-  - Project types (webapp, CLI)
+  - Project types (webapp, api)
   - Interactive and non-interactive modes
   - Usage examples
 

@@ -14,6 +14,7 @@ import {
 
 const ProjectTypeSchema = z.enum(["cli", "webapp", "api", "graphql"]);
 export const PROJECT_TYPE_OPTIONS = ProjectTypeSchema.options;
+export const SUPPORTED_PROJECT_TYPES = ["webapp", "api"] as const;
 
 const initArgs = {
     kind: {
@@ -133,7 +134,7 @@ export const initCommand = defineCommand({
             ? context.args.kind
             : await promptFn("What type of project are you initializing?", {
                   type: "select",
-                  options: PROJECT_TYPE_OPTIONS,
+                  options: SUPPORTED_PROJECT_TYPES,
               });
 
         const parseResult = ProjectTypeSchema.safeParse(rawProjectType);

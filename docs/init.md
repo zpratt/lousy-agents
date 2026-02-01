@@ -39,10 +39,12 @@ Scaffolds new projects with everything needed for effective AI-assisted developm
   - Docker-outside-of-docker support
 - EditorConfig and Node.js version management
 
-### CLI Projects (`--kind cli`)
+### CLI Projects (`--kind cli`) — coming soon
 
 - `.github/instructions` directory structure
 - GitHub Copilot instructions for CLI development
+
+> **Note:** CLI scaffolding is not yet implemented. Selecting `cli` will return an error.
 
 ### REST API Projects (`--kind api`)
 
@@ -73,6 +75,13 @@ Scaffolds new projects with everything needed for effective AI-assisted developm
   - Port forwarding for API server (3000) and PostgreSQL (5432)
 - EditorConfig and Node.js version management
 
+## Options
+
+| Flag | Type | Required | Description |
+|------|------|----------|-------------|
+| `--kind` | `webapp \| api \| cli \| graphql` | No | Project type. If omitted, an interactive prompt is shown. |
+| `--name` | `string` | No | Project name (used in package.json and config files). If omitted, you will be prompted. Must be a valid npm package name. |
+
 ## Usage
 
 ### Interactive Mode
@@ -85,22 +94,21 @@ npx @lousy-agents/cli init
 
 You'll be prompted to choose from:
 
-- cli
 - webapp
 - api (REST API with Fastify)
+- cli (coming soon)
 - graphql (coming soon)
 
 ### Non-Interactive Mode
 
-Specify the project type directly:
+Specify the project type and name directly:
 
 ```bash
-npx @lousy-agents/cli init --kind webapp
-npx @lousy-agents/cli init --kind cli
-npx @lousy-agents/cli init --kind api
+npx @lousy-agents/cli init --kind webapp --name my-webapp
+npx @lousy-agents/cli init --kind api --name my-rest-api
 ```
 
-Perfect for CI/CD pipelines and automation scripts.
+When both `--kind` and `--name` are provided, all prompts are skipped. Perfect for CI/CD pipelines and automation scripts.
 
 ### Help
 
@@ -118,17 +126,11 @@ npx @lousy-agents/cli init --help
 npx @lousy-agents/cli init
 
 # Non-interactive mode
-npx @lousy-agents/cli init --kind webapp
-```
-
-### Create a New CLI Project
-
-```bash
-npx @lousy-agents/cli init --kind cli
+npx @lousy-agents/cli init --kind webapp --name my-webapp
 ```
 
 ### Create a New REST API
 
 ```bash
-npx @lousy-agents/cli init --kind api
+npx @lousy-agents/cli init --kind api --name my-rest-api
 ```

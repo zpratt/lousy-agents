@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { initCommand, PROJECT_TYPE_OPTIONS } from "./init.js";
+import { initCommand, SUPPORTED_PROJECT_TYPES } from "./init.js";
 
 const chance = new Chance();
 
@@ -70,7 +70,7 @@ describe("Init command", () => {
             );
         });
 
-        it("should present four project type options", async () => {
+        it("should present only supported project type options", async () => {
             // Act
             await initCommand.run({
                 rawArgs: [],
@@ -83,7 +83,7 @@ describe("Init command", () => {
             expect(mockPrompt).toHaveBeenCalledWith(
                 expect.any(String),
                 expect.objectContaining({
-                    options: PROJECT_TYPE_OPTIONS,
+                    options: SUPPORTED_PROJECT_TYPES,
                 }),
             );
         });
