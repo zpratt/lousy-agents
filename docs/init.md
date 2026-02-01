@@ -39,7 +39,7 @@ Scaffolds new projects with everything needed for effective AI-assisted developm
   - Docker-outside-of-docker support
 - EditorConfig and Node.js version management
 
-### CLI Projects (`--kind CLI`)
+### CLI Projects (`--kind cli`)
 
 - `.github/instructions` directory structure
 - GitHub Copilot instructions for CLI development
@@ -85,10 +85,10 @@ npx @lousy-agents/cli init
 
 You'll be prompted to choose from:
 
-- CLI
+- cli
 - webapp
 - api (REST API with Fastify)
-- GraphQL API (coming soon)
+- graphql (coming soon)
 
 ### Non-Interactive Mode
 
@@ -96,7 +96,7 @@ Specify the project type directly:
 
 ```bash
 npx @lousy-agents/cli init --kind webapp
-npx @lousy-agents/cli init --kind CLI
+npx @lousy-agents/cli init --kind cli
 npx @lousy-agents/cli init --kind api
 ```
 
@@ -124,7 +124,7 @@ npx @lousy-agents/cli init --kind webapp
 ### Create a New CLI Project
 
 ```bash
-npx @lousy-agents/cli init --kind CLI
+npx @lousy-agents/cli init --kind cli
 ```
 
 ### Create a New REST API
