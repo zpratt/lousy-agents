@@ -106,7 +106,7 @@ scripts/           Build, deploy, and test scripts
 
 When writing or modifying test files (`*.test.ts`, `*.spec.ts`, `*.test.tsx`, `*.spec.tsx`):
 
-**Mandatory**: Run `mise test` after modifying or creating tests.
+**Mandatory**: Run `mise run test` after modifying or creating tests.
 
 See @.github/instructions/test.instructions.md for detailed conventions including test file structure, Chance.js usage, MSW mocking, dependency injection patterns, and all test design rules.
 
@@ -132,7 +132,7 @@ See @.github/instructions/spec.instructions.md for the full spec development wor
 
 When modifying GitHub workflows (`.github/workflows/*.yml`, `.github/workflows/*.yaml`):
 
-**Mandatory**: Run `mise lint` after modifying workflows.
+**Mandatory**: Run `mise run lint` after modifying workflows.
 
 See @.github/instructions/pipeline.instructions.md for workflow structure requirements, action SHA pinning format, and runner requirements.
 
