@@ -57,7 +57,7 @@ jobs:
         run: npm audit signatures
 
       - name: Build
-        run: npm run build
+        run: mise run build
 
       - name: Attest build provenance
         # v3.2.0

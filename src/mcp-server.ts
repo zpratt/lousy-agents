@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /**
  * MCP Server entry point for lousy-agents.
  * Starts the MCP server with stdio transport for VS Code integration.
