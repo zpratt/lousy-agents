@@ -67,11 +67,24 @@ run = [
 description = "Run unit tests in this project"
 run = "npm test"
 
+[tasks.build]
+description = "Build the project with rspack"
+run = "npm run build"
+
+[tasks.smoke-test]
+description = "Run smoke tests against the built CLI"
+depends = ["build"]
+run = [
+    "node dist/index.js --help",
+    "node dist/index.js init --help"
+]
+
 [tasks.ci] # only dependencies to be run
 description = 'Run CI tasks'
 run = [
     { task = 'lint'},
-    { task = 'test'}
+    { task = 'test'},
+    { task = 'smoke-test'}
 ]
 
 [tasks.format-fix]
