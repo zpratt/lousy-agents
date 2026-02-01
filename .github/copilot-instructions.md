@@ -6,6 +6,12 @@ applyTo: "**"
 
 **Mandatory**: Always read [](./context/project.context.md) for full project context before contributing.
 
+## Shared Instruction Architecture
+
+This repo provides instructions for both GitHub Copilot and Claude Code. The detailed domain instructions in `.github/instructions/` are the shared source-of-truth referenced by both systems.
+
+`CLAUDE.md` uses `@path/to/file` syntax (e.g., `@.github/instructions/test.instructions.md`) to import those shared files. This is Claude Code's native file reference mechanism — **not** a broken markdown link. Do not suggest converting `@path/to/file` references in `CLAUDE.md` to markdown links.
+
 ## Commands
 
 Mise manages all tools and Node versions. If you haven't activated mise in your shell, run `mise activate` once or prefix commands with `mise exec --`. During development, use file-scoped commands for faster feedback, and run the full validation suite (`mise run ci && npm run build`) before commits.
