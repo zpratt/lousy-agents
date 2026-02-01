@@ -114,3 +114,5 @@ jobs:
         with:
           node-version-file: .nvmrc
 ```
+
+> **Note:** The generated workflow uses version tags (e.g., `@v4`). For production use, consider pinning actions to exact commit SHAs for security. The [MCP server](mcp-server.md) `create_copilot_setup_workflow` tool supports automatic SHA-pinned version resolution.

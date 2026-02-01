@@ -34,7 +34,7 @@ npx @lousy-agents/cli copilot-setup
 - [Usage](#usage)
 - [Roadmap](#roadmap)
 - [Documentation](#documentation)
-- [Reference Example](#reference-example)
+- [Reference Examples](#reference-examples)
 
 ## Who This Is For
 
@@ -105,28 +105,28 @@ For detailed documentation on each command, see:
 **Create a new webapp:**
 
 ```bash
-npx lousy-agents init --kind webapp
+npx @lousy-agents/cli init --kind webapp
 ```
 
 **Create a custom Copilot agent:**
 
 ```bash
-npx lousy-agents new --copilot-agent security
+npx @lousy-agents/cli new --copilot-agent security
 ```
 
 **Generate Copilot setup workflow:**
 
 ```bash
-npx lousy-agents copilot-setup
+npx @lousy-agents/cli copilot-setup
 ```
 
 ## Roadmap
 
 | Feature | Status |
 |---------|--------|
-| Scaffolding for webapps | In Progress |
+| Scaffolding for webapps | ✅ Complete |
+| Scaffolding for REST APIs | ✅ Complete |
 | Scaffolding for CLI | Not Started |
-| Scaffolding for REST APIs | Not Started |
 | Scaffolding for GraphQL APIs | Not Started |
 | MCP server package | ✅ Complete |
 
@@ -137,12 +137,11 @@ npx lousy-agents copilot-setup
 - **[`copilot-setup` Command](docs/copilot-setup.md)** - Workflow generation
 - **[MCP Server](docs/mcp-server.md)** - AI assistant integration
 
-## Reference Example
+## Reference Examples
 
-The [ui/copilot-with-react](ui/copilot-with-react) directory contains a fully working reference implementation demonstrating these patterns in action. It's a Next.js + TypeScript project with:
+The repository includes fully working reference implementations demonstrating these patterns in action:
 
-- Pre-configured testing (Vitest) and linting (Biome)
-- GitHub Copilot instructions and specs
-- Dev Container configuration for GitHub Codespaces
+- **[ui/copilot-with-react](ui/copilot-with-react)** - Next.js + TypeScript webapp with pre-configured testing (Vitest), linting (Biome), GitHub Copilot instructions, and Dev Container configuration.
+- **[api/copilot-with-fastify](api/copilot-with-fastify)** - Fastify + TypeScript REST API with Kysely, PostgreSQL, Testcontainers integration testing, and Dev Container configuration.
 
-Launch a GitHub Codespace to instantly spin up this environment and experiment with spec-driven development.
+Launch a GitHub Codespace to instantly spin up either environment and experiment with spec-driven development.

@@ -19,10 +19,10 @@ export interface LousyAgentsConfig {
      * Filesystem structures for different project types
      */
     structures?: {
-        CLI?: FilesystemStructure;
+        cli?: FilesystemStructure;
         webapp?: FilesystemStructure;
-        "REST API"?: FilesystemStructure;
-        "GraphQL API"?: FilesystemStructure;
+        api?: FilesystemStructure;
+        graphql?: FilesystemStructure;
     };
 }
 
@@ -432,7 +432,7 @@ export async function loadInitConfig(): Promise<LousyAgentsConfig> {
         name: "lousy-agents",
         defaults: {
             structures: {
-                CLI: DEFAULT_CLI_STRUCTURE,
+                cli: DEFAULT_CLI_STRUCTURE,
             },
         },
     });
@@ -440,7 +440,7 @@ export async function loadInitConfig(): Promise<LousyAgentsConfig> {
     return (
         config || {
             structures: {
-                CLI: DEFAULT_CLI_STRUCTURE,
+                cli: DEFAULT_CLI_STRUCTURE,
             },
         }
     );
@@ -449,10 +449,11 @@ export async function loadInitConfig(): Promise<LousyAgentsConfig> {
 /**
  * Gets the filesystem structure for a specific project type
  * Lazy-loads webapp and REST API structures only when requested
+ * @throws Error if the project type structure is not defined
  */
 export async function getProjectStructure(
-    projectType: "CLI" | "webapp" | "REST API" | "GraphQL API",
-): Promise<FilesystemStructure | undefined> {
+    projectType: "cli" | "webapp" | "api" | "graphql",
+): Promise<FilesystemStructure> {
     const config = await loadInitConfig();
 
     // Lazy-load webapp structure only when requested
@@ -461,9 +462,17 @@ export async function getProjectStructure(
     }
 
     // Lazy-load REST API structure only when requested
-    if (projectType === "REST API") {
-        return config.structures?.["REST API"] || buildRestApiStructure();
+    if (projectType === "api") {
+        return config.structures?.api || buildRestApiStructure();
     }
 
-    return config.structures?.[projectType];
+    // CLI has a default structure
+    if (projectType === "cli") {
+        return config.structures?.cli || DEFAULT_CLI_STRUCTURE;
+    }
+
+    // GraphQL is not yet implemented
+    throw new Error(
+        `Project type "${projectType}" is not yet supported. Supported types: cli, webapp, api`,
+    );
 }

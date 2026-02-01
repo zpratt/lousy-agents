@@ -10,7 +10,7 @@ describe("Config", () => {
             // Assert
             expect(config).toBeDefined();
             expect(config.structures).toBeDefined();
-            expect(config.structures?.CLI).toBeDefined();
+            expect(config.structures?.cli).toBeDefined();
         });
 
         it("should include .github/instructions directory in CLI structure", async () => {
@@ -18,7 +18,7 @@ describe("Config", () => {
             const config = await loadInitConfig();
 
             // Assert
-            const cliStructure = config.structures?.CLI;
+            const cliStructure = config.structures?.cli;
             expect(cliStructure).toBeDefined();
             const directoryNodes = cliStructure?.nodes.filter(
                 (node) => node.type === "directory",
@@ -34,7 +34,7 @@ describe("Config", () => {
             const config = await loadInitConfig();
 
             // Assert
-            const cliStructure = config.structures?.CLI;
+            const cliStructure = config.structures?.cli;
             expect(cliStructure).toBeDefined();
             const fileNodes = cliStructure?.nodes.filter(
                 (node) => node.type === "file",
@@ -50,7 +50,7 @@ describe("Config", () => {
     describe("getProjectStructure", () => {
         it("should return CLI structure for CLI project type", async () => {
             // Act
-            const structure = await getProjectStructure("CLI");
+            const structure = await getProjectStructure("cli");
 
             // Assert
             expect(structure).toBeDefined();
@@ -147,7 +147,7 @@ describe("Config", () => {
 
         it("should return REST API structure for REST API project type", async () => {
             // Act
-            const structure = await getProjectStructure("REST API");
+            const structure = await getProjectStructure("api");
 
             // Assert
             expect(structure).toBeDefined();
@@ -155,12 +155,11 @@ describe("Config", () => {
             expect(structure?.nodes.length).toBeGreaterThan(0);
         });
 
-        it("should return undefined for GraphQL API project type (not yet defined)", async () => {
-            // Act
-            const structure = await getProjectStructure("GraphQL API");
-
-            // Assert
-            expect(structure).toBeUndefined();
+        it("should throw error for GraphQL API project type (not yet supported)", async () => {
+            // Act & Assert
+            await expect(getProjectStructure("graphql")).rejects.toThrow(
+                'Project type "graphql" is not yet supported',
+            );
         });
     });
 });
