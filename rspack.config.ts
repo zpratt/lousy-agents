@@ -1,10 +1,17 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Configuration } from "@rspack/core";
+import rspack, { type Configuration } from "@rspack/core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const config: Configuration = {
+    plugins: [
+        new rspack.BannerPlugin({
+            banner: "#!/usr/bin/env node",
+            raw: true,
+            entryOnly: true,
+        }),
+    ],
     mode: "production",
     target: "node",
     entry: {
