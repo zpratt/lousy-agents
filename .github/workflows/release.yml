@@ -25,6 +25,7 @@ jobs:
       issues: write # to comment on released issues
       pull-requests: write # to comment on released PRs
       id-token: write # for npm trusted publishing (OIDC)
+      attestations: write # for build provenance attestation
 
     steps:
       - name: Checkout
@@ -57,6 +58,12 @@ jobs:
 
       - name: Build
         run: mise run build
+
+      - name: Attest build provenance
+        # v3.2.0
+        uses: actions/attest-build-provenance@62fc1d596301d0ab9914e1fec14dc5c8d93f65cd
+        with:
+          subject-path: 'dist/**/*'
 
       - name: Release
         env:
