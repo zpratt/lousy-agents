@@ -9,9 +9,22 @@ Scaffolds new projects with everything needed for effective AI-assisted developm
 - Next.js + React + TypeScript configuration
 - Vitest testing setup with React Testing Library
 - Biome linting and formatting
-- GitHub Copilot instructions tailored for webapp development
-- VSCode configuration with recommended extensions
-- Dev Container setup for one-click environments
+- yamllint configuration for YAML file linting
+- GitHub Copilot instructions (`.github/instructions/`) for:
+  - Pipeline workflows
+  - Software architecture
+  - Specifications
+  - Testing standards
+- Spec-driven development workflow:
+  - Issue template for Copilot-powered feature specs
+  - Auto-assignment workflow to assign Copilot on `copilot-ready` labeled issues
+  - Specs directory with structured specification format
+  - Copilot setup steps workflow
+- VSCode configuration with recommended extensions and debug launch config
+- Dev Container setup with:
+  - Pre-installed tools (GitHub CLI, actionlint, shellcheck, yamllint)
+  - MCP servers pre-cached (context7-mcp, sequential-thinking)
+  - Docker-outside-of-docker support
 - EditorConfig and Node.js version management
 
 ### CLI Projects (`--kind CLI`)
