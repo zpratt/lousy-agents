@@ -60,3 +60,21 @@ jobs:
         run: |
           npm link
           lousy-agents init
+
+      - name: Smoke test - init --kind api
+        run: |
+          mkdir -p /tmp/smoke-test-api
+          cd /tmp/smoke-test-api
+          lousy-agents init --kind api --name test-api
+          test -f package.json
+          test -d .github
+          echo "API smoke test passed"
+
+      - name: Smoke test - init --kind webapp
+        run: |
+          mkdir -p /tmp/smoke-test-webapp
+          cd /tmp/smoke-test-webapp
+          lousy-agents init --kind webapp --name test-webapp
+          test -f package.json
+          test -d .github
+          echo "Webapp smoke test passed"
