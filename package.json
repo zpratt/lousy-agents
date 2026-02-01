@@ -38,7 +38,7 @@
     },
     "scripts": {
         "dev": "tsx src/index.ts",
-        "build": "tsc && chmod +x dist/index.js dist/mcp-server.js",
+        "build": "rspack build --config rspack.config.ts && chmod +x dist/index.js dist/mcp-server.js",
         "start": "node dist/index.js",
         "test": "vitest run",
         "lint": "biome check .",
@@ -58,6 +58,8 @@
     },
     "devDependencies": {
         "@biomejs/biome": "2.3.13",
+        "@rspack/cli": "1.7.4",
+        "@rspack/core": "1.7.4",
         "@types/chance": "1.1.7",
         "@types/node": "25.1.0",
         "chance": "1.1.13",
