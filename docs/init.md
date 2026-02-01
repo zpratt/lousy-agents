@@ -2,6 +2,18 @@
 
 Scaffolds new projects with everything needed for effective AI-assisted development.
 
+## Table of Contents
+
+- [Features](#features)
+  - [Webapp Projects](#webapp-projects---kind-webapp)
+  - [CLI Projects](#cli-projects---kind-cli)
+  - [REST API Projects](#rest-api-projects---kind-api)
+- [Usage](#usage)
+  - [Interactive Mode](#interactive-mode)
+  - [Non-Interactive Mode](#non-interactive-mode)
+  - [Help](#help)
+- [Examples](#examples)
+
 ## Features
 
 ### Webapp Projects (`--kind webapp`)
@@ -32,6 +44,35 @@ Scaffolds new projects with everything needed for effective AI-assisted developm
 - `.github/instructions` directory structure
 - GitHub Copilot instructions for CLI development
 
+### REST API Projects (`--kind api`)
+
+- Fastify + TypeScript configuration
+- Kysely for type-safe database queries with PostgreSQL
+- Vitest testing setup with separate integration test config
+- Testcontainers for integration testing with real PostgreSQL
+- Biome linting and formatting
+- yamllint configuration for YAML file linting
+- GitHub Copilot instructions (`.github/instructions/`) for:
+  - Pipeline workflows
+  - Software architecture
+  - Specifications
+  - Testing standards
+- Spec-driven development workflow:
+  - Issue template for Copilot-powered feature specs
+  - Auto-assignment workflow to assign Copilot on `copilot-ready` labeled issues
+  - Specs directory with structured specification format
+- CI workflow with lint, test, and build jobs
+- VSCode configuration with:
+  - Recommended extensions (including Docker extension)
+  - Debug launch config
+  - MCP servers configuration (context7, sequential-thinking, lousy-agents)
+- Dev Container setup with:
+  - Pre-installed tools (GitHub CLI, actionlint, shellcheck, yamllint)
+  - MCP servers pre-cached (context7-mcp, sequential-thinking)
+  - Docker-outside-of-docker support
+  - Port forwarding for API server (3000) and PostgreSQL (5432)
+- EditorConfig and Node.js version management
+
 ## Usage
 
 ### Interactive Mode
@@ -46,7 +87,7 @@ You'll be prompted to choose from:
 
 - CLI
 - webapp
-- REST API (coming soon)
+- api (REST API with Fastify)
 - GraphQL API (coming soon)
 
 ### Non-Interactive Mode
@@ -56,6 +97,7 @@ Specify the project type directly:
 ```bash
 npx @lousy-agents/cli init --kind webapp
 npx @lousy-agents/cli init --kind CLI
+npx @lousy-agents/cli init --kind api
 ```
 
 Perfect for CI/CD pipelines and automation scripts.
@@ -83,4 +125,10 @@ npx @lousy-agents/cli init --kind webapp
 
 ```bash
 npx @lousy-agents/cli init --kind CLI
+```
+
+### Create a New REST API
+
+```bash
+npx @lousy-agents/cli init --kind api
 ```
