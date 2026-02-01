@@ -38,7 +38,7 @@
     },
     "scripts": {
         "dev": "tsx src/index.ts",
-        "build": "rspack build && chmod +x dist/index.js dist/mcp-server.js",
+        "build": "rspack build --config rspack.config.ts && chmod +x dist/index.js dist/mcp-server.js",
         "start": "node dist/index.js",
         "test": "vitest run",
         "lint": "biome check .",

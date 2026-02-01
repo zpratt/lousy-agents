@@ -67,16 +67,21 @@ run = [
 description = "Run unit tests in this project"
 run = "npm test"
 
+[tasks.clean]
+description = "Clean build artifacts for reproducible builds"
+run = "rm -rf dist"
+
 [tasks.build]
 description = "Build the project with rspack"
+depends = ["clean"]
 run = "npm run build"
 
 [tasks.smoke-test]
 description = "Run smoke tests against the built CLI"
 depends = ["build"]
 run = [
-    "node dist/index.js --help",
-    "node dist/index.js init --help"
+    "./dist/index.js --help",
+    "./dist/index.js init --help"
 ]
 
 [tasks.ci] # only dependencies to be run
