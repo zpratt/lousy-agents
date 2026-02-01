@@ -45,10 +45,7 @@ jobs:
         run: mise run test
 
       - name: Build project
-        run: npm run build
-
-      - name: Make CLI executable
-        run: chmod +x dist/index.js
+        run: mise run build
 
       - name: Test init command (as node)
         run: node dist/index.js init
