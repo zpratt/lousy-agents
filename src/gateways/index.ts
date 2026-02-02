@@ -1,9 +1,30 @@
 /**
  * Gateways - External interfaces and adapters (CLEAN architecture)
  */
-export * from "./action-version-gateway.js";
-export * from "./agent-file-gateway.js";
-export * from "./environment-gateway.js";
-export * from "./file-system-utils.js";
-export * from "./skill-file-gateway.js";
-export * from "./workflow-gateway.js";
+export {
+    type ActionVersionGateway,
+    createActionVersionGateway,
+    KNOWN_ACTIONS,
+    LocalActionVersionGateway,
+} from "./action-version-gateway.js";
+export {
+    type AgentFileGateway,
+    createAgentFileGateway,
+    FileSystemAgentFileGateway,
+} from "./agent-file-gateway.js";
+export {
+    createEnvironmentGateway,
+    type EnvironmentGateway,
+    FileSystemEnvironmentGateway,
+} from "./environment-gateway.js";
+export { fileExists } from "./file-system-utils.js";
+export {
+    createSkillFileGateway,
+    FileSystemSkillFileGateway,
+    type SkillFileGateway,
+} from "./skill-file-gateway.js";
+export {
+    createWorkflowGateway,
+    FileSystemWorkflowGateway,
+    type WorkflowGateway,
+} from "./workflow-gateway.js";

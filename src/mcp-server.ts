@@ -13,6 +13,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
+    // biome-ignore lint/suspicious/noConsole: composition root error handler runs before any logger is available
     console.error("Failed to start MCP server:", error);
     process.exit(1);
 });
