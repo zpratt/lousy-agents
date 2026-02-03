@@ -47,7 +47,7 @@
         "lint:yaml": "yamllint ."
     },
     "dependencies": {
-        "@github-actions-workflow-ts/lib": "2.3.0",
+        "@github-actions-workflow-ts/lib": "2.4.0",
         "@modelcontextprotocol/sdk": "1.25.3",
         "c12": "3.3.3",
         "citty": "0.2.0",
