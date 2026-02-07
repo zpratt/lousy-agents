@@ -57,7 +57,7 @@ export class McpTestClient {
 
             // Handle stderr for debugging
             this.process.stderr?.on("data", (data: Buffer) => {
-                // Log errors but don't fail - stderr is expected for some operations
+                // biome-ignore lint/suspicious/noConsole: test utility pipes subprocess stderr directly to test runner output
                 console.error("MCP server stderr:", data.toString());
             });
 

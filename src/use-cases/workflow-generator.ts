@@ -252,11 +252,13 @@ export async function generateWorkflowContent(
     const workflow = new Workflow("copilot-setup-steps.yml", {
         name: "Copilot Setup Steps",
         on: {
+            // biome-ignore lint/style/useNamingConvention: GitHub Actions YAML schema requires snake_case
             workflow_dispatch: {},
             push: {
                 branches: ["main"],
                 paths: [".github/workflows/copilot-setup-steps.yml"],
             },
+            // biome-ignore lint/style/useNamingConvention: GitHub Actions YAML schema requires snake_case
             pull_request: {
                 branches: ["main"],
                 paths: [".github/workflows/copilot-setup-steps.yml"],

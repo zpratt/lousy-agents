@@ -155,7 +155,9 @@ export const initCommand = defineCommand({
             throw new Error(
                 'Project type "cli" is not yet supported. Supported types: webapp, api',
             );
-        } else if (projectType === "webapp") {
+        }
+
+        if (projectType === "webapp") {
             const { projectName } = await getValidatedProjectName(
                 promptFn,
                 context.args.name,
