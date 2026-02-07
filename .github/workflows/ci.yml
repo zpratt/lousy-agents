@@ -44,6 +44,9 @@ jobs:
       - name: Run tests
         run: mise run test
 
+      - name: Run integration tests
+        run: npm run test:integration
+
       - name: Build project
         run: mise run build
 

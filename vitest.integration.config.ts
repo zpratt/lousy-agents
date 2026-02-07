@@ -2,15 +2,16 @@ import path from "node:path";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-    plugins: [],
     test: {
         globals: true,
+        environment: "node",
         setupFiles: ["./vitest.setup.ts"],
-        exclude: [
-            "**/node_modules/**",
-            "**/dist/**",
-            "**/*.integration.test.ts",
-        ],
+        include: ["src/**/*.integration.test.ts"],
+        testTimeout: 120000,
+        hookTimeout: 120000,
+        forks: {
+            singleFork: true,
+        },
     },
     resolve: {
         alias: {
