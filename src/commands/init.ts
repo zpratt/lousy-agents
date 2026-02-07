@@ -14,7 +14,7 @@ import {
 
 const ProjectTypeSchema = z.enum(["cli", "webapp", "api", "graphql"]);
 export const PROJECT_TYPE_OPTIONS = ProjectTypeSchema.options;
-export const SUPPORTED_PROJECT_TYPES = ["webapp", "api"] as const;
+export const SUPPORTED_PROJECT_TYPES = ["webapp", "api", "cli"] as const;
 
 const initArgs = {
     kind: {
@@ -114,6 +114,25 @@ async function createRestApiScaffolding(
     }
 }
 
+async function createCliScaffolding(
+    targetDir: string,
+    templateContext: TemplateContext,
+): Promise<void> {
+    try {
+        const cliStructure = await getProjectStructure("cli");
+        await createFilesystemStructure(
+            cliStructure,
+            targetDir,
+            templateContext,
+        );
+    } catch (error) {
+        consola.error(
+            `Failed to create CLI scaffolding: ${formatErrorMessage(error)}`,
+        );
+        throw error;
+    }
+}
+
 export const initCommand = defineCommand({
     meta: {
         name: "init",
@@ -152,12 +171,19 @@ export const initCommand = defineCommand({
         consola.success(`Selected project type: ${projectType}`);
 
         if (projectType === "cli") {
-            throw new Error(
-                'Project type "cli" is not yet supported. Supported types: webapp, api',
+            const { projectName } = await getValidatedProjectName(
+                promptFn,
+                context.args.name,
+                "CLI",
+                "my-cli",
             );
-        }
 
-        if (projectType === "webapp") {
+            const templateContext: TemplateContext = { projectName };
+            await createCliScaffolding(targetDir, templateContext);
+            consola.info(
+                "CLI project scaffolding complete. Run 'npm install' to install dependencies.",
+            );
+        } else if (projectType === "webapp") {
             const { projectName } = await getValidatedProjectName(
                 promptFn,
                 context.args.name,
@@ -185,7 +211,7 @@ export const initCommand = defineCommand({
             );
         } else {
             throw new Error(
-                'Project type "graphql" is not yet supported. Supported types: webapp, api',
+                'Project type "graphql" is not yet supported. Supported types: webapp, api, cli',
             );
         }
     },

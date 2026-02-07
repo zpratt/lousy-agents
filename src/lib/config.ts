@@ -10,6 +10,7 @@ const __dirname = dirname(__filename);
 const PROJECT_ROOT = join(__dirname, "..", "..");
 const WEBAPP_TEMPLATE_DIR = join(PROJECT_ROOT, "ui", "copilot-with-react");
 const RESTAPI_TEMPLATE_DIR = join(PROJECT_ROOT, "api", "copilot-with-fastify");
+const CLI_TEMPLATE_DIR = join(PROJECT_ROOT, "cli", "copilot-with-citty");
 
 /**
  * Configuration for lousy-agents init command
@@ -27,21 +28,185 @@ export interface LousyAgentsConfig {
 }
 
 /**
- * Default CLI project filesystem structure
+ * Helper function to read CLI template files
  */
-const DEFAULT_CLI_STRUCTURE: FilesystemStructure = {
-    nodes: [
-        {
-            type: "directory",
-            path: ".github/instructions",
-        },
-        {
-            type: "file",
-            path: ".github/copilot-instructions.md",
-            content: "",
-        },
-    ],
-};
+function readCliTemplateFile(relativePath: string): string {
+    return readTemplateFile(relativePath, CLI_TEMPLATE_DIR);
+}
+
+/**
+ * Cached CLI structure - lazy-loaded on first access
+ */
+let cachedCliStructure: FilesystemStructure | null = null;
+
+/**
+ * Builds the CLI project filesystem structure by reading template files
+ * This is called lazily only when CLI scaffolding is needed
+ */
+function buildCliStructure(): FilesystemStructure {
+    if (cachedCliStructure) {
+        return cachedCliStructure;
+    }
+
+    cachedCliStructure = {
+        nodes: [
+            // Root configuration files
+            {
+                type: "file",
+                path: "package.json",
+                content: readCliTemplateFile("package.json"),
+            },
+            {
+                type: "file",
+                path: "tsconfig.json",
+                content: readCliTemplateFile("tsconfig.json"),
+            },
+            {
+                type: "file",
+                path: "vitest.config.ts",
+                content: readCliTemplateFile("vitest.config.ts"),
+            },
+            {
+                type: "file",
+                path: "vitest.setup.ts",
+                content: readCliTemplateFile("vitest.setup.ts"),
+            },
+            {
+                type: "file",
+                path: "biome.json",
+                content: readCliTemplateFile("biome.json"),
+            },
+            {
+                type: "file",
+                path: ".editorconfig",
+                content: readCliTemplateFile(".editorconfig"),
+            },
+            {
+                type: "file",
+                path: ".nvmrc",
+                content: readCliTemplateFile(".nvmrc"),
+            },
+            {
+                type: "file",
+                path: ".yamllint",
+                content: readCliTemplateFile(".yamllint"),
+            },
+            // GitHub copilot instructions
+            {
+                type: "directory",
+                path: ".github",
+            },
+            {
+                type: "directory",
+                path: ".github/instructions",
+            },
+            {
+                type: "file",
+                path: ".github/copilot-instructions.md",
+                content: readCliTemplateFile(".github/copilot-instructions.md"),
+            },
+            {
+                type: "file",
+                path: ".github/instructions/test.instructions.md",
+                content: readCliTemplateFile(
+                    ".github/instructions/test.instructions.md",
+                ),
+            },
+            {
+                type: "file",
+                path: ".github/instructions/spec.instructions.md",
+                content: readCliTemplateFile(
+                    ".github/instructions/spec.instructions.md",
+                ),
+            },
+            {
+                type: "file",
+                path: ".github/instructions/pipeline.instructions.md",
+                content: readCliTemplateFile(
+                    ".github/instructions/pipeline.instructions.md",
+                ),
+            },
+            {
+                type: "file",
+                path: ".github/instructions/software-architecture.instructions.md",
+                content: readCliTemplateFile(
+                    ".github/instructions/software-architecture.instructions.md",
+                ),
+            },
+            // GitHub Issue Templates
+            {
+                type: "directory",
+                path: ".github/ISSUE_TEMPLATE",
+            },
+            {
+                type: "file",
+                path: ".github/ISSUE_TEMPLATE/feature-to-spec.yml",
+                content: readCliTemplateFile(
+                    ".github/ISSUE_TEMPLATE/feature-to-spec.yml",
+                ),
+            },
+            // GitHub Workflows
+            {
+                type: "directory",
+                path: ".github/workflows",
+            },
+            {
+                type: "file",
+                path: ".github/workflows/assign-copilot.yml",
+                content: readCliTemplateFile(
+                    ".github/workflows/assign-copilot.yml",
+                ),
+            },
+            {
+                type: "file",
+                path: ".github/workflows/ci.yml",
+                content: readCliTemplateFile(".github/workflows/ci.yml"),
+            },
+            // Specs directory
+            {
+                type: "directory",
+                path: ".github/specs",
+            },
+            {
+                type: "file",
+                path: ".github/specs/README.md",
+                content: readCliTemplateFile(".github/specs/README.md"),
+            },
+            // VSCode configuration
+            {
+                type: "directory",
+                path: ".vscode",
+            },
+            {
+                type: "file",
+                path: ".vscode/extensions.json",
+                content: readCliTemplateFile(".vscode/extensions.json"),
+            },
+            {
+                type: "file",
+                path: ".vscode/launch.json",
+                content: readCliTemplateFile(".vscode/launch.json"),
+            },
+            {
+                type: "file",
+                path: ".vscode/mcp.json",
+                content: readCliTemplateFile(".vscode/mcp.json"),
+            },
+            // Devcontainer configuration
+            {
+                type: "directory",
+                path: ".devcontainer",
+            },
+            {
+                type: "file",
+                path: ".devcontainer/devcontainer.json",
+                content: readCliTemplateFile(".devcontainer/devcontainer.json"),
+            },
+        ],
+    };
+
+    return cachedCliStructure;
+}
 
 /**
  * Helper function to read template file content
@@ -425,23 +590,19 @@ function buildRestApiStructure(): FilesystemStructure {
 /**
  * Loads the configuration for the init command
  * Falls back to defaults if no configuration is found
- * Note: webapp structure is lazy-loaded only when requested
+ * Note: project structures are lazy-loaded only when requested
  */
 export async function loadInitConfig(): Promise<LousyAgentsConfig> {
     const { config } = await loadConfig<LousyAgentsConfig>({
         name: "lousy-agents",
         defaults: {
-            structures: {
-                cli: DEFAULT_CLI_STRUCTURE,
-            },
+            structures: {},
         },
     });
 
     return (
         config || {
-            structures: {
-                cli: DEFAULT_CLI_STRUCTURE,
-            },
+            structures: {},
         }
     );
 }
@@ -466,9 +627,9 @@ export async function getProjectStructure(
         return config.structures?.api || buildRestApiStructure();
     }
 
-    // CLI has a default structure
+    // Lazy-load CLI structure only when requested
     if (projectType === "cli") {
-        return config.structures?.cli || DEFAULT_CLI_STRUCTURE;
+        return config.structures?.cli || buildCliStructure();
     }
 
     // GraphQL is not yet implemented
