@@ -100,6 +100,37 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
             ).toBe(true);
         });
 
+        it("should produce a CLI project that passes lint after install", async () => {
+            const projectName = `test-${chance.word({ length: 6 }).toLowerCase()}`;
+            const outputDir = join(packDir, `output-cli-lint-${chance.guid()}`);
+            mkdirSync(outputDir, { recursive: true });
+
+            execFileSync(
+                "node",
+                [
+                    unpackedCliPath,
+                    "init",
+                    "--kind",
+                    "cli",
+                    "--name",
+                    projectName,
+                ],
+                { cwd: outputDir, stdio: "pipe" },
+            );
+
+            execFileSync("npm", ["install"], {
+                cwd: outputDir,
+                stdio: "pipe",
+            });
+
+            const lintResult = execFileSync("npx", ["biome", "check", "."], {
+                cwd: outputDir,
+                stdio: "pipe",
+            });
+
+            expect(lintResult.toString()).toContain("No fixes applied");
+        });
+
         it("should scaffold a webapp project from the unpacked package", async () => {
             const projectName = `test-${chance.word({ length: 6 }).toLowerCase()}`;
             const outputDir = join(packDir, `output-webapp-${chance.guid()}`);

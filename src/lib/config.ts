@@ -208,6 +208,21 @@ function buildCliStructure(): FilesystemStructure {
                 path: ".vscode/mcp.json",
                 content: readCliTemplateFile(".vscode/mcp.json"),
             },
+            // Source code
+            {
+                type: "directory",
+                path: "src",
+            },
+            {
+                type: "file",
+                path: "src/index.ts",
+                content: readCliTemplateFile("src/index.ts"),
+            },
+            {
+                type: "file",
+                path: "src/index.test.ts",
+                content: readCliTemplateFile("src/index.test.ts"),
+            },
             // Devcontainer configuration
             {
                 type: "directory",
