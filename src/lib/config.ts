@@ -90,7 +90,7 @@ function buildCliStructure(): FilesystemStructure {
             {
                 type: "file",
                 path: "biome.json",
-                content: readCliTemplateFile("biome.json"),
+                content: readCliTemplateFile("biome.template.json"),
             },
             {
                 type: "file",
