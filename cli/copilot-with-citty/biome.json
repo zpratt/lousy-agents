@@ -16,10 +16,26 @@
     },
     "linter": {
         "enabled": true,
+        "domains": {
+            "test": "all"
+        },
         "rules": {
             "recommended": true,
             "style": {
-                "useConsistentCurlyBraces": "error"
+                "noParameterAssign": "error",
+                "noUselessElse": "error",
+                "useConsistentBuiltinInstantiation": "error",
+                "useConsistentCurlyBraces": "error",
+                "useFilenamingConvention": "error",
+                "useNamingConvention": "error"
+            },
+            "performance": {
+                "noNamespaceImport": "error",
+                "noReExportAll": "error"
+            },
+            "suspicious": {
+                "noConsole": "warn",
+                "noVar": "error"
             }
         }
     },
