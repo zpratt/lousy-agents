@@ -47,6 +47,9 @@ jobs:
       - name: Build project
         run: mise run build
 
+      - name: Run integration tests
+        run: npm run test:integration
+
       - name: Test init command (as node)
         run: node dist/index.js init
 
