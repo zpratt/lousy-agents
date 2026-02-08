@@ -29,6 +29,7 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
         execFileSync("npm", ["pack", "--pack-destination", packDir], {
             cwd: projectRoot,
             stdio: "pipe",
+            maxBuffer: 10 * 1024 * 1024,
         });
 
         const tgzFiles = readdirSync(packDir).filter((f) => f.endsWith(".tgz"));
@@ -117,6 +118,11 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
                 ],
                 { cwd: outputDir, stdio: "pipe" },
             );
+
+            execFileSync("git", ["init"], {
+                cwd: outputDir,
+                stdio: "pipe",
+            });
 
             execFileSync("npm", ["install"], {
                 cwd: outputDir,

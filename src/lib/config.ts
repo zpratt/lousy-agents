@@ -94,6 +94,11 @@ function buildCliStructure(): FilesystemStructure {
             },
             {
                 type: "file",
+                path: ".gitignore",
+                content: readCliTemplateFile("gitignore.template"),
+            },
+            {
+                type: "file",
                 path: ".editorconfig",
                 content: readCliTemplateFile(".editorconfig"),
             },
