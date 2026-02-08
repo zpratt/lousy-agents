@@ -15,8 +15,8 @@
  * They will be skipped if the dist/index.js file doesn't exist.
  */
 
-import { execFileSync, execSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -37,16 +37,17 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
         // npm pack to a temp location
         packDir = join(tmpdir(), `pack-test-${chance.guid()}`);
         mkdirSync(packDir, { recursive: true });
-        execSync(`npm pack --pack-destination ${packDir}`, {
+        execFileSync("npm", ["pack", "--pack-destination", packDir], {
             cwd: projectRoot,
             stdio: "pipe",
         });
 
         // Find the tarball
-        const tgzFiles = execSync(`ls ${packDir}/*.tgz`, { encoding: "utf-8" })
-            .trim()
-            .split("\n");
-        const tgzPath = tgzFiles[0];
+        const tgzFiles = readdirSync(packDir).filter((f) => f.endsWith(".tgz"));
+        if (tgzFiles.length === 0) {
+            throw new Error(`No .tgz files found in ${packDir}`);
+        }
+        const tgzPath = join(packDir, tgzFiles[0]);
 
         // Unpack to simulate npx cache: node_modules/@lousy-agents/cli/
         const installDir = join(
@@ -57,9 +58,11 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
             "cli",
         );
         mkdirSync(installDir, { recursive: true });
-        execSync(`tar xzf ${tgzPath} --strip-components=1 -C ${installDir}`, {
-            stdio: "pipe",
-        });
+        execFileSync(
+            "tar",
+            ["xzf", tgzPath, "--strip-components=1", "-C", installDir],
+            { stdio: "pipe" },
+        );
 
         unpackedCliPath = join(installDir, "dist", "index.js");
     });
