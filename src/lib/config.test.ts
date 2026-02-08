@@ -3,47 +3,13 @@ import { getProjectStructure, loadInitConfig } from "./config.js";
 
 describe("Config", () => {
     describe("loadInitConfig", () => {
-        it("should load default configuration with CLI structure", async () => {
+        it("should load default configuration", async () => {
             // Act
             const config = await loadInitConfig();
 
             // Assert
             expect(config).toBeDefined();
             expect(config.structures).toBeDefined();
-            expect(config.structures?.cli).toBeDefined();
-        });
-
-        it("should include .github/instructions directory in CLI structure", async () => {
-            // Act
-            const config = await loadInitConfig();
-
-            // Assert
-            const cliStructure = config.structures?.cli;
-            expect(cliStructure).toBeDefined();
-            const directoryNodes = cliStructure?.nodes.filter(
-                (node) => node.type === "directory",
-            );
-            expect(directoryNodes).toContainEqual({
-                type: "directory",
-                path: ".github/instructions",
-            });
-        });
-
-        it("should include .github/copilot-instructions.md file in CLI structure", async () => {
-            // Act
-            const config = await loadInitConfig();
-
-            // Assert
-            const cliStructure = config.structures?.cli;
-            expect(cliStructure).toBeDefined();
-            const fileNodes = cliStructure?.nodes.filter(
-                (node) => node.type === "file",
-            );
-            expect(fileNodes).toContainEqual({
-                type: "file",
-                path: ".github/copilot-instructions.md",
-                content: "",
-            });
         });
     });
 
@@ -56,6 +22,64 @@ describe("Config", () => {
             expect(structure).toBeDefined();
             expect(structure?.nodes).toBeDefined();
             expect(structure?.nodes.length).toBeGreaterThan(0);
+        });
+
+        it("should include package.json in CLI structure", async () => {
+            // Act
+            const structure = await getProjectStructure("cli");
+
+            // Assert
+            expect(structure).toBeDefined();
+            const fileNodes = structure?.nodes.filter(
+                (node) => node.type === "file" && node.path === "package.json",
+            );
+            expect(fileNodes?.length).toBe(1);
+            expect(fileNodes?.[0].content).toContain("citty");
+        });
+
+        it("should include configuration files in CLI structure", async () => {
+            // Act
+            const structure = await getProjectStructure("cli");
+
+            // Assert
+            expect(structure).toBeDefined();
+            const configFiles = [
+                "tsconfig.json",
+                "vitest.config.ts",
+                "vitest.setup.ts",
+                "biome.json",
+                ".editorconfig",
+                ".nvmrc",
+            ];
+
+            for (const fileName of configFiles) {
+                const fileNode = structure?.nodes.find(
+                    (node) => node.type === "file" && node.path === fileName,
+                );
+                expect(fileNode).toBeDefined();
+            }
+        });
+
+        it("should include GitHub instructions in CLI structure", async () => {
+            // Act
+            const structure = await getProjectStructure("cli");
+
+            // Assert
+            expect(structure).toBeDefined();
+            const githubFiles = [
+                ".github/copilot-instructions.md",
+                ".github/instructions/test.instructions.md",
+                ".github/instructions/spec.instructions.md",
+                ".github/instructions/pipeline.instructions.md",
+                ".github/instructions/software-architecture.instructions.md",
+            ];
+
+            for (const fileName of githubFiles) {
+                const fileNode = structure?.nodes.find(
+                    (node) => node.type === "file" && node.path === fileName,
+                );
+                expect(fileNode).toBeDefined();
+            }
         });
 
         it("should include package.json in webapp structure", async () => {
