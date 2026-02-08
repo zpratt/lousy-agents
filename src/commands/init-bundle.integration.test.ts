@@ -23,7 +23,7 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
     let packDir: string;
     let unpackedCliPath: string;
 
-    beforeAll(async () => {
+    beforeAll(() => {
         packDir = join(tmpdir(), `pack-test-${chance.guid()}`);
         mkdirSync(packDir, { recursive: true });
         execFileSync("npm", ["pack", "--pack-destination", packDir], {
@@ -129,12 +129,10 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
                 stdio: "pipe",
             });
 
-            const lintResult = execFileSync("npx", ["biome", "check", "."], {
+            execFileSync("npx", ["biome", "check", "."], {
                 cwd: outputDir,
                 stdio: "pipe",
             });
-
-            expect(lintResult.toString()).toContain("No fixes applied");
         });
 
         it("should scaffold a webapp project from the unpacked package", async () => {
