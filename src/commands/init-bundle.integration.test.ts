@@ -74,7 +74,7 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
     });
 
     describe("given a packed and unpacked CLI (simulating npx)", () => {
-        it("should not contain hardcoded build-machine paths in the bundle", async () => {
+        it("should not contain hardcoded build-machine paths in the bundle", () => {
             // Arrange
             const bundleContent = readFileSync(unpackedCliPath, "utf-8");
 
