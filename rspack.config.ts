@@ -41,6 +41,11 @@ const config: Configuration = {
         },
     },
     module: {
+        parser: {
+            javascript: {
+                importMeta: false,
+            },
+        },
         rules: [
             {
                 test: /\.ts$/,
