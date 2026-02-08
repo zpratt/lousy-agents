@@ -9,8 +9,11 @@ export default defineConfig({
         include: ["src/**/*.integration.test.ts"],
         testTimeout: 120000,
         hookTimeout: 120000,
-        forks: {
-            singleFork: true,
+        pool: "forks",
+        poolOptions: {
+            forks: {
+                singleFork: true,
+            },
         },
     },
     resolve: {
