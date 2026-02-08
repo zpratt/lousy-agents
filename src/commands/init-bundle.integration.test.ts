@@ -1,16 +1,6 @@
 /**
  * Integration tests for the bundled CLI init command.
  *
- * These tests verify that template file resolution works correctly
- * in the rspack-bundled output by simulating the npm publish + npx flow:
- * 1. Build with rspack (prerequisite)
- * 2. npm pack to create a publishable tarball
- * 3. Unpack the tarball to an isolated temporary directory
- * 4. Run the CLI from the unpacked location
- *
- * This catches the original bug where rspack hardcoded import.meta.url
- * to the build machine's absolute path, which fails on any other machine.
- *
  * NOTE: These tests require the project to be built first (`npm run build`).
  * They will be skipped if the dist/index.js file doesn't exist.
  */
@@ -34,7 +24,6 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
     let unpackedCliPath: string;
 
     beforeAll(async () => {
-        // npm pack to a temp location
         packDir = join(tmpdir(), `pack-test-${chance.guid()}`);
         mkdirSync(packDir, { recursive: true });
         execFileSync("npm", ["pack", "--pack-destination", packDir], {
@@ -42,14 +31,12 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
             stdio: "pipe",
         });
 
-        // Find the tarball
         const tgzFiles = readdirSync(packDir).filter((f) => f.endsWith(".tgz"));
         if (tgzFiles.length === 0) {
             throw new Error(`No .tgz files found in ${packDir}`);
         }
         const tgzPath = join(packDir, tgzFiles[0]);
 
-        // Unpack to simulate npx cache: node_modules/@lousy-agents/cli/
         const installDir = join(
             packDir,
             "install",
@@ -75,25 +62,17 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
 
     describe("given a packed and unpacked CLI (simulating npx)", () => {
         it("should not contain hardcoded build-machine paths in the bundle", () => {
-            // Arrange
             const bundleContent = readFileSync(unpackedCliPath, "utf-8");
-
-            // The original bug: rspack rewrites import.meta.url to a hardcoded
-            // string like 'file:///home/runner/work/.../src/lib/config.ts'
-            // With importMeta: false, it should use import.meta.url directly.
             const hardcodedPathPattern = /fileURLToPath\(\s*['"]file:\/\/\//;
 
-            // Assert
             expect(bundleContent).not.toMatch(hardcodedPathPattern);
         });
 
         it("should scaffold a CLI project from the unpacked package", async () => {
-            // Arrange
             const projectName = `test-${chance.word({ length: 6 }).toLowerCase()}`;
             const outputDir = join(packDir, `output-cli-${chance.guid()}`);
             mkdirSync(outputDir, { recursive: true });
 
-            // Act
             execFileSync(
                 "node",
                 [
@@ -107,7 +86,6 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
                 { cwd: outputDir, stdio: "pipe" },
             );
 
-            // Assert
             const packageJson = await readFile(
                 join(outputDir, "package.json"),
                 "utf-8",
@@ -123,12 +101,10 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
         });
 
         it("should scaffold a webapp project from the unpacked package", async () => {
-            // Arrange
             const projectName = `test-${chance.word({ length: 6 }).toLowerCase()}`;
             const outputDir = join(packDir, `output-webapp-${chance.guid()}`);
             mkdirSync(outputDir, { recursive: true });
 
-            // Act
             execFileSync(
                 "node",
                 [
@@ -142,7 +118,6 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
                 { cwd: outputDir, stdio: "pipe" },
             );
 
-            // Assert
             const packageJson = await readFile(
                 join(outputDir, "package.json"),
                 "utf-8",
@@ -153,12 +128,10 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
         });
 
         it("should scaffold an API project from the unpacked package", async () => {
-            // Arrange
             const projectName = `test-${chance.word({ length: 6 }).toLowerCase()}`;
             const outputDir = join(packDir, `output-api-${chance.guid()}`);
             mkdirSync(outputDir, { recursive: true });
 
-            // Act
             execFileSync(
                 "node",
                 [
@@ -172,7 +145,6 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
                 { cwd: outputDir, stdio: "pipe" },
             );
 
-            // Assert
             const packageJson = await readFile(
                 join(outputDir, "package.json"),
                 "utf-8",
