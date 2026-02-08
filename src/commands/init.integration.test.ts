@@ -37,9 +37,6 @@ start();
  * Dockerfile to build and run the scaffolded API project.
  * Uses a multi-stage approach: install deps, then run with tsx.
  */
- * Dockerfile to build and run the scaffolded API project.
- * Uses a multi-stage approach: install deps, then run with tsx.
- */
 function createDockerfile(nodeVersion: string): string {
    return `FROM node:${nodeVersion}-slim
 WORKDIR /app
