@@ -1,0 +1,76 @@
+{
+    "name": "<%= it.projectName %>",
+    "image": "mcr.microsoft.com/devcontainers/javascript-node:24-bookworm",
+    "features": {
+        "ghcr.io/devcontainers/features/github-cli:1": {
+            "version": "2.83.2"
+        },
+        "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
+            "packages": "yamllint, shellcheck",
+            "upgradePackages": true
+        },
+        "ghcr.io/devcontainers-extra/features/actionlint:1": {
+            "version": "1.7.9"
+        }
+    },
+    "forwardPorts": [],
+    "postCreateCommand": "npm cache add @upstash/context7-mcp @modelcontextprotocol/server-sequential-thinking",
+    "waitFor": "postCreateCommand",
+    "remoteUser": "node",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "biomejs.biome",
+                "editorconfig.editorconfig",
+                "vitest.explorer",
+                "ms-vscode-remote.remote-containers",
+                "GitHub.codespaces",
+                "GitHub.Copilot",
+                "GitHub.Copilot-Chat",
+                "GitHub.github-vscode-theme",
+                "redhat.vscode-yaml"
+            ],
+            "settings": {
+                "editor.formatOnSave": true,
+                "editor.defaultFormatter": "biomejs.biome",
+                "[json]": {
+                    "editor.defaultFormatter": "biomejs.biome"
+                },
+                "[javascript]": {
+                    "editor.defaultFormatter": "biomejs.biome"
+                },
+                "[typescript]": {
+                    "editor.defaultFormatter": "biomejs.biome"
+                },
+                "[yaml]": {
+                    "editor.defaultFormatter": "redhat.vscode-yaml",
+                    "editor.tabSize": 2
+                },
+                "vitest.enable": true,
+                "vitest.commandLine": "vitest",
+                "github.copilot.chat.agent.model": "claude-sonnet-4.5",
+                "github.copilot.chat.ask.model": "claude-sonnet-4.5",
+                "yaml.schemas": {
+                    "https://json.schemastore.org/github-workflow.json": ".github/workflows/*.yml"
+                },
+                "github.copilot.chat.mcp.enabled": true
+            },
+            "mcp": {
+                "servers": {
+                    "context7": {
+                        "type": "stdio",
+                        "command": "npx",
+                        "args": ["-y", "@upstash/context7-mcp"]
+                    },
+                    "sequential-thinking": {
+                        "command": "npx",
+                        "args": [
+                            "-y",
+                            "@modelcontextprotocol/server-sequential-thinking"
+                        ]
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,54 @@
+---
+name: Copilot Feature To Spec
+description: Create a spec for the Copilot coding agent.
+title: "[Spec]: "
+labels: ["copilot-ready", "enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Copilot Specification
+        Please fill out the details below.
+        This structure is parsed by the Copilot Agent.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context & Goal
+      description: What is the goal? What part of the codebase?
+      placeholder: |
+        We need to add a new command to the CLI
+        tool...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: How will we verify this is done?
+      placeholder: |
+        I run `npm run dev -- my-command`.
+        I see the expected output.
+    validations:
+      required: true
+
+  # ---------------------------------------------------------
+  # This section triggers the GitHub Script integration
+  # ---------------------------------------------------------
+  - type: textarea
+    id: extra-instructions
+    attributes:
+      label: Extra Instructions
+      description: Specific prompt engineering for the agent. This will be posted as a comment to guide the bot.
+      value: |
+        1. Review .github/instructions/spec.instructions.md for more details and use this as your guide for the feature specification.
+        2. Ensure you review all other repository instructions before starting work to understand engineering requirements.
+        3. Create your final spec output in the .github/specs directory and ensure requirements are captured in the EARS format.
+        4. Create a data flow diagram and sequence diagram to illustrate the feature's operation.
+        5. Break down the feature into manageable tasks with clear descriptions.
+        6. As you complete each task in the spec, mark the checkboxes as complete in the spec file using [x] notation.
+        7. If you need to make assumptions, ask questions on the issue.
+        8. Use the diagrams to inform your implementation plan.
+    validations:
+      required: false
