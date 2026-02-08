@@ -1,13 +1,29 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "c12";
 import { consola } from "consola";
 import type { FilesystemStructure } from "./filesystem-structure.js";
 
+/**
+ * Finds the package root by walking up from a starting directory
+ * until a directory containing package.json is found.
+ */
+function findPackageRoot(startDir: string): string {
+    let dir = startDir;
+    while (!existsSync(join(dir, "package.json"))) {
+        const parent = dirname(dir);
+        if (parent === dir) {
+            throw new Error(`Could not find package root from ${startDir}`);
+        }
+        dir = parent;
+    }
+    return dir;
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const PROJECT_ROOT = join(__dirname, "..", "..");
+const PROJECT_ROOT = findPackageRoot(__dirname);
 const WEBAPP_TEMPLATE_DIR = join(PROJECT_ROOT, "ui", "copilot-with-react");
 const RESTAPI_TEMPLATE_DIR = join(PROJECT_ROOT, "api", "copilot-with-fastify");
 const CLI_TEMPLATE_DIR = join(PROJECT_ROOT, "cli", "copilot-with-citty");
