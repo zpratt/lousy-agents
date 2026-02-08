@@ -8,7 +8,7 @@
     },
     "files": {
         "ignoreUnknown": false,
-        "includes": ["src/**", "*.ts", "*.json"]
+        "includes": ["**", "!cli/copilot-with-citty/src"]
     },
     "formatter": {
         "enabled": true,
