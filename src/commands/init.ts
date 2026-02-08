@@ -16,6 +16,28 @@ const ProjectTypeSchema = z.enum(["cli", "webapp", "api", "graphql"]);
 export const PROJECT_TYPE_OPTIONS = ProjectTypeSchema.options;
 export const SUPPORTED_PROJECT_TYPES = ["webapp", "api", "cli"] as const;
 
+type SupportedProjectType = (typeof SUPPORTED_PROJECT_TYPES)[number];
+
+interface ProjectTypeConfig {
+    label: string;
+    placeholder: string;
+    structureKey: "cli" | "webapp" | "api";
+}
+
+const PROJECT_TYPE_CONFIGS: Record<SupportedProjectType, ProjectTypeConfig> = {
+    cli: { label: "CLI", placeholder: "my-cli", structureKey: "cli" },
+    webapp: {
+        label: "webapp",
+        placeholder: "my-webapp",
+        structureKey: "webapp",
+    },
+    api: {
+        label: "REST API",
+        placeholder: "my-rest-api",
+        structureKey: "api",
+    },
+};
+
 const initArgs = {
     kind: {
         type: "string" as const,
@@ -76,61 +98,29 @@ async function getValidatedProjectName(
     return { projectName };
 }
 
-async function createWebappScaffolding(
+async function scaffoldProject(
+    projectType: SupportedProjectType,
     targetDir: string,
     templateContext: TemplateContext,
 ): Promise<void> {
+    const config = PROJECT_TYPE_CONFIGS[projectType];
     try {
-        const webappStructure = await getProjectStructure("webapp");
-        await createFilesystemStructure(
-            webappStructure,
-            targetDir,
-            templateContext,
-        );
+        const structure = await getProjectStructure(config.structureKey);
+        await createFilesystemStructure(structure, targetDir, templateContext);
     } catch (error) {
         consola.error(
-            `Failed to create webapp scaffolding: ${formatErrorMessage(error)}`,
+            `Failed to create ${config.label} scaffolding: ${formatErrorMessage(error)}`,
         );
         throw error;
     }
 }
 
-async function createRestApiScaffolding(
-    targetDir: string,
-    templateContext: TemplateContext,
-): Promise<void> {
-    try {
-        const restApiStructure = await getProjectStructure("api");
-        await createFilesystemStructure(
-            restApiStructure,
-            targetDir,
-            templateContext,
-        );
-    } catch (error) {
-        consola.error(
-            `Failed to create REST API scaffolding: ${formatErrorMessage(error)}`,
-        );
-        throw error;
-    }
-}
-
-async function createCliScaffolding(
-    targetDir: string,
-    templateContext: TemplateContext,
-): Promise<void> {
-    try {
-        const cliStructure = await getProjectStructure("cli");
-        await createFilesystemStructure(
-            cliStructure,
-            targetDir,
-            templateContext,
-        );
-    } catch (error) {
-        consola.error(
-            `Failed to create CLI scaffolding: ${formatErrorMessage(error)}`,
-        );
-        throw error;
-    }
+function isSupportedProjectType(
+    projectType: string,
+): projectType is SupportedProjectType {
+    return SUPPORTED_PROJECT_TYPES.includes(
+        projectType as SupportedProjectType,
+    );
 }
 
 export const initCommand = defineCommand({
@@ -170,49 +160,25 @@ export const initCommand = defineCommand({
         const projectType = parseResult.data;
         consola.success(`Selected project type: ${projectType}`);
 
-        if (projectType === "cli") {
-            const { projectName } = await getValidatedProjectName(
-                promptFn,
-                context.args.name,
-                "CLI",
-                "my-cli",
-            );
-
-            const templateContext: TemplateContext = { projectName };
-            await createCliScaffolding(targetDir, templateContext);
-            consola.info(
-                "CLI project scaffolding complete. Run 'npm install' to install dependencies.",
-            );
-        } else if (projectType === "webapp") {
-            const { projectName } = await getValidatedProjectName(
-                promptFn,
-                context.args.name,
-                "webapp",
-                "my-webapp",
-            );
-
-            const templateContext: TemplateContext = { projectName };
-            await createWebappScaffolding(targetDir, templateContext);
-            consola.info(
-                "Webapp project scaffolding complete. Run 'npm install' to install dependencies.",
-            );
-        } else if (projectType === "api") {
-            const { projectName } = await getValidatedProjectName(
-                promptFn,
-                context.args.name,
-                "REST API",
-                "my-rest-api",
-            );
-
-            const templateContext: TemplateContext = { projectName };
-            await createRestApiScaffolding(targetDir, templateContext);
-            consola.info(
-                "REST API project scaffolding complete. Run 'npm install' to install dependencies.",
-            );
-        } else {
+        if (!isSupportedProjectType(projectType)) {
+            const supported = SUPPORTED_PROJECT_TYPES.join(", ");
             throw new Error(
-                'Project type "graphql" is not yet supported. Supported types: webapp, api, cli',
+                `Project type "${projectType}" is not yet supported. Supported types: ${supported}`,
             );
         }
+
+        const config = PROJECT_TYPE_CONFIGS[projectType];
+        const { projectName } = await getValidatedProjectName(
+            promptFn,
+            context.args.name,
+            config.label,
+            config.placeholder,
+        );
+
+        const templateContext: TemplateContext = { projectName };
+        await scaffoldProject(projectType, targetDir, templateContext);
+        consola.info(
+            `${config.label} project scaffolding complete. Run 'npm install' to install dependencies.`,
+        );
     },
 });
