@@ -140,14 +140,40 @@ function buildInstallCandidatesFromPackageManagers(
             continue;
         }
 
+        // Determine a descriptive name for the install step
+        const stepName = getInstallStepName(pm.type);
+
         // Create install step candidate
         candidates.push({
             action: "", // Empty action means this is a run step
             source: "version-file",
-            name: "Install dependencies",
+            name: stepName,
             run: pmConfig.installCommand,
         });
     }
 
     return candidates;
+}
+
+/**
+ * Gets a descriptive name for an install step based on package manager type
+ */
+function getInstallStepName(packageManagerType: string): string {
+    const names: Record<string, string> = {
+        npm: "Install Node.js dependencies",
+        yarn: "Install Node.js dependencies",
+        pnpm: "Install Node.js dependencies",
+        pip: "Install Python dependencies",
+        pipenv: "Install Python dependencies",
+        poetry: "Install Python dependencies",
+        bundler: "Install Ruby dependencies",
+        cargo: "Build Rust project",
+        composer: "Install PHP dependencies",
+        maven: "Install Java dependencies",
+        gradle: "Build Gradle project",
+        gomod: "Download Go dependencies",
+        pub: "Install Dart dependencies",
+        nuget: "Restore .NET dependencies",
+    };
+    return names[packageManagerType] || "Install dependencies";
 }

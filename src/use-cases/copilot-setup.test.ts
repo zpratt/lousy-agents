@@ -187,7 +187,7 @@ describe("Workflow Generator", () => {
                 // Assert
                 expect(result).toContainEqual(
                     expect.objectContaining({
-                        name: "Install dependencies",
+                        name: "Install Node.js dependencies",
                         run: "npm ci",
                         source: "version-file",
                     }),
@@ -217,7 +217,7 @@ describe("Workflow Generator", () => {
                 // Assert
                 expect(result).toContainEqual(
                     expect.objectContaining({
-                        name: "Install dependencies",
+                        name: "Install Node.js dependencies",
                         run: "yarn install --frozen-lockfile",
                         source: "version-file",
                     }),
@@ -247,7 +247,7 @@ describe("Workflow Generator", () => {
                 // Assert
                 expect(result).toContainEqual(
                     expect.objectContaining({
-                        name: "Install dependencies",
+                        name: "Install Python dependencies",
                         run: "pip install -r requirements.txt",
                         source: "version-file",
                     }),
@@ -281,7 +281,7 @@ describe("Workflow Generator", () => {
                 // Assert
                 expect(result).toContainEqual(
                     expect.objectContaining({
-                        name: "Install dependencies",
+                        name: "Install Ruby dependencies",
                         run: "bundle install",
                         source: "version-file",
                     }),
@@ -342,6 +342,54 @@ describe("Workflow Generator", () => {
                 expect(result).toHaveLength(1);
                 expect(result[0].action).toBe("jdx/mise-action");
                 expect(result.filter((c) => c.run)).toHaveLength(0);
+            });
+        });
+
+        describe("when multiple package managers are detected", () => {
+            it("should create install steps for both Node.js and Python", async () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [
+                        { type: "node", filename: ".nvmrc", version: "20.0.0" },
+                        {
+                            type: "python",
+                            filename: ".python-version",
+                            version: "3.12.0",
+                        },
+                    ],
+                    packageManagers: [
+                        {
+                            type: "yarn",
+                            filename: "package.json",
+                            lockfile: "yarn.lock",
+                        },
+                        { type: "pip", filename: "requirements.txt" },
+                    ],
+                };
+
+                // Act
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
+
+                // Assert
+                expect(result).toHaveLength(4); // 2 setup + 2 install
+                expect(
+                    result.filter((c) => c.action === "actions/setup-node"),
+                ).toHaveLength(1);
+                expect(
+                    result.filter((c) => c.action === "actions/setup-python"),
+                ).toHaveLength(1);
+                expect(
+                    result.filter(
+                        (c) => c.run === "yarn install --frozen-lockfile",
+                    ),
+                ).toHaveLength(1);
+                expect(
+                    result.filter(
+                        (c) => c.run === "pip install -r requirements.txt",
+                    ),
+                ).toHaveLength(1);
             });
         });
 
@@ -556,7 +604,7 @@ describe("Workflow Generator", () => {
                 {
                     action: "",
                     run: "npm ci",
-                    name: "Install dependencies",
+                    name: "Install Node.js dependencies",
                     source: "version-file",
                 },
             ];
@@ -568,7 +616,8 @@ describe("Workflow Generator", () => {
             // Assert
             const steps = parsed.jobs["copilot-setup-steps"].steps;
             const installStep = steps.find(
-                (s: { name?: string }) => s.name === "Install dependencies",
+                (s: { name?: string }) =>
+                    s.name === "Install Node.js dependencies",
             );
             expect(installStep).toBeDefined();
             expect(installStep.run).toBe("npm ci");
