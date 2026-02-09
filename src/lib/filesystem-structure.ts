@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { consola } from "consola";
 import { Eta } from "eta";
-import { fileExists } from "../gateways/file-system-utils.js";
+import { fileExists } from "../gateways/index.js";
 
 /**
  * Template context for processing template variables in file content
