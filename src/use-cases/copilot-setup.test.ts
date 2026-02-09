@@ -163,6 +163,188 @@ describe("Workflow Generator", () => {
             });
         });
 
+        describe("when package managers are detected", () => {
+            it("should create install step for npm", async () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [
+                        { type: "node", filename: ".nvmrc", version: "20.0.0" },
+                    ],
+                    packageManagers: [
+                        {
+                            type: "npm",
+                            filename: "package.json",
+                            lockfile: "package-lock.json",
+                        },
+                    ],
+                };
+
+                // Act
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
+
+                // Assert
+                expect(result).toContainEqual(
+                    expect.objectContaining({
+                        name: "Install dependencies",
+                        run: "npm ci",
+                        source: "version-file",
+                    }),
+                );
+            });
+
+            it("should create install step for yarn", async () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [
+                        { type: "node", filename: ".nvmrc", version: "20.0.0" },
+                    ],
+                    packageManagers: [
+                        {
+                            type: "yarn",
+                            filename: "package.json",
+                            lockfile: "yarn.lock",
+                        },
+                    ],
+                };
+
+                // Act
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
+
+                // Assert
+                expect(result).toContainEqual(
+                    expect.objectContaining({
+                        name: "Install dependencies",
+                        run: "yarn install --frozen-lockfile",
+                        source: "version-file",
+                    }),
+                );
+            });
+
+            it("should create install step for pip", async () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [
+                        {
+                            type: "python",
+                            filename: ".python-version",
+                            version: "3.12.0",
+                        },
+                    ],
+                    packageManagers: [
+                        { type: "pip", filename: "requirements.txt" },
+                    ],
+                };
+
+                // Act
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
+
+                // Assert
+                expect(result).toContainEqual(
+                    expect.objectContaining({
+                        name: "Install dependencies",
+                        run: "pip install -r requirements.txt",
+                        source: "version-file",
+                    }),
+                );
+            });
+
+            it("should create install step for bundler", async () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [
+                        {
+                            type: "ruby",
+                            filename: ".ruby-version",
+                            version: "3.2.0",
+                        },
+                    ],
+                    packageManagers: [
+                        {
+                            type: "bundler",
+                            filename: "Gemfile",
+                            lockfile: "Gemfile.lock",
+                        },
+                    ],
+                };
+
+                // Act
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
+
+                // Assert
+                expect(result).toContainEqual(
+                    expect.objectContaining({
+                        name: "Install dependencies",
+                        run: "bundle install",
+                        source: "version-file",
+                    }),
+                );
+            });
+
+            it("should deduplicate install steps for same package manager type", async () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [
+                        { type: "node", filename: ".nvmrc", version: "20.0.0" },
+                    ],
+                    packageManagers: [
+                        {
+                            type: "npm",
+                            filename: "package.json",
+                            lockfile: "package-lock.json",
+                        },
+                        {
+                            type: "npm",
+                            filename: "package.json",
+                            lockfile: "package-lock.json",
+                        },
+                    ],
+                };
+
+                // Act
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
+
+                // Assert
+                const installSteps = result.filter((c) => c.run === "npm ci");
+                expect(installSteps).toHaveLength(1);
+            });
+
+            it("should not create install step when mise is detected", async () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: true,
+                    versionFiles: [
+                        { type: "node", filename: ".nvmrc", version: "20.0.0" },
+                    ],
+                    packageManagers: [
+                        {
+                            type: "npm",
+                            filename: "package.json",
+                            lockfile: "package-lock.json",
+                        },
+                    ],
+                };
+
+                // Act
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
+
+                // Assert
+                expect(result).toHaveLength(1);
+                expect(result[0].action).toBe("jdx/mise-action");
+                expect(result.filter((c) => c.run)).toHaveLength(0);
+            });
+        });
+
         describe("when no configuration files exist", () => {
             it("should return empty array when no version files detected", async () => {
                 // Arrange
@@ -361,6 +543,60 @@ describe("Workflow Generator", () => {
                 s.uses.includes("actions/setup-node"),
             );
             expect(nodeStep.with["node-version-file"]).toBe(".nvmrc");
+        });
+
+        it("should include install steps with run command", async () => {
+            // Arrange
+            const candidates: SetupStepCandidate[] = [
+                {
+                    action: "actions/setup-node",
+                    version: "v4",
+                    source: "version-file",
+                },
+                {
+                    action: "",
+                    run: "npm ci",
+                    name: "Install dependencies",
+                    source: "version-file",
+                },
+            ];
+
+            // Act
+            const content = await generateWorkflowContent(candidates);
+            const parsed = parseYaml(content);
+
+            // Assert
+            const steps = parsed.jobs["copilot-setup-steps"].steps;
+            const installStep = steps.find(
+                (s: { name?: string }) => s.name === "Install dependencies",
+            );
+            expect(installStep).toBeDefined();
+            expect(installStep.run).toBe("npm ci");
+            expect(installStep.uses).toBeUndefined();
+        });
+
+        it("should include custom step name when provided", async () => {
+            // Arrange
+            const candidates: SetupStepCandidate[] = [
+                {
+                    action: "actions/setup-node",
+                    version: "v4",
+                    source: "version-file",
+                    name: "Setup Node.js environment",
+                },
+            ];
+
+            // Act
+            const content = await generateWorkflowContent(candidates);
+            const parsed = parseYaml(content);
+
+            // Assert
+            const steps = parsed.jobs["copilot-setup-steps"].steps;
+            const nodeStep = steps.find(
+                (s: { name?: string }) =>
+                    s.name === "Setup Node.js environment",
+            );
+            expect(nodeStep).toBeDefined();
         });
     });
 

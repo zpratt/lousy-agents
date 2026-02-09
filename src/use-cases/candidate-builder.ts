@@ -135,9 +135,7 @@ function buildInstallCandidatesFromPackageManagers(
         addedTypes.add(pm.type);
 
         // Find the config for this package manager
-        const pmConfig = config.packageManagers.find(
-            (c) => c.type === pm.type,
-        );
+        const pmConfig = config.packageManagers.find((c) => c.type === pm.type);
         if (!pmConfig) {
             continue;
         }

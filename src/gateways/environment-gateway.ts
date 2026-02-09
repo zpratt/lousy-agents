@@ -74,7 +74,59 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
 
         // Detect package managers
         const packageManagers: PackageManagerFile[] = [];
-        for (const pmConfig of config.packageManagers) {
+
+        // Special handling for Node.js package managers (npm, yarn, pnpm)
+        // Check lockfiles first to determine which package manager to use
+        const nodePackageManagers = config.packageManagers.filter(
+            (pm) =>
+                pm.type === "npm" || pm.type === "yarn" || pm.type === "pnpm",
+        );
+        const otherPackageManagers = config.packageManagers.filter(
+            (pm) =>
+                pm.type !== "npm" && pm.type !== "yarn" && pm.type !== "pnpm",
+        );
+
+        // For Node.js: prioritize by lockfile existence
+        const packageJsonPath = join(targetDir, "package.json");
+        if (await fileExists(packageJsonPath)) {
+            let nodePackageManagerDetected = false;
+            // Check lockfiles in order of preference: pnpm, yarn, npm
+            const lockfileOrder = ["pnpm", "yarn", "npm"];
+            for (const pmType of lockfileOrder) {
+                const pmConfig = nodePackageManagers.find(
+                    (pm) => pm.type === pmType,
+                );
+                if (!pmConfig || !pmConfig.lockfile) {
+                    continue;
+                }
+                const lockfilePath = join(targetDir, pmConfig.lockfile);
+                if (await fileExists(lockfilePath)) {
+                    packageManagers.push({
+                        type: pmConfig.type,
+                        filename: pmConfig.manifestFile,
+                        lockfile: pmConfig.lockfile,
+                    });
+                    nodePackageManagerDetected = true;
+                    break;
+                }
+            }
+            // If no lockfile found, default to npm
+            if (!nodePackageManagerDetected) {
+                const npmConfig = nodePackageManagers.find(
+                    (pm) => pm.type === "npm",
+                );
+                if (npmConfig) {
+                    packageManagers.push({
+                        type: npmConfig.type,
+                        filename: npmConfig.manifestFile,
+                        lockfile: undefined,
+                    });
+                }
+            }
+        }
+
+        // For other package managers, check normally
+        for (const pmConfig of otherPackageManagers) {
             const manifestPath = join(targetDir, pmConfig.manifestFile);
             if (await fileExists(manifestPath)) {
                 const lockfilePath = pmConfig.lockfile
