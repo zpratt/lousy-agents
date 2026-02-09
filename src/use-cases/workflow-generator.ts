@@ -132,6 +132,16 @@ function buildStepFromCandidate(
     candidate: SetupStepCandidate,
     options?: CandidateToStepOptions,
 ): Step {
+    // Handle run steps (install commands)
+    if (candidate.run) {
+        const stepProps = {
+            name: candidate.name || "Run command",
+            run: candidate.run,
+        };
+        return new Step(stepProps as GeneratedWorkflowTypes.Step);
+    }
+
+    // Handle action steps (uses)
     const version = getVersionForAction(
         candidate.action,
         candidate.version,
@@ -144,7 +154,7 @@ function buildStepFromCandidate(
             : undefined;
 
     const stepProps: StepPropsWithScalar = {
-        name: generateStepName(candidate.action),
+        name: candidate.name || generateStepName(candidate.action),
         uses: usesValue,
         with: withConfig,
     };

@@ -7,6 +7,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type {
     DetectedEnvironment,
+    PackageManagerFile,
     VersionFile,
 } from "../entities/copilot-setup.js";
 import {
@@ -71,9 +72,30 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
             }
         }
 
+        // Detect package managers
+        const packageManagers: PackageManagerFile[] = [];
+        for (const pmConfig of config.packageManagers) {
+            const manifestPath = join(targetDir, pmConfig.manifestFile);
+            if (await fileExists(manifestPath)) {
+                const lockfilePath = pmConfig.lockfile
+                    ? join(targetDir, pmConfig.lockfile)
+                    : undefined;
+                const hasLockfile = lockfilePath
+                    ? await fileExists(lockfilePath)
+                    : false;
+
+                packageManagers.push({
+                    type: pmConfig.type,
+                    filename: pmConfig.manifestFile,
+                    lockfile: hasLockfile ? pmConfig.lockfile : undefined,
+                });
+            }
+        }
+
         return {
             hasMise,
             versionFiles,
+            packageManagers,
         };
     }
 }

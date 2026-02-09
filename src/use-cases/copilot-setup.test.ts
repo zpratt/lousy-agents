@@ -32,6 +32,7 @@ describe("Workflow Generator", () => {
                     versionFiles: [
                         { type: "node", filename: ".nvmrc", version: "20.0.0" },
                     ],
+                    packageManagers: [],
                 };
 
                 // Act
@@ -55,6 +56,7 @@ describe("Workflow Generator", () => {
                     versionFiles: [
                         { type: "node", filename: ".nvmrc", version: "20.0.0" },
                     ],
+                    packageManagers: [],
                 };
 
                 // Act
@@ -81,6 +83,7 @@ describe("Workflow Generator", () => {
                             version: "3.12.0",
                         },
                     ],
+                    packageManagers: [],
                 };
 
                 // Act
@@ -108,6 +111,7 @@ describe("Workflow Generator", () => {
                             version: "20.0.0",
                         },
                     ],
+                    packageManagers: [],
                 };
 
                 // Act
@@ -138,6 +142,7 @@ describe("Workflow Generator", () => {
                             version: "1.22",
                         },
                     ],
+                    packageManagers: [],
                 };
 
                 // Act
@@ -164,6 +169,7 @@ describe("Workflow Generator", () => {
                 const environment: DetectedEnvironment = {
                     hasMise: false,
                     versionFiles: [],
+                    packageManagers: [],
                 };
 
                 // Act
