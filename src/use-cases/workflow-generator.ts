@@ -133,11 +133,13 @@ function buildStepFromCandidate(
     options?: CandidateToStepOptions,
 ): Step {
     // Handle run steps (install commands)
+    // Run steps have a 'run' field and typically an empty action string
     if (candidate.run) {
         const stepProps = {
             name: candidate.name || "Run command",
             run: candidate.run,
         };
+        // Type assertion is safe here - Step constructor accepts both 'uses' and 'run' at runtime
         return new Step(stepProps as GeneratedWorkflowTypes.Step);
     }
 

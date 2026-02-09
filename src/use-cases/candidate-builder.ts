@@ -144,8 +144,10 @@ function buildInstallCandidatesFromPackageManagers(
         const stepName = getInstallStepName(pm.type);
 
         // Create install step candidate
+        // Note: Empty action string indicates this is a run step (uses 'run' field instead of 'uses')
+        // This is checked in workflow-generator.ts buildStepFromCandidate()
         candidates.push({
-            action: "", // Empty action means this is a run step
+            action: "",
             source: "version-file",
             name: stepName,
             run: pmConfig.installCommand,
