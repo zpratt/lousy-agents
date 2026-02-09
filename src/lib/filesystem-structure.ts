@@ -1,7 +1,8 @@
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { consola } from "consola";
 import { Eta } from "eta";
+import { fileExists } from "../gateways/file-system-utils.js";
 
 /**
  * Template context for processing template variables in file content
@@ -37,18 +38,6 @@ export type FilesystemNode = FileNode | DirectoryNode;
  */
 export interface FilesystemStructure {
     nodes: FilesystemNode[];
-}
-
-/**
- * Checks if a file or directory exists
- */
-export async function fileExists(path: string): Promise<boolean> {
-    try {
-        await access(path);
-        return true;
-    } catch {
-        return false;
-    }
 }
 
 /**
