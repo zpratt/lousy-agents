@@ -63,7 +63,7 @@
         "@rspack/cli": "1.7.6",
         "@rspack/core": "1.7.6",
         "@types/chance": "1.1.7",
-        "@types/node": "25.2.2",
+        "@types/node": "25.2.3",
         "chance": "1.1.13",
         "testcontainers": "11.11.0",
         "tsx": "4.21.0",
