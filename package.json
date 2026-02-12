@@ -52,7 +52,7 @@
         "@github-actions-workflow-ts/lib": "2.4.0",
         "@modelcontextprotocol/sdk": "1.26.0",
         "c12": "3.3.3",
-        "citty": "0.2.0",
+        "citty": "0.2.1",
         "consola": "3.4.2",
         "eta": "4.5.1",
         "yaml": "2.8.2",
