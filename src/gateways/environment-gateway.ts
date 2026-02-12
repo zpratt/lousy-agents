@@ -52,12 +52,32 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
     }
 
     async detectEnvironment(targetDir: string): Promise<DetectedEnvironment> {
-        const miseTomlPath = join(targetDir, "mise.toml");
-        const hasMise = await fileExists(miseTomlPath);
-
         const config = await this.getConfig();
-        const filenameToType = getVersionFilenameToTypeMap(config);
 
+        const hasMise = await this.detectMise(targetDir);
+        const versionFiles = await this.detectVersionFiles(targetDir, config);
+        const packageManagers = await this.detectPackageManagers(
+            targetDir,
+            config,
+        );
+
+        return {
+            hasMise,
+            versionFiles,
+            packageManagers,
+        };
+    }
+
+    private async detectMise(targetDir: string): Promise<boolean> {
+        const miseTomlPath = join(targetDir, "mise.toml");
+        return fileExists(miseTomlPath);
+    }
+
+    private async detectVersionFiles(
+        targetDir: string,
+        config: CopilotSetupConfig,
+    ): Promise<VersionFile[]> {
+        const filenameToType = getVersionFilenameToTypeMap(config);
         const versionFiles: VersionFile[] = [];
 
         for (const fileConfig of config.versionFiles) {
@@ -72,11 +92,15 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
             }
         }
 
-        // Detect package managers
+        return versionFiles;
+    }
+
+    private async detectPackageManagers(
+        targetDir: string,
+        config: CopilotSetupConfig,
+    ): Promise<PackageManagerFile[]> {
         const packageManagers: PackageManagerFile[] = [];
 
-        // Special handling for Node.js package managers (npm, yarn, pnpm)
-        // Check lockfiles first to determine which package manager to use
         const nodePackageManagers = config.packageManagers.filter(
             (pm) =>
                 pm.type === "npm" || pm.type === "yarn" || pm.type === "pnpm",
@@ -86,46 +110,74 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
                 pm.type !== "npm" && pm.type !== "yarn" && pm.type !== "pnpm",
         );
 
-        // For Node.js: prioritize by lockfile existence
+        // Detect Node.js package manager
+        const nodePackageManager = await this.detectNodePackageManager(
+            targetDir,
+            nodePackageManagers,
+        );
+        if (nodePackageManager) {
+            packageManagers.push(nodePackageManager);
+        }
+
+        // Detect other package managers
+        const otherDetectedManagers = await this.detectOtherPackageManagers(
+            targetDir,
+            otherPackageManagers,
+        );
+        packageManagers.push(...otherDetectedManagers);
+
+        return packageManagers;
+    }
+
+    private async detectNodePackageManager(
+        targetDir: string,
+        nodePackageManagers: CopilotSetupConfig["packageManagers"],
+    ): Promise<PackageManagerFile | null> {
         const packageJsonPath = join(targetDir, "package.json");
-        if (await fileExists(packageJsonPath)) {
-            let nodePackageManagerDetected = false;
-            // Check lockfiles in order of preference: pnpm, yarn, npm
-            const lockfileOrder = ["pnpm", "yarn", "npm"];
-            for (const pmType of lockfileOrder) {
-                const pmConfig = nodePackageManagers.find(
-                    (pm) => pm.type === pmType,
-                );
-                if (!pmConfig || !pmConfig.lockfile) {
-                    continue;
-                }
-                const lockfilePath = join(targetDir, pmConfig.lockfile);
-                if (await fileExists(lockfilePath)) {
-                    packageManagers.push({
-                        type: pmConfig.type,
-                        filename: pmConfig.manifestFile,
-                        lockfile: pmConfig.lockfile,
-                    });
-                    nodePackageManagerDetected = true;
-                    break;
-                }
+        if (!(await fileExists(packageJsonPath))) {
+            return null;
+        }
+
+        // Priority order for Node.js package managers
+        const lockfileOrder = ["pnpm", "yarn", "npm"];
+
+        for (const pmType of lockfileOrder) {
+            const pmConfig = nodePackageManagers.find(
+                (pm) => pm.type === pmType,
+            );
+            if (!pmConfig?.lockfile) {
+                continue;
             }
-            // If no lockfile found, default to npm
-            if (!nodePackageManagerDetected) {
-                const npmConfig = nodePackageManagers.find(
-                    (pm) => pm.type === "npm",
-                );
-                if (npmConfig) {
-                    packageManagers.push({
-                        type: npmConfig.type,
-                        filename: npmConfig.manifestFile,
-                        lockfile: undefined,
-                    });
-                }
+
+            const lockfilePath = join(targetDir, pmConfig.lockfile);
+            if (await fileExists(lockfilePath)) {
+                return {
+                    type: pmConfig.type,
+                    filename: pmConfig.manifestFile,
+                    lockfile: pmConfig.lockfile,
+                };
             }
         }
 
-        // For other package managers, check normally
+        // Default to npm if no lockfile found
+        const npmConfig = nodePackageManagers.find((pm) => pm.type === "npm");
+        if (npmConfig) {
+            return {
+                type: npmConfig.type,
+                filename: npmConfig.manifestFile,
+                lockfile: undefined,
+            };
+        }
+
+        return null;
+    }
+
+    private async detectOtherPackageManagers(
+        targetDir: string,
+        otherPackageManagers: CopilotSetupConfig["packageManagers"],
+    ): Promise<PackageManagerFile[]> {
+        const packageManagers: PackageManagerFile[] = [];
+
         for (const pmConfig of otherPackageManagers) {
             const manifestPath = join(targetDir, pmConfig.manifestFile);
             if (await fileExists(manifestPath)) {
@@ -144,11 +196,7 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
             }
         }
 
-        return {
-            hasMise,
-            versionFiles,
-            packageManagers,
-        };
+        return packageManagers;
     }
 }
 
