@@ -58,6 +58,12 @@ export interface PackageManagerMapping {
      */
     lockfile?: string;
     /**
+     * Whether the lockfile must exist for this package manager to be detected.
+     * Useful for tools like Poetry where pyproject.toml is ambiguous (used by many tools),
+     * but poetry.lock confirms it's a Poetry project.
+     */
+    requiresLockfile?: boolean;
+    /**
      * The install command to run (e.g., "npm ci", "pip install -r requirements.txt")
      */
     installCommand: string;
@@ -178,8 +184,9 @@ const DEFAULT_PACKAGE_MANAGERS: PackageManagerMapping[] = [
     },
     {
         type: "poetry",
-        manifestFile: "poetry.lock",
+        manifestFile: "pyproject.toml",
         lockfile: "poetry.lock",
+        requiresLockfile: true,
         installCommand: "poetry install --no-root",
     },
     // Ruby

@@ -216,6 +216,11 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
                     ? await fileExists(lockfilePath)
                     : false;
 
+                // Skip if lockfile is required but not present
+                if (pmConfig.requiresLockfile && !hasLockfile) {
+                    continue;
+                }
+
                 return {
                     type: pmConfig.type,
                     filename: pmConfig.manifestFile,
@@ -242,6 +247,11 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
                 const hasLockfile = lockfilePath
                     ? await fileExists(lockfilePath)
                     : false;
+
+                // Skip if lockfile is required but not present
+                if (pmConfig.requiresLockfile && !hasLockfile) {
+                    continue;
+                }
 
                 packageManagers.push({
                     type: pmConfig.type,
