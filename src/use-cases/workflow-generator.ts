@@ -132,6 +132,18 @@ function buildStepFromCandidate(
     candidate: SetupStepCandidate,
     options?: CandidateToStepOptions,
 ): Step {
+    // Handle run steps (install commands)
+    // Run steps have a 'run' field and no action (or empty action string)
+    if (candidate.run && !candidate.action) {
+        const stepProps = {
+            name: candidate.name || "Run command",
+            run: candidate.run,
+        };
+        // Type assertion is safe here - Step constructor accepts both 'uses' and 'run' at runtime
+        return new Step(stepProps as GeneratedWorkflowTypes.Step);
+    }
+
+    // Handle action steps (uses)
     const version = getVersionForAction(
         candidate.action,
         candidate.version,
@@ -144,7 +156,7 @@ function buildStepFromCandidate(
             : undefined;
 
     const stepProps: StepPropsWithScalar = {
-        name: generateStepName(candidate.action),
+        name: candidate.name || generateStepName(candidate.action),
         uses: usesValue,
         with: withConfig,
     };

@@ -18,11 +18,49 @@ export interface VersionFile {
 }
 
 /**
+ * Package manager types supported by dependabot and common ecosystems
+ */
+export type PackageManagerType =
+    | "npm"
+    | "yarn"
+    | "pnpm"
+    | "pip"
+    | "pipenv"
+    | "poetry"
+    | "bundler"
+    | "cargo"
+    | "composer"
+    | "maven"
+    | "gradle"
+    | "gomod"
+    | "pub";
+
+/**
+ * Node.js package manager types (in priority order: npm > yarn > pnpm)
+ */
+export const NODE_PACKAGE_MANAGERS = ["npm", "yarn", "pnpm"] as const;
+
+/**
+ * Python package manager types (in priority order)
+ */
+export const PYTHON_PACKAGE_MANAGERS = ["poetry", "pipenv", "pip"] as const;
+
+/**
+ * Represents a detected package manager file in the repository
+ */
+export interface PackageManagerFile {
+    type: PackageManagerType;
+    filename: string;
+    lockfile?: string;
+}
+
+/**
  * Result of detecting environment configuration
  */
 export interface DetectedEnvironment {
     hasMise: boolean;
     versionFiles: VersionFile[];
+    packageManagers: PackageManagerFile[];
 }
 
 /**
@@ -33,6 +71,10 @@ export interface SetupStepCandidate {
     version?: string;
     config?: Record<string, unknown>;
     source: "version-file" | "workflow";
+    /** Name override for the step (e.g., "Install dependencies") */
+    name?: string;
+    /** Shell command to run (for run steps instead of uses) */
+    run?: string;
 }
 
 /**

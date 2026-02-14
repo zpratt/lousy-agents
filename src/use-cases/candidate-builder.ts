@@ -1,11 +1,12 @@
 /**
  * Use case for building setup step candidates from environment detection.
  * This module handles the logic of determining which GitHub Actions
- * setup steps should be added based on detected version files.
+ * setup steps should be added based on detected version files and package managers.
  */
 
 import type {
     DetectedEnvironment,
+    PackageManagerFile,
     SetupStepCandidate,
     VersionFile,
     VersionFileType,
@@ -49,12 +50,22 @@ export async function buildCandidatesFromEnvironment(
     }
 
     // Otherwise, add individual setup actions for each version file
-    return buildCandidatesFromVersionFiles(
+    const setupCandidates = await buildCandidatesFromVersionFiles(
         environment.versionFiles,
         versionTypeToAction,
         versionFileConfigKeys,
         versionGateway,
     );
+    candidates.push(...setupCandidates);
+
+    // Add install steps for detected package managers
+    const installCandidates = buildInstallCandidatesFromPackageManagers(
+        environment.packageManagers,
+        loadedConfig,
+    );
+    candidates.push(...installCandidates);
+
+    return candidates;
 }
 
 /**
@@ -101,4 +112,69 @@ async function buildCandidatesFromVersionFiles(
     }
 
     return candidates;
+}
+
+/**
+ * Builds install step candidates from detected package managers
+ * @param packageManagers Array of detected package managers
+ * @param config Configuration for package manager mappings
+ * @returns Array of install step candidates
+ */
+function buildInstallCandidatesFromPackageManagers(
+    packageManagers: PackageManagerFile[],
+    config: CopilotSetupConfig,
+): SetupStepCandidate[] {
+    const candidates: SetupStepCandidate[] = [];
+    const addedTypes = new Set<string>();
+
+    for (const pm of packageManagers) {
+        // Skip if we've already added this package manager type
+        if (addedTypes.has(pm.type)) {
+            continue;
+        }
+        addedTypes.add(pm.type);
+
+        // Find the config for this package manager
+        const pmConfig = config.packageManagers.find((c) => c.type === pm.type);
+        if (!pmConfig) {
+            continue;
+        }
+
+        // Determine a descriptive name for the install step
+        const stepName = getInstallStepName(pm.type);
+
+        // Create install step candidate
+        // Note: Empty action string indicates this is a run step (uses 'run' field instead of 'uses')
+        // This is checked in workflow-generator.ts buildStepFromCandidate()
+        candidates.push({
+            action: "",
+            source: "version-file",
+            name: stepName,
+            run: pmConfig.installCommand,
+        });
+    }
+
+    return candidates;
+}
+
+/**
+ * Gets a descriptive name for an install step based on package manager type
+ */
+function getInstallStepName(packageManagerType: string): string {
+    const names: Record<string, string> = {
+        npm: "Install Node.js dependencies",
+        yarn: "Install Node.js dependencies",
+        pnpm: "Install Node.js dependencies",
+        pip: "Install Python dependencies",
+        pipenv: "Install Python dependencies",
+        poetry: "Install Python dependencies",
+        bundler: "Install Ruby dependencies",
+        cargo: "Build Rust project",
+        composer: "Install PHP dependencies",
+        maven: "Install Java dependencies",
+        gradle: "Build Gradle project",
+        gomod: "Download Go dependencies",
+        pub: "Install Dart dependencies",
+    };
+    return names[packageManagerType] || "Install dependencies";
 }

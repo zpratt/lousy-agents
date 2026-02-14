@@ -4,7 +4,10 @@
  */
 
 import { loadConfig } from "c12";
-import type { VersionFileType } from "../entities/copilot-setup.js";
+import type {
+    PackageManagerType,
+    VersionFileType,
+} from "../entities/copilot-setup.js";
 
 /**
  * Configuration for a version file mapping
@@ -39,6 +42,34 @@ export interface SetupActionConfig {
 }
 
 /**
+ * Configuration for a package manager mapping
+ */
+export interface PackageManagerMapping {
+    /**
+     * The type of package manager (e.g., "npm", "pip")
+     */
+    type: PackageManagerType;
+    /**
+     * The manifest filename to detect (e.g., "package.json", "requirements.txt")
+     */
+    manifestFile: string;
+    /**
+     * Optional lockfile to detect (e.g., "package-lock.json")
+     */
+    lockfile?: string;
+    /**
+     * Whether the lockfile must exist for this package manager to be detected.
+     * Useful for tools like Poetry where pyproject.toml is ambiguous (used by many tools),
+     * but poetry.lock confirms it's a Poetry project.
+     */
+    requiresLockfile?: boolean;
+    /**
+     * The install command to run (e.g., "npm ci", "pip install -r requirements.txt")
+     */
+    installCommand: string;
+}
+
+/**
  * Configuration for copilot-setup command
  */
 export interface CopilotSetupConfig {
@@ -54,6 +85,10 @@ export interface CopilotSetupConfig {
      * List of action patterns to detect in existing workflows
      */
     setupActionPatterns: string[];
+    /**
+     * List of package manager mappings for install step generation
+     */
+    packageManagers: PackageManagerMapping[];
 }
 
 /**
@@ -112,12 +147,104 @@ const DEFAULT_SETUP_ACTION_PATTERNS: string[] = [
 ];
 
 /**
+ * Default package manager mappings
+ * Based on Dependabot supported ecosystems
+ */
+const DEFAULT_PACKAGE_MANAGERS: PackageManagerMapping[] = [
+    // Node.js package managers
+    {
+        type: "npm",
+        manifestFile: "package.json",
+        lockfile: "package-lock.json",
+        installCommand: "npm ci",
+    },
+    {
+        type: "yarn",
+        manifestFile: "package.json",
+        lockfile: "yarn.lock",
+        installCommand: "yarn install --frozen-lockfile",
+    },
+    {
+        type: "pnpm",
+        manifestFile: "package.json",
+        lockfile: "pnpm-lock.yaml",
+        installCommand: "pnpm install --frozen-lockfile",
+    },
+    // Python package managers
+    {
+        type: "pip",
+        manifestFile: "requirements.txt",
+        installCommand: "pip install -r requirements.txt",
+    },
+    {
+        type: "pipenv",
+        manifestFile: "Pipfile",
+        lockfile: "Pipfile.lock",
+        installCommand: "pipenv install --deploy",
+    },
+    {
+        type: "poetry",
+        manifestFile: "pyproject.toml",
+        lockfile: "poetry.lock",
+        requiresLockfile: true,
+        installCommand: "poetry install --no-root",
+    },
+    // Ruby
+    {
+        type: "bundler",
+        manifestFile: "Gemfile",
+        lockfile: "Gemfile.lock",
+        installCommand: "bundle install",
+    },
+    // Rust
+    {
+        type: "cargo",
+        manifestFile: "Cargo.toml",
+        lockfile: "Cargo.lock",
+        installCommand: "cargo build",
+    },
+    // PHP
+    {
+        type: "composer",
+        manifestFile: "composer.json",
+        lockfile: "composer.lock",
+        installCommand: "composer install",
+    },
+    // Java
+    {
+        type: "maven",
+        manifestFile: "pom.xml",
+        installCommand: "mvn install -DskipTests",
+    },
+    {
+        type: "gradle",
+        manifestFile: "build.gradle",
+        installCommand: "gradle build -x test",
+    },
+    // Go
+    {
+        type: "gomod",
+        manifestFile: "go.mod",
+        lockfile: "go.sum",
+        installCommand: "go mod download",
+    },
+    // Dart/Flutter
+    {
+        type: "pub",
+        manifestFile: "pubspec.yaml",
+        lockfile: "pubspec.lock",
+        installCommand: "dart pub get",
+    },
+];
+
+/**
  * Default copilot-setup configuration
  */
 const DEFAULT_CONFIG: CopilotSetupConfig = {
     versionFiles: DEFAULT_VERSION_FILES,
     setupActions: DEFAULT_SETUP_ACTIONS,
     setupActionPatterns: DEFAULT_SETUP_ACTION_PATTERNS,
+    packageManagers: DEFAULT_PACKAGE_MANAGERS,
 };
 
 /**
