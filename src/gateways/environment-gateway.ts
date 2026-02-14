@@ -160,8 +160,8 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
             return null;
         }
 
-        // Priority order for Node.js package managers
-        const lockfileOrder = ["pnpm", "yarn", "npm"];
+        // Priority order for Node.js package managers: npm > yarn > pnpm
+        const lockfileOrder = ["npm", "yarn", "pnpm"];
 
         for (const pmType of lockfileOrder) {
             const pmConfig = nodePackageManagers.find(

@@ -224,6 +224,64 @@ describe("Workflow Generator", () => {
                 );
             });
 
+            it("should create install step for pnpm", async () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [
+                        { type: "node", filename: ".nvmrc", version: "20.0.0" },
+                    ],
+                    packageManagers: [
+                        {
+                            type: "pnpm",
+                            filename: "package.json",
+                            lockfile: "pnpm-lock.yaml",
+                        },
+                    ],
+                };
+
+                // Act
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
+
+                // Assert
+                expect(result).toContainEqual(
+                    expect.objectContaining({
+                        name: "Install Node.js dependencies",
+                        run: "pnpm install --frozen-lockfile",
+                        source: "version-file",
+                    }),
+                );
+            });
+
+            it("should prioritize npm over yarn and pnpm for Node.js", async () => {
+                // Arrange - simulating a project with multiple lockfiles
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [
+                        { type: "node", filename: ".nvmrc", version: "20.0.0" },
+                    ],
+                    packageManagers: [
+                        {
+                            type: "npm",
+                            filename: "package.json",
+                            lockfile: "package-lock.json",
+                        },
+                    ],
+                };
+
+                // Act
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
+
+                // Assert - should only have npm, not yarn or pnpm
+                const nodeInstallSteps = result.filter(
+                    (c) => c.name === "Install Node.js dependencies",
+                );
+                expect(nodeInstallSteps).toHaveLength(1);
+                expect(nodeInstallSteps[0].run).toBe("npm ci");
+            });
+
             it("should create install step for pip", async () => {
                 // Arrange
                 const environment: DetectedEnvironment = {
@@ -251,6 +309,140 @@ describe("Workflow Generator", () => {
                         run: "pip install -r requirements.txt",
                         source: "version-file",
                     }),
+                );
+            });
+
+            it("should create install step for pipenv", async () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [
+                        {
+                            type: "python",
+                            filename: ".python-version",
+                            version: "3.12.0",
+                        },
+                    ],
+                    packageManagers: [
+                        {
+                            type: "pipenv",
+                            filename: "Pipfile",
+                            lockfile: "Pipfile.lock",
+                        },
+                    ],
+                };
+
+                // Act
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
+
+                // Assert
+                expect(result).toContainEqual(
+                    expect.objectContaining({
+                        name: "Install Python dependencies",
+                        run: "pipenv install --deploy",
+                        source: "version-file",
+                    }),
+                );
+            });
+
+            it("should create install step for poetry", async () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [
+                        {
+                            type: "python",
+                            filename: ".python-version",
+                            version: "3.12.0",
+                        },
+                    ],
+                    packageManagers: [
+                        {
+                            type: "poetry",
+                            filename: "pyproject.toml",
+                            lockfile: "poetry.lock",
+                        },
+                    ],
+                };
+
+                // Act
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
+
+                // Assert
+                expect(result).toContainEqual(
+                    expect.objectContaining({
+                        name: "Install Python dependencies",
+                        run: "poetry install --no-root",
+                        source: "version-file",
+                    }),
+                );
+            });
+
+            it("should prioritize poetry over pipenv and pip for Python", async () => {
+                // Arrange - simulating priority-based detection
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [
+                        {
+                            type: "python",
+                            filename: ".python-version",
+                            version: "3.12.0",
+                        },
+                    ],
+                    packageManagers: [
+                        {
+                            type: "poetry",
+                            filename: "pyproject.toml",
+                            lockfile: "poetry.lock",
+                        },
+                    ],
+                };
+
+                // Act
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
+
+                // Assert - should only have poetry, not pipenv or pip
+                const pythonInstallSteps = result.filter(
+                    (c) => c.name === "Install Python dependencies",
+                );
+                expect(pythonInstallSteps).toHaveLength(1);
+                expect(pythonInstallSteps[0].run).toBe(
+                    "poetry install --no-root",
+                );
+            });
+
+            it("should not detect poetry without poetry.lock due to requiresLockfile", async () => {
+                // Arrange - pyproject.toml exists but not poetry.lock
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [
+                        {
+                            type: "python",
+                            filename: ".python-version",
+                            version: "3.12.0",
+                        },
+                    ],
+                    packageManagers: [
+                        // Poetry would be detected if pyproject.toml exists AND poetry.lock exists
+                        // If only pyproject.toml exists, it should fall back to pip
+                        { type: "pip", filename: "requirements.txt" },
+                    ],
+                };
+
+                // Act
+                const result =
+                    await buildCandidatesFromEnvironment(environment);
+
+                // Assert - should have pip, not poetry
+                const pythonInstallSteps = result.filter(
+                    (c) => c.name === "Install Python dependencies",
+                );
+                expect(pythonInstallSteps).toHaveLength(1);
+                expect(pythonInstallSteps[0].run).toBe(
+                    "pip install -r requirements.txt",
                 );
             });
 

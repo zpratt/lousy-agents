@@ -36,7 +36,7 @@ export type PackageManagerType =
     | "pub";
 
 /**
- * Node.js package manager types
+ * Node.js package manager types (in priority order: npm > yarn > pnpm)
  */
 export const NODE_PACKAGE_MANAGERS = ["npm", "yarn", "pnpm"] as const;
 
