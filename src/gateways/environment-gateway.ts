@@ -11,6 +11,10 @@ import type {
     VersionFile,
 } from "../entities/copilot-setup.js";
 import {
+    NODE_PACKAGE_MANAGERS,
+    PYTHON_PACKAGE_MANAGERS,
+} from "../entities/copilot-setup.js";
+import {
     type CopilotSetupConfig,
     getVersionFilenameToTypeMap,
     loadCopilotSetupConfig,
@@ -101,22 +105,40 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
     ): Promise<PackageManagerFile[]> {
         const packageManagers: PackageManagerFile[] = [];
 
-        const nodePackageManagers = config.packageManagers.filter(
-            (pm) =>
-                pm.type === "npm" || pm.type === "yarn" || pm.type === "pnpm",
+        // Helper to check if a package manager type is in a list
+        const isPackageManagerType = (
+            pm: CopilotSetupConfig["packageManagers"][0],
+            types: readonly string[],
+        ): boolean => types.includes(pm.type);
+
+        const nodePackageManagers = config.packageManagers.filter((pm) =>
+            isPackageManagerType(pm, NODE_PACKAGE_MANAGERS),
+        );
+        const pythonPackageManagers = config.packageManagers.filter((pm) =>
+            isPackageManagerType(pm, PYTHON_PACKAGE_MANAGERS),
         );
         const otherPackageManagers = config.packageManagers.filter(
             (pm) =>
-                pm.type !== "npm" && pm.type !== "yarn" && pm.type !== "pnpm",
+                !isPackageManagerType(pm, NODE_PACKAGE_MANAGERS) &&
+                !isPackageManagerType(pm, PYTHON_PACKAGE_MANAGERS),
         );
 
-        // Detect Node.js package manager
+        // Detect Node.js package manager (with prioritization)
         const nodePackageManager = await this.detectNodePackageManager(
             targetDir,
             nodePackageManagers,
         );
         if (nodePackageManager) {
             packageManagers.push(nodePackageManager);
+        }
+
+        // Detect Python package manager (with prioritization)
+        const pythonPackageManager = await this.detectPythonPackageManager(
+            targetDir,
+            pythonPackageManagers,
+        );
+        if (pythonPackageManager) {
+            packageManagers.push(pythonPackageManager);
         }
 
         // Detect other package managers
@@ -167,6 +189,39 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
                 filename: npmConfig.manifestFile,
                 lockfile: undefined,
             };
+        }
+
+        return null;
+    }
+
+    private async detectPythonPackageManager(
+        targetDir: string,
+        pythonPackageManagers: CopilotSetupConfig["packageManagers"],
+    ): Promise<PackageManagerFile | null> {
+        // Priority order for Python package managers: poetry > pipenv > pip
+        for (const pmType of PYTHON_PACKAGE_MANAGERS) {
+            const pmConfig = pythonPackageManagers.find(
+                (pm) => pm.type === pmType,
+            );
+            if (!pmConfig) {
+                continue;
+            }
+
+            const manifestPath = join(targetDir, pmConfig.manifestFile);
+            if (await fileExists(manifestPath)) {
+                const lockfilePath = pmConfig.lockfile
+                    ? join(targetDir, pmConfig.lockfile)
+                    : undefined;
+                const hasLockfile = lockfilePath
+                    ? await fileExists(lockfilePath)
+                    : false;
+
+                return {
+                    type: pmConfig.type,
+                    filename: pmConfig.manifestFile,
+                    lockfile: hasLockfile ? pmConfig.lockfile : undefined,
+                };
+            }
         }
 
         return null;

@@ -178,7 +178,7 @@ const DEFAULT_PACKAGE_MANAGERS: PackageManagerMapping[] = [
     },
     {
         type: "poetry",
-        manifestFile: "pyproject.toml",
+        manifestFile: "poetry.lock",
         lockfile: "poetry.lock",
         installCommand: "poetry install --no-root",
     },
@@ -227,12 +227,6 @@ const DEFAULT_PACKAGE_MANAGERS: PackageManagerMapping[] = [
         manifestFile: "pubspec.yaml",
         lockfile: "pubspec.lock",
         installCommand: "dart pub get",
-    },
-    // .NET
-    {
-        type: "nuget",
-        manifestFile: "*.csproj",
-        installCommand: "dotnet restore",
     },
 ];
 

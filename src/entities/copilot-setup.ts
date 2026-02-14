@@ -33,8 +33,17 @@ export type PackageManagerType =
     | "maven"
     | "gradle"
     | "gomod"
-    | "pub"
-    | "nuget";
+    | "pub";
+
+/**
+ * Node.js package manager types
+ */
+export const NODE_PACKAGE_MANAGERS = ["npm", "yarn", "pnpm"] as const;
+
+/**
+ * Python package manager types (in priority order)
+ */
+export const PYTHON_PACKAGE_MANAGERS = ["poetry", "pipenv", "pip"] as const;
 
 /**
  * Represents a detected package manager file in the repository

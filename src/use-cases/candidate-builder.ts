@@ -175,7 +175,6 @@ function getInstallStepName(packageManagerType: string): string {
         gradle: "Build Gradle project",
         gomod: "Download Go dependencies",
         pub: "Install Dart dependencies",
-        nuget: "Restore .NET dependencies",
     };
     return names[packageManagerType] || "Install dependencies";
 }
