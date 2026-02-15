@@ -14,11 +14,13 @@ import {
     type CreateWorkflowHandler,
     createCopilotSetupWorkflowHandler,
     discoverEnvironmentHandler,
+    discoverFeedbackLoopsHandler,
     discoverWorkflowSetupActionsHandler,
     type ResolveActionsHandler,
     readCopilotSetupWorkflowHandler,
     resolveActionVersionsHandler,
     type ToolHandler,
+    validateInstructionCoverageHandler,
 } from "./tools/index.js";
 
 /**
@@ -101,6 +103,20 @@ const TOOLS: ToolConfig[] = [
         inputSchema: targetDirInputSchema,
     },
     {
+        name: "discover_feedback_loops",
+        description:
+            "Discover npm scripts from package.json and CLI tools from GitHub Actions workflows, mapping them to SDLC feedback loop phases (test, build, lint, format, security, etc.)",
+        handler: discoverFeedbackLoopsHandler,
+        inputSchema: targetDirInputSchema,
+    },
+    {
+        name: "validate_instruction_coverage",
+        description:
+            "Validate that repository instructions (.github/copilot-instructions.md and .github/instructions/*.md) document all mandatory feedback loop scripts and tools. Returns coverage percentage and suggestions for missing documentation.",
+        handler: validateInstructionCoverageHandler,
+        inputSchema: targetDirInputSchema,
+    },
+    {
         name: "read_copilot_setup_workflow",
         description:
             "Read the existing Copilot Setup Steps workflow (copilot-setup-steps.yml or .yaml) from a target directory",
@@ -175,7 +191,9 @@ export {
     analyzeActionVersionsHandler,
     createCopilotSetupWorkflowHandler,
     discoverEnvironmentHandler,
+    discoverFeedbackLoopsHandler,
     discoverWorkflowSetupActionsHandler,
     readCopilotSetupWorkflowHandler,
     resolveActionVersionsHandler,
+    validateInstructionCoverageHandler,
 } from "./tools/index.js";
