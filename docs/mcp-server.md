@@ -8,6 +8,8 @@ Lousy Agents includes an MCP (Model Context Protocol) server that exposes workfl
 | :--- | :--- |
 | `discover_environment` | Detect environment configuration files (mise.toml, .nvmrc, .python-version, etc.) |
 | `discover_workflow_setup_actions` | Find setup actions in existing GitHub Actions workflows |
+| `discover_feedback_loops` | Discover npm scripts and CLI tools, mapping them to SDLC feedback loop phases |
+| `validate_instruction_coverage` | Validate that repository instructions document all mandatory feedback loop scripts and tools |
 | `read_copilot_setup_workflow` | Read the current Copilot Setup Steps workflow |
 | `create_copilot_setup_workflow` | Create or update the Copilot Setup Steps workflow with version resolution |
 | `analyze_action_versions` | Analyze GitHub Action versions across all workflows |
@@ -72,6 +74,107 @@ steps:
   - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b  # v4.0.4
 ```
 
+## Feedback Loop Discovery and Validation
+
+The MCP server includes tools for discovering scripts and CLI tools that form SDLC feedback loops, and validating that repository instructions document these mandatory steps.
+
+### Discovering Feedback Loops
+
+The `discover_feedback_loops` tool analyzes your repository to find:
+
+- **npm scripts** from package.json
+- **CLI commands** from GitHub Actions workflows
+
+Each script and tool is mapped to an SDLC phase (test, build, lint, format, security, deploy, etc.) and categorized as mandatory or optional.
+
+**Response Format:**
+
+```json
+{
+  "success": true,
+  "summary": {
+    "totalScripts": 8,
+    "totalTools": 6,
+    "mandatoryScripts": 4,
+    "mandatoryTools": 2,
+    "packageManager": "npm"
+  },
+  "scriptsByPhase": {
+    "test": [
+      { "name": "test", "command": "vitest run", "mandatory": true },
+      { "name": "test:integration", "command": "vitest run --config vitest.integration.config.ts", "mandatory": true }
+    ],
+    "build": [
+      { "name": "build", "command": "rspack build", "mandatory": true }
+    ],
+    "lint": [
+      { "name": "lint", "command": "biome check .", "mandatory": true },
+      { "name": "lint:fix", "command": "biome check --write .", "mandatory": true }
+    ]
+  },
+  "toolsByPhase": {
+    "test": [
+      { "name": "npm", "command": "npm test", "mandatory": true, "source": "ci.yml" }
+    ],
+    "lint": [
+      { "name": "mise run lint", "command": "mise run lint", "mandatory": true, "source": "ci.yml" }
+    ]
+  }
+}
+```
+
+### Validating Instruction Coverage
+
+The `validate_instruction_coverage` tool checks if your repository instructions (`.github/copilot-instructions.md` and `.github/instructions/*.md`) document all mandatory feedback loops.
+
+**Response Format:**
+
+```json
+{
+  "success": true,
+  "hasFullCoverage": false,
+  "summary": {
+    "totalMandatory": 6,
+    "totalDocumented": 4,
+    "coveragePercentage": 66.67
+  },
+  "missing": [
+    {
+      "type": "script",
+      "name": "lint:fix",
+      "phase": "lint",
+      "command": "biome check --write ."
+    },
+    {
+      "type": "tool",
+      "name": "mise run build",
+      "phase": "build",
+      "command": "mise run build"
+    }
+  ],
+  "documented": [
+    { "type": "script", "name": "test", "phase": "test" },
+    { "type": "script", "name": "build", "phase": "build" },
+    { "type": "script", "name": "lint", "phase": "lint" },
+    { "type": "tool", "name": "npm test", "phase": "test" }
+  ],
+  "suggestions": [
+    "⚠️  2 mandatory feedback loop(s) are not documented:",
+    "",
+    "LINT phase:",
+    "  - Document \"npm run lint:fix\" (runs: biome check --write .)",
+    "",
+    "BUILD phase:",
+    "  - Document \"mise run build\"",
+    "",
+    "Consider adding these to .github/copilot-instructions.md",
+    "or creating dedicated instruction files in .github/instructions/"
+  ]
+}
+```
+
+This helps ensure that AI agents have clear, consistent instructions for running feedback loops during development.
+
 ## VS Code Configuration
 
 Add the following to your VS Code `mcp.json` configuration file (typically at `.vscode/mcp.json` or in your user settings):
@@ -108,6 +211,9 @@ Once configured, you can ask your AI assistant to:
 - "Create a Copilot Setup Steps workflow for this repository"
 - "What setup actions are used in my existing workflows?"
 - "Analyze the action versions in my GitHub workflows"
+- "Discover the scripts and tools used in this project's SDLC feedback loops"
+- "Check if the repository instructions document all mandatory feedback loops"
+- "Show me which test and build commands are defined in package.json and workflows"
 
 ## Architecture
 
@@ -117,5 +223,7 @@ The MCP server runs as a separate process that your AI assistant communicates wi
 2. Read and analyze existing workflows
 3. Generate or update Copilot Setup Steps workflows
 4. Verify action versions across your repository
+5. Discover scripts and CLI tools used in SDLC feedback loops
+6. Validate instruction coverage for mandatory feedback loop steps
 
-This enables more intelligent and context-aware assistance when working with GitHub Actions and project configuration.
+This enables more intelligent and context-aware assistance when working with GitHub Actions, project configuration, and ensuring that agents follow consistent feedback loops during development.
