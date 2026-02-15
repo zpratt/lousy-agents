@@ -39,12 +39,14 @@ Scaffolds new projects with everything needed for effective AI-assisted developm
   - Docker-outside-of-docker support
 - EditorConfig and Node.js version management
 
-### CLI Projects (`--kind cli`) — coming soon
+### CLI Projects (`--kind cli`)
 
 - `.github/instructions` directory structure
 - GitHub Copilot instructions for CLI development
-
-> **Note:** CLI scaffolding is not yet implemented. Selecting `cli` will return an error.
+- TypeScript + `citty` command scaffold
+- Vitest testing setup
+- Biome linting and formatting
+- VSCode configuration and Dev Container setup
 
 ### REST API Projects (`--kind api`)
 
@@ -96,7 +98,7 @@ You'll be prompted to choose from:
 
 - webapp
 - api (REST API with Fastify)
-- cli (coming soon)
+- cli
 - graphql (coming soon)
 
 ### Non-Interactive Mode

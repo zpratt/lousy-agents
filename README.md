@@ -126,8 +126,10 @@ npx @lousy-agents/cli copilot-setup
 |---------|--------|
 | Scaffolding for webapps | ✅ Complete |
 | Scaffolding for REST APIs | ✅ Complete |
-| Scaffolding for CLI | Not Started |
+| Scaffolding for CLI | ✅ Complete |
 | Scaffolding for GraphQL APIs | Not Started |
+| Copilot setup package manager install steps | ✅ Complete |
+| Copilot agent and skill scaffolding | ✅ Complete |
 | MCP server package | ✅ Complete |
 
 ## Documentation
