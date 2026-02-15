@@ -11,4 +11,18 @@ export type {
     VersionFileType,
     WorkflowStep,
 } from "./copilot-setup.js";
+export {
+    determineScriptPhase,
+    isScriptMandatory,
+    MANDATORY_SCRIPT_NAMES,
+    SCRIPT_PHASE_MAPPING,
+} from "./feedback-loop.js";
+export type {
+    DiscoveredFeedbackLoops,
+    DiscoveredScript,
+    DiscoveredTool,
+    FeedbackLoopCoverage,
+    FeedbackLoopPhase,
+    InstructionReference,
+} from "./feedback-loop.js";
 export { generateSkillContent, normalizeSkillName } from "./skill.js";
