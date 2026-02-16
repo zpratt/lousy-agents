@@ -299,7 +299,7 @@ Code changes require security and architecture review before completion.
 
 When you have finished writing, refactoring, or fixing code:
 
-1. **Validate Locally:** Run `npx biome check && npm test` to verify code quality.
+1. **Validate Locally:** Run `mise run ci` to verify code quality (includes lint and tests).
 2. **Invoke Reviewer:** End your final response with this call-to-action:
 
 > **⚠️ Security & Architecture Check Required**
@@ -319,8 +319,8 @@ If the Reviewer agent is unavailable or errors after invocation, proceed with ma
 
 ### Escape Hatches
 
-- **Maximum Review Cycles:** 3 rounds. After 3 cycles without resolution, escalate to human reviewer.
-- **Disputed Findings:** If you cannot address a finding or believe it's incorrect, reply with "DISPUTED: [reason]" and escalate.
+- **Maximum Review Cycles:** 3 rounds. After 3 cycles without resolution, escalate by adding the `needs-human-review` label and commenting `ESCALATE: Unable to resolve after 3 review cycles`.
+- **Disputed Findings:** If you cannot address a finding or believe it's incorrect, reply with `DISPUTED: [reason]` and add the `needs-human-review` label.
 - **Platform Limitations:** If `@Reviewer` invocation fails or is unsupported in the current context, document findings manually using the severity table format from `.github/agents/reviewer.md`.
 
 ### Context Awareness
