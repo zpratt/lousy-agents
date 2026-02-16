@@ -8,6 +8,7 @@ Analyzes your project and automatically generates a GitHub Actions workflow (`co
 - **Workflow Analysis**: Parses existing workflows to identify setup actions already in use
 - **Smart Merging**: Combines detected environment with existing workflow patterns
 - **Incremental Updates**: Only adds missing setup steps to existing workflows
+- **Package Manager Detection**: Detects lockfiles and adds dependency install steps
 - **Zero Configuration**: Works out of the box for common project setups
 
 This workflow ensures GitHub Copilot has the same environment context as your CI/CD pipelines, improving code suggestions and reducing hallucinations.
@@ -46,6 +47,16 @@ This will:
 
 - Scans `.github/workflows/*.yml` for setup actions
 - Preserves existing configuration
+
+**Package Managers**:
+
+- `package-lock.json` → adds `npm ci`
+- `yarn.lock` → adds `yarn install --frozen-lockfile`
+- `pnpm-lock.yaml` → adds `pnpm install --frozen-lockfile`
+- `requirements.txt` → adds `pip install -r requirements.txt`
+- `Pipfile.lock` → adds `pipenv install --deploy`
+- `poetry.lock` → adds `poetry install --no-root`
+- `Gemfile.lock` → adds `bundle install`
 
 ## Examples
 
