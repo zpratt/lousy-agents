@@ -152,56 +152,74 @@ export function determineScriptPhase(
 
     // Check if name starts with a known phase
     for (const [pattern, phase] of Object.entries(SCRIPT_PHASE_MAPPING)) {
-        if (scriptName.startsWith(pattern)) {
+        // Skip patterns we've already handled as exact matches
+        if (pattern === scriptName) {
+            continue;
+        }
+
+        if (!scriptName.startsWith(pattern)) {
+            continue;
+        }
+
+        // If the pattern itself includes a separator (e.g. "test:unit"),
+        // allow simple prefix matching (handles "test:unit:watch", etc.)
+        const lastCharOfPattern = pattern.charAt(pattern.length - 1);
+        if (lastCharOfPattern === ":") {
+            return phase;
+        }
+
+        // For generic patterns like "test" or "build", require that the next
+        // character after the pattern is a colon to avoid matching names
+        // like "test-utils" or "build-tools".
+        const nextChar = scriptName.charAt(pattern.length);
+        if (nextChar === ":") {
             return phase;
         }
     }
 
-    // Analyze command content for hints (both name and command)
-    const lowerName = scriptName.toLowerCase();
+    // Analyze command content for hints (not script name, since we already checked patterns)
     const lowerCommand = command.toLowerCase();
-    const combined = `${lowerName} ${lowerCommand}`;
 
     if (
-        combined.includes("test") ||
-        combined.includes("vitest") ||
-        combined.includes("jest") ||
-        combined.includes("mocha") ||
-        combined.includes("ava")
+        lowerCommand.includes("test") ||
+        lowerCommand.includes("vitest") ||
+        lowerCommand.includes("jest") ||
+        lowerCommand.includes("mocha") ||
+        lowerCommand.includes("ava")
     ) {
         return "test";
     }
 
     if (
-        combined.includes("build") ||
-        combined.includes("compile") ||
-        combined.includes("webpack") ||
-        combined.includes("rspack") ||
-        combined.includes("rollup") ||
-        combined.includes("vite build")
+        lowerCommand.includes("build") ||
+        lowerCommand.includes("compile") ||
+        lowerCommand.includes("webpack") ||
+        lowerCommand.includes("rspack") ||
+        lowerCommand.includes("rollup") ||
+        lowerCommand.includes("vite build")
     ) {
         return "build";
     }
 
     if (
-        combined.includes("lint") ||
-        combined.includes("eslint") ||
-        combined.includes("biome") ||
-        combined.includes("tslint") ||
-        combined.includes("actionlint") ||
-        combined.includes("yamllint")
+        lowerCommand.includes("lint") ||
+        lowerCommand.includes("eslint") ||
+        lowerCommand.includes("biome") ||
+        lowerCommand.includes("tslint") ||
+        lowerCommand.includes("actionlint") ||
+        lowerCommand.includes("yamllint")
     ) {
         return "lint";
     }
 
-    if (combined.includes("prettier") || combined.includes("format")) {
+    if (lowerCommand.includes("prettier") || lowerCommand.includes("format")) {
         return "format";
     }
 
     if (
-        combined.includes("audit") ||
-        combined.includes("snyk") ||
-        combined.includes("npm-audit")
+        lowerCommand.includes("audit") ||
+        lowerCommand.includes("snyk") ||
+        lowerCommand.includes("npm-audit")
     ) {
         return "security";
     }

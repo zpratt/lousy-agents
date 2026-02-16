@@ -41,6 +41,30 @@ describe("determineScriptPhase", () => {
             );
             expect(result).toBe("lint");
         });
+
+        it("should NOT match test-utils (with hyphen instead of colon)", () => {
+            const result = determineScriptPhase(
+                "test-utils",
+                "node scripts/utils.js",
+            );
+            expect(result).toBe("unknown");
+        });
+
+        it("should NOT match build-tools (with hyphen instead of colon)", () => {
+            const result = determineScriptPhase(
+                "build-tools",
+                "node scripts/tools.js",
+            );
+            expect(result).toBe("unknown");
+        });
+
+        it("should match test:integration:watch (nested colons)", () => {
+            const result = determineScriptPhase(
+                "test:integration:watch",
+                "vitest --watch",
+            );
+            expect(result).toBe("test");
+        });
     });
 
     describe("when script name is unknown but command contains hints", () => {

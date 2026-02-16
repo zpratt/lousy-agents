@@ -131,11 +131,16 @@ export class FileSystemInstructionAnalysisGateway
         // Check for .github/instructions/*.md
         const instructionsDir = join(targetDir, ".github", "instructions");
         if (await fileExists(instructionsDir)) {
-            const instructionFiles = await readdir(instructionsDir);
-            for (const file of instructionFiles) {
-                if (file.endsWith(".md")) {
-                    files.push(join(instructionsDir, file));
+            try {
+                const instructionFiles = await readdir(instructionsDir);
+                for (const file of instructionFiles) {
+                    if (file.endsWith(".md")) {
+                        files.push(join(instructionsDir, file));
+                    }
                 }
+            } catch {
+                // Skip directory if we can't read it (e.g., permissions issues)
+                // Similar to how workflow parsing errors are handled
             }
         }
 

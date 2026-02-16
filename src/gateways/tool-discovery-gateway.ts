@@ -136,8 +136,13 @@ export class FileSystemToolDiscoveryGateway implements ToolDiscoveryGateway {
                     (baseCommand === "npm" || baseCommand === "mise") &&
                     parts[1] === "run"
                 ) {
-                    // "npm run test" -> name: "npm run test", full: same
-                    toolName = parts.slice(0, 3).join(" ");
+                    if (parts.length >= 3 && parts[2]) {
+                        // "npm run test" -> name: "npm run test", full: same
+                        toolName = parts.slice(0, 3).join(" ");
+                    } else {
+                        // Handle commands like "npm run" without a script name
+                        toolName = parts.slice(0, 2).join(" ");
+                    }
                     fullCommand = command;
                 }
             }

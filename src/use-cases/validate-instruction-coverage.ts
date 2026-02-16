@@ -47,7 +47,8 @@ export class ValidateInstructionCoverageUseCase {
                 targetDir: input.targetDir,
             });
 
-        const { scripts, tools } = discoveryResult.feedbackLoops;
+        const { scripts, tools, packageManager } =
+            discoveryResult.feedbackLoops;
 
         // Analyze instruction coverage
         const coverage = await this.instructionGateway.analyzeCoverage(
@@ -57,7 +58,10 @@ export class ValidateInstructionCoverageUseCase {
         );
 
         // Generate suggestions for missing documentation
-        const suggestions = this.generateSuggestions(coverage);
+        const suggestions = this.generateSuggestions(
+            coverage,
+            packageManager || "npm",
+        );
 
         return {
             coverage,
@@ -66,7 +70,10 @@ export class ValidateInstructionCoverageUseCase {
         };
     }
 
-    private generateSuggestions(coverage: FeedbackLoopCoverage): string[] {
+    private generateSuggestions(
+        coverage: FeedbackLoopCoverage,
+        packageManager: string,
+    ): string[] {
         const suggestions: string[] = [];
 
         if (coverage.missingInInstructions.length === 0) {
@@ -99,7 +106,7 @@ export class ValidateInstructionCoverageUseCase {
                 if ("command" in item) {
                     // It's a script
                     suggestions.push(
-                        `  - Document "npm run ${item.name}" (runs: ${item.command})`,
+                        `  - Document "${packageManager} run ${item.name}" (runs: ${item.command})`,
                     );
                 } else {
                     // It's a tool
