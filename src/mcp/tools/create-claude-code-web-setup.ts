@@ -7,6 +7,7 @@ import type {
     ClaudeSetupAction,
     ClaudeSetupResult,
 } from "../../entities/claude-setup.js";
+import type { DetectedEnvironment } from "../../entities/copilot-setup.js";
 import {
     createClaudeFileGateway,
     createEnvironmentGateway,
@@ -23,7 +24,6 @@ import {
     successResponse,
     type ToolArgs,
     type ToolHandler,
-    type ToolResult,
 } from "./types.js";
 
 /**
@@ -72,11 +72,7 @@ export const createClaudeCodeWebSetupHandler: ToolHandler = async (
 
     // Determine action taken
     const action: ClaudeSetupAction =
-        !existingSettings && !existingDocs
-            ? "created"
-            : existingSettings || existingDocs
-              ? "updated"
-              : "no_changes_needed";
+        !existingSettings && !existingDocs ? "created" : "updated";
 
     // Build result
     const result: ClaudeSetupResult = {
@@ -105,9 +101,7 @@ export const createClaudeCodeWebSetupHandler: ToolHandler = async (
 /**
  * Builds recommendations for UI-level environment configuration.
  */
-function buildRecommendations(
-    environment: ReturnType<typeof environmentGateway.detectEnvironment>,
-) {
+function buildRecommendations(environment: DetectedEnvironment) {
     const recommendations = [];
 
     // If package managers detected, recommend network access
@@ -164,6 +158,3 @@ function buildResultMessage(result: ClaudeSetupResult): string {
 
     return lines.join("\n");
 }
-
-// Make environmentGateway available for type extraction
-const environmentGateway = createEnvironmentGateway();

@@ -171,7 +171,7 @@ function buildPackageManagerHooks(
 }
 
 /**
- * Gets a descriptive description for a package manager hook.
+ * Gets a description for a package manager hook.
  */
 function getPackageManagerDescription(
     packageManagerType: string,

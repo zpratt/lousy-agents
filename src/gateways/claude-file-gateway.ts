@@ -56,7 +56,7 @@ export class FileSystemClaudeFileGateway implements ClaudeFileGateway {
         try {
             const content = await readFile(settingsPath, "utf-8");
             return JSON.parse(content) as ClaudeSettings;
-        } catch (error) {
+        } catch {
             // If JSON parsing fails, treat as if file doesn't exist
             return null;
         }
