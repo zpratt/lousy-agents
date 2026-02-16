@@ -1,6 +1,7 @@
 /**
  * Use cases for Claude Code Web Environment Setup feature.
- * This module handles the logic of building SessionStart hooks from environment detection.
+ * This module handles the logic of building SessionStart hooks from environment detection,
+ * merging settings, and generating documentation.
  */
 
 import type {
@@ -9,7 +10,10 @@ import type {
     VersionFile,
     VersionFileType,
 } from "../entities/copilot-setup.js";
-import type { SessionStartHook } from "../entities/claude-setup.js";
+import type {
+    ClaudeSettings,
+    SessionStartHook,
+} from "../entities/claude-setup.js";
 import {
     type CopilotSetupConfig,
     loadCopilotSetupConfig,
@@ -197,4 +201,178 @@ function getPackageManagerDescription(
         descriptions[packageManagerType] ||
         `Install dependencies from ${pm.filename}`
     );
+}
+
+/**
+ * Merges SessionStart hooks into existing Claude settings.
+ * Preserves existing settings while adding or updating hooks without duplication.
+ *
+ * @param existing Existing Claude settings or null if none exist
+ * @param hooks Array of SessionStart hooks to merge
+ * @returns Merged Claude settings
+ */
+export function mergeClaudeSettings(
+    existing: ClaudeSettings | null,
+    hooks: SessionStartHook[],
+): ClaudeSettings {
+    // If no existing settings, create new with hooks
+    if (!existing) {
+        return {
+            SessionStart: hooks.map((h) => h.command),
+        };
+    }
+
+    // Preserve all existing settings
+    const merged: ClaudeSettings = { ...existing };
+
+    // Get existing SessionStart commands or empty array
+    const existingCommands = existing.SessionStart || [];
+
+    // Merge new hooks, avoiding duplicates
+    const newCommands = hooks.map((h) => h.command);
+    const commandSet = new Set([...existingCommands, ...newCommands]);
+
+    merged.SessionStart = Array.from(commandSet);
+
+    return merged;
+}
+
+/**
+ * Generates an Environment Setup section for CLAUDE.md documentation.
+ * Creates markdown documenting the detected environment and SessionStart hooks.
+ *
+ * @param environment The detected environment configuration
+ * @param hooks Array of SessionStart hooks
+ * @returns Markdown content for Environment Setup section
+ */
+export function generateEnvironmentSetupSection(
+    environment: DetectedEnvironment,
+    hooks: SessionStartHook[],
+): string {
+    const lines: string[] = [];
+
+    lines.push("## Environment Setup");
+    lines.push("");
+
+    // Document detected configuration
+    if (environment.hasMise) {
+        lines.push(
+            "This project uses [mise](https://mise.jdx.dev/) for runtime management.",
+        );
+        lines.push("");
+    }
+
+    if (environment.versionFiles.length > 0) {
+        lines.push("### Detected Runtimes");
+        lines.push("");
+        for (const vf of environment.versionFiles) {
+            const versionInfo = vf.version ? ` (${vf.version})` : "";
+            lines.push(`- **${vf.type}**: ${vf.filename}${versionInfo}`);
+        }
+        lines.push("");
+    }
+
+    if (environment.packageManagers.length > 0) {
+        lines.push("### Package Managers");
+        lines.push("");
+        for (const pm of environment.packageManagers) {
+            const lockfileInfo = pm.lockfile ? ` with ${pm.lockfile}` : "";
+            lines.push(`- **${pm.type}**: ${pm.filename}${lockfileInfo}`);
+        }
+        lines.push("");
+    }
+
+    // Document SessionStart hooks
+    if (hooks.length > 0) {
+        lines.push("### SessionStart Hooks");
+        lines.push("");
+        lines.push(
+            "The following commands run automatically when a Claude Code session starts:",
+        );
+        lines.push("");
+        for (const hook of hooks) {
+            lines.push("```bash");
+            lines.push(hook.command);
+            lines.push("```");
+            if (hook.description) {
+                lines.push(`*${hook.description}*`);
+            }
+            lines.push("");
+        }
+    } else {
+        lines.push(
+            "No environment-specific configuration detected. If this project requires specific runtimes or dependencies, add version files (e.g., `.nvmrc`, `.python-version`) or dependency manifests (e.g., `package.json`, `requirements.txt`) to enable automated setup.",
+        );
+        lines.push("");
+    }
+
+    return lines.join("\n");
+}
+
+/**
+ * Merges an Environment Setup section into existing CLAUDE.md documentation.
+ * Replaces existing section if found, or appends if not present.
+ *
+ * @param existing Existing CLAUDE.md content or null if file doesn't exist
+ * @param setupSection The Environment Setup section content
+ * @returns Updated CLAUDE.md content
+ */
+export function mergeClaudeDocumentation(
+    existing: string | null,
+    setupSection: string,
+): string {
+    // If no existing documentation, create new with setup section
+    if (!existing) {
+        return `# Claude Code Environment\n\n${setupSection}`;
+    }
+
+    // Split content into lines and find Environment Setup section
+    const lines = existing.split("\n");
+    let inEnvSetup = false;
+    let envSetupStartLine = -1;
+    let envSetupEndLine = -1;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        if (line === "## Environment Setup") {
+            inEnvSetup = true;
+            envSetupStartLine = i;
+            continue;
+        }
+
+        if (inEnvSetup && (line.startsWith("## ") || line.startsWith("# "))) {
+            // Found next section
+            envSetupEndLine = i;
+            break;
+        }
+    }
+
+    // If we found Environment Setup section
+    if (envSetupStartLine >= 0) {
+        // If we didn't find an end, it goes to the end of file
+        if (envSetupEndLine === -1) {
+            envSetupEndLine = lines.length;
+        }
+
+        // Replace the section
+        const before = lines.slice(0, envSetupStartLine).join("\n");
+        const after = lines.slice(envSetupEndLine).join("\n");
+
+        const parts = [before.trimEnd()];
+        if (before.trim()) {
+            parts.push("\n\n");
+        }
+        parts.push(setupSection.trimEnd());
+        if (after.trim()) {
+            parts.push("\n\n");
+            parts.push(after);
+        }
+
+        return parts.join("");
+    }
+
+    // Append section to end
+    const trimmedExisting = existing.trimEnd();
+    return `${trimmedExisting}\n\n${setupSection}`;
 }

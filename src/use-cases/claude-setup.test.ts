@@ -5,7 +5,13 @@
 import Chance from "chance";
 import { describe, expect, it } from "vitest";
 import type { DetectedEnvironment } from "../entities/copilot-setup.js";
-import { buildSessionStartHooks } from "./claude-setup.js";
+import type { ClaudeSettings } from "../entities/claude-setup.js";
+import {
+    buildSessionStartHooks,
+    generateEnvironmentSetupSection,
+    mergeClaudeDocumentation,
+    mergeClaudeSettings,
+} from "./claude-setup.js";
 
 const chance = new Chance();
 
@@ -420,6 +426,336 @@ describe("Claude Setup Use Cases", () => {
 
                 // Assert
                 expect(hooks).toHaveLength(1);
+            });
+        });
+    });
+
+    describe("mergeClaudeSettings", () => {
+        describe("when no existing settings exist", () => {
+            it("should create new settings with SessionStart hooks", () => {
+                // Arrange
+                const hooks = [
+                    {
+                        command: "nvm install",
+                        description: "Install Node.js",
+                    },
+                    {
+                        command: "npm ci",
+                        description: "Install dependencies",
+                    },
+                ];
+
+                // Act
+                const merged = mergeClaudeSettings(null, hooks);
+
+                // Assert
+                expect(merged.SessionStart).toEqual([
+                    "nvm install",
+                    "npm ci",
+                ]);
+            });
+        });
+
+        describe("when existing settings have no SessionStart", () => {
+            it("should add SessionStart array", () => {
+                // Arrange
+                const existing: ClaudeSettings = {
+                    enabledPlugins: { "test@example": true },
+                };
+                const hooks = [
+                    {
+                        command: "nvm install",
+                    },
+                ];
+
+                // Act
+                const merged = mergeClaudeSettings(existing, hooks);
+
+                // Assert
+                expect(merged.SessionStart).toEqual(["nvm install"]);
+                expect(merged.enabledPlugins).toEqual({ "test@example": true });
+            });
+        });
+
+        describe("when existing settings have SessionStart", () => {
+            it("should merge hooks without duplication", () => {
+                // Arrange
+                const existing: ClaudeSettings = {
+                    SessionStart: ["nvm install"],
+                };
+                const hooks = [
+                    {
+                        command: "nvm install", // duplicate
+                    },
+                    {
+                        command: "npm ci", // new
+                    },
+                ];
+
+                // Act
+                const merged = mergeClaudeSettings(existing, hooks);
+
+                // Assert
+                expect(merged.SessionStart).toHaveLength(2);
+                expect(merged.SessionStart).toContain("nvm install");
+                expect(merged.SessionStart).toContain("npm ci");
+            });
+        });
+
+        describe("when existing settings have other properties", () => {
+            it("should preserve all non-SessionStart properties", () => {
+                // Arrange
+                const pluginSettings = {
+                    "plugin1@example": true,
+                    "plugin2@example": false,
+                };
+                const existing: ClaudeSettings = {
+                    SessionStart: ["existing command"],
+                    enabledPlugins: pluginSettings,
+                    customProperty: "custom value",
+                };
+                const hooks = [
+                    {
+                        command: "new command",
+                    },
+                ];
+
+                // Act
+                const merged = mergeClaudeSettings(existing, hooks);
+
+                // Assert
+                expect(merged.enabledPlugins).toEqual(pluginSettings);
+                expect(merged.customProperty).toBe("custom value");
+                expect(merged.SessionStart).toContain("existing command");
+                expect(merged.SessionStart).toContain("new command");
+            });
+        });
+
+        describe("when merging empty hooks array", () => {
+            it("should preserve existing SessionStart", () => {
+                // Arrange
+                const existing: ClaudeSettings = {
+                    SessionStart: ["existing command"],
+                };
+
+                // Act
+                const merged = mergeClaudeSettings(existing, []);
+
+                // Assert
+                expect(merged.SessionStart).toEqual(["existing command"]);
+            });
+        });
+    });
+
+    describe("generateEnvironmentSetupSection", () => {
+        describe("when environment has mise", () => {
+            it("should document mise usage", () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: true,
+                    versionFiles: [],
+                    packageManagers: [],
+                };
+                const hooks = [
+                    {
+                        command: "mise install",
+                        description: "Install runtimes from mise.toml",
+                    },
+                ];
+
+                // Act
+                const section = generateEnvironmentSetupSection(
+                    environment,
+                    hooks,
+                );
+
+                // Assert
+                expect(section).toContain("## Environment Setup");
+                expect(section).toContain("mise");
+                expect(section).toContain("mise install");
+            });
+        });
+
+        describe("when environment has version files", () => {
+            it("should list detected runtimes with versions", () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [
+                        {
+                            type: "node",
+                            filename: ".nvmrc",
+                            version: "18.0.0",
+                        },
+                        {
+                            type: "python",
+                            filename: ".python-version",
+                            version: "3.11.0",
+                        },
+                    ],
+                    packageManagers: [],
+                };
+
+                // Act
+                const section = generateEnvironmentSetupSection(environment, []);
+
+                // Assert
+                expect(section).toContain("### Detected Runtimes");
+                expect(section).toContain("**node**: .nvmrc (18.0.0)");
+                expect(section).toContain(
+                    "**python**: .python-version (3.11.0)",
+                );
+            });
+        });
+
+        describe("when environment has package managers", () => {
+            it("should list detected package managers with lockfiles", () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [],
+                    packageManagers: [
+                        {
+                            type: "npm",
+                            filename: "package.json",
+                            lockfile: "package-lock.json",
+                        },
+                    ],
+                };
+
+                // Act
+                const section = generateEnvironmentSetupSection(environment, []);
+
+                // Assert
+                expect(section).toContain("### Package Managers");
+                expect(section).toContain(
+                    "**npm**: package.json with package-lock.json",
+                );
+            });
+        });
+
+        describe("when hooks are provided", () => {
+            it("should document SessionStart hooks with descriptions", () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [],
+                    packageManagers: [],
+                };
+                const hooks = [
+                    {
+                        command: "nvm install",
+                        description: "Install Node.js from .nvmrc",
+                    },
+                    {
+                        command: "npm ci",
+                        description: "Install Node.js dependencies",
+                    },
+                ];
+
+                // Act
+                const section = generateEnvironmentSetupSection(
+                    environment,
+                    hooks,
+                );
+
+                // Assert
+                expect(section).toContain("### SessionStart Hooks");
+                expect(section).toContain("```bash");
+                expect(section).toContain("nvm install");
+                expect(section).toContain("npm ci");
+                expect(section).toContain("*Install Node.js from .nvmrc*");
+                expect(section).toContain("*Install Node.js dependencies*");
+            });
+        });
+
+        describe("when no environment is detected", () => {
+            it("should document no configuration with helpful message", () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [],
+                    packageManagers: [],
+                };
+
+                // Act
+                const section = generateEnvironmentSetupSection(environment, []);
+
+                // Assert
+                expect(section).toContain("## Environment Setup");
+                expect(section).toContain(
+                    "No environment-specific configuration detected",
+                );
+                expect(section).toContain("version files");
+            });
+        });
+    });
+
+    describe("mergeClaudeDocumentation", () => {
+        describe("when no existing documentation exists", () => {
+            it("should create new documentation with setup section", () => {
+                // Arrange
+                const setupSection = "## Environment Setup\n\nTest content";
+
+                // Act
+                const merged = mergeClaudeDocumentation(null, setupSection);
+
+                // Assert
+                expect(merged).toContain("# Claude Code Environment");
+                expect(merged).toContain("## Environment Setup");
+                expect(merged).toContain("Test content");
+            });
+        });
+
+        describe("when documentation exists without Environment Setup section", () => {
+            it("should append setup section", () => {
+                // Arrange
+                const existing = "# My Project\n\nSome content\n\n## Other Section\n\nOther content";
+                const setupSection = "## Environment Setup\n\nSetup content";
+
+                // Act
+                const merged = mergeClaudeDocumentation(existing, setupSection);
+
+                // Assert
+                expect(merged).toContain("# My Project");
+                expect(merged).toContain("## Other Section");
+                expect(merged).toContain("## Environment Setup");
+                expect(merged.indexOf("## Other Section")).toBeLessThan(
+                    merged.indexOf("## Environment Setup"),
+                );
+            });
+        });
+
+        describe("when documentation exists with Environment Setup section", () => {
+            it("should replace existing section", () => {
+                // Arrange
+                const existing =
+                    "# My Project\n\n## Environment Setup\n\nOld setup content\n\n## Other Section\n\nOther content";
+                const setupSection = "## Environment Setup\n\nNew setup content";
+
+                // Act
+                const merged = mergeClaudeDocumentation(existing, setupSection);
+
+                // Assert
+                expect(merged).toContain("New setup content");
+                expect(merged).not.toContain("Old setup content");
+                expect(merged).toContain("## Other Section");
+            });
+        });
+
+        describe("when Environment Setup is last section", () => {
+            it("should replace section at end", () => {
+                // Arrange
+                const existing =
+                    "# My Project\n\n## Other Section\n\nContent\n\n## Environment Setup\n\nOld content";
+                const setupSection = "## Environment Setup\n\nNew content";
+
+                // Act
+                const merged = mergeClaudeDocumentation(existing, setupSection);
+
+                // Assert
+                expect(merged).toContain("New content");
+                expect(merged).not.toContain("Old content");
             });
         });
     });
