@@ -287,9 +287,9 @@ sequenceDiagram
 
 ### Open Questions
 
-- [ ] Should the tool support custom SessionStart hook templates via configuration?
-- [ ] Should there be a dry-run mode that shows what would be generated without writing files?
-- [ ] Should the tool validate that commands in SessionStart hooks are available in Claude Code base image?
+- [x] Should the tool support custom SessionStart hook templates via configuration? **No** - Keep it simple with automatic detection only
+- [x] Should there be a dry-run mode that shows what would be generated without writing files? **Yes** - Add `dryRun` option to preview changes
+- [x] Should the tool validate that commands in SessionStart hooks are available in Claude Code base image? **Yes** - Add validation for common commands
 
 ---
 
@@ -613,9 +613,9 @@ sequenceDiagram
 
 ## Future Considerations
 
-- Add `--dry-run` flag to preview generated configuration
-- Support custom SessionStart hook templates via configuration
-- Validate commands against Claude Code base image capabilities
+- **Priority: High** - Add `--dry-run` flag to preview generated configuration (decided: yes)
+- **Priority: High** - Validate commands against Claude Code base image capabilities (decided: yes)
+- **Priority: Low** - Support custom SessionStart hook templates via configuration (decided: no - keep simple)
 - Add `--merge-strategy` option for different merge behaviors
 - Support for detecting and configuring additional environment variables
 - Integration with Claude Code CLI for automated environment creation
