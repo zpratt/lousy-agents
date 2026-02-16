@@ -288,3 +288,42 @@ describe('fetchUserById', () => {
 - Modify tests to pass without fixing root cause
 - Add dependencies without explicit version numbers
 - Use type assertions (`as Type`) on external/API data
+
+## Agent Protocols & Handoffs
+
+### Definition of Done Protocol
+
+Code changes require security and architecture review before completion.
+
+### Handoff Procedure
+
+When you have finished writing, refactoring, or fixing code:
+
+1. **Validate Locally:** Run `mise run ci` to verify code quality (includes lint and tests).
+2. **Invoke Reviewer:** End your final response with this call-to-action:
+
+> **⚠️ Security & Architecture Check Required**
+> I have completed the initial implementation. To ensure compliance with `.github/instructions/software-architecture.instructions.md` and security standards, please invoke the Hostile Reviewer:
+>
+> **@Reviewer check this code for evil paths and architectural violations.**
+
+### Invocation Context
+
+The `@Reviewer` invocation works in:
+
+- **GitHub Copilot Chat** within an IDE
+- **Pull Request comments** on GitHub.com
+- **Issue discussions** where agent invocations are supported
+
+If the Reviewer agent is unavailable or errors after invocation, proceed with manual review by a human maintainer.
+
+### Escape Hatches
+
+- **Maximum Review Cycles:** 3 rounds. After 3 cycles without resolution, escalate by adding the `needs-human-review` label and commenting `ESCALATE: Unable to resolve after 3 review cycles`.
+- **Disputed Findings:** If you cannot address a finding or believe it's incorrect, reply with `DISPUTED: [reason]` and add the `needs-human-review` label.
+- **Platform Limitations:** If `@Reviewer` invocation fails or is unsupported in the current context, document findings manually using the severity table format from `.github/agents/reviewer.md`.
+
+### Context Awareness
+
+- Read `.github/instructions/software-architecture.instructions.md` before modifying code in `src/`.
+- When handling user input (CLI args, file content, environment variables), validate with Zod and check for path traversal, command injection, and prototype pollution.
