@@ -1,6 +1,13 @@
 /**
  * Entities - Core domain types and interfaces
  */
+export type {
+    ClaudeEnvironmentRecommendation,
+    ClaudeSetupAction,
+    ClaudeSetupResult,
+    ClaudeSettings,
+    SessionStartHook,
+} from "./claude-setup.js";
 export { generateAgentContent, normalizeAgentName } from "./copilot-agent.js";
 export type {
     ActionToResolve,
