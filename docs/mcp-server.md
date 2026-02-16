@@ -8,7 +8,7 @@ Lousy Agents includes an MCP (Model Context Protocol) server that exposes workfl
 | :--- | :--- |
 | `discover_environment` | Detect environment configuration files (mise.toml, .nvmrc, .python-version, etc.) |
 | `discover_workflow_setup_actions` | Find setup actions in existing GitHub Actions workflows |
-| `discover_feedback_loops` | Discover npm scripts and CLI tools, mapping them to SDLC feedback loop phases |
+| `discover_feedback_loops` | Discover package.json scripts and CLI tools, mapping them to SDLC feedback loop phases |
 | `validate_instruction_coverage` | Validate that repository instructions document all mandatory feedback loop scripts and tools |
 | `read_copilot_setup_workflow` | Read the current Copilot Setup Steps workflow |
 | `create_copilot_setup_workflow` | Create or update the Copilot Setup Steps workflow with version resolution |
@@ -82,7 +82,7 @@ The MCP server includes tools for discovering scripts and CLI tools that form SD
 
 The `discover_feedback_loops` tool analyzes your repository to find:
 
-- **npm scripts** from package.json
+- **scripts from package.json**
 - **CLI commands** from GitHub Actions workflows
 
 Each script and tool is mapped to an SDLC phase (test, build, lint, format, security, deploy, etc.) and categorized as mandatory or optional.
@@ -114,7 +114,7 @@ Each script and tool is mapped to an SDLC phase (test, build, lint, format, secu
   },
   "toolsByPhase": {
     "test": [
-      { "name": "npm", "command": "npm test", "mandatory": true, "source": "ci.yml" }
+      { "name": "npm test", "command": "npm test", "mandatory": true, "source": "ci.yml" }
     ],
     "lint": [
       { "name": "mise run lint", "command": "mise run lint", "mandatory": true, "source": "ci.yml" }

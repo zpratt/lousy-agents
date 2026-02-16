@@ -164,4 +164,18 @@ describe("FileSystemScriptDiscoveryGateway", () => {
             });
         });
     });
+
+    describe("when package.json contains malformed JSON", () => {
+        it("should return empty array and log warning", async () => {
+            // Write invalid JSON
+            await writeFile(
+                join(testDir, "package.json"),
+                '{ "scripts": { "test": "vitest" } invalid json',
+            );
+
+            const result = await gateway.discoverScripts(testDir);
+
+            expect(result).toEqual([]);
+        });
+    });
 });

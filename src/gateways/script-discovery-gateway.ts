@@ -44,28 +44,33 @@ export class FileSystemScriptDiscoveryGateway
             return [];
         }
 
-        const content = await readFile(packageJsonPath, "utf-8");
-        const packageJson: PackageJson = JSON.parse(content);
+        try {
+            const content = await readFile(packageJsonPath, "utf-8");
+            const packageJson: PackageJson = JSON.parse(content);
 
-        if (!packageJson.scripts) {
+            if (!packageJson.scripts) {
+                return [];
+            }
+
+            const scripts: DiscoveredScript[] = [];
+
+            for (const [name, command] of Object.entries(packageJson.scripts)) {
+                const phase = determineScriptPhase(name, command);
+                const isMandatory = isScriptMandatory(phase);
+
+                scripts.push({
+                    name,
+                    command,
+                    phase,
+                    isMandatory,
+                });
+            }
+
+            return scripts;
+        } catch {
+            // If package.json is malformed or cannot be parsed, return empty array
             return [];
         }
-
-        const scripts: DiscoveredScript[] = [];
-
-        for (const [name, command] of Object.entries(packageJson.scripts)) {
-            const phase = determineScriptPhase(name, command);
-            const isMandatory = isScriptMandatory(phase);
-
-            scripts.push({
-                name,
-                command,
-                phase,
-                isMandatory,
-            });
-        }
-
-        return scripts;
     }
 }
 
