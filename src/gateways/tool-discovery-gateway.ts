@@ -110,9 +110,10 @@ export class FileSystemToolDiscoveryGateway implements ToolDiscoveryGateway {
     ): DiscoveredTool[] {
         const tools: DiscoveredTool[] = [];
 
-        // Split by newlines and pipes to handle multi-line and piped commands
+        // Split by newlines and pipe tokens with surrounding whitespace to handle
+        // multi-line and piped commands without breaking on constructs like "cmd || true"
         const commands = runCommand
-            .split(/\n|\|/)
+            .split(/\n|\s\|\s/)
             .map((c) => c.trim())
             .filter((c) => c.length > 0 && !c.startsWith("#"));
 
@@ -127,24 +128,29 @@ export class FileSystemToolDiscoveryGateway implements ToolDiscoveryGateway {
             }
 
             // Determine tool name and full command
-            let toolName = baseCommand;
-            let fullCommand = command;
+            let toolName: string;
+            const fullCommand = command;
 
             // Handle special cases like "npm run", "mise run", etc.
-            if (parts.length >= 2) {
-                if (
-                    (baseCommand === "npm" || baseCommand === "mise") &&
-                    parts[1] === "run"
-                ) {
-                    if (parts.length >= 3 && parts[2]) {
-                        // "npm run test" -> name: "npm run test", full: same
-                        toolName = parts.slice(0, 3).join(" ");
-                    } else {
-                        // Handle commands like "npm run" without a script name
-                        toolName = parts.slice(0, 2).join(" ");
-                    }
-                    fullCommand = command;
+            if (
+                parts.length >= 2 &&
+                (baseCommand === "npm" || baseCommand === "mise") &&
+                parts[1] === "run"
+            ) {
+                if (parts.length >= 3 && parts[2]) {
+                    // "npm run test" -> name: "npm run test"
+                    toolName = parts.slice(0, 3).join(" ");
+                } else {
+                    // Handle commands like "npm run" without a script name
+                    toolName = parts.slice(0, 2).join(" ");
                 }
+            } else if (parts.length >= 2) {
+                // For most tools, include the subcommand for better specificity
+                // e.g., "npm test", "npx biome", "pnpm lint"
+                toolName = parts.slice(0, 2).join(" ");
+            } else {
+                // Fallback to the base command if no subcommand is present
+                toolName = baseCommand;
             }
 
             const phase = this.determineToolPhase(toolName, fullCommand);

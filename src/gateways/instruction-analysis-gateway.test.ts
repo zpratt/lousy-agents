@@ -325,4 +325,64 @@ npm test
             expect(result.summary.coveragePercentage).toBe(100);
         });
     });
+
+    describe("when matching with word boundaries", () => {
+        it("should not match substrings within words (e.g., test in testing)", async () => {
+            const instructionContent = `
+# Testing Guide
+
+We use comprehensive testing strategies.
+The latest version includes new features.
+`;
+
+            await writeFile(
+                join(instructionsDir, "test.instructions.md"),
+                instructionContent,
+            );
+
+            const scripts: DiscoveredScript[] = [
+                {
+                    name: "test",
+                    command: "vitest run",
+                    phase: "test",
+                    isMandatory: true,
+                },
+            ];
+
+            const result = await gateway.analyzeCoverage(testDir, scripts, []);
+
+            // "test" should NOT match "testing" or "latest"
+            expect(result.summary.totalDocumented).toBe(0);
+            expect(result.missingInInstructions).toHaveLength(1);
+        });
+
+        it("should match script names with word boundaries", async () => {
+            const instructionContent = `
+Run the test suite:
+\`\`\`bash
+npm test
+\`\`\`
+`;
+
+            await writeFile(
+                join(instructionsDir, "test.instructions.md"),
+                instructionContent,
+            );
+
+            const scripts: DiscoveredScript[] = [
+                {
+                    name: "test",
+                    command: "vitest run",
+                    phase: "test",
+                    isMandatory: true,
+                },
+            ];
+
+            const result = await gateway.analyzeCoverage(testDir, scripts, []);
+
+            // "test" SHOULD match when it appears as a word (will find it in multiple lines)
+            expect(result.summary.totalDocumented).toBe(1);
+            expect(result.references.length).toBeGreaterThan(0);
+        });
+    });
 });

@@ -97,7 +97,7 @@ export const discoverFeedbackLoopsHandler: ToolHandler = async (
             },
             scriptsByPhase,
             toolsByPhase,
-            message: `Discovered ${scripts.length} npm scripts and ${tools.length} CLI tools`,
+            message: `Discovered ${scripts.length} package.json script(s) and ${tools.length} CLI tool(s) from workflows`,
         });
     } catch (error) {
         return errorResponse(

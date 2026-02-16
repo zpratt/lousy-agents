@@ -68,7 +68,7 @@ describe("FileSystemToolDiscoveryGateway", () => {
 
             expect(result).toContainEqual(
                 expect.objectContaining({
-                    name: "npm",
+                    name: "npm test",
                     fullCommand: "npm test",
                     phase: "test",
                     isMandatory: true,
@@ -114,13 +114,13 @@ npm run build`,
 
             expect(result).toContainEqual(
                 expect.objectContaining({
-                    name: "npm",
+                    name: "npm ci",
                     fullCommand: "npm ci",
                 }),
             );
             expect(result).toContainEqual(
                 expect.objectContaining({
-                    name: "npm",
+                    name: "npm test",
                     fullCommand: "npm test",
                 }),
             );
@@ -208,7 +208,7 @@ npm run build`,
 
             // Should only find npm test, not mkdir/echo/cd
             expect(result).toHaveLength(1);
-            expect(result[0].name).toBe("npm");
+            expect(result[0].name).toBe("npm test");
         });
 
         it("should deduplicate identical commands", async () => {

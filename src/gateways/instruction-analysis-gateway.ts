@@ -3,7 +3,7 @@
  */
 
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import type {
     DiscoveredScript,
     DiscoveredTool,
@@ -156,27 +156,33 @@ export class FileSystemInstructionAnalysisGateway
     ): InstructionReference[] {
         const references: InstructionReference[] = [];
 
-        // Search for target in content (case-insensitive for better matching)
-        const lowerContent = content.toLowerCase();
-        const lowerTarget = target.toLowerCase();
+        // Build a case-insensitive, word-boundary-aware pattern for the target.
+        // This reduces false positives from simple substring matches like
+        // "test" in "testing" or "latest", while still matching common
+        // separators such as spaces, punctuation, etc.
+        const escapedTarget = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const targetPattern = new RegExp(
+            `(?:^|[^\\w])(${escapedTarget})(?=$|[^\\w])`,
+            "i",
+        );
 
-        if (!lowerContent.includes(lowerTarget)) {
+        // Fast path: skip line-by-line processing if the target pattern
+        // never appears in the full content.
+        if (!targetPattern.test(content)) {
             return references;
         }
 
         // Find line numbers where target appears
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            if (line.toLowerCase().includes(lowerTarget)) {
+            if (targetPattern.test(line)) {
                 // Get context (line before and after if available)
                 const contextLines: string[] = [];
                 if (i > 0) contextLines.push(lines[i - 1]);
                 contextLines.push(line);
                 if (i < lines.length - 1) contextLines.push(lines[i + 1]);
 
-                const relativePath = file
-                    .replace(targetDir, "")
-                    .replace(/^\//, "");
+                const relativePath = relative(targetDir, file);
 
                 references.push({
                     target,
