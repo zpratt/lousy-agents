@@ -4,8 +4,8 @@
 
 import Chance from "chance";
 import { describe, expect, it } from "vitest";
-import type { DetectedEnvironment } from "../entities/copilot-setup.js";
 import type { ClaudeSettings } from "../entities/claude-setup.js";
+import type { DetectedEnvironment } from "../entities/copilot-setup.js";
 import {
     buildSessionStartHooks,
     generateEnvironmentSetupSection,
@@ -246,9 +246,7 @@ describe("Claude Setup Use Cases", () => {
 
                 // Assert
                 expect(hooks).toHaveLength(1);
-                expect(hooks[0].command).toBe(
-                    "yarn install --frozen-lockfile",
-                );
+                expect(hooks[0].command).toBe("yarn install --frozen-lockfile");
                 expect(hooks[0].description).toContain("Node.js dependencies");
             });
         });
@@ -273,9 +271,7 @@ describe("Claude Setup Use Cases", () => {
 
                 // Assert
                 expect(hooks).toHaveLength(1);
-                expect(hooks[0].command).toBe(
-                    "pnpm install --frozen-lockfile",
-                );
+                expect(hooks[0].command).toBe("pnpm install --frozen-lockfile");
             });
         });
 
@@ -449,10 +445,7 @@ describe("Claude Setup Use Cases", () => {
                 const merged = mergeClaudeSettings(null, hooks);
 
                 // Assert
-                expect(merged.SessionStart).toEqual([
-                    "nvm install",
-                    "npm ci",
-                ]);
+                expect(merged.SessionStart).toEqual(["nvm install", "npm ci"]);
             });
         });
 
@@ -481,6 +474,7 @@ describe("Claude Setup Use Cases", () => {
             it("should merge hooks without duplication", () => {
                 // Arrange
                 const existing: ClaudeSettings = {
+                    // biome-ignore lint/style/useNamingConvention: SessionStart is the Claude Code API property name
                     SessionStart: ["nvm install"],
                 };
                 const hooks = [
@@ -510,6 +504,7 @@ describe("Claude Setup Use Cases", () => {
                     "plugin2@example": false,
                 };
                 const existing: ClaudeSettings = {
+                    // biome-ignore lint/style/useNamingConvention: SessionStart is the Claude Code API property name
                     SessionStart: ["existing command"],
                     enabledPlugins: pluginSettings,
                     customProperty: "custom value",
@@ -535,6 +530,7 @@ describe("Claude Setup Use Cases", () => {
             it("should preserve existing SessionStart", () => {
                 // Arrange
                 const existing: ClaudeSettings = {
+                    // biome-ignore lint/style/useNamingConvention: SessionStart is the Claude Code API property name
                     SessionStart: ["existing command"],
                 };
 
@@ -597,7 +593,10 @@ describe("Claude Setup Use Cases", () => {
                 };
 
                 // Act
-                const section = generateEnvironmentSetupSection(environment, []);
+                const section = generateEnvironmentSetupSection(
+                    environment,
+                    [],
+                );
 
                 // Assert
                 expect(section).toContain("### Detected Runtimes");
@@ -624,7 +623,10 @@ describe("Claude Setup Use Cases", () => {
                 };
 
                 // Act
-                const section = generateEnvironmentSetupSection(environment, []);
+                const section = generateEnvironmentSetupSection(
+                    environment,
+                    [],
+                );
 
                 // Assert
                 expect(section).toContain("### Package Managers");
@@ -679,7 +681,10 @@ describe("Claude Setup Use Cases", () => {
                 };
 
                 // Act
-                const section = generateEnvironmentSetupSection(environment, []);
+                const section = generateEnvironmentSetupSection(
+                    environment,
+                    [],
+                );
 
                 // Assert
                 expect(section).toContain("## Environment Setup");
@@ -710,7 +715,8 @@ describe("Claude Setup Use Cases", () => {
         describe("when documentation exists without Environment Setup section", () => {
             it("should append setup section", () => {
                 // Arrange
-                const existing = "# My Project\n\nSome content\n\n## Other Section\n\nOther content";
+                const existing =
+                    "# My Project\n\nSome content\n\n## Other Section\n\nOther content";
                 const setupSection = "## Environment Setup\n\nSetup content";
 
                 // Act
@@ -731,7 +737,8 @@ describe("Claude Setup Use Cases", () => {
                 // Arrange
                 const existing =
                     "# My Project\n\n## Environment Setup\n\nOld setup content\n\n## Other Section\n\nOther content";
-                const setupSection = "## Environment Setup\n\nNew setup content";
+                const setupSection =
+                    "## Environment Setup\n\nNew setup content";
 
                 // Act
                 const merged = mergeClaudeDocumentation(existing, setupSection);

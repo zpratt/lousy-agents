@@ -31,6 +31,7 @@ describe("ClaudeFileGateway", () => {
             it("should return parsed settings", async () => {
                 // Arrange
                 const settings: ClaudeSettings = {
+                    // biome-ignore lint/style/useNamingConvention: SessionStart is the Claude Code API property name
                     SessionStart: ["nvm install", "npm ci"],
                     enabledPlugins: { "test@example": true },
                 };
@@ -99,6 +100,7 @@ describe("ClaudeFileGateway", () => {
             it("should create directory and write settings", async () => {
                 // Arrange
                 const settings: ClaudeSettings = {
+                    // biome-ignore lint/style/useNamingConvention: SessionStart is the Claude Code API property name
                     SessionStart: ["nvm install"],
                 };
 
@@ -119,6 +121,7 @@ describe("ClaudeFileGateway", () => {
                 const claudeDir = join(testDir, ".claude");
                 await mkdir(claudeDir, { recursive: true });
                 const settings: ClaudeSettings = {
+                    // biome-ignore lint/style/useNamingConvention: SessionStart is the Claude Code API property name
                     SessionStart: ["npm ci"],
                     customProperty: "value",
                 };
@@ -140,6 +143,7 @@ describe("ClaudeFileGateway", () => {
             it("should use 2-space indentation", async () => {
                 // Arrange
                 const settings: ClaudeSettings = {
+                    // biome-ignore lint/style/useNamingConvention: SessionStart is the Claude Code API property name
                     SessionStart: ["command"],
                     nested: { key: "value" },
                 };
@@ -159,6 +163,7 @@ describe("ClaudeFileGateway", () => {
             it("should include trailing newline", async () => {
                 // Arrange
                 const settings: ClaudeSettings = {
+                    // biome-ignore lint/style/useNamingConvention: SessionStart is the Claude Code API property name
                     SessionStart: ["command"],
                 };
 

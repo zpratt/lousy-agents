@@ -5,15 +5,15 @@
  */
 
 import type {
+    ClaudeSettings,
+    SessionStartHook,
+} from "../entities/claude-setup.js";
+import type {
     DetectedEnvironment,
     PackageManagerFile,
     VersionFile,
     VersionFileType,
 } from "../entities/copilot-setup.js";
-import type {
-    ClaudeSettings,
-    SessionStartHook,
-} from "../entities/claude-setup.js";
 import {
     type CopilotSetupConfig,
     loadCopilotSetupConfig,
@@ -101,9 +101,7 @@ function getRuntimeHookForType(
     type: VersionFileType,
     versionFile: VersionFile,
 ): SessionStartHook | null {
-    const versionInfo = versionFile.version
-        ? ` (${versionFile.version})`
-        : "";
+    const versionInfo = versionFile.version ? ` (${versionFile.version})` : "";
 
     switch (type) {
         case "node":
@@ -218,6 +216,7 @@ export function mergeClaudeSettings(
     // If no existing settings, create new with hooks
     if (!existing) {
         return {
+            // biome-ignore lint/style/useNamingConvention: SessionStart is the Claude Code API property name
             SessionStart: hooks.map((h) => h.command),
         };
     }

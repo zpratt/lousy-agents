@@ -3,9 +3,9 @@
  */
 export type {
     ClaudeEnvironmentRecommendation,
+    ClaudeSettings,
     ClaudeSetupAction,
     ClaudeSetupResult,
-    ClaudeSettings,
     SessionStartHook,
 } from "./claude-setup.js";
 export { generateAgentContent, normalizeAgentName } from "./copilot-agent.js";

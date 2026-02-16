@@ -40,6 +40,7 @@ describe("Claude Setup Entities", () => {
     describe("ClaudeSettings", () => {
         it("should allow SessionStart array", () => {
             const settings: ClaudeSettings = {
+                // biome-ignore lint/style/useNamingConvention: SessionStart is the Claude Code API property name
                 SessionStart: ["nvm install", "npm ci"],
             };
 
@@ -48,6 +49,7 @@ describe("Claude Setup Entities", () => {
 
         it("should allow additional properties", () => {
             const settings: ClaudeSettings = {
+                // biome-ignore lint/style/useNamingConvention: SessionStart is the Claude Code API property name
                 SessionStart: ["nvm install"],
                 enabledPlugins: { "test@example": true },
                 customSetting: "value",

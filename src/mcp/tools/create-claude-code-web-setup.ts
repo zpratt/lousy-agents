@@ -111,10 +111,7 @@ function buildRecommendations(
     const recommendations = [];
 
     // If package managers detected, recommend network access
-    if (
-        environment.packageManagers &&
-        environment.packageManagers.length > 0
-    ) {
+    if (environment.packageManagers && environment.packageManagers.length > 0) {
         recommendations.push({
             type: "network_access" as const,
             description:

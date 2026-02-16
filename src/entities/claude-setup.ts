@@ -20,6 +20,7 @@ export interface SessionStartHook {
  */
 export interface ClaudeSettings {
     /** SessionStart hooks for environment initialization */
+    // biome-ignore lint/style/useNamingConvention: SessionStart is the Claude Code API property name
     SessionStart?: string[];
     /** Other settings preserved during merge (enabledPlugins, etc.) */
     [key: string]: unknown;
