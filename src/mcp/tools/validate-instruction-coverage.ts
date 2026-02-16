@@ -6,7 +6,10 @@ import { createEnvironmentGateway } from "../../gateways/environment-gateway.js"
 import { createInstructionAnalysisGateway } from "../../gateways/instruction-analysis-gateway.js";
 import { createScriptDiscoveryGateway } from "../../gateways/script-discovery-gateway.js";
 import { createToolDiscoveryGateway } from "../../gateways/tool-discovery-gateway.js";
-import { DiscoverFeedbackLoopsUseCase } from "../../use-cases/discover-feedback-loops.js";
+import {
+    DiscoverFeedbackLoopsUseCase,
+    type PackageManagerGateway,
+} from "../../use-cases/discover-feedback-loops.js";
 import { ValidateInstructionCoverageUseCase } from "../../use-cases/validate-instruction-coverage.js";
 import {
     errorResponse,
@@ -32,11 +35,20 @@ export const validateInstructionCoverageHandler: ToolHandler = async (
         const environmentGateway = createEnvironmentGateway();
         const instructionGateway = createInstructionAnalysisGateway();
 
+        // Adapter for package manager gateway
+        const packageManagerGateway: PackageManagerGateway = {
+            async detectPackageManagers(targetDir: string) {
+                const env =
+                    await environmentGateway.detectEnvironment(targetDir);
+                return env.packageManagers;
+            },
+        };
+
         // Create use cases
         const discoverUseCase = new DiscoverFeedbackLoopsUseCase(
             scriptGateway,
             toolGateway,
-            environmentGateway,
+            packageManagerGateway,
         );
 
         const validateUseCase = new ValidateInstructionCoverageUseCase(

@@ -5,7 +5,10 @@
 import { createEnvironmentGateway } from "../../gateways/environment-gateway.js";
 import { createScriptDiscoveryGateway } from "../../gateways/script-discovery-gateway.js";
 import { createToolDiscoveryGateway } from "../../gateways/tool-discovery-gateway.js";
-import { DiscoverFeedbackLoopsUseCase } from "../../use-cases/discover-feedback-loops.js";
+import {
+    DiscoverFeedbackLoopsUseCase,
+    type PackageManagerGateway,
+} from "../../use-cases/discover-feedback-loops.js";
 import {
     errorResponse,
     successResponse,
@@ -28,11 +31,20 @@ export const discoverFeedbackLoopsHandler: ToolHandler = async (
         const toolGateway = createToolDiscoveryGateway();
         const environmentGateway = createEnvironmentGateway();
 
+        // Adapter for package manager gateway
+        const packageManagerGateway: PackageManagerGateway = {
+            async detectPackageManagers(targetDir: string) {
+                const env =
+                    await environmentGateway.detectEnvironment(targetDir);
+                return env.packageManagers;
+            },
+        };
+
         // Create use case
         const useCase = new DiscoverFeedbackLoopsUseCase(
             scriptGateway,
             toolGateway,
-            environmentGateway,
+            packageManagerGateway,
         );
 
         // Execute discovery
