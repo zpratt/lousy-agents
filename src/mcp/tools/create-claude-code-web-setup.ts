@@ -4,6 +4,7 @@
 
 import { join } from "node:path";
 import type {
+    ClaudeEnvironmentRecommendation,
     ClaudeSetupAction,
     ClaudeSetupResult,
 } from "../../entities/claude-setup.js";
@@ -53,9 +54,9 @@ export const createClaudeCodeWebSetupHandler: ToolHandler = async (
     // Merge settings
     const mergedSettings = mergeClaudeSettings(existingSettings, hooks);
 
-    // Write settings
-    await claudeGateway.writeSettings(dir, mergedSettings);
-    const settingsPath = join(dir, ".claude", "settings.json");
+    // Check if settings changed
+    const settingsChanged =
+        JSON.stringify(existingSettings) !== JSON.stringify(mergedSettings);
 
     // Read existing documentation
     const existingDocs = await claudeGateway.readDocumentation(dir);
@@ -66,13 +67,30 @@ export const createClaudeCodeWebSetupHandler: ToolHandler = async (
     // Merge documentation
     const mergedDocs = mergeClaudeDocumentation(existingDocs, setupSection);
 
-    // Write documentation
-    await claudeGateway.writeDocumentation(dir, mergedDocs);
-    const documentationPath = join(dir, "CLAUDE.md");
+    // Check if documentation changed
+    const docsChanged = existingDocs !== mergedDocs;
 
-    // Determine action taken
-    const action: ClaudeSetupAction =
-        !existingSettings && !existingDocs ? "created" : "updated";
+    // Determine action before writing
+    let action: ClaudeSetupAction;
+    if (!settingsChanged && !docsChanged) {
+        action = "no_changes_needed";
+    } else if (!existingSettings && !existingDocs) {
+        action = "created";
+    } else {
+        action = "updated";
+    }
+
+    // Only write if there are changes
+    if (settingsChanged) {
+        await claudeGateway.writeSettings(dir, mergedSettings);
+    }
+
+    if (docsChanged) {
+        await claudeGateway.writeDocumentation(dir, mergedDocs);
+    }
+
+    const settingsPath = join(dir, ".claude", "settings.json");
+    const documentationPath = join(dir, "CLAUDE.md");
 
     // Build result
     const result: ClaudeSetupResult = {
@@ -101,8 +119,10 @@ export const createClaudeCodeWebSetupHandler: ToolHandler = async (
 /**
  * Builds recommendations for UI-level environment configuration.
  */
-function buildRecommendations(environment: DetectedEnvironment) {
-    const recommendations = [];
+function buildRecommendations(
+    environment: DetectedEnvironment,
+): ClaudeEnvironmentRecommendation[] | undefined {
+    const recommendations: ClaudeEnvironmentRecommendation[] = [];
 
     // If package managers detected, recommend network access
     if (environment.packageManagers && environment.packageManagers.length > 0) {

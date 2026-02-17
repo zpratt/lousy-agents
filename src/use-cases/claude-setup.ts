@@ -227,11 +227,25 @@ export function mergeClaudeSettings(
     // Get existing SessionStart commands or empty array
     const existingCommands = existing.SessionStart || [];
 
-    // Merge new hooks, avoiding duplicates
+    // Merge new hooks with existing commands in deterministic order:
+    // 1) tool-generated commands (from hooks) in their original order
+    // 2) any existing commands not already included, preserving their order
     const newCommands = hooks.map((h) => h.command);
-    const commandSet = new Set([...existingCommands, ...newCommands]);
+    const mergedCommands: string[] = [];
 
-    merged.SessionStart = Array.from(commandSet);
+    for (const command of newCommands) {
+        if (!mergedCommands.includes(command)) {
+            mergedCommands.push(command);
+        }
+    }
+
+    for (const command of existingCommands) {
+        if (!mergedCommands.includes(command)) {
+            mergedCommands.push(command);
+        }
+    }
+
+    merged.SessionStart = mergedCommands;
 
     return merged;
 }
