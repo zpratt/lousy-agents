@@ -10,9 +10,11 @@ import {
     createCopilotSetupWorkflowHandler,
     createMcpServer,
     discoverEnvironmentHandler,
+    discoverFeedbackLoopsHandler,
     discoverWorkflowSetupActionsHandler,
     readCopilotSetupWorkflowHandler,
     resolveActionVersionsHandler,
+    validateInstructionCoverageHandler,
 } from "./server.js";
 
 const chance = new Chance();
@@ -577,6 +579,216 @@ jobs:
             expect(result.actionsToResolve).toHaveLength(0);
             expect(result.instructions).toBeUndefined();
             expect(result.message).toContain("All actions have been resolved");
+        });
+    });
+
+    describe("discover_feedback_loops handler", () => {
+        it("should discover scripts from package.json", async () => {
+            // Arrange
+            const packageJson = {
+                name: "test-project",
+                scripts: {
+                    test: "vitest run",
+                    build: "rspack build",
+                    lint: "biome check .",
+                    dev: "tsx src/index.ts",
+                },
+            };
+            await writeFile(
+                join(testDir, "package.json"),
+                JSON.stringify(packageJson),
+            );
+
+            // Act
+            const response = await discoverFeedbackLoopsHandler({
+                targetDir: testDir,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.success).toBe(true);
+            expect(result.summary).toBeDefined();
+            expect(result.summary).toMatchObject({
+                totalScripts: 4,
+                mandatoryScripts: 3, // test, build, lint are mandatory
+            });
+            expect(result.scriptsByPhase).toBeDefined();
+            expect(result.scriptsByPhase).toHaveProperty("test");
+            expect(result.scriptsByPhase).toHaveProperty("build");
+            expect(result.scriptsByPhase).toHaveProperty("lint");
+        });
+
+        it("should discover tools from GitHub Actions workflows", async () => {
+            // Arrange
+            const workflow = {
+                name: "CI",
+                on: "push",
+                jobs: {
+                    test: {
+                        "runs-on": "ubuntu-latest",
+                        steps: [
+                            {
+                                name: "Test",
+                                run: "npm test",
+                            },
+                            {
+                                name: "Build",
+                                run: "npm run build",
+                            },
+                        ],
+                    },
+                },
+            };
+            await writeFile(
+                join(workflowsDir, "ci.yml"),
+                JSON.stringify(workflow),
+            );
+
+            // Act
+            const response = await discoverFeedbackLoopsHandler({
+                targetDir: testDir,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.success).toBe(true);
+            expect(result.summary).toHaveProperty("totalTools");
+            expect(result.toolsByPhase).toBeDefined();
+        });
+
+        it("should return empty results when no scripts or workflows found", async () => {
+            // Act
+            const response = await discoverFeedbackLoopsHandler({
+                targetDir: testDir,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.success).toBe(true);
+            expect(result.summary?.totalScripts).toBe(0);
+            expect(result.summary?.totalTools).toBe(0);
+        });
+    });
+
+    describe("validate_instruction_coverage handler", () => {
+        it("should report 100% coverage when all mandatory scripts are documented", async () => {
+            // Arrange
+            const packageJson = {
+                scripts: {
+                    test: "vitest run",
+                    build: "rspack build",
+                    lint: "biome check .",
+                },
+            };
+            await writeFile(
+                join(testDir, "package.json"),
+                JSON.stringify(packageJson),
+            );
+
+            const instructionsDir = join(testDir, ".github", "instructions");
+            await mkdir(instructionsDir, { recursive: true });
+            const instructions = `
+# Testing
+
+Run tests with:
+\`\`\`bash
+npm run test
+npm run build
+npm run lint
+\`\`\`
+`;
+            await writeFile(
+                join(instructionsDir, "test.instructions.md"),
+                instructions,
+            );
+
+            // Act
+            const response = await validateInstructionCoverageHandler({
+                targetDir: testDir,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.success).toBe(true);
+            expect(result.hasFullCoverage).toBe(true);
+            expect(result.summary?.coveragePercentage).toBe(100);
+            expect(result.suggestions).toContain(
+                "✅ All mandatory feedback loops are documented in instructions",
+            );
+        });
+
+        it("should report partial coverage when some scripts are missing", async () => {
+            // Arrange
+            const packageJson = {
+                scripts: {
+                    test: "vitest run",
+                    build: "rspack build",
+                    lint: "biome check .",
+                },
+            };
+            await writeFile(
+                join(testDir, "package.json"),
+                JSON.stringify(packageJson),
+            );
+
+            const instructionsDir = join(testDir, ".github", "instructions");
+            await mkdir(instructionsDir, { recursive: true });
+            const instructions = `
+# Testing
+
+Run tests with:
+\`\`\`bash
+npm run test
+\`\`\`
+`;
+            await writeFile(
+                join(instructionsDir, "test.instructions.md"),
+                instructions,
+            );
+
+            // Act
+            const response = await validateInstructionCoverageHandler({
+                targetDir: testDir,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.success).toBe(true);
+            expect(result.hasFullCoverage).toBe(false);
+            expect(result.summary?.coveragePercentage).toBeLessThan(100);
+            expect(result.missing).toBeDefined();
+            expect(Array.isArray(result.missing)).toBe(true);
+            expect(result.missing?.length).toBeGreaterThan(0);
+        });
+
+        it("should provide suggestions for missing documentation", async () => {
+            // Arrange
+            const packageJson = {
+                scripts: {
+                    test: "vitest run",
+                    build: "rspack build",
+                },
+            };
+            await writeFile(
+                join(testDir, "package.json"),
+                JSON.stringify(packageJson),
+            );
+
+            // Act
+            const response = await validateInstructionCoverageHandler({
+                targetDir: testDir,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.success).toBe(true);
+            expect(result.suggestions).toBeDefined();
+            expect(Array.isArray(result.suggestions)).toBe(true);
+            expect(result.suggestions?.length).toBeGreaterThan(0);
+
+            const suggestionsText = (result.suggestions as string[]).join("\n");
+            expect(suggestionsText).toContain("phase:");
+            expect(suggestionsText).toContain("Document");
         });
     });
 });
