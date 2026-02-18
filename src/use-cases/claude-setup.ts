@@ -20,6 +20,17 @@ import {
 } from "../lib/copilot-setup-config.js";
 
 /**
+ * Validates that a filename is safe for use in shell commands.
+ * Prevents command injection by only allowing safe characters.
+ *
+ * @param filename The filename to validate
+ * @returns true if filename contains only safe characters
+ */
+function isValidVersionFilename(filename: string): boolean {
+    return /^[a-zA-Z0-9._-]+$/.test(filename);
+}
+
+/**
  * Builds SessionStart hooks from detected environment.
  * Transforms environment configuration into Claude Code SessionStart commands.
  *
@@ -103,6 +114,10 @@ function getRuntimeHookForType(
 ): SessionStartHook | null {
     const versionInfo = versionFile.version ? ` (${versionFile.version})` : "";
 
+    if (!isValidVersionFilename(versionFile.filename)) {
+        return null;
+    }
+
     switch (type) {
         case "node":
             return {
@@ -120,8 +135,6 @@ function getRuntimeHookForType(
                 description: `Install Ruby from ${versionFile.filename}${versionInfo}`,
             };
         case "java":
-            // Java version management in Claude Code base image may use sdkman or alternatives
-            // For now, document but don't generate command as it's environment-specific
             return null;
         case "go":
             // Go version management typically handled by asdf or gvm

@@ -200,6 +200,50 @@ describe("Claude Setup Use Cases", () => {
             });
         });
 
+        describe("when version file has unsafe filename", () => {
+            it("should skip version file with shell metacharacters", async () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [
+                        {
+                            type: "python",
+                            filename: ".python-version; rm -rf /",
+                            version: "3.11.0",
+                        },
+                    ],
+                    packageManagers: [],
+                };
+
+                // Act
+                const hooks = await buildSessionStartHooks(environment);
+
+                // Assert
+                expect(hooks).toHaveLength(0);
+            });
+
+            it("should skip version file with command substitution", async () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [
+                        {
+                            type: "ruby",
+                            filename: "$(malicious)",
+                            version: "3.2.0",
+                        },
+                    ],
+                    packageManagers: [],
+                };
+
+                // Act
+                const hooks = await buildSessionStartHooks(environment);
+
+                // Assert
+                expect(hooks).toHaveLength(0);
+            });
+        });
+
         describe("when npm with package-lock.json is detected", () => {
             it("should generate npm ci hook", async () => {
                 // Arrange
