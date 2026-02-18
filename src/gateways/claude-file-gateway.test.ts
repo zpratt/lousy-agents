@@ -226,7 +226,7 @@ describe("ClaudeFileGateway", () => {
                     join(testDir, "CLAUDE.md"),
                     "utf-8",
                 );
-                expect(written).toBe(content + "\n");
+                expect(written).toBe(`${content}\n`);
             });
         });
 
@@ -243,7 +243,7 @@ describe("ClaudeFileGateway", () => {
                     join(testDir, "CLAUDE.md"),
                     "utf-8",
                 );
-                expect(written).toBe(content + "\n");
+                expect(written).toBe(`${content}\n`);
                 expect(written.endsWith("\n")).toBe(true);
             });
         });
@@ -286,7 +286,7 @@ describe("ClaudeFileGateway", () => {
                     join(testDir, "CLAUDE.md"),
                     "utf-8",
                 );
-                expect(written).toBe(newContent + "\n");
+                expect(written).toBe(`${newContent}\n`);
                 expect(written).not.toContain("Old content");
             });
         });

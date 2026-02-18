@@ -70,9 +70,8 @@ export const createClaudeCodeWebSetupHandler: ToolHandler = async (
 
     // Check if documentation changed (normalize for comparison - trim and ensure trailing newline)
     const normalizeDoc = (doc: string | null) =>
-        doc ? (doc.trimEnd() + "\n") : null;
-    const docsChanged =
-        normalizeDoc(existingDocs) !== normalizeDoc(mergedDocs);
+        doc ? `${doc.trimEnd()}\n` : null;
+    const docsChanged = normalizeDoc(existingDocs) !== normalizeDoc(mergedDocs);
 
     // Determine action before writing
     let action: ClaudeSetupAction;

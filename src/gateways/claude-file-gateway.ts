@@ -73,7 +73,7 @@ export class FileSystemClaudeFileGateway implements ClaudeFileGateway {
         await mkdir(claudeDir, { recursive: true });
 
         // Write with 2-space indentation and trailing newline
-        const content = JSON.stringify(settings, null, 2) + "\n";
+        const content = `${JSON.stringify(settings, null, 2)}\n`;
         await writeFile(settingsPath, content, "utf-8");
     }
 
@@ -96,7 +96,7 @@ export class FileSystemClaudeFileGateway implements ClaudeFileGateway {
         // Ensure content has trailing newline
         const normalizedContent = content.endsWith("\n")
             ? content
-            : content + "\n";
+            : `${content}\n`;
 
         await writeFile(docPath, normalizedContent, "utf-8");
     }
