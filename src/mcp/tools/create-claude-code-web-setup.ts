@@ -54,9 +54,10 @@ export const createClaudeCodeWebSetupHandler: ToolHandler = async (
     // Merge settings
     const mergedSettings = mergeClaudeSettings(existingSettings, hooks);
 
-    // Check if settings changed
+    // Check if settings changed (normalize JSON for comparison)
     const settingsChanged =
-        JSON.stringify(existingSettings) !== JSON.stringify(mergedSettings);
+        JSON.stringify(existingSettings, null, 2) !==
+        JSON.stringify(mergedSettings, null, 2);
 
     // Read existing documentation
     const existingDocs = await claudeGateway.readDocumentation(dir);
@@ -67,8 +68,11 @@ export const createClaudeCodeWebSetupHandler: ToolHandler = async (
     // Merge documentation
     const mergedDocs = mergeClaudeDocumentation(existingDocs, setupSection);
 
-    // Check if documentation changed
-    const docsChanged = existingDocs !== mergedDocs;
+    // Check if documentation changed (normalize for comparison - trim and ensure trailing newline)
+    const normalizeDoc = (doc: string | null) =>
+        doc ? (doc.trimEnd() + "\n") : null;
+    const docsChanged =
+        normalizeDoc(existingDocs) !== normalizeDoc(mergedDocs);
 
     // Determine action before writing
     let action: ClaudeSetupAction;

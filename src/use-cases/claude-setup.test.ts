@@ -489,10 +489,8 @@ describe("Claude Setup Use Cases", () => {
                 // Act
                 const merged = mergeClaudeSettings(existing, hooks);
 
-                // Assert
-                expect(merged.SessionStart).toHaveLength(2);
-                expect(merged.SessionStart).toContain("nvm install");
-                expect(merged.SessionStart).toContain("npm ci");
+                // Assert - verify exact order: tool-generated commands first, duplicates removed
+                expect(merged.SessionStart).toEqual(["nvm install", "npm ci"]);
             });
         });
 
@@ -539,6 +537,32 @@ describe("Claude Setup Use Cases", () => {
 
                 // Assert
                 expect(merged.SessionStart).toEqual(["existing command"]);
+            });
+        });
+
+        describe("when existing SessionStart has dependency command and hooks add runtime setup", () => {
+            it("should place tool-generated runtime setup before existing dependency command", () => {
+                // Arrange
+                const existing: ClaudeSettings = {
+                    // biome-ignore lint/style/useNamingConvention: SessionStart is the Claude Code API property name
+                    SessionStart: ["npm ci"],
+                };
+                const hooks = [
+                    {
+                        command: "nvm install",
+                        description: "Install Node via nvm",
+                    },
+                    {
+                        command: "npm ci",
+                        description: "Install dependencies",
+                    },
+                ];
+
+                // Act
+                const merged = mergeClaudeSettings(existing, hooks);
+
+                // Assert - verify runtime (nvm) before dependencies (npm ci), no duplication
+                expect(merged.SessionStart).toEqual(["nvm install", "npm ci"]);
             });
         });
     });

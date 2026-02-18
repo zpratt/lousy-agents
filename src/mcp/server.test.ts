@@ -673,6 +673,42 @@ jobs:
             expect(result.success).toBe(false);
             expect(result.error).toContain("does not exist");
         });
+
+        it("should return no_changes_needed when run twice without changes", async () => {
+            // Arrange - create environment
+            await writeFile(join(testDir, ".nvmrc"), "20.0.0");
+            await writeFile(
+                join(testDir, "package.json"),
+                JSON.stringify({ name: "test" }),
+            );
+            await writeFile(
+                join(testDir, "package-lock.json"),
+                JSON.stringify({}),
+            );
+
+            // Act - first run creates files
+            const firstResponse = await createClaudeCodeWebSetupHandler({
+                targetDir: testDir,
+            });
+            const firstResult = parseResult(firstResponse);
+
+            // Assert - first run creates
+            expect(firstResult.success).toBe(true);
+            expect(firstResult.action).toBe("created");
+
+            // Act - second run with no changes
+            const secondResponse = await createClaudeCodeWebSetupHandler({
+                targetDir: testDir,
+            });
+            const secondResult = parseResult(secondResponse);
+
+            // Assert - second run detects no changes needed
+            expect(secondResult.success).toBe(true);
+            expect(secondResult.action).toBe("no_changes_needed");
+            expect(secondResult.message).toContain(
+                "No changes needed - environment setup is already current",
+            );
+        });
     });
 
     describe("discover_feedback_loops handler", () => {
