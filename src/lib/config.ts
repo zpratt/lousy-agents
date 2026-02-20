@@ -485,7 +485,7 @@ function buildRestApiStructure(): FilesystemStructure {
             {
                 type: "file",
                 path: "biome.json",
-                content: readRestApiTemplateFile("biome.json"),
+                content: readRestApiTemplateFile("biome.template.json"),
             },
             {
                 type: "file",
@@ -501,6 +501,11 @@ function buildRestApiStructure(): FilesystemStructure {
                 type: "file",
                 path: ".yamllint",
                 content: readRestApiTemplateFile(".yamllint"),
+            },
+            {
+                type: "file",
+                path: ".gitignore",
+                content: readRestApiTemplateFile("gitignore.template"),
             },
             // GitHub copilot instructions
             {
