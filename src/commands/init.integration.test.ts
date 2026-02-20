@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -100,6 +101,51 @@ describe("API template scaffolding", () => {
             expect(schemaVersion).toBeDefined();
             expect(packageVersion).toBeDefined();
             expect(schemaVersion).toBe(packageVersion);
+        });
+    });
+});
+
+describe("API template lint", () => {
+    let projectDir: string;
+
+    beforeAll(async () => {
+        // Arrange: scaffold a new API project
+        projectDir = join(tmpdir(), `e2e-api-lint-${chance.guid()}`);
+        await mkdir(projectDir, { recursive: true });
+
+        const projectName = `test-api-${chance.word({ length: 6 }).toLowerCase()}`;
+        const mockPrompt = () => Promise.resolve(projectName);
+
+        await initCommand.run({
+            rawArgs: [],
+            args: { _: [], kind: "api", name: projectName },
+            cmd: initCommand,
+            data: { prompt: mockPrompt, targetDir: projectDir },
+        });
+
+        // Initialize git so biome VCS integration can resolve .gitignore
+        execFileSync("git", ["init"], { cwd: projectDir, stdio: "pipe" });
+
+        // Install dependencies so biome binary is available
+        execFileSync("npm", ["install"], {
+            cwd: projectDir,
+            stdio: "pipe",
+            timeout: 120000,
+        });
+    }, 180000);
+
+    afterAll(async () => {
+        if (projectDir) {
+            await rm(projectDir, { recursive: true, force: true });
+        }
+    });
+
+    describe("given a scaffolded API project with dependencies installed", () => {
+        it("should pass npm run lint without errors", () => {
+            execFileSync("npm", ["run", "lint"], {
+                cwd: projectDir,
+                stdio: "pipe",
+            });
         });
     });
 });
