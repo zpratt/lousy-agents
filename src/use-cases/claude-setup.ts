@@ -20,14 +20,30 @@ import {
 } from "../lib/copilot-setup-config.js";
 
 /**
- * Validates that a filename is safe for use in shell commands.
- * Prevents command injection by only allowing safe characters.
+ * List of allowed version filenames.
+ * Using a hardcoded allowlist prevents command injection via malicious filenames
+ * in user-customizable config files.
+ */
+const ALLOWED_VERSION_FILENAMES = [
+    ".nvmrc",
+    ".node-version",
+    ".python-version",
+    ".java-version",
+    ".ruby-version",
+    ".go-version",
+] as const;
+
+/**
+ * Validates that a filename is in the allowlist of known version files.
+ * Prevents command injection by only allowing hardcoded safe filenames.
  *
  * @param filename The filename to validate
- * @returns true if filename contains only safe characters
+ * @returns true if filename is in the allowlist
  */
 function isValidVersionFilename(filename: string): boolean {
-    return /^[a-zA-Z0-9._-]+$/.test(filename);
+    return ALLOWED_VERSION_FILENAMES.includes(
+        filename as (typeof ALLOWED_VERSION_FILENAMES)[number],
+    );
 }
 
 /**

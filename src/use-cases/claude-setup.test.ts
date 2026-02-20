@@ -200,7 +200,7 @@ describe("Claude Setup Use Cases", () => {
             });
         });
 
-        describe("when version file has unsafe filename", () => {
+        describe("when version file is not in allowlist", () => {
             it("should skip version file with shell metacharacters", async () => {
                 // Arrange
                 const environment: DetectedEnvironment = {
@@ -231,6 +231,27 @@ describe("Claude Setup Use Cases", () => {
                             type: "ruby",
                             filename: "$(malicious)",
                             version: "3.2.0",
+                        },
+                    ],
+                    packageManagers: [],
+                };
+
+                // Act
+                const hooks = await buildSessionStartHooks(environment);
+
+                // Assert
+                expect(hooks).toHaveLength(0);
+            });
+
+            it("should skip version file with unknown filename", async () => {
+                // Arrange
+                const environment: DetectedEnvironment = {
+                    hasMise: false,
+                    versionFiles: [
+                        {
+                            type: "python",
+                            filename: ".custom-python-version",
+                            version: "3.11.0",
                         },
                     ],
                     packageManagers: [],
