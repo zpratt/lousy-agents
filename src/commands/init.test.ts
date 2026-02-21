@@ -793,6 +793,97 @@ describe("Init command", () => {
             expect(content).toContain("Specifications Directory");
             expect(content).toContain("EARS");
         });
+
+        it.each([
+            "webapp",
+            "api",
+            "cli",
+        ] as const)("should create .gitignore for %s project type", async (projectType) => {
+            // Arrange
+            const projectName = chance.word().toLowerCase();
+            mockPrompt = createMockPrompt(projectType, projectName);
+            const gitignoreFile = join(testDir, ".gitignore");
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            await expect(access(gitignoreFile)).resolves.toBeUndefined();
+            const content = await readFile(gitignoreFile, "utf-8");
+            expect(content).toContain("node_modules/");
+            if (projectType === "webapp") {
+                expect(content).toContain(".next/");
+            } else {
+                expect(content).not.toContain(".next/");
+            }
+        });
+
+        it.each([
+            "webapp",
+            "api",
+            "cli",
+        ] as const)("should create .vscode/mcp.json with correct MCP server args for %s project type", async (projectType) => {
+            // Arrange
+            const projectName = chance.word().toLowerCase();
+            mockPrompt = createMockPrompt(projectType, projectName);
+            const mcpJsonFile = join(testDir, ".vscode", "mcp.json");
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            await expect(access(mcpJsonFile)).resolves.toBeUndefined();
+            const content = await readFile(mcpJsonFile, "utf-8");
+            const parsed = JSON.parse(content) as {
+                servers: {
+                    "lousy-agents": { args: string[] };
+                };
+            };
+            expect(parsed.servers["lousy-agents"].args).toEqual([
+                "-y",
+                "-p",
+                "@lousy-agents/cli",
+                "lousy-agents-mcp",
+            ]);
+        });
+
+        it.each([
+            "webapp",
+            "api",
+            "cli",
+        ] as const)("should create .github/workflows/ci.yml with lint, test, and build jobs for %s project type", async (projectType) => {
+            // Arrange
+            const projectName = chance.word().toLowerCase();
+            mockPrompt = createMockPrompt(projectType, projectName);
+            const ciYmlFile = join(testDir, ".github", "workflows", "ci.yml");
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            await expect(access(ciYmlFile)).resolves.toBeUndefined();
+            const content = await readFile(ciYmlFile, "utf-8");
+            expect(content).toContain("name: CI");
+            expect(content).toContain("jobs:");
+            expect(content).toContain("lint:");
+            expect(content).toContain("build:");
+            expect(content).toMatch(/needs:\s*\[lint/);
+        });
     });
 
     describe("when preserving existing files across project types", () => {
