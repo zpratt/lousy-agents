@@ -109,6 +109,7 @@ function defaultOctokitFactory(token: string): Octokit {
 export class OctokitRulesetGateway implements RulesetGateway {
     private readonly exec: ExecFunction;
     private readonly createOctokit: OctokitFactory;
+    private cachedOctokit: Octokit | null = null;
 
     constructor(
         exec: ExecFunction = defaultExec,
@@ -205,15 +206,19 @@ export class OctokitRulesetGateway implements RulesetGateway {
     }
 
     /**
-     * Creates an authenticated Octokit instance using the GH CLI token
+     * Returns a cached or newly created authenticated Octokit instance
      */
     private async getOctokit(): Promise<Octokit> {
+        if (this.cachedOctokit) {
+            return this.cachedOctokit;
+        }
         const { stdout } = await this.exec("gh", ["auth", "token"]);
         const token = stdout.trim();
         if (!token) {
             throw new Error("No authentication token available from GH CLI");
         }
-        return this.createOctokit(token);
+        this.cachedOctokit = this.createOctokit(token);
+        return this.cachedOctokit;
     }
 }
 
