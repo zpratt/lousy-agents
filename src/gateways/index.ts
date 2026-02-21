@@ -34,8 +34,8 @@ export {
     type SkillFileGateway,
 } from "./skill-file-gateway.js";
 export {
-	createSkillLintGateway,
-	FileSystemSkillLintGateway,
+    createSkillLintGateway,
+    FileSystemSkillLintGateway,
 } from "./skill-lint-gateway.js";
 export {
     createToolDiscoveryGateway,
