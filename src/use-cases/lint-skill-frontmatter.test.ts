@@ -368,6 +368,43 @@ describe("LintSkillFrontmatterUseCase", () => {
         });
     });
 
+    describe("given a skill with whitespace-only description", () => {
+        it("should return an error diagnostic", async () => {
+            // Arrange
+            const skillName = "my-skill";
+            const filePath = `/repo/.github/skills/${skillName}/SKILL.md`;
+            const discovered: DiscoveredSkillFile[] = [{ filePath, skillName }];
+            const frontmatter: ParsedFrontmatter = {
+                data: { name: skillName, description: "   " },
+                fieldLines: new Map([
+                    ["name", 2],
+                    ["description", 3],
+                ]),
+                frontmatterStartLine: 1,
+            };
+            const gateway = createMockGateway({
+                discoverSkills: vi.fn().mockResolvedValue(discovered),
+                readSkillFileContent: vi
+                    .fn()
+                    .mockResolvedValue(
+                        `---\nname: ${skillName}\ndescription: "   "\n---\n`,
+                    ),
+                parseFrontmatter: vi.fn().mockReturnValue(frontmatter),
+            });
+            const useCase = new LintSkillFrontmatterUseCase(gateway);
+
+            // Act
+            const result = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert
+            expect(result.results[0].valid).toBe(false);
+            const descDiagnostic = result.results[0].diagnostics.find(
+                (d) => d.field === "description" && d.severity === "error",
+            );
+            expect(descDiagnostic).toBeDefined();
+        });
+    });
+
     describe("given multiple skills", () => {
         it("should return results for all skills with correct totals", async () => {
             // Arrange

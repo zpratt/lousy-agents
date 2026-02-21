@@ -27,7 +27,10 @@ export const AgentSkillFrontmatterSchema = z.object({
     description: z
         .string()
         .min(1, "Description is required")
-        .max(1024, "Description must be 1024 characters or fewer"),
+        .max(1024, "Description must be 1024 characters or fewer")
+        .refine((s) => s.trim().length > 0, {
+            message: "Description cannot be empty or whitespace-only",
+        }),
     license: z.string().optional(),
     compatibility: z
         .string()

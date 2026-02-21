@@ -32,6 +32,14 @@ export class FileSystemSkillLintGateway implements SkillLintGateway {
                 continue;
             }
 
+            if (
+                entry.name.includes("..") ||
+                entry.name.includes("/") ||
+                entry.name.includes("\\")
+            ) {
+                continue;
+            }
+
             const skillFilePath = join(skillsDir, entry.name, "SKILL.md");
 
             if (await fileExists(skillFilePath)) {
