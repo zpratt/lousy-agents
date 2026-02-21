@@ -25,7 +25,7 @@ export {
 export { fileExists } from "./file-system-utils.js";
 export {
     createGitHubRulesetGateway,
-    GhCliRulesetGateway,
+    OctokitRulesetGateway,
 } from "./github-ruleset-gateway.js";
 export {
     createInstructionAnalysisGateway,

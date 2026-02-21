@@ -2,7 +2,8 @@ import Chance from "chance";
 import { describe, expect, it, vi } from "vitest";
 import {
     type ExecFunction,
-    GhCliRulesetGateway,
+    type OctokitFactory,
+    OctokitRulesetGateway,
     parseRepoFromRemoteUrl,
 } from "./github-ruleset-gateway.js";
 
@@ -69,15 +70,48 @@ describe("GitHub Ruleset Gateway", () => {
         });
     });
 
-    describe("GhCliRulesetGateway", () => {
+    describe("OctokitRulesetGateway", () => {
+        const token = chance.hash();
+
+        function createMockExec(
+            overrides: Partial<Record<string, string>> = {},
+        ): ExecFunction {
+            return vi.fn().mockImplementation((cmd: string, args: string[]) => {
+                if (cmd === "gh" && args[0] === "auth" && args[1] === "token") {
+                    if (overrides.token !== undefined) {
+                        return Promise.resolve({
+                            stdout: overrides.token,
+                            stderr: "",
+                        });
+                    }
+                    return Promise.resolve({
+                        stdout: `${token}\n`,
+                        stderr: "",
+                    });
+                }
+                if (
+                    cmd === "git" &&
+                    args[0] === "remote" &&
+                    args[1] === "get-url"
+                ) {
+                    if (overrides.remoteUrl !== undefined) {
+                        return Promise.resolve({
+                            stdout: overrides.remoteUrl,
+                            stderr: "",
+                        });
+                    }
+                    return Promise.reject(new Error("no remote"));
+                }
+                return Promise.reject(new Error(`unexpected call: ${cmd}`));
+            });
+        }
+
         describe("isAuthenticated", () => {
-            describe("when gh auth status succeeds", () => {
+            describe("when gh auth token returns a token", () => {
                 it("should return true", async () => {
                     // Arrange
-                    const mockExec: ExecFunction = vi
-                        .fn()
-                        .mockResolvedValue({ stdout: "", stderr: "" });
-                    const gateway = new GhCliRulesetGateway(mockExec);
+                    const mockExec = createMockExec();
+                    const gateway = new OctokitRulesetGateway(mockExec);
 
                     // Act
                     const result = await gateway.isAuthenticated();
@@ -86,18 +120,32 @@ describe("GitHub Ruleset Gateway", () => {
                     expect(result).toBe(true);
                     expect(mockExec).toHaveBeenCalledWith("gh", [
                         "auth",
-                        "status",
+                        "token",
                     ]);
                 });
             });
 
-            describe("when gh auth status fails", () => {
+            describe("when gh auth token fails", () => {
                 it("should return false", async () => {
                     // Arrange
                     const mockExec: ExecFunction = vi
                         .fn()
                         .mockRejectedValue(new Error("not logged in"));
-                    const gateway = new GhCliRulesetGateway(mockExec);
+                    const gateway = new OctokitRulesetGateway(mockExec);
+
+                    // Act
+                    const result = await gateway.isAuthenticated();
+
+                    // Assert
+                    expect(result).toBe(false);
+                });
+            });
+
+            describe("when gh auth token returns an empty string", () => {
+                it("should return false", async () => {
+                    // Arrange
+                    const mockExec = createMockExec({ token: "" });
+                    const gateway = new OctokitRulesetGateway(mockExec);
 
                     // Act
                     const result = await gateway.isAuthenticated();
@@ -114,11 +162,10 @@ describe("GitHub Ruleset Gateway", () => {
                     // Arrange
                     const owner = chance.word();
                     const repo = chance.word();
-                    const mockExec: ExecFunction = vi.fn().mockResolvedValue({
-                        stdout: `https://github.com/${owner}/${repo}.git\n`,
-                        stderr: "",
+                    const mockExec = createMockExec({
+                        remoteUrl: `https://github.com/${owner}/${repo}.git\n`,
                     });
-                    const gateway = new GhCliRulesetGateway(mockExec);
+                    const gateway = new OctokitRulesetGateway(mockExec);
                     const targetDir = chance.word();
 
                     // Act
@@ -132,11 +179,10 @@ describe("GitHub Ruleset Gateway", () => {
             describe("when git remote returns an invalid URL", () => {
                 it("should return null", async () => {
                     // Arrange
-                    const mockExec: ExecFunction = vi.fn().mockResolvedValue({
-                        stdout: "not-a-github-url\n",
-                        stderr: "",
+                    const mockExec = createMockExec({
+                        remoteUrl: "not-a-github-url\n",
                     });
-                    const gateway = new GhCliRulesetGateway(mockExec);
+                    const gateway = new OctokitRulesetGateway(mockExec);
                     const targetDir = chance.word();
 
                     // Act
@@ -153,7 +199,7 @@ describe("GitHub Ruleset Gateway", () => {
                     const mockExec: ExecFunction = vi
                         .fn()
                         .mockRejectedValue(new Error("not a git repository"));
-                    const gateway = new GhCliRulesetGateway(mockExec);
+                    const gateway = new OctokitRulesetGateway(mockExec);
                     const targetDir = chance.word();
 
                     // Act
@@ -167,7 +213,7 @@ describe("GitHub Ruleset Gateway", () => {
 
         describe("listRulesets", () => {
             describe("when the API returns rulesets", () => {
-                it("should return parsed rulesets", async () => {
+                it("should return parsed rulesets via Octokit", async () => {
                     // Arrange
                     const owner = chance.word();
                     const repo = chance.word();
@@ -180,22 +226,32 @@ describe("GitHub Ruleset Gateway", () => {
                             enforcement: "active",
                         },
                     ];
-                    const mockExec: ExecFunction = vi.fn().mockResolvedValue({
-                        stdout: JSON.stringify(rulesets),
-                        stderr: "",
-                    });
-                    const gateway = new GhCliRulesetGateway(mockExec);
+                    const mockGetRepoRulesets = vi
+                        .fn()
+                        .mockResolvedValue({ data: rulesets });
+                    const mockOctokitFactory: OctokitFactory = () =>
+                        ({
+                            rest: {
+                                repos: {
+                                    getRepoRulesets: mockGetRepoRulesets,
+                                },
+                            },
+                        }) as never;
+                    const mockExec = createMockExec();
+                    const gateway = new OctokitRulesetGateway(
+                        mockExec,
+                        mockOctokitFactory,
+                    );
 
                     // Act
                     const result = await gateway.listRulesets(owner, repo);
 
                     // Assert
                     expect(result).toEqual(rulesets);
-                    expect(mockExec).toHaveBeenCalledWith("gh", [
-                        "api",
-                        `repos/${owner}/${repo}/rulesets`,
-                        "--paginate",
-                    ]);
+                    expect(mockGetRepoRulesets).toHaveBeenCalledWith({
+                        owner,
+                        repo,
+                    });
                 });
             });
 
@@ -204,14 +260,26 @@ describe("GitHub Ruleset Gateway", () => {
                     // Arrange
                     const owner = chance.word();
                     const repo = chance.word();
-                    const mockExec: ExecFunction = vi
+                    const mockGetRepoRulesets = vi
                         .fn()
                         .mockRejectedValue(
                             new Error(
-                                "HTTP 403: Resource not accessible by integration",
+                                "HttpError: Resource not accessible by integration",
                             ),
                         );
-                    const gateway = new GhCliRulesetGateway(mockExec);
+                    const mockOctokitFactory: OctokitFactory = () =>
+                        ({
+                            rest: {
+                                repos: {
+                                    getRepoRulesets: mockGetRepoRulesets,
+                                },
+                            },
+                        }) as never;
+                    const mockExec = createMockExec();
+                    const gateway = new OctokitRulesetGateway(
+                        mockExec,
+                        mockOctokitFactory,
+                    );
 
                     // Act & Assert
                     await expect(
@@ -230,11 +298,22 @@ describe("GitHub Ruleset Gateway", () => {
                     const invalidData = [
                         { invalid: "missing required fields" },
                     ];
-                    const mockExec: ExecFunction = vi.fn().mockResolvedValue({
-                        stdout: JSON.stringify(invalidData),
-                        stderr: "",
-                    });
-                    const gateway = new GhCliRulesetGateway(mockExec);
+                    const mockGetRepoRulesets = vi
+                        .fn()
+                        .mockResolvedValue({ data: invalidData });
+                    const mockOctokitFactory: OctokitFactory = () =>
+                        ({
+                            rest: {
+                                repos: {
+                                    getRepoRulesets: mockGetRepoRulesets,
+                                },
+                            },
+                        }) as never;
+                    const mockExec = createMockExec();
+                    const gateway = new OctokitRulesetGateway(
+                        mockExec,
+                        mockOctokitFactory,
+                    );
 
                     // Act & Assert
                     await expect(
@@ -248,7 +327,7 @@ describe("GitHub Ruleset Gateway", () => {
 
         describe("createRuleset", () => {
             describe("when the API call succeeds", () => {
-                it("should create the ruleset without error", async () => {
+                it("should create the ruleset via Octokit", async () => {
                     // Arrange
                     const owner = chance.word();
                     const repo = chance.word();
@@ -261,30 +340,32 @@ describe("GitHub Ruleset Gateway", () => {
                         conditions: {},
                         rules: [],
                     };
-                    const mockExec: ExecFunction = vi.fn().mockResolvedValue({
-                        stdout: JSON.stringify({ id: chance.natural() }),
-                        stderr: "",
-                    });
-                    const gateway = new GhCliRulesetGateway(mockExec);
+                    const mockCreateRepoRuleset = vi
+                        .fn()
+                        .mockResolvedValue({ data: { id: chance.natural() } });
+                    const mockOctokitFactory: OctokitFactory = () =>
+                        ({
+                            rest: {
+                                repos: {
+                                    createRepoRuleset: mockCreateRepoRuleset,
+                                },
+                            },
+                        }) as never;
+                    const mockExec = createMockExec();
+                    const gateway = new OctokitRulesetGateway(
+                        mockExec,
+                        mockOctokitFactory,
+                    );
 
                     // Act & Assert
                     await expect(
                         gateway.createRuleset(owner, repo, payload),
                     ).resolves.toBeUndefined();
-                    expect(mockExec).toHaveBeenCalledWith(
-                        "gh",
-                        [
-                            "api",
-                            `repos/${owner}/${repo}/rulesets`,
-                            "-X",
-                            "POST",
-                            "--input",
-                            "-",
-                        ],
-                        expect.objectContaining({
-                            input: JSON.stringify(payload),
-                        }),
-                    );
+                    expect(mockCreateRepoRuleset).toHaveBeenCalledWith({
+                        owner,
+                        repo,
+                        ...payload,
+                    });
                 });
             });
 
@@ -302,10 +383,22 @@ describe("GitHub Ruleset Gateway", () => {
                         conditions: {},
                         rules: [],
                     };
-                    const mockExec: ExecFunction = vi
+                    const mockCreateRepoRuleset = vi
                         .fn()
-                        .mockRejectedValue(new Error("HTTP 403"));
-                    const gateway = new GhCliRulesetGateway(mockExec);
+                        .mockRejectedValue(new Error("HttpError: 403"));
+                    const mockOctokitFactory: OctokitFactory = () =>
+                        ({
+                            rest: {
+                                repos: {
+                                    createRepoRuleset: mockCreateRepoRuleset,
+                                },
+                            },
+                        }) as never;
+                    const mockExec = createMockExec();
+                    const gateway = new OctokitRulesetGateway(
+                        mockExec,
+                        mockOctokitFactory,
+                    );
 
                     // Act & Assert
                     await expect(

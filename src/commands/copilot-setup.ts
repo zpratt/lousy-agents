@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
-import type { GhCliRulesetGateway } from "../gateways/github-ruleset-gateway.js";
+import type { OctokitRulesetGateway } from "../gateways/github-ruleset-gateway.js";
 import {
     createEnvironmentGateway,
     createGitHubRulesetGateway,
@@ -49,10 +49,10 @@ export const copilotSetupCommand = defineCommand({
         // Create gateways
         const environmentGateway = createEnvironmentGateway();
         const workflowGateway = createWorkflowGateway();
-        const rulesetGateway: GhCliRulesetGateway =
+        const rulesetGateway: OctokitRulesetGateway =
             context.data?.rulesetGateway instanceof Object &&
             "isAuthenticated" in context.data.rulesetGateway
-                ? (context.data.rulesetGateway as GhCliRulesetGateway)
+                ? (context.data.rulesetGateway as OctokitRulesetGateway)
                 : createGitHubRulesetGateway();
         const prompt =
             typeof context.data?.prompt === "function"
@@ -195,7 +195,7 @@ export const copilotSetupCommand = defineCommand({
  * Handles all error cases gracefully with user-friendly messages.
  */
 async function checkAndPromptRuleset(
-    rulesetGateway: GhCliRulesetGateway,
+    rulesetGateway: OctokitRulesetGateway,
     targetDir: string,
     prompt: (message: string, options: { type: string }) => Promise<boolean>,
 ): Promise<void> {
