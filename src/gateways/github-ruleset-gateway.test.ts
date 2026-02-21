@@ -152,9 +152,7 @@ describe("GitHub Ruleset Gateway", () => {
                     // Arrange
                     const mockExec: ExecFunction = vi
                         .fn()
-                        .mockRejectedValue(
-                            new Error("not a git repository"),
-                        );
+                        .mockRejectedValue(new Error("not a git repository"));
                     const gateway = new GhCliRulesetGateway(mockExec);
                     const targetDir = chance.word();
 
@@ -206,11 +204,13 @@ describe("GitHub Ruleset Gateway", () => {
                     // Arrange
                     const owner = chance.word();
                     const repo = chance.word();
-                    const mockExec: ExecFunction = vi.fn().mockRejectedValue(
-                        new Error(
-                            "HTTP 403: Resource not accessible by integration",
-                        ),
-                    );
+                    const mockExec: ExecFunction = vi
+                        .fn()
+                        .mockRejectedValue(
+                            new Error(
+                                "HTTP 403: Resource not accessible by integration",
+                            ),
+                        );
                     const gateway = new GhCliRulesetGateway(mockExec);
 
                     // Act & Assert
@@ -233,6 +233,7 @@ describe("GitHub Ruleset Gateway", () => {
                         name: chance.word(),
                         enforcement: "active",
                         target: "branch",
+                        // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
                         bypass_actors: [],
                         conditions: {},
                         rules: [],
@@ -247,16 +248,20 @@ describe("GitHub Ruleset Gateway", () => {
                     await expect(
                         gateway.createRuleset(owner, repo, payload),
                     ).resolves.toBeUndefined();
-                    expect(mockExec).toHaveBeenCalledWith("gh", [
-                        "api",
-                        `repos/${owner}/${repo}/rulesets`,
-                        "-X",
-                        "POST",
-                        "--input",
-                        "-",
-                    ], expect.objectContaining({
-                        input: JSON.stringify(payload),
-                    }));
+                    expect(mockExec).toHaveBeenCalledWith(
+                        "gh",
+                        [
+                            "api",
+                            `repos/${owner}/${repo}/rulesets`,
+                            "-X",
+                            "POST",
+                            "--input",
+                            "-",
+                        ],
+                        expect.objectContaining({
+                            input: JSON.stringify(payload),
+                        }),
+                    );
                 });
             });
 
@@ -269,6 +274,7 @@ describe("GitHub Ruleset Gateway", () => {
                         name: chance.word(),
                         enforcement: "active",
                         target: "branch",
+                        // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
                         bypass_actors: [],
                         conditions: {},
                         rules: [],

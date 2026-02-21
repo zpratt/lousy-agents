@@ -3,12 +3,13 @@ import { describe, expect, it } from "vitest";
 import type {
     CopilotReviewStatus,
     Ruleset,
+    RulesetRule,
 } from "../entities/copilot-setup.js";
 import {
-    type RulesetGateway,
     buildCopilotReviewRulesetPayload,
     checkCopilotReviewRuleset,
     hasCopilotReviewRule,
+    type RulesetGateway,
 } from "./check-copilot-review-ruleset.js";
 
 const chance = new Chance();
@@ -23,32 +24,47 @@ function createMockGateway(
     };
 }
 
+/**
+ * Builds a code_scanning rule with the specified tool name.
+ * Uses GitHub API snake_case field names.
+ */
+function buildCodeScanningRule(toolName: string): RulesetRule {
+    return {
+        type: "code_scanning",
+        parameters: {
+            // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+            code_scanning_tools: [
+                {
+                    tool: toolName,
+                    // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                    security_alerts_threshold: "high_or_higher",
+                    // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                    alerts_threshold: "errors",
+                },
+            ],
+        },
+    };
+}
+
+/**
+ * Builds a ruleset with the given rules.
+ */
+function buildRuleset(rules?: RulesetRule[]): Ruleset {
+    return {
+        id: chance.natural(),
+        name: chance.word(),
+        enforcement: "active",
+        rules,
+    };
+}
+
 describe("Check Copilot Review Ruleset", () => {
     describe("hasCopilotReviewRule", () => {
         describe("when a ruleset contains a code_scanning rule with Copilot Autofix tool", () => {
             it("should return true", () => {
                 // Arrange
                 const rulesets: Ruleset[] = [
-                    {
-                        id: chance.natural(),
-                        name: chance.word(),
-                        enforcement: "active",
-                        rules: [
-                            {
-                                type: "code_scanning",
-                                parameters: {
-                                    code_scanning_tools: [
-                                        {
-                                            tool: "Copilot Autofix",
-                                            security_alerts_threshold:
-                                                "high_or_higher",
-                                            alerts_threshold: "errors",
-                                        },
-                                    ],
-                                },
-                            },
-                        ],
-                    },
+                    buildRuleset([buildCodeScanningRule("Copilot Autofix")]),
                 ];
 
                 // Act
@@ -63,26 +79,7 @@ describe("Check Copilot Review Ruleset", () => {
             it("should return true", () => {
                 // Arrange
                 const rulesets: Ruleset[] = [
-                    {
-                        id: chance.natural(),
-                        name: chance.word(),
-                        enforcement: "active",
-                        rules: [
-                            {
-                                type: "code_scanning",
-                                parameters: {
-                                    code_scanning_tools: [
-                                        {
-                                            tool: "copilot autofix",
-                                            security_alerts_threshold:
-                                                "high_or_higher",
-                                            alerts_threshold: "errors",
-                                        },
-                                    ],
-                                },
-                            },
-                        ],
-                    },
+                    buildRuleset([buildCodeScanningRule("copilot autofix")]),
                 ];
 
                 // Act
@@ -97,26 +94,7 @@ describe("Check Copilot Review Ruleset", () => {
             it("should return false", () => {
                 // Arrange
                 const rulesets: Ruleset[] = [
-                    {
-                        id: chance.natural(),
-                        name: chance.word(),
-                        enforcement: "active",
-                        rules: [
-                            {
-                                type: "code_scanning",
-                                parameters: {
-                                    code_scanning_tools: [
-                                        {
-                                            tool: "CodeQL",
-                                            security_alerts_threshold:
-                                                "high_or_higher",
-                                            alerts_threshold: "errors",
-                                        },
-                                    ],
-                                },
-                            },
-                        ],
-                    },
+                    buildRuleset([buildCodeScanningRule("CodeQL")]),
                 ];
 
                 // Act
@@ -140,13 +118,7 @@ describe("Check Copilot Review Ruleset", () => {
         describe("when rulesets have no rules", () => {
             it("should return false", () => {
                 // Arrange
-                const rulesets: Ruleset[] = [
-                    {
-                        id: chance.natural(),
-                        name: chance.word(),
-                        enforcement: "active",
-                    },
-                ];
+                const rulesets: Ruleset[] = [buildRuleset()];
 
                 // Act
                 const result = hasCopilotReviewRule(rulesets);
@@ -160,19 +132,15 @@ describe("Check Copilot Review Ruleset", () => {
             it("should return false", () => {
                 // Arrange
                 const rulesets: Ruleset[] = [
-                    {
-                        id: chance.natural(),
-                        name: chance.word(),
-                        enforcement: "active",
-                        rules: [
-                            {
-                                type: "pull_request",
-                                parameters: {
-                                    required_approving_review_count: 1,
-                                },
+                    buildRuleset([
+                        {
+                            type: "pull_request",
+                            parameters: {
+                                // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                                required_approving_review_count: 1,
                             },
-                        ],
-                    },
+                        },
+                    ]),
                 ];
 
                 // Act
@@ -202,11 +170,10 @@ describe("Check Copilot Review Ruleset", () => {
 
             // Assert
             const rule = result.rules[0];
-            const tools = (
-                rule.parameters as {
-                    code_scanning_tools: Array<{ tool: string }>;
-                }
-            ).code_scanning_tools;
+            const params = rule.parameters as Record<string, unknown>;
+            const tools = params.code_scanning_tools as Array<{
+                tool: string;
+            }>;
             expect(tools).toContainEqual(
                 expect.objectContaining({ tool: "Copilot Autofix" }),
             );
@@ -218,30 +185,12 @@ describe("Check Copilot Review Ruleset", () => {
             it("should return status with hasRuleset true and the ruleset name", async () => {
                 // Arrange
                 const rulesetName = chance.word();
+                const copilotRuleset = buildRuleset([
+                    buildCodeScanningRule("Copilot Autofix"),
+                ]);
+                copilotRuleset.name = rulesetName;
                 const gateway = createMockGateway({
-                    listRulesets: () =>
-                        Promise.resolve([
-                            {
-                                id: chance.natural(),
-                                name: rulesetName,
-                                enforcement: "active",
-                                rules: [
-                                    {
-                                        type: "code_scanning",
-                                        parameters: {
-                                            code_scanning_tools: [
-                                                {
-                                                    tool: "Copilot Autofix",
-                                                    security_alerts_threshold:
-                                                        "high_or_higher",
-                                                    alerts_threshold: "errors",
-                                                },
-                                            ],
-                                        },
-                                    },
-                                ],
-                            },
-                        ]),
+                    listRulesets: () => Promise.resolve([copilotRuleset]),
                 });
                 const owner = chance.word();
                 const repo = chance.word();
@@ -289,8 +238,7 @@ describe("Check Copilot Review Ruleset", () => {
                 // Arrange
                 const errorMessage = chance.sentence();
                 const gateway = createMockGateway({
-                    listRulesets: () =>
-                        Promise.reject(new Error(errorMessage)),
+                    listRulesets: () => Promise.reject(new Error(errorMessage)),
                 });
                 const owner = chance.word();
                 const repo = chance.word();

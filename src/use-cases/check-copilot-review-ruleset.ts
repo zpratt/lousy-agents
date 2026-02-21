@@ -43,6 +43,7 @@ export interface RulesetPayload {
     name: string;
     enforcement: string;
     target: string;
+    // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
     bypass_actors: Array<Record<string, unknown>>;
     conditions: Record<string, unknown>;
     rules: RulesetRule[];
@@ -131,8 +132,10 @@ export function buildCopilotReviewRulesetPayload(): RulesetPayload {
         name: "Copilot Code Review",
         enforcement: "active",
         target: "branch",
+        // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
         bypass_actors: [],
         conditions: {
+            // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
             ref_name: {
                 include: ["~DEFAULT_BRANCH"],
                 exclude: [],
@@ -142,10 +145,13 @@ export function buildCopilotReviewRulesetPayload(): RulesetPayload {
             {
                 type: "code_scanning",
                 parameters: {
+                    // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
                     code_scanning_tools: [
                         {
                             tool: "Copilot Autofix",
+                            // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
                             security_alerts_threshold: "high_or_higher",
+                            // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
                             alerts_threshold: "errors",
                         },
                     ],

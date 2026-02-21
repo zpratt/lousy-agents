@@ -2,11 +2,47 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parse as parseYaml } from "yaml";
+import type { RulesetRule } from "../entities/copilot-setup.js";
+import type { GhCliRulesetGateway } from "../gateways/github-ruleset-gateway.js";
 import { copilotSetupCommand } from "./copilot-setup.js";
 
 const chance = new Chance();
+
+/**
+ * Builds a code_scanning rule with a Copilot tool for test data.
+ */
+function buildCopilotRule(): RulesetRule {
+    return {
+        type: "code_scanning",
+        parameters: {
+            // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+            code_scanning_tools: [
+                {
+                    tool: "Copilot Autofix",
+                    // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                    security_alerts_threshold: "high_or_higher",
+                    // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                    alerts_threshold: "errors",
+                },
+            ],
+        },
+    };
+}
+
+function createMockRulesetGateway(
+    overrides: Partial<GhCliRulesetGateway> = {},
+): GhCliRulesetGateway {
+    return {
+        isAuthenticated:
+            overrides.isAuthenticated ?? (() => Promise.resolve(false)),
+        getRepoInfo: overrides.getRepoInfo ?? (() => Promise.resolve(null)),
+        listRulesets: overrides.listRulesets ?? (() => Promise.resolve([])),
+        createRuleset:
+            overrides.createRuleset ?? (() => Promise.resolve(undefined)),
+    } as GhCliRulesetGateway;
+}
 
 describe("Copilot Setup command", () => {
     let testDir: string;
@@ -332,7 +368,10 @@ jobs:
                     rawArgs: [],
                     args: { _: [] },
                     cmd: copilotSetupCommand,
-                    data: { targetDir: emptyDir },
+                    data: {
+                        targetDir: emptyDir,
+                        rulesetGateway: createMockRulesetGateway(),
+                    },
                 });
 
                 // Assert
@@ -347,6 +386,199 @@ jobs:
             } finally {
                 await rm(emptyDir, { recursive: true, force: true });
             }
+        });
+    });
+
+    describe("when checking Copilot PR review rulesets", () => {
+        it("should warn when not authenticated with GitHub CLI", async () => {
+            // Arrange
+            const mockGateway = createMockRulesetGateway({
+                isAuthenticated: () => Promise.resolve(false),
+            });
+
+            // Act
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: mockGateway,
+                },
+            });
+
+            // Assert - command completes without error (warning is logged)
+            const workflowPath = join(workflowsDir, "copilot-setup-steps.yml");
+            const content = await readFile(workflowPath, "utf-8");
+            expect(content).toContain("Copilot Setup Steps");
+        });
+
+        it("should show success when a Copilot review ruleset already exists", async () => {
+            // Arrange
+            const rulesetName = chance.word();
+            const mockGateway = createMockRulesetGateway({
+                isAuthenticated: () => Promise.resolve(true),
+                getRepoInfo: () =>
+                    Promise.resolve({
+                        owner: chance.word(),
+                        repo: chance.word(),
+                    }),
+                listRulesets: () =>
+                    Promise.resolve([
+                        {
+                            id: chance.natural(),
+                            name: rulesetName,
+                            enforcement: "active",
+                            rules: [buildCopilotRule()],
+                        },
+                    ]),
+            });
+
+            // Act & Assert - should complete without prompting
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: mockGateway,
+                },
+            });
+
+            const workflowPath = join(workflowsDir, "copilot-setup-steps.yml");
+            const content = await readFile(workflowPath, "utf-8");
+            expect(content).toContain("Copilot Setup Steps");
+        });
+
+        it("should prompt to create a ruleset when none exists and user confirms", async () => {
+            // Arrange
+            const owner = chance.word();
+            const repo = chance.word();
+            const createRuleset = vi.fn().mockResolvedValue(undefined);
+            const mockGateway = createMockRulesetGateway({
+                isAuthenticated: () => Promise.resolve(true),
+                getRepoInfo: () => Promise.resolve({ owner, repo }),
+                listRulesets: () => Promise.resolve([]),
+                createRuleset,
+            });
+            const mockPrompt = vi.fn().mockResolvedValue(true);
+
+            // Act
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: mockGateway,
+                    prompt: mockPrompt,
+                },
+            });
+
+            // Assert
+            expect(mockPrompt).toHaveBeenCalledWith(
+                "No Copilot PR review ruleset found. Would you like to create one?",
+                { type: "confirm" },
+            );
+            expect(createRuleset).toHaveBeenCalledWith(
+                owner,
+                repo,
+                expect.objectContaining({ name: "Copilot Code Review" }),
+            );
+        });
+
+        it("should skip ruleset creation when user declines", async () => {
+            // Arrange
+            const createRuleset = vi.fn().mockResolvedValue(undefined);
+            const mockGateway = createMockRulesetGateway({
+                isAuthenticated: () => Promise.resolve(true),
+                getRepoInfo: () =>
+                    Promise.resolve({
+                        owner: chance.word(),
+                        repo: chance.word(),
+                    }),
+                listRulesets: () => Promise.resolve([]),
+                createRuleset,
+            });
+            const mockPrompt = vi.fn().mockResolvedValue(false);
+
+            // Act
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: mockGateway,
+                    prompt: mockPrompt,
+                },
+            });
+
+            // Assert
+            expect(createRuleset).not.toHaveBeenCalled();
+        });
+
+        it("should handle errors during ruleset check gracefully", async () => {
+            // Arrange
+            const mockGateway = createMockRulesetGateway({
+                isAuthenticated: () => Promise.resolve(true),
+                getRepoInfo: () =>
+                    Promise.resolve({
+                        owner: chance.word(),
+                        repo: chance.word(),
+                    }),
+                listRulesets: () =>
+                    Promise.reject(new Error("HTTP 403: Forbidden")),
+            });
+
+            // Act & Assert - should complete without throwing
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: mockGateway,
+                },
+            });
+
+            const workflowPath = join(workflowsDir, "copilot-setup-steps.yml");
+            const content = await readFile(workflowPath, "utf-8");
+            expect(content).toContain("Copilot Setup Steps");
+        });
+
+        it("should handle errors during ruleset creation gracefully", async () => {
+            // Arrange
+            const mockGateway = createMockRulesetGateway({
+                isAuthenticated: () => Promise.resolve(true),
+                getRepoInfo: () =>
+                    Promise.resolve({
+                        owner: chance.word(),
+                        repo: chance.word(),
+                    }),
+                listRulesets: () => Promise.resolve([]),
+                createRuleset: () =>
+                    Promise.reject(
+                        new Error("HTTP 403: admin access required"),
+                    ),
+            });
+            const mockPrompt = vi.fn().mockResolvedValue(true);
+
+            // Act & Assert - should complete without throwing
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: mockGateway,
+                    prompt: mockPrompt,
+                },
+            });
+
+            const workflowPath = join(workflowsDir, "copilot-setup-steps.yml");
+            const content = await readFile(workflowPath, "utf-8");
+            expect(content).toContain("Copilot Setup Steps");
         });
     });
 });

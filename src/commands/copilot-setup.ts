@@ -3,11 +3,17 @@ import { join } from "node:path";
 import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
+import type { GhCliRulesetGateway } from "../gateways/github-ruleset-gateway.js";
 import {
     createEnvironmentGateway,
+    createGitHubRulesetGateway,
     createWorkflowGateway,
     fileExists,
 } from "../gateways/index.js";
+import {
+    buildCopilotReviewRulesetPayload,
+    checkCopilotReviewRuleset,
+} from "../use-cases/check-copilot-review-ruleset.js";
 import {
     buildCandidatesFromEnvironment,
     generateWorkflowContent,
@@ -43,6 +49,19 @@ export const copilotSetupCommand = defineCommand({
         // Create gateways
         const environmentGateway = createEnvironmentGateway();
         const workflowGateway = createWorkflowGateway();
+        const rulesetGateway: GhCliRulesetGateway =
+            context.data?.rulesetGateway instanceof Object &&
+            "isAuthenticated" in context.data.rulesetGateway
+                ? (context.data.rulesetGateway as GhCliRulesetGateway)
+                : createGitHubRulesetGateway();
+        const prompt =
+            typeof context.data?.prompt === "function"
+                ? (context.data.prompt as (
+                      message: string,
+                      options: { type: string },
+                  ) => Promise<boolean>)
+                : (message: string, options: { type: string }) =>
+                      consola.prompt(message, options) as Promise<boolean>;
 
         consola.info("Detecting environment configuration...");
 
@@ -122,27 +141,26 @@ export const copilotSetupCommand = defineCommand({
                 consola.success(
                     "Copilot Setup Steps workflow already contains all detected setup steps. No changes needed.",
                 );
-                return;
+            } else {
+                const missingNames = missingCandidates
+                    .map((c) => c.action)
+                    .join(", ");
+                consola.info(`Adding missing setup steps: ${missingNames}`);
+
+                const updatedContent = await updateWorkflowWithMissingSteps(
+                    existingWorkflow,
+                    missingCandidates,
+                );
+
+                await workflowGateway.writeCopilotSetupWorkflow(
+                    targetDir,
+                    updatedContent,
+                );
+
+                consola.success(
+                    `Updated copilot-setup-steps.yml with ${missingCandidates.length} new step(s)`,
+                );
             }
-
-            const missingNames = missingCandidates
-                .map((c) => c.action)
-                .join(", ");
-            consola.info(`Adding missing setup steps: ${missingNames}`);
-
-            const updatedContent = await updateWorkflowWithMissingSteps(
-                existingWorkflow,
-                missingCandidates,
-            );
-
-            await workflowGateway.writeCopilotSetupWorkflow(
-                targetDir,
-                updatedContent,
-            );
-
-            consola.success(
-                `Updated copilot-setup-steps.yml with ${missingCandidates.length} new step(s)`,
-            );
         } else {
             // Create new workflow
             consola.info("Creating new copilot-setup-steps.yml workflow...");
@@ -162,5 +180,82 @@ export const copilotSetupCommand = defineCommand({
                 consola.info(`Included setup steps: ${actionNames}`);
             }
         }
+
+        // Step 6: Check for Copilot PR review rulesets
+        await checkAndPromptRuleset(rulesetGateway, targetDir, prompt);
     },
 });
+
+/**
+ * Checks for Copilot PR review rulesets and prompts to create one if missing.
+ * Handles all error cases gracefully with user-friendly messages.
+ */
+async function checkAndPromptRuleset(
+    rulesetGateway: GhCliRulesetGateway,
+    targetDir: string,
+    prompt: (message: string, options: { type: string }) => Promise<boolean>,
+): Promise<void> {
+    consola.info("Checking Copilot PR review ruleset...");
+
+    const isAuthenticated = await rulesetGateway.isAuthenticated();
+    if (!isAuthenticated) {
+        consola.warn(
+            "GitHub CLI is not authenticated. Run `gh auth login` to enable Copilot PR review ruleset management.",
+        );
+        return;
+    }
+
+    const repoInfo = await rulesetGateway.getRepoInfo(targetDir);
+    if (!repoInfo) {
+        consola.warn(
+            "Could not determine repository owner and name from git remote. Skipping ruleset check.",
+        );
+        return;
+    }
+
+    const status = await checkCopilotReviewRuleset(
+        rulesetGateway,
+        repoInfo.owner,
+        repoInfo.repo,
+    );
+
+    if (status.error) {
+        consola.warn(
+            `Could not check rulesets: ${status.error}. You may need admin access to manage rulesets.`,
+        );
+        return;
+    }
+
+    if (status.hasRuleset) {
+        consola.success(
+            `Copilot PR review ruleset is already configured: "${status.rulesetName}"`,
+        );
+        return;
+    }
+
+    const shouldCreate = await prompt(
+        "No Copilot PR review ruleset found. Would you like to create one?",
+        { type: "confirm" },
+    );
+
+    if (!shouldCreate) {
+        consola.info("Skipping Copilot PR review ruleset creation.");
+        return;
+    }
+
+    try {
+        const payload = buildCopilotReviewRulesetPayload();
+        await rulesetGateway.createRuleset(
+            repoInfo.owner,
+            repoInfo.repo,
+            payload,
+        );
+        consola.success(`Created Copilot PR review ruleset: "${payload.name}"`);
+    } catch (error) {
+        const message =
+            error instanceof Error ? error.message : "Unknown error";
+        consola.error(
+            `Failed to create ruleset: ${message}. You may need admin access to the repository.`,
+        );
+    }
+}
