@@ -6,6 +6,7 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { z } from "zod";
 import type { Ruleset } from "../entities/copilot-setup.js";
 import type {
     RulesetGateway,
@@ -13,6 +14,24 @@ import type {
 } from "../use-cases/check-copilot-review-ruleset.js";
 
 const execFileAsync = promisify(execFile);
+
+/**
+ * Zod schema for validating GitHub ruleset rule objects from the API
+ */
+const RulesetRuleSchema = z.object({
+    type: z.string(),
+    parameters: z.record(z.string(), z.unknown()).optional(),
+});
+
+/**
+ * Zod schema for validating GitHub ruleset objects from the API
+ */
+const RulesetSchema = z.object({
+    id: z.number(),
+    name: z.string(),
+    enforcement: z.string(),
+    rules: z.array(RulesetRuleSchema).optional(),
+});
 
 /**
  * Function signature for executing external commands.
@@ -35,7 +54,7 @@ export function parseRepoFromRemoteUrl(
 ): { owner: string; repo: string } | null {
     // Match HTTPS format: https://github.com/owner/repo.git
     const httpsMatch = remoteUrl.match(
-        /github\.com\/([^/]+)\/([^/.]+?)(?:\.git)?$/,
+        /github\.com\/([\w-]+)\/([\w.-]+?)(?:\.git)?$/,
     );
     if (httpsMatch) {
         return { owner: httpsMatch[1], repo: httpsMatch[2] };
@@ -43,7 +62,7 @@ export function parseRepoFromRemoteUrl(
 
     // Match SSH format: git@github.com:owner/repo.git
     const sshMatch = remoteUrl.match(
-        /github\.com:([^/]+)\/([^/.]+?)(?:\.git)?$/,
+        /github\.com:([\w-]+)\/([\w.-]+?)(?:\.git)?$/,
     );
     if (sshMatch) {
         return { owner: sshMatch[1], repo: sshMatch[2] };
@@ -130,7 +149,7 @@ export class GhCliRulesetGateway implements RulesetGateway {
             if (!Array.isArray(data)) {
                 return [];
             }
-            return data as Ruleset[];
+            return z.array(RulesetSchema).parse(data);
         } catch (error) {
             const message =
                 error instanceof Error ? error.message : "Unknown error";

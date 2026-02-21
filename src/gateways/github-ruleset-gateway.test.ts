@@ -221,6 +221,29 @@ describe("GitHub Ruleset Gateway", () => {
                     );
                 });
             });
+
+            describe("when the API returns an invalid response shape", () => {
+                it("should throw an error with a descriptive message", async () => {
+                    // Arrange
+                    const owner = chance.word();
+                    const repo = chance.word();
+                    const invalidData = [
+                        { invalid: "missing required fields" },
+                    ];
+                    const mockExec: ExecFunction = vi.fn().mockResolvedValue({
+                        stdout: JSON.stringify(invalidData),
+                        stderr: "",
+                    });
+                    const gateway = new GhCliRulesetGateway(mockExec);
+
+                    // Act & Assert
+                    await expect(
+                        gateway.listRulesets(owner, repo),
+                    ).rejects.toThrow(
+                        `Failed to list rulesets for ${owner}/${repo}`,
+                    );
+                });
+            });
         });
 
         describe("createRuleset", () => {
