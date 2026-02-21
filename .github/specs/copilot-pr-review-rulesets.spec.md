@@ -204,9 +204,9 @@ sequenceDiagram
 - The entity types shall represent Copilot review status
 
 **Verification**:
-- [ ] `npm test` passes
-- [ ] `mise run format-check` passes
-- [ ] Types are importable from entities
+- [x] `npm test` passes
+- [x] `mise run format-check` passes
+- [x] Types are importable from entities
 
 **Done when**:
 - [x] All verification steps pass
@@ -233,9 +233,9 @@ sequenceDiagram
 - The use case shall define a port interface for the gateway
 
 **Verification**:
-- [ ] `npm test src/use-cases/check-copilot-review-ruleset.test.ts` passes
-- [ ] `mise run format-check` passes
-- [ ] Tests cover happy path (ruleset found), unhappy path (no ruleset), and edge cases
+- [x] `npm test src/use-cases/check-copilot-review-ruleset.test.ts` passes
+- [x] `mise run format-check` passes
+- [x] Tests cover happy path (ruleset found), unhappy path (no ruleset), and edge cases
 
 **Done when**:
 - [x] All verification steps pass
@@ -266,9 +266,9 @@ sequenceDiagram
 - If the API returns an error, then the gateway shall throw a descriptive error
 
 **Verification**:
-- [ ] `npm test src/gateways/github-ruleset-gateway.test.ts` passes
-- [ ] `mise run format-check` passes
-- [ ] Tests cover authentication check, repo info extraction, and error cases
+- [x] `npm test src/gateways/github-ruleset-gateway.test.ts` passes
+- [x] `mise run format-check` passes
+- [x] Tests cover authentication check, repo info extraction, and error cases
 
 **Done when**:
 - [x] All verification steps pass
@@ -297,10 +297,10 @@ sequenceDiagram
 - If an error occurs during ruleset checking, then the command shall display the error and continue
 
 **Verification**:
-- [ ] `npm test src/commands/copilot-setup.test.ts` passes
-- [ ] `mise run format-check` passes
-- [ ] Existing copilot-setup tests still pass
-- [ ] `mise run ci && npm run build` passes
+- [x] `npm test src/commands/copilot-setup.test.ts` passes
+- [x] `mise run format-check` passes
+- [x] Existing copilot-setup tests still pass
+- [x] `mise run ci && npm run build` passes
 
 **Done when**:
 - [x] All verification steps pass
