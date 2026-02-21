@@ -3,7 +3,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "c12";
 import { consola } from "consola";
-import type { FilesystemStructure } from "./filesystem-structure.js";
+import type {
+    FilesystemNode,
+    FilesystemStructure,
+} from "./filesystem-structure.js";
 
 /**
  * Finds the package root by walking up from a starting directory
@@ -51,6 +54,143 @@ function readCliTemplateFile(relativePath: string): string {
 }
 
 /**
+ * Builds the common filesystem nodes shared across all project types.
+ * Each template has its own versions of these files, but the structure is identical.
+ */
+function buildCommonNodes(
+    reader: (relativePath: string) => string,
+): FilesystemNode[] {
+    return [
+        {
+            type: "file",
+            path: "biome.json",
+            content: reader("biome.template.json"),
+        },
+        {
+            type: "file",
+            path: ".gitignore",
+            content: reader("gitignore.template"),
+        },
+        {
+            type: "file",
+            path: ".editorconfig",
+            content: reader(".editorconfig"),
+        },
+        {
+            type: "file",
+            path: ".nvmrc",
+            content: reader(".nvmrc"),
+        },
+        {
+            type: "file",
+            path: ".yamllint",
+            content: reader(".yamllint"),
+        },
+        // GitHub copilot instructions
+        {
+            type: "directory",
+            path: ".github",
+        },
+        {
+            type: "directory",
+            path: ".github/instructions",
+        },
+        {
+            type: "file",
+            path: ".github/copilot-instructions.md",
+            content: reader(".github/copilot-instructions.md"),
+        },
+        {
+            type: "file",
+            path: ".github/instructions/test.instructions.md",
+            content: reader(".github/instructions/test.instructions.md"),
+        },
+        {
+            type: "file",
+            path: ".github/instructions/spec.instructions.md",
+            content: reader(".github/instructions/spec.instructions.md"),
+        },
+        {
+            type: "file",
+            path: ".github/instructions/pipeline.instructions.md",
+            content: reader(".github/instructions/pipeline.instructions.md"),
+        },
+        {
+            type: "file",
+            path: ".github/instructions/software-architecture.instructions.md",
+            content: reader(
+                ".github/instructions/software-architecture.instructions.md",
+            ),
+        },
+        // GitHub Issue Templates
+        {
+            type: "directory",
+            path: ".github/ISSUE_TEMPLATE",
+        },
+        {
+            type: "file",
+            path: ".github/ISSUE_TEMPLATE/feature-to-spec.yml",
+            content: reader(".github/ISSUE_TEMPLATE/feature-to-spec.yml"),
+        },
+        // GitHub Workflows
+        {
+            type: "directory",
+            path: ".github/workflows",
+        },
+        {
+            type: "file",
+            path: ".github/workflows/assign-copilot.yml",
+            content: reader(".github/workflows/assign-copilot.yml"),
+        },
+        {
+            type: "file",
+            path: ".github/workflows/ci.yml",
+            content: reader(".github/workflows/ci.yml"),
+        },
+        // Specs directory
+        {
+            type: "directory",
+            path: ".github/specs",
+        },
+        {
+            type: "file",
+            path: ".github/specs/README.md",
+            content: reader(".github/specs/README.md"),
+        },
+        // VSCode configuration
+        {
+            type: "directory",
+            path: ".vscode",
+        },
+        {
+            type: "file",
+            path: ".vscode/extensions.json",
+            content: reader(".vscode/extensions.json"),
+        },
+        {
+            type: "file",
+            path: ".vscode/launch.json",
+            content: reader(".vscode/launch.json"),
+        },
+        {
+            type: "file",
+            path: ".vscode/mcp.json",
+            content: reader(".vscode/mcp.json"),
+        },
+        // Devcontainer configuration
+        {
+            type: "directory",
+            path: ".devcontainer",
+        },
+        {
+            type: "file",
+            path: ".devcontainer/devcontainer.json",
+            content: reader(".devcontainer/devcontainer.json"),
+        },
+    ];
+}
+
+/**
  * Cached CLI structure - lazy-loaded on first access
  */
 let cachedCliStructure: FilesystemStructure | null = null;
@@ -87,132 +227,7 @@ function buildCliStructure(): FilesystemStructure {
                 path: "vitest.setup.ts",
                 content: readCliTemplateFile("vitest.setup.ts"),
             },
-            {
-                type: "file",
-                path: "biome.json",
-                content: readCliTemplateFile("biome.template.json"),
-            },
-            {
-                type: "file",
-                path: ".gitignore",
-                content: readCliTemplateFile("gitignore.template"),
-            },
-            {
-                type: "file",
-                path: ".editorconfig",
-                content: readCliTemplateFile(".editorconfig"),
-            },
-            {
-                type: "file",
-                path: ".nvmrc",
-                content: readCliTemplateFile(".nvmrc"),
-            },
-            {
-                type: "file",
-                path: ".yamllint",
-                content: readCliTemplateFile(".yamllint"),
-            },
-            // GitHub copilot instructions
-            {
-                type: "directory",
-                path: ".github",
-            },
-            {
-                type: "directory",
-                path: ".github/instructions",
-            },
-            {
-                type: "file",
-                path: ".github/copilot-instructions.md",
-                content: readCliTemplateFile(".github/copilot-instructions.md"),
-            },
-            {
-                type: "file",
-                path: ".github/instructions/test.instructions.md",
-                content: readCliTemplateFile(
-                    ".github/instructions/test.instructions.md",
-                ),
-            },
-            {
-                type: "file",
-                path: ".github/instructions/spec.instructions.md",
-                content: readCliTemplateFile(
-                    ".github/instructions/spec.instructions.md",
-                ),
-            },
-            {
-                type: "file",
-                path: ".github/instructions/pipeline.instructions.md",
-                content: readCliTemplateFile(
-                    ".github/instructions/pipeline.instructions.md",
-                ),
-            },
-            {
-                type: "file",
-                path: ".github/instructions/software-architecture.instructions.md",
-                content: readCliTemplateFile(
-                    ".github/instructions/software-architecture.instructions.md",
-                ),
-            },
-            // GitHub Issue Templates
-            {
-                type: "directory",
-                path: ".github/ISSUE_TEMPLATE",
-            },
-            {
-                type: "file",
-                path: ".github/ISSUE_TEMPLATE/feature-to-spec.yml",
-                content: readCliTemplateFile(
-                    ".github/ISSUE_TEMPLATE/feature-to-spec.yml",
-                ),
-            },
-            // GitHub Workflows
-            {
-                type: "directory",
-                path: ".github/workflows",
-            },
-            {
-                type: "file",
-                path: ".github/workflows/assign-copilot.yml",
-                content: readCliTemplateFile(
-                    ".github/workflows/assign-copilot.yml",
-                ),
-            },
-            {
-                type: "file",
-                path: ".github/workflows/ci.yml",
-                content: readCliTemplateFile(".github/workflows/ci.yml"),
-            },
-            // Specs directory
-            {
-                type: "directory",
-                path: ".github/specs",
-            },
-            {
-                type: "file",
-                path: ".github/specs/README.md",
-                content: readCliTemplateFile(".github/specs/README.md"),
-            },
-            // VSCode configuration
-            {
-                type: "directory",
-                path: ".vscode",
-            },
-            {
-                type: "file",
-                path: ".vscode/extensions.json",
-                content: readCliTemplateFile(".vscode/extensions.json"),
-            },
-            {
-                type: "file",
-                path: ".vscode/launch.json",
-                content: readCliTemplateFile(".vscode/launch.json"),
-            },
-            {
-                type: "file",
-                path: ".vscode/mcp.json",
-                content: readCliTemplateFile(".vscode/mcp.json"),
-            },
+            ...buildCommonNodes(readCliTemplateFile),
             // Source code
             {
                 type: "directory",
@@ -227,16 +242,6 @@ function buildCliStructure(): FilesystemStructure {
                 type: "file",
                 path: "src/index.test.ts",
                 content: readCliTemplateFile("src/index.test.ts"),
-            },
-            // Devcontainer configuration
-            {
-                type: "directory",
-                path: ".devcontainer",
-            },
-            {
-                type: "file",
-                path: ".devcontainer/devcontainer.json",
-                content: readCliTemplateFile(".devcontainer/devcontainer.json"),
             },
         ],
     };
@@ -268,6 +273,13 @@ function readTemplateFile(
 let cachedWebappStructure: FilesystemStructure | null = null;
 
 /**
+ * Helper function to read webapp template files
+ */
+function readWebappTemplateFile(relativePath: string): string {
+    return readTemplateFile(relativePath, WEBAPP_TEMPLATE_DIR);
+}
+
+/**
  * Builds the webapp project filesystem structure by reading template files
  * This is called lazily only when webapp scaffolding is needed
  */
@@ -282,149 +294,29 @@ function buildWebappStructure(): FilesystemStructure {
             {
                 type: "file",
                 path: "package.json",
-                content: readTemplateFile("package.json"),
+                content: readWebappTemplateFile("package.json"),
             },
             {
                 type: "file",
                 path: "tsconfig.json",
-                content: readTemplateFile("tsconfig.json"),
+                content: readWebappTemplateFile("tsconfig.json"),
             },
             {
                 type: "file",
                 path: "next.config.ts",
-                content: readTemplateFile("next.config.ts"),
+                content: readWebappTemplateFile("next.config.ts"),
             },
             {
                 type: "file",
                 path: "vitest.config.ts",
-                content: readTemplateFile("vitest.config.ts"),
+                content: readWebappTemplateFile("vitest.config.ts"),
             },
             {
                 type: "file",
                 path: "vitest.setup.ts",
-                content: readTemplateFile("vitest.setup.ts"),
+                content: readWebappTemplateFile("vitest.setup.ts"),
             },
-            {
-                type: "file",
-                path: "biome.json",
-                content: readTemplateFile("biome.json"),
-            },
-            {
-                type: "file",
-                path: ".editorconfig",
-                content: readTemplateFile(".editorconfig"),
-            },
-            {
-                type: "file",
-                path: ".nvmrc",
-                content: readTemplateFile(".nvmrc"),
-            },
-            {
-                type: "file",
-                path: ".yamllint",
-                content: readTemplateFile(".yamllint"),
-            },
-            // GitHub copilot instructions
-            {
-                type: "directory",
-                path: ".github",
-            },
-            {
-                type: "directory",
-                path: ".github/instructions",
-            },
-            {
-                type: "file",
-                path: ".github/copilot-instructions.md",
-                content: readTemplateFile(".github/copilot-instructions.md"),
-            },
-            {
-                type: "file",
-                path: ".github/instructions/test.instructions.md",
-                content: readTemplateFile(
-                    ".github/instructions/test.instructions.md",
-                ),
-            },
-            {
-                type: "file",
-                path: ".github/instructions/spec.instructions.md",
-                content: readTemplateFile(
-                    ".github/instructions/spec.instructions.md",
-                ),
-            },
-            {
-                type: "file",
-                path: ".github/instructions/pipeline.instructions.md",
-                content: readTemplateFile(
-                    ".github/instructions/pipeline.instructions.md",
-                ),
-            },
-            {
-                type: "file",
-                path: ".github/instructions/software-architecture.instructions.md",
-                content: readTemplateFile(
-                    ".github/instructions/software-architecture.instructions.md",
-                ),
-            },
-            // GitHub Issue Templates
-            {
-                type: "directory",
-                path: ".github/ISSUE_TEMPLATE",
-            },
-            {
-                type: "file",
-                path: ".github/ISSUE_TEMPLATE/feature-to-spec.yml",
-                content: readTemplateFile(
-                    ".github/ISSUE_TEMPLATE/feature-to-spec.yml",
-                ),
-            },
-            // GitHub Workflows
-            {
-                type: "directory",
-                path: ".github/workflows",
-            },
-            {
-                type: "file",
-                path: ".github/workflows/assign-copilot.yml",
-                content: readTemplateFile(
-                    ".github/workflows/assign-copilot.yml",
-                ),
-            },
-            // Specs directory
-            {
-                type: "directory",
-                path: ".github/specs",
-            },
-            {
-                type: "file",
-                path: ".github/specs/README.md",
-                content: readTemplateFile(".github/specs/README.md"),
-            },
-            // VSCode configuration
-            {
-                type: "directory",
-                path: ".vscode",
-            },
-            {
-                type: "file",
-                path: ".vscode/extensions.json",
-                content: readTemplateFile(".vscode/extensions.json"),
-            },
-            {
-                type: "file",
-                path: ".vscode/launch.json",
-                content: readTemplateFile(".vscode/launch.json"),
-            },
-            // Devcontainer configuration
-            {
-                type: "directory",
-                path: ".devcontainer",
-            },
-            {
-                type: "file",
-                path: ".devcontainer/devcontainer.json",
-                content: readTemplateFile(".devcontainer/devcontainer.json"),
-            },
+            ...buildCommonNodes(readWebappTemplateFile),
         ],
     };
 
@@ -482,146 +374,7 @@ function buildRestApiStructure(): FilesystemStructure {
                 path: "vitest.setup.ts",
                 content: readRestApiTemplateFile("vitest.setup.ts"),
             },
-            {
-                type: "file",
-                path: "biome.json",
-                content: readRestApiTemplateFile("biome.template.json"),
-            },
-            {
-                type: "file",
-                path: ".editorconfig",
-                content: readRestApiTemplateFile(".editorconfig"),
-            },
-            {
-                type: "file",
-                path: ".nvmrc",
-                content: readRestApiTemplateFile(".nvmrc"),
-            },
-            {
-                type: "file",
-                path: ".yamllint",
-                content: readRestApiTemplateFile(".yamllint"),
-            },
-            {
-                type: "file",
-                path: ".gitignore",
-                content: readRestApiTemplateFile("gitignore.template"),
-            },
-            // GitHub copilot instructions
-            {
-                type: "directory",
-                path: ".github",
-            },
-            {
-                type: "directory",
-                path: ".github/instructions",
-            },
-            {
-                type: "file",
-                path: ".github/copilot-instructions.md",
-                content: readRestApiTemplateFile(
-                    ".github/copilot-instructions.md",
-                ),
-            },
-            {
-                type: "file",
-                path: ".github/instructions/test.instructions.md",
-                content: readRestApiTemplateFile(
-                    ".github/instructions/test.instructions.md",
-                ),
-            },
-            {
-                type: "file",
-                path: ".github/instructions/spec.instructions.md",
-                content: readRestApiTemplateFile(
-                    ".github/instructions/spec.instructions.md",
-                ),
-            },
-            {
-                type: "file",
-                path: ".github/instructions/pipeline.instructions.md",
-                content: readRestApiTemplateFile(
-                    ".github/instructions/pipeline.instructions.md",
-                ),
-            },
-            {
-                type: "file",
-                path: ".github/instructions/software-architecture.instructions.md",
-                content: readRestApiTemplateFile(
-                    ".github/instructions/software-architecture.instructions.md",
-                ),
-            },
-            // GitHub Issue Templates
-            {
-                type: "directory",
-                path: ".github/ISSUE_TEMPLATE",
-            },
-            {
-                type: "file",
-                path: ".github/ISSUE_TEMPLATE/feature-to-spec.yml",
-                content: readRestApiTemplateFile(
-                    ".github/ISSUE_TEMPLATE/feature-to-spec.yml",
-                ),
-            },
-            // GitHub Workflows
-            {
-                type: "directory",
-                path: ".github/workflows",
-            },
-            {
-                type: "file",
-                path: ".github/workflows/assign-copilot.yml",
-                content: readRestApiTemplateFile(
-                    ".github/workflows/assign-copilot.yml",
-                ),
-            },
-            {
-                type: "file",
-                path: ".github/workflows/ci.yml",
-                content: readRestApiTemplateFile(".github/workflows/ci.yml"),
-            },
-            // Specs directory
-            {
-                type: "directory",
-                path: ".github/specs",
-            },
-            {
-                type: "file",
-                path: ".github/specs/README.md",
-                content: readRestApiTemplateFile(".github/specs/README.md"),
-            },
-            // VSCode configuration
-            {
-                type: "directory",
-                path: ".vscode",
-            },
-            {
-                type: "file",
-                path: ".vscode/extensions.json",
-                content: readRestApiTemplateFile(".vscode/extensions.json"),
-            },
-            {
-                type: "file",
-                path: ".vscode/launch.json",
-                content: readRestApiTemplateFile(".vscode/launch.json"),
-            },
-            {
-                type: "file",
-                path: ".vscode/mcp.json",
-                content: readRestApiTemplateFile(".vscode/mcp.json"),
-            },
-            // Devcontainer configuration
-            {
-                type: "directory",
-                path: ".devcontainer",
-            },
-            {
-                type: "file",
-                path: ".devcontainer/devcontainer.json",
-                content: readRestApiTemplateFile(
-                    ".devcontainer/devcontainer.json",
-                ),
-            },
+            ...buildCommonNodes(readRestApiTemplateFile),
         ],
     };
 
