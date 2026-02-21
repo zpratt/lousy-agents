@@ -53,7 +53,7 @@ export const copilotSetupCommand = defineCommand({
             context.data?.rulesetGateway instanceof Object &&
             "isAuthenticated" in context.data.rulesetGateway
                 ? (context.data.rulesetGateway as OctokitRulesetGateway)
-                : createGitHubRulesetGateway();
+                : await createGitHubRulesetGateway();
         const prompt =
             typeof context.data?.prompt === "function"
                 ? (context.data.prompt as (

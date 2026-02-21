@@ -2,7 +2,8 @@
  * Gateway for interacting with GitHub repository rulesets via Octokit.
  * This module provides functionality to check authentication, extract repo info,
  * list rulesets, and create new rulesets using the GitHub REST API.
- * Authentication uses the token provisioned by the GH CLI (`gh auth token`).
+ * Authentication resolves tokens from environment variables (GH_TOKEN, GITHUB_TOKEN)
+ * with a fallback to the GH CLI (`gh auth token`).
  */
 
 import { execFile } from "node:child_process";
@@ -37,7 +38,7 @@ const RulesetSchema = z.object({
 
 /**
  * Function signature for executing external commands.
- * Used for `git` operations that don't go through Octokit.
+ * Used for local `git` operations that don't go through Octokit.
  */
 export type ExecFunction = (
     command: string,
@@ -74,7 +75,8 @@ export function parseRepoFromRemoteUrl(
 }
 
 /**
- * Default exec function that wraps Node.js child_process.execFile
+ * Default exec function that wraps Node.js child_process.execFile.
+ * Used only for local git commands.
  */
 function defaultExec(
     command: string,
@@ -89,45 +91,33 @@ function defaultExec(
 }
 
 /**
- * Factory function type for creating Octokit instances.
- * Allows dependency injection for testing.
- */
-export type OctokitFactory = (token: string) => Octokit;
-
-/**
- * Default Octokit factory that creates authenticated instances.
- */
-function defaultOctokitFactory(token: string): Octokit {
-    return new Octokit({ auth: token });
-}
-
-/**
  * GitHub ruleset gateway implementation using Octokit.
- * Uses `gh auth token` to obtain the GH CLI token for Octokit authentication
- * and `git remote get-url` for repository information.
+ * The constructor accepts an Octokit instance (or null if no token is available)
+ * and an ExecFunction for local git operations.
  */
 export class OctokitRulesetGateway implements RulesetGateway {
+    private readonly octokit: Octokit | null;
     private readonly exec: ExecFunction;
-    private readonly createOctokit: OctokitFactory;
-    private cachedOctokit: Octokit | null = null;
 
     constructor(
+        octokit: Octokit | null = null,
         exec: ExecFunction = defaultExec,
-        createOctokit: OctokitFactory = defaultOctokitFactory,
     ) {
+        this.octokit = octokit;
         this.exec = exec;
-        this.createOctokit = createOctokit;
     }
 
     /**
-     * Checks if the user is authenticated with the GitHub CLI
-     * by attempting to retrieve an auth token.
-     * @returns True if a token was retrieved successfully
+     * Checks if the Octokit instance is authenticated by calling the GitHub API.
+     * @returns True if authenticated successfully
      */
     async isAuthenticated(): Promise<boolean> {
+        if (!this.octokit) {
+            return false;
+        }
         try {
-            const { stdout } = await this.exec("gh", ["auth", "token"]);
-            return stdout.trim().length > 0;
+            await this.octokit.rest.users.getAuthenticated();
+            return true;
         } catch {
             return false;
         }
@@ -158,12 +148,14 @@ export class OctokitRulesetGateway implements RulesetGateway {
      * @param owner Repository owner
      * @param repo Repository name
      * @returns Array of rulesets
-     * @throws Error if the API call fails
+     * @throws Error if the API call fails or no Octokit instance is available
      */
     async listRulesets(owner: string, repo: string): Promise<Ruleset[]> {
+        if (!this.octokit) {
+            throw new Error("Not authenticated");
+        }
         try {
-            const octokit = await this.getOctokit();
-            const { data } = await octokit.rest.repos.getRepoRulesets({
+            const { data } = await this.octokit.rest.repos.getRepoRulesets({
                 owner,
                 repo,
             });
@@ -182,16 +174,18 @@ export class OctokitRulesetGateway implements RulesetGateway {
      * @param owner Repository owner
      * @param repo Repository name
      * @param payload The ruleset configuration to create
-     * @throws Error if the API call fails
+     * @throws Error if the API call fails or no Octokit instance is available
      */
     async createRuleset(
         owner: string,
         repo: string,
         payload: RulesetPayload,
     ): Promise<void> {
+        if (!this.octokit) {
+            throw new Error("Not authenticated");
+        }
         try {
-            const octokit = await this.getOctokit();
-            await octokit.rest.repos.createRepoRuleset({
+            await this.octokit.rest.repos.createRepoRuleset({
                 owner,
                 repo,
                 ...payload,
@@ -204,27 +198,37 @@ export class OctokitRulesetGateway implements RulesetGateway {
             );
         }
     }
+}
 
-    /**
-     * Returns a cached or newly created authenticated Octokit instance
-     */
-    private async getOctokit(): Promise<Octokit> {
-        if (this.cachedOctokit) {
-            return this.cachedOctokit;
-        }
-        const { stdout } = await this.exec("gh", ["auth", "token"]);
+/**
+ * Resolves a GitHub authentication token from environment variables,
+ * falling back to `gh auth token` as a last resort.
+ * @returns The resolved token, or null if no token is available
+ */
+export async function resolveGitHubToken(): Promise<string | null> {
+    const envToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+    if (envToken) {
+        return envToken;
+    }
+
+    try {
+        const { stdout } = await execFileAsync("gh", ["auth", "token"], {
+            encoding: "utf-8",
+        });
         const token = stdout.trim();
-        if (!token) {
-            throw new Error("No authentication token available from GH CLI");
-        }
-        this.cachedOctokit = this.createOctokit(token);
-        return this.cachedOctokit;
+        return token || null;
+    } catch {
+        return null;
     }
 }
 
 /**
- * Creates and returns the default GitHub ruleset gateway
+ * Creates and returns the default GitHub ruleset gateway.
+ * Resolves the auth token from environment variables (GH_TOKEN, GITHUB_TOKEN)
+ * or falls back to `gh auth token`.
  */
-export function createGitHubRulesetGateway(): OctokitRulesetGateway {
-    return new OctokitRulesetGateway();
+export async function createGitHubRulesetGateway(): Promise<OctokitRulesetGateway> {
+    const token = await resolveGitHubToken();
+    const octokit = token ? new Octokit({ auth: token }) : null;
+    return new OctokitRulesetGateway(octokit);
 }
