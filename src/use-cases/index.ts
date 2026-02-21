@@ -14,6 +14,12 @@ export {
 } from "./action-resolution.js";
 export { buildCandidatesFromEnvironment } from "./candidate-builder.js";
 export {
+    buildSessionStartHooks,
+    generateEnvironmentSetupSection,
+    mergeClaudeDocumentation,
+    mergeClaudeSettings,
+} from "./claude-setup.js";
+export {
     type CreateCopilotAgentResult,
     CreateCopilotAgentUseCase,
 } from "./create-copilot-agent.js";
