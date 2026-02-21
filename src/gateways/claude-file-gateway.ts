@@ -5,8 +5,16 @@
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { z } from "zod";
 import type { ClaudeSettings } from "../entities/claude-setup.js";
 import { fileExists } from "./file-system-utils.js";
+
+const ClaudeSettingsSchema = z
+    .object({
+        // biome-ignore lint/style/useNamingConvention: SessionStart is the Claude Code API property name
+        SessionStart: z.array(z.string()).optional(),
+    })
+    .passthrough();
 
 /**
  * Interface for Claude file gateway
@@ -55,7 +63,9 @@ export class FileSystemClaudeFileGateway implements ClaudeFileGateway {
 
         try {
             const content = await readFile(settingsPath, "utf-8");
-            return JSON.parse(content) as ClaudeSettings;
+            const parsed: unknown = JSON.parse(content);
+            const result = ClaudeSettingsSchema.safeParse(parsed);
+            return result.success ? result.data : null;
         } catch {
             // If JSON parsing fails, treat as if file doesn't exist
             return null;

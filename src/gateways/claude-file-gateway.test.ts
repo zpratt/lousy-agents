@@ -82,6 +82,26 @@ describe("ClaudeFileGateway", () => {
             });
         });
 
+        describe("when settings file has invalid schema (SessionStart is not an array)", () => {
+            it("should return null", async () => {
+                // Arrange
+                const claudeDir = join(testDir, ".claude");
+                await mkdir(claudeDir, { recursive: true });
+                await writeFile(
+                    join(claudeDir, "settings.json"),
+                    // biome-ignore lint/style/useNamingConvention: SessionStart is the Claude Code API property name
+                    JSON.stringify({ SessionStart: "not-an-array" }),
+                    "utf-8",
+                );
+
+                // Act
+                const result = await gateway.readSettings(testDir);
+
+                // Assert
+                expect(result).toBeNull();
+            });
+        });
+
         describe("when .claude directory does not exist", () => {
             it("should return null", async () => {
                 // Arrange - no .claude directory
