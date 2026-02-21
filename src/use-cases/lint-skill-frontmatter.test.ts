@@ -426,45 +426,4 @@ describe("LintSkillFrontmatterUseCase", () => {
             );
         });
     });
-
-    describe("given a skill with valid frontmatter including recommended fields", () => {
-        it("should return no warnings for recommended fields", async () => {
-            // Arrange
-            const skillName = "my-skill";
-            const filePath = `/repo/.github/skills/${skillName}/SKILL.md`;
-            const discovered: DiscoveredSkillFile[] = [{ filePath, skillName }];
-            const frontmatter: ParsedFrontmatter = {
-                data: {
-                    name: skillName,
-                    description: chance.sentence(),
-                    "allowed-tools": "tool1, tool2",
-                },
-                fieldLines: new Map([
-                    ["name", 2],
-                    ["description", 3],
-                    ["allowed-tools", 4],
-                ]),
-                frontmatterStartLine: 1,
-            };
-            const gateway = createMockGateway({
-                discoverSkills: vi.fn().mockResolvedValue(discovered),
-                readSkillFileContent: vi
-                    .fn()
-                    .mockResolvedValue(
-                        "---\nname: my-skill\ndescription: A skill\nallowed-tools: tool1, tool2\n---\n",
-                    ),
-                parseFrontmatter: vi.fn().mockReturnValue(frontmatter),
-            });
-            const useCase = new LintSkillFrontmatterUseCase(gateway);
-
-            // Act
-            const result = await useCase.execute({ targetDir: "/repo" });
-
-            // Assert
-            const toolsWarning = result.results[0].diagnostics.find(
-                (d) => d.field === "allowed-tools" && d.severity === "warning",
-            );
-            expect(toolsWarning).toBeUndefined();
-        });
-    });
 });

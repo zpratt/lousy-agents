@@ -73,6 +73,7 @@ export class FileSystemSkillLintGateway implements SkillLintGateway {
 
         const fieldLines = new Map<string, number>();
         for (let i = 1; i < endIndex; i++) {
+            // Match YAML top-level field names: non-whitespace start, any chars except colon, then colon+space
             const match = lines[i]?.match(/^([^\s:][^:]*?):\s/);
             if (match?.[1]) {
                 fieldLines.set(match[1], i + 1);
