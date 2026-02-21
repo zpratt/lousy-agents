@@ -816,13 +816,18 @@ describe("Init command", () => {
             await expect(access(gitignoreFile)).resolves.toBeUndefined();
             const content = await readFile(gitignoreFile, "utf-8");
             expect(content).toContain("node_modules/");
+            if (projectType === "webapp") {
+                expect(content).toContain(".next/");
+            } else {
+                expect(content).not.toContain(".next/");
+            }
         });
 
         it.each([
             "webapp",
             "api",
             "cli",
-        ] as const)("should create .vscode/mcp.json for %s project type", async (projectType) => {
+        ] as const)("should create .vscode/mcp.json with correct MCP server args for %s project type", async (projectType) => {
             // Arrange
             const projectName = chance.word().toLowerCase();
             mockPrompt = createMockPrompt(projectType, projectName);
@@ -839,14 +844,24 @@ describe("Init command", () => {
             // Assert
             await expect(access(mcpJsonFile)).resolves.toBeUndefined();
             const content = await readFile(mcpJsonFile, "utf-8");
-            expect(content).toContain("lousy-agents");
+            const parsed = JSON.parse(content) as {
+                servers: {
+                    "lousy-agents": { args: string[] };
+                };
+            };
+            expect(parsed.servers["lousy-agents"].args).toEqual([
+                "-y",
+                "-p",
+                "@lousy-agents/cli",
+                "lousy-agents-mcp",
+            ]);
         });
 
         it.each([
             "webapp",
             "api",
             "cli",
-        ] as const)("should create .github/workflows/ci.yml for %s project type", async (projectType) => {
+        ] as const)("should create .github/workflows/ci.yml with lint, test, and build jobs for %s project type", async (projectType) => {
             // Arrange
             const projectName = chance.word().toLowerCase();
             mockPrompt = createMockPrompt(projectType, projectName);
@@ -864,6 +879,10 @@ describe("Init command", () => {
             await expect(access(ciYmlFile)).resolves.toBeUndefined();
             const content = await readFile(ciYmlFile, "utf-8");
             expect(content).toContain("name: CI");
+            expect(content).toContain("jobs:");
+            expect(content).toContain("lint:");
+            expect(content).toContain("build:");
+            expect(content).toMatch(/needs:\s*\[lint/);
         });
     });
 
