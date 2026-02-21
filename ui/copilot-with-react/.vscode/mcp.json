@@ -13,7 +13,7 @@
         "lousy-agents": {
             "type": "stdio",
             "command": "npx",
-            "args": ["-y", "@lousy-agents/cli", "mcp"]
+            "args": ["-y", "-p", "@lousy-agents/cli", "lousy-agents-mcp"]
         }
     }
 }
