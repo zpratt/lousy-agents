@@ -142,11 +142,13 @@ export class LintSkillFrontmatterUseCase {
 
         if (!parsed) {
             if (diagnostics.length === 0) {
+                const message = hasFrontmatterDelimiters(content)
+                    ? "Invalid YAML frontmatter. The content between --- delimiters could not be parsed as valid YAML."
+                    : "Missing YAML frontmatter. Skill files must begin with --- delimited YAML frontmatter.";
                 diagnostics.push({
                     line: 1,
                     severity: "error",
-                    message:
-                        "Missing YAML frontmatter. Skill files must begin with --- delimited YAML frontmatter.",
+                    message,
                 });
             }
 
@@ -224,4 +226,20 @@ export class LintSkillFrontmatterUseCase {
 
         return diagnostics;
     }
+}
+
+/**
+ * Checks whether content has opening and closing --- frontmatter delimiters.
+ */
+function hasFrontmatterDelimiters(content: string): boolean {
+    const lines = content.split("\n");
+    if (lines[0]?.trim() !== "---") {
+        return false;
+    }
+    for (let i = 1; i < lines.length; i++) {
+        if (lines[i]?.trim() === "---") {
+            return true;
+        }
+    }
+    return false;
 }

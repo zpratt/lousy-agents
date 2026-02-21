@@ -325,7 +325,35 @@ describe("LintSkillFrontmatterUseCase", () => {
             expect(result.results[0].diagnostics).toHaveLength(1);
             expect(result.results[0].diagnostics[0].severity).toBe("error");
             expect(result.results[0].diagnostics[0].message).toContain(
-                "frontmatter",
+                "Missing YAML frontmatter",
+            );
+        });
+    });
+
+    describe("given a skill with valid delimiters but invalid YAML content", () => {
+        it("should return an error diagnostic for invalid YAML", async () => {
+            // Arrange
+            const skillName = "my-skill";
+            const filePath = `/repo/.github/skills/${skillName}/SKILL.md`;
+            const discovered: DiscoveredSkillFile[] = [{ filePath, skillName }];
+            const gateway = createMockGateway({
+                discoverSkills: vi.fn().mockResolvedValue(discovered),
+                readSkillFileContent: vi
+                    .fn()
+                    .mockResolvedValue("---\n: invalid:\n  - :\n---\n"),
+                parseFrontmatter: vi.fn().mockReturnValue(null),
+            });
+            const useCase = new LintSkillFrontmatterUseCase(gateway);
+
+            // Act
+            const result = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert
+            expect(result.results[0].valid).toBe(false);
+            expect(result.results[0].diagnostics).toHaveLength(1);
+            expect(result.results[0].diagnostics[0].severity).toBe("error");
+            expect(result.results[0].diagnostics[0].message).toContain(
+                "Invalid YAML frontmatter",
             );
         });
     });
