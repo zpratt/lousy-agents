@@ -268,6 +268,29 @@ describe("GitHub Ruleset Gateway", () => {
                 });
             });
 
+            describe("when the API returns an error with a status code", () => {
+                it("should include the HTTP status code in the error message", async () => {
+                    // Arrange
+                    const owner = chance.word();
+                    const repo = chance.word();
+                    const octokitError = Object.assign(
+                        new Error("Resource not accessible by integration"),
+                        { status: 403 },
+                    );
+                    const mockOctokit = createMockOctokit({
+                        getRepoRulesets: vi
+                            .fn()
+                            .mockRejectedValue(octokitError),
+                    });
+                    const gateway = new OctokitRulesetGateway(mockOctokit);
+
+                    // Act & Assert
+                    await expect(
+                        gateway.listRulesets(owner, repo),
+                    ).rejects.toThrow("status 403");
+                });
+            });
+
             describe("when the API returns an invalid response shape", () => {
                 it("should throw an error with a descriptive message", async () => {
                     // Arrange

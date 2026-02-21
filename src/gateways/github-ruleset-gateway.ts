@@ -91,6 +91,27 @@ function defaultExec(
 }
 
 /**
+ * Extracts a descriptive error message from an Octokit error,
+ * including the HTTP status code when available.
+ */
+function formatOctokitError(error: unknown): string {
+    const message = error instanceof Error ? error.message : "";
+    const status =
+        error instanceof Object && "status" in error
+            ? (error as { status: unknown }).status
+            : undefined;
+
+    const parts: string[] = [];
+    if (typeof status === "number") {
+        parts.push(`status ${status}`);
+    }
+    if (message) {
+        parts.push(message);
+    }
+    return parts.length > 0 ? parts.join(" - ") : "Unknown error";
+}
+
+/**
  * GitHub ruleset gateway implementation using Octokit.
  * The constructor accepts an Octokit instance (or null if no token is available)
  * and an ExecFunction for local git operations.
@@ -161,10 +182,9 @@ export class OctokitRulesetGateway implements RulesetGateway {
             });
             return z.array(RulesetSchema).parse(data);
         } catch (error) {
-            const message =
-                error instanceof Error ? error.message : "Unknown error";
+            const details = formatOctokitError(error);
             throw new Error(
-                `Failed to list rulesets for ${owner}/${repo}: ${message}`,
+                `Failed to list rulesets for ${owner}/${repo}: ${details}`,
             );
         }
     }
@@ -191,10 +211,9 @@ export class OctokitRulesetGateway implements RulesetGateway {
                 ...payload,
             });
         } catch (error) {
-            const message =
-                error instanceof Error ? error.message : "Unknown error";
+            const details = formatOctokitError(error);
             throw new Error(
-                `Failed to create ruleset for ${owner}/${repo}: ${message}`,
+                `Failed to create ruleset for ${owner}/${repo}: ${details}`,
             );
         }
     }

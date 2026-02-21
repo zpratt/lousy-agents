@@ -35,7 +35,7 @@ so that I can **know whether my repository is configured for automated Copilot c
 
 #### Notes
 
-- Authentication uses the token provisioned by the GitHub CLI (`gh auth token`)
+- Authentication uses `@octokit/rest` with tokens resolved from `GH_TOKEN`/`GITHUB_TOKEN` environment variables, falling back to `gh auth token`
 - The GitHub API endpoint for rulesets is `GET /repos/{owner}/{repo}/rulesets`
 - Admin access is required to read and modify repository rulesets
 
@@ -74,7 +74,7 @@ so that I can **enforce automated Copilot code review on my pull requests**.
 - `src/use-cases/check-copilot-review-ruleset.test.ts` (new) — Tests for use case logic
 
 **Gateways Layer:**
-- `src/gateways/github-ruleset-gateway.ts` (new) — Gateway interface and GH CLI implementation for GitHub rulesets API
+- `src/gateways/github-ruleset-gateway.ts` (new) — Gateway interface and Octokit-based implementation for GitHub rulesets API
 - `src/gateways/github-ruleset-gateway.test.ts` (new) — Tests for gateway
 
 **Commands Layer:**
@@ -82,8 +82,8 @@ so that I can **enforce automated Copilot code review on my pull requests**.
 
 ### Dependencies
 
-- `gh` CLI (external) — GitHub CLI for authentication and API access
-- `node:child_process` (existing) — For executing `gh` CLI commands
+- `@octokit/rest` (npm) — GitHub REST API client for rulesets CRUD operations
+- `node:child_process` (existing) — For resolving `gh auth token` as a fallback and running `git remote get-url`
 
 ### Data Model Changes
 
@@ -118,22 +118,24 @@ flowchart TB
     end
 
     subgraph UseCases["Use Cases Layer"]
-        CR["check-copilot-review-ruleset.ts<br/>• checkCopilotReviewRuleset()<br/>• hasCopilotReviewRule()<br/>• buildCopilotReviewRuleset()"]
+        CR["check-copilot-review-ruleset.ts<br/>• checkCopilotReviewRuleset()<br/>• hasCopilotReviewRule()<br/>• buildCopilotReviewRulesetPayload()"]
     end
 
     subgraph Gateways["Gateways Layer"]
-        RG["GitHubRulesetGateway<br/>• isAuthenticated()<br/>• getRepoInfo()<br/>• listRulesets()<br/>• createRuleset()"]
+        RG["OctokitRulesetGateway<br/>• isAuthenticated()<br/>• getRepoInfo()<br/>• listRulesets()<br/>• createRuleset()"]
     end
 
     subgraph External["External Resources"]
-        GH["GitHub CLI (gh)<br/>• gh auth status<br/>• gh api /repos/.../rulesets"]
+        GHAPI["GitHub REST API<br/>• GET /repos/.../rulesets<br/>• POST /repos/.../rulesets<br/>• GET /user"]
         GIT["Git<br/>• git remote"]
+        TOKEN["Token Resolution<br/>• GH_TOKEN / GITHUB_TOKEN env vars<br/>• gh auth token (fallback)"]
     end
 
     CMD --> CR
     CR --> RG
-    RG --> GH
+    RG --> GHAPI
     RG --> GIT
+    RG -.-> TOKEN
 ```
 
 ### Sequence Diagram
@@ -143,34 +145,35 @@ sequenceDiagram
     participant User
     participant Command as copilot-setup
     participant UseCase as check-copilot-review-ruleset
-    participant Gateway as GitHubRulesetGateway
-    participant GH as GitHub CLI
+    participant Gateway as OctokitRulesetGateway
+    participant Octokit as GitHub REST API
+    participant Git as git
 
     Command->>Gateway: isAuthenticated()
-    Gateway->>GH: gh auth status
-    GH-->>Gateway: auth status
+    Gateway->>Octokit: GET /user (getAuthenticated)
+    Octokit-->>Gateway: auth result
     alt not authenticated
         Gateway-->>Command: false
-        Command-->>User: "Run gh auth login first"
+        Command-->>User: "No valid GitHub token available"
     else authenticated
         Gateway-->>Command: true
         Command->>Gateway: getRepoInfo(targetDir)
-        Gateway->>GH: git remote get-url origin
-        GH-->>Gateway: remote URL
+        Gateway->>Git: git remote get-url origin
+        Git-->>Gateway: remote URL
         Gateway-->>Command: {owner, repo}
         Command->>UseCase: checkCopilotReviewRuleset(gateway, owner, repo)
         UseCase->>Gateway: listRulesets(owner, repo)
-        Gateway->>GH: gh api repos/{owner}/{repo}/rulesets
-        GH-->>Gateway: rulesets[]
+        Gateway->>Octokit: GET /repos/{owner}/{repo}/rulesets
+        Octokit-->>Gateway: rulesets[]
         UseCase-->>Command: CopilotReviewStatus
         alt has ruleset
             Command-->>User: "Copilot PR review ruleset already configured"
         else no ruleset
             Command-->>User: Prompt to enable
             alt user confirms
-                Command->>Gateway: createRuleset(owner, repo, ruleset)
-                Gateway->>GH: gh api repos/{owner}/{repo}/rulesets -X POST
-                GH-->>Gateway: created ruleset
+                Command->>Gateway: createRuleset(owner, repo, payload)
+                Gateway->>Octokit: POST /repos/{owner}/{repo}/rulesets
+                Octokit-->>Gateway: created ruleset
                 Gateway-->>Command: success
                 Command-->>User: "Created Copilot PR review ruleset"
             end
@@ -248,7 +251,7 @@ sequenceDiagram
 
 **Depends on**: Task 2
 
-**Objective**: Create gateway implementation that uses GH CLI to interact with GitHub rulesets API
+**Objective**: Create gateway implementation that uses Octokit to interact with GitHub rulesets API
 
 **Context**: This provides the external system integration for reading and writing rulesets
 
@@ -258,12 +261,12 @@ sequenceDiagram
 - `src/gateways/index.ts`
 
 **Requirements**:
-- The gateway shall check GH CLI authentication status
+- The gateway shall check authentication via `octokit.rest.users.getAuthenticated()`
 - The gateway shall extract repository owner/name from git remote
-- The gateway shall list rulesets via `gh api`
-- The gateway shall create rulesets via `gh api`
-- If GH CLI is not installed, then the gateway shall throw a descriptive error
-- If the API returns an error, then the gateway shall throw a descriptive error
+- The gateway shall list rulesets via `octokit.rest.repos.getRepoRulesets()`
+- The gateway shall create rulesets via `octokit.rest.repos.createRepoRuleset()`
+- The gateway shall resolve tokens from `GH_TOKEN`/`GITHUB_TOKEN` env vars, falling back to `gh auth token`
+- If the API returns an error, then the gateway shall throw a descriptive error with the HTTP status code
 
 **Verification**:
 - [x] `npm test src/gateways/github-ruleset-gateway.test.ts` passes

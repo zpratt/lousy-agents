@@ -3,7 +3,6 @@ import { join } from "node:path";
 import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
-import type { OctokitRulesetGateway } from "../gateways/github-ruleset-gateway.js";
 import {
     createEnvironmentGateway,
     createGitHubRulesetGateway,
@@ -13,6 +12,7 @@ import {
 import {
     buildCopilotReviewRulesetPayload,
     checkCopilotReviewRuleset,
+    type RulesetGateway,
 } from "../use-cases/check-copilot-review-ruleset.js";
 import {
     buildCandidatesFromEnvironment,
@@ -24,6 +24,17 @@ import {
     getExistingActionsFromWorkflow,
     mergeCandidates,
 } from "../use-cases/setup-step-discovery.js";
+
+/**
+ * Extended gateway interface for the copilot-setup command.
+ * Includes authentication and repo info methods beyond the use-case port.
+ */
+interface CopilotSetupRulesetGateway extends RulesetGateway {
+    isAuthenticated(): Promise<boolean>;
+    getRepoInfo(
+        targetDir: string,
+    ): Promise<{ owner: string; repo: string } | null>;
+}
 
 const copilotSetupArgs = {};
 
@@ -49,10 +60,13 @@ export const copilotSetupCommand = defineCommand({
         // Create gateways
         const environmentGateway = createEnvironmentGateway();
         const workflowGateway = createWorkflowGateway();
-        const rulesetGateway: OctokitRulesetGateway =
+        const rulesetGateway: CopilotSetupRulesetGateway =
             context.data?.rulesetGateway instanceof Object &&
-            "isAuthenticated" in context.data.rulesetGateway
-                ? (context.data.rulesetGateway as OctokitRulesetGateway)
+            "isAuthenticated" in context.data.rulesetGateway &&
+            "getRepoInfo" in context.data.rulesetGateway &&
+            "listRulesets" in context.data.rulesetGateway &&
+            "createRuleset" in context.data.rulesetGateway
+                ? (context.data.rulesetGateway as CopilotSetupRulesetGateway)
                 : await createGitHubRulesetGateway();
         const prompt =
             typeof context.data?.prompt === "function"
@@ -195,7 +209,7 @@ export const copilotSetupCommand = defineCommand({
  * Handles all error cases gracefully with user-friendly messages.
  */
 async function checkAndPromptRuleset(
-    rulesetGateway: OctokitRulesetGateway,
+    rulesetGateway: CopilotSetupRulesetGateway,
     targetDir: string,
     prompt: (message: string, options: { type: string }) => Promise<boolean>,
 ): Promise<void> {
@@ -204,7 +218,7 @@ async function checkAndPromptRuleset(
     const isAuthenticated = await rulesetGateway.isAuthenticated();
     if (!isAuthenticated) {
         consola.warn(
-            "GitHub CLI is not authenticated. Run `gh auth login` to enable Copilot PR review ruleset management.",
+            "No valid GitHub token available. Set GH_TOKEN/GITHUB_TOKEN or run `gh auth login` to enable Copilot PR review ruleset management.",
         );
         return;
     }

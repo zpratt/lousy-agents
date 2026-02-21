@@ -5,7 +5,6 @@ import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parse as parseYaml } from "yaml";
 import type { RulesetRule } from "../entities/copilot-setup.js";
-import type { OctokitRulesetGateway } from "../gateways/github-ruleset-gateway.js";
 import { copilotSetupCommand } from "./copilot-setup.js";
 
 const chance = new Chance();
@@ -31,9 +30,18 @@ function buildCopilotRule(): RulesetRule {
     };
 }
 
+interface MockRulesetGateway {
+    isAuthenticated(): Promise<boolean>;
+    getRepoInfo(
+        targetDir: string,
+    ): Promise<{ owner: string; repo: string } | null>;
+    listRulesets(owner: string, repo: string): Promise<unknown[]>;
+    createRuleset(owner: string, repo: string, payload: unknown): Promise<void>;
+}
+
 function createMockRulesetGateway(
-    overrides: Partial<OctokitRulesetGateway> = {},
-): OctokitRulesetGateway {
+    overrides: Partial<MockRulesetGateway> = {},
+): MockRulesetGateway {
     return {
         isAuthenticated:
             overrides.isAuthenticated ?? (() => Promise.resolve(false)),
@@ -41,7 +49,7 @@ function createMockRulesetGateway(
         listRulesets: overrides.listRulesets ?? (() => Promise.resolve([])),
         createRuleset:
             overrides.createRuleset ?? (() => Promise.resolve(undefined)),
-    } as OctokitRulesetGateway;
+    };
 }
 
 describe("Copilot Setup command", () => {
