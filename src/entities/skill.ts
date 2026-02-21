@@ -1,7 +1,49 @@
 /**
  * Core domain entity for GitHub Copilot Agent Skills.
- * Handles name normalization and SKILL.md content generation.
+ * Handles name normalization, SKILL.md content generation, and lint types.
  */
+
+/**
+ * Severity levels for skill lint diagnostics.
+ */
+export type SkillLintSeverity = "error" | "warning";
+
+/**
+ * A single lint diagnostic for a skill file.
+ */
+export interface SkillLintDiagnostic {
+    readonly line: number;
+    readonly severity: SkillLintSeverity;
+    readonly message: string;
+    readonly field?: string;
+}
+
+/**
+ * Lint result for a single skill file.
+ */
+export interface SkillLintResult {
+    readonly filePath: string;
+    readonly skillName: string;
+    readonly diagnostics: readonly SkillLintDiagnostic[];
+    readonly valid: boolean;
+}
+
+/**
+ * A discovered skill file on disk.
+ */
+export interface DiscoveredSkillFile {
+    readonly filePath: string;
+    readonly skillName: string;
+}
+
+/**
+ * Parsed frontmatter data with line number mapping.
+ */
+export interface ParsedFrontmatter {
+    readonly data: Record<string, unknown>;
+    readonly fieldLines: ReadonlyMap<string, number>;
+    readonly frontmatterStartLine: number;
+}
 
 /**
  * Normalizes a skill name to lowercase with hyphens.

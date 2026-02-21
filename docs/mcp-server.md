@@ -12,6 +12,7 @@ Lousy Agents includes an MCP (Model Context Protocol) server that exposes workfl
 | `validate_instruction_coverage` | Validate that repository instructions document all mandatory feedback loop scripts and tools |
 | `read_copilot_setup_workflow` | Read the current Copilot Setup Steps workflow |
 | `create_copilot_setup_workflow` | Create or update the Copilot Setup Steps workflow with version resolution |
+| `create_claude_code_web_setup` | Create or update Claude Code web environment setup (`.claude/settings.json` and `CLAUDE.md`) |
 | `analyze_action_versions` | Analyze GitHub Action versions across all workflows |
 | `resolve_action_versions` | Get version resolution metadata for GitHub Actions (standalone tool) |
 
@@ -175,6 +176,37 @@ The `validate_instruction_coverage` tool checks if your repository instructions 
 
 This helps ensure that AI agents have clear, consistent instructions for running feedback loops during development.
 
+## Claude Code Web Environment Setup
+
+The `create_claude_code_web_setup` tool automates configuration of Claude Code web environments by detecting your project's environment and generating:
+
+- **`.claude/settings.json`** — SessionStart hooks that run automatically when a Claude Code session starts (e.g., `mise install`, `npm ci`)
+- **`CLAUDE.md`** — Documentation of detected runtimes, package managers, and setup hooks
+
+### How It Works
+
+1. **Environment Detection**: Scans for `mise.toml`, `.nvmrc`, `.python-version`, and other version/dependency files
+2. **Hook Generation**: Maps detected tools to appropriate install commands (`nvm install`, `pip install`, etc.)
+3. **Settings Merge**: Preserves existing `.claude/settings.json` settings while adding or updating SessionStart hooks
+4. **Documentation Merge**: Updates or creates the Environment Setup section in `CLAUDE.md`
+
+### Response Format
+
+```json
+{
+  "hooks": [
+    { "command": "mise install", "description": "Install runtimes from mise.toml" },
+    { "command": "npm ci", "description": "Install Node.js dependencies with package-lock.json" }
+  ],
+  "action": "created",
+  "settingsPath": ".claude/settings.json",
+  "documentationPath": "CLAUDE.md",
+  "recommendations": [
+    { "type": "network_access", "description": "Enable internet access in Claude Code environment settings to allow package installation" }
+  ]
+}
+```
+
 ## VS Code Configuration
 
 Add the following to your VS Code `mcp.json` configuration file (typically at `.vscode/mcp.json` or in your user settings):
@@ -214,6 +246,8 @@ Once configured, you can ask your AI assistant to:
 - "Discover the scripts and tools used in this project's SDLC feedback loops"
 - "Check if the repository instructions document all mandatory feedback loops"
 - "Show me which test and build commands are defined in package.json and workflows"
+- "Set up Claude Code environment for this project"
+- "Update the Claude Code SessionStart hooks based on my project configuration"
 
 ## Architecture
 
@@ -225,5 +259,6 @@ The MCP server runs as a separate process that your AI assistant communicates wi
 4. Verify action versions across your repository
 5. Discover scripts and CLI tools used in SDLC feedback loops
 6. Validate instruction coverage for mandatory feedback loop steps
+7. Generate Claude Code web environment setup (SessionStart hooks and documentation)
 
 This enables more intelligent and context-aware assistance when working with GitHub Actions, project configuration, and ensuring that agents follow consistent feedback loops during development.

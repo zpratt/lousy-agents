@@ -6,7 +6,7 @@
 
 ## TL;DR
 
-A CLI tool that scaffolds projects with the structure AI coding assistants need to be effective. Run `npx @lousy-agents/cli init` to create a new project with testing, linting, and GitHub Copilot configuration. Run `npx @lousy-agents/cli copilot-setup` in existing projects to generate a workflow that gives Copilot your environment context.
+A CLI tool that scaffolds projects with the structure AI coding assistants need to be effective. Run `npx @lousy-agents/cli init` to create a new project with testing, linting, and GitHub Copilot configuration. Run `npx @lousy-agents/cli copilot-setup` in existing projects to generate a workflow that gives Copilot your environment context. Run `npx @lousy-agents/cli lint` to validate agent skill frontmatter.
 
 ---
 
@@ -59,6 +59,7 @@ AI coding assistants work best when given clear constraints. Without structure, 
 
 - **[`init`](docs/init.md)** - Scaffold new projects with testing, linting, and Copilot configuration
 - **[`new`](docs/new.md)** - Create new resources like custom GitHub Copilot agents
+- **[`lint`](docs/lint.md)** - Validate agent skill frontmatter in SKILL.md files
 - **[`copilot-setup`](docs/copilot-setup.md)** - Generate GitHub Actions workflows for Copilot environment setup
 
 ### MCP Server
@@ -97,6 +98,7 @@ For detailed documentation on each command, see:
 
 - **[`init` command](docs/init.md)** - Scaffold new projects
 - **[`new` command](docs/new.md)** - Create new resources
+- **[`lint` command](docs/lint.md)** - Validate agent skill frontmatter
 - **[`copilot-setup` command](docs/copilot-setup.md)** - Generate Copilot workflows
 - **[MCP Server](docs/mcp-server.md)** - AI assistant integration
 
@@ -120,6 +122,12 @@ npx @lousy-agents/cli new --copilot-agent security
 npx @lousy-agents/cli copilot-setup
 ```
 
+**Lint agent skill frontmatter:**
+
+```bash
+npx @lousy-agents/cli lint
+```
+
 ## Roadmap
 
 | Feature | Status |
@@ -130,12 +138,15 @@ npx @lousy-agents/cli copilot-setup
 | Scaffolding for GraphQL APIs | Not Started |
 | Copilot setup package manager install steps | ✅ Complete |
 | Copilot agent and skill scaffolding | ✅ Complete |
+| Agent skill frontmatter linting | ✅ Complete |
 | MCP server package | ✅ Complete |
+| Claude Code web environment setup | ✅ Complete |
 
 ## Documentation
 
 - **[`init` Command](docs/init.md)** - Project scaffolding
 - **[`new` Command](docs/new.md)** - Create new resources
+- **[`lint` Command](docs/lint.md)** - Agent skill frontmatter validation
 - **[`copilot-setup` Command](docs/copilot-setup.md)** - Workflow generation
 - **[MCP Server](docs/mcp-server.md)** - AI assistant integration
 
@@ -145,5 +156,6 @@ The repository includes fully working reference implementations demonstrating th
 
 - **[ui/copilot-with-react](ui/copilot-with-react)** - Next.js + TypeScript webapp with pre-configured testing (Vitest), linting (Biome), GitHub Copilot instructions, and Dev Container configuration.
 - **[api/copilot-with-fastify](api/copilot-with-fastify)** - Fastify + TypeScript REST API with Kysely, PostgreSQL, Testcontainers integration testing, and Dev Container configuration.
+- **[cli/copilot-with-citty](cli/copilot-with-citty)** - Citty + TypeScript CLI with pre-configured testing (Vitest), linting (Biome), GitHub Copilot instructions, and Dev Container configuration.
 
-Launch a GitHub Codespace to instantly spin up either environment and experiment with spec-driven development.
+Launch a GitHub Codespace to instantly spin up any of these environments and experiment with spec-driven development.

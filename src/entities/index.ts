@@ -35,4 +35,11 @@ export {
     MANDATORY_SCRIPT_NAMES,
     SCRIPT_PHASE_MAPPING,
 } from "./feedback-loop.js";
+export type {
+    DiscoveredSkillFile,
+    ParsedFrontmatter,
+    SkillLintDiagnostic,
+    SkillLintResult,
+    SkillLintSeverity,
+} from "./skill.js";
 export { generateSkillContent, normalizeSkillName } from "./skill.js";
