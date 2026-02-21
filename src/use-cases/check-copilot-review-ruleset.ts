@@ -1,0 +1,186 @@
+/**
+ * Use case for checking and managing Copilot PR review rulesets.
+ * This module contains the business logic for detecting whether a repository
+ * has a Copilot code review ruleset configured and building new rulesets.
+ */
+
+import type {
+    CopilotReviewStatus,
+    Ruleset,
+    RulesetRule,
+} from "../entities/copilot-setup.js";
+
+/**
+ * Port interface for interacting with GitHub rulesets.
+ * Implementations may use the GitHub CLI, REST API, or mocks.
+ */
+export interface RulesetGateway {
+    /**
+     * Lists all rulesets for a repository
+     * @param owner Repository owner
+     * @param repo Repository name
+     * @returns Array of rulesets
+     */
+    listRulesets(owner: string, repo: string): Promise<Ruleset[]>;
+
+    /**
+     * Creates a new ruleset for a repository
+     * @param owner Repository owner
+     * @param repo Repository name
+     * @param payload The ruleset configuration to create
+     */
+    createRuleset(
+        owner: string,
+        repo: string,
+        payload: RulesetPayload,
+    ): Promise<void>;
+}
+
+/**
+ * Payload for creating a new ruleset
+ */
+export interface RulesetPayload {
+    name: string;
+    enforcement: string;
+    target: string;
+    bypass_actors: Array<Record<string, unknown>>;
+    conditions: Record<string, unknown>;
+    rules: RulesetRule[];
+}
+
+/**
+ * Checks if any ruleset in the array contains a code_scanning rule with a Copilot tool
+ * @param rulesets Array of repository rulesets to check
+ * @returns True if a Copilot review rule is found
+ */
+export function hasCopilotReviewRule(rulesets: Ruleset[]): boolean {
+    for (const ruleset of rulesets) {
+        if (!ruleset.rules) {
+            continue;
+        }
+
+        for (const rule of ruleset.rules) {
+            if (rule.type !== "code_scanning" || !rule.parameters) {
+                continue;
+            }
+
+            const tools = rule.parameters.code_scanning_tools;
+            if (!Array.isArray(tools)) {
+                continue;
+            }
+
+            for (const tool of tools) {
+                if (
+                    tool &&
+                    typeof tool === "object" &&
+                    typeof tool.tool === "string" &&
+                    tool.tool.toLowerCase().includes("copilot")
+                ) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Finds the name of the first ruleset that contains a Copilot review rule
+ * @param rulesets Array of repository rulesets to search
+ * @returns The ruleset name or undefined if not found
+ */
+function findCopilotRulesetName(rulesets: Ruleset[]): string | undefined {
+    for (const ruleset of rulesets) {
+        if (!ruleset.rules) {
+            continue;
+        }
+
+        for (const rule of ruleset.rules) {
+            if (rule.type !== "code_scanning" || !rule.parameters) {
+                continue;
+            }
+
+            const tools = rule.parameters.code_scanning_tools;
+            if (!Array.isArray(tools)) {
+                continue;
+            }
+
+            for (const tool of tools) {
+                if (
+                    tool &&
+                    typeof tool === "object" &&
+                    typeof tool.tool === "string" &&
+                    tool.tool.toLowerCase().includes("copilot")
+                ) {
+                    return ruleset.name;
+                }
+            }
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * Builds a ruleset payload for enabling Copilot code review
+ * @returns A structured ruleset payload ready to be sent to the GitHub API
+ */
+export function buildCopilotReviewRulesetPayload(): RulesetPayload {
+    return {
+        name: "Copilot Code Review",
+        enforcement: "active",
+        target: "branch",
+        bypass_actors: [],
+        conditions: {
+            ref_name: {
+                include: ["~DEFAULT_BRANCH"],
+                exclude: [],
+            },
+        },
+        rules: [
+            {
+                type: "code_scanning",
+                parameters: {
+                    code_scanning_tools: [
+                        {
+                            tool: "Copilot Autofix",
+                            security_alerts_threshold: "high_or_higher",
+                            alerts_threshold: "errors",
+                        },
+                    ],
+                },
+            },
+        ],
+    };
+}
+
+/**
+ * Checks whether a repository has a Copilot PR review ruleset configured
+ * @param gateway Gateway for interacting with GitHub rulesets API
+ * @param owner Repository owner
+ * @param repo Repository name
+ * @returns Status indicating whether a Copilot review ruleset exists
+ */
+export async function checkCopilotReviewRuleset(
+    gateway: RulesetGateway,
+    owner: string,
+    repo: string,
+): Promise<CopilotReviewStatus> {
+    try {
+        const rulesets = await gateway.listRulesets(owner, repo);
+
+        if (hasCopilotReviewRule(rulesets)) {
+            return {
+                hasRuleset: true,
+                rulesetName: findCopilotRulesetName(rulesets),
+            };
+        }
+
+        return { hasRuleset: false };
+    } catch (error) {
+        const message =
+            error instanceof Error ? error.message : "Unknown error";
+        return { hasRuleset: false, error: message };
+    }
+}

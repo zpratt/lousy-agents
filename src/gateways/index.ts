@@ -19,6 +19,10 @@ export {
 } from "./environment-gateway.js";
 export { fileExists } from "./file-system-utils.js";
 export {
+    createGitHubRulesetGateway,
+    GhCliRulesetGateway,
+} from "./github-ruleset-gateway.js";
+export {
     createInstructionAnalysisGateway,
     FileSystemInstructionAnalysisGateway,
     type InstructionAnalysisGateway,
