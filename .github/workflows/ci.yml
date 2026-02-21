@@ -86,3 +86,34 @@ jobs:
           test -f .github/instructions/test.instructions.md
           npm install
           echo "Webapp smoke test passed"
+
+      - name: Smoke test - lint (valid skill)
+        run: |
+          rm -rf /tmp/smoke-test-lint-valid
+          mkdir -p /tmp/smoke-test-lint-valid/.github/skills/my-skill
+          printf '%s\n' '---' 'name: my-skill' 'description: A valid test skill' 'allowed-tools: tool1' '---' '' '# my-skill' > /tmp/smoke-test-lint-valid/.github/skills/my-skill/SKILL.md
+          cd /tmp/smoke-test-lint-valid
+          lousy-agents lint
+          echo "Lint valid skill smoke test passed"
+
+      - name: Smoke test - lint (invalid skill exits non-zero)
+        run: |
+          rm -rf /tmp/smoke-test-lint-invalid
+          mkdir -p /tmp/smoke-test-lint-invalid/.github/skills/bad-skill
+          printf '%s\n' '---' 'description: Missing name field' '---' '' '# bad-skill' > /tmp/smoke-test-lint-invalid/.github/skills/bad-skill/SKILL.md
+          cd /tmp/smoke-test-lint-invalid
+          if lousy-agents lint; then
+            echo "Expected lint to fail but it passed"
+            exit 1
+          else
+            echo "Lint invalid skill correctly failed"
+          fi
+          echo "Lint invalid skill smoke test passed"
+
+      - name: Smoke test - lint (no skills)
+        run: |
+          rm -rf /tmp/smoke-test-lint-empty
+          mkdir -p /tmp/smoke-test-lint-empty
+          cd /tmp/smoke-test-lint-empty
+          lousy-agents lint
+          echo "Lint no skills smoke test passed"
