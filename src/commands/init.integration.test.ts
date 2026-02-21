@@ -86,6 +86,7 @@ describe("API template scaffolding", () => {
 
             const biomeConfig = JSON.parse(biomeConfigContent) as {
                 $schema: string;
+                root: boolean;
             };
             const packageJson = JSON.parse(packageJsonContent) as {
                 devDependencies: { "@biomejs/biome": string };
@@ -101,6 +102,7 @@ describe("API template scaffolding", () => {
             expect(schemaVersion).toBeDefined();
             expect(packageVersion).toBeDefined();
             expect(schemaVersion).toBe(packageVersion);
+            expect(biomeConfig.root).toBe(true);
         });
     });
 });
@@ -285,6 +287,7 @@ describe("Webapp template scaffolding", () => {
 
             const biomeConfig = JSON.parse(biomeConfigContent) as {
                 $schema: string;
+                root: boolean;
             };
             const packageJson = JSON.parse(packageJsonContent) as {
                 devDependencies: { "@biomejs/biome": string };
@@ -300,6 +303,7 @@ describe("Webapp template scaffolding", () => {
             expect(schemaVersion).toBeDefined();
             expect(packageVersion).toBeDefined();
             expect(schemaVersion).toBe(packageVersion);
+            expect(biomeConfig.root).toBe(true);
         });
     });
 });
