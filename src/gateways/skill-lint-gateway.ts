@@ -77,7 +77,19 @@ export class FileSystemSkillLintGateway implements SkillLintGateway {
         }
 
         const yamlContent = lines.slice(1, endIndex).join("\n");
-        const data = parseYaml(yamlContent) as Record<string, unknown>;
+
+        let data: Record<string, unknown>;
+        try {
+            const parsed: unknown = parseYaml(yamlContent);
+            data =
+                parsed !== null &&
+                typeof parsed === "object" &&
+                !Array.isArray(parsed)
+                    ? (parsed as Record<string, unknown>)
+                    : {};
+        } catch {
+            return null;
+        }
 
         const fieldLines = new Map<string, number>();
         for (let i = 1; i < endIndex; i++) {

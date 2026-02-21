@@ -121,25 +121,48 @@ export class LintSkillFrontmatterUseCase {
         skill: DiscoveredSkillFile,
         content: string,
     ): SkillLintResult {
-        const parsed = this.gateway.parseFrontmatter(content);
+        let parsed: ParsedFrontmatter | null = null;
+        let diagnostics: SkillLintDiagnostic[] = [];
+
+        try {
+            parsed = this.gateway.parseFrontmatter(content);
+        } catch (error) {
+            const messagePrefix = "Invalid YAML frontmatter";
+            const errorMessage =
+                error instanceof Error && error.message
+                    ? `${messagePrefix}: ${error.message}`
+                    : `${messagePrefix}.`;
+
+            diagnostics.push({
+                line: 1,
+                severity: "error",
+                message: errorMessage,
+            });
+        }
 
         if (!parsed) {
+            if (diagnostics.length === 0) {
+                diagnostics.push({
+                    line: 1,
+                    severity: "error",
+                    message:
+                        "Missing YAML frontmatter. Skill files must begin with --- delimited YAML frontmatter.",
+                });
+            }
+
             return {
                 filePath: skill.filePath,
                 skillName: skill.skillName,
-                diagnostics: [
-                    {
-                        line: 1,
-                        severity: "error",
-                        message:
-                            "Missing YAML frontmatter. Skill files must begin with --- delimited YAML frontmatter.",
-                    },
-                ],
+                diagnostics,
                 valid: false,
             };
         }
 
-        const diagnostics = this.validateFrontmatter(parsed, skill.skillName);
+        const frontmatterDiagnostics = this.validateFrontmatter(
+            parsed,
+            skill.skillName,
+        );
+        diagnostics = diagnostics.concat(frontmatterDiagnostics);
 
         return {
             filePath: skill.filePath,

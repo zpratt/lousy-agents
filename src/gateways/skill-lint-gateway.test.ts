@@ -118,9 +118,8 @@ describe("SkillLintGateway", () => {
                 // Act
                 const result = await gateway.discoverSkills(testDir);
 
-                // Assert - should still find the skill since the name doesn't contain literal .. or /
-                // This test verifies the gateway handles directory names safely
-                expect(result).toBeDefined();
+                // Assert - directory name contains ".." so it is skipped by the path traversal guard
+                expect(result).toEqual([]);
             });
         });
     });
@@ -222,6 +221,33 @@ describe("SkillLintGateway", () => {
                 // Assert
                 expect(result?.fieldLines.get("allowed-tools")).toBe(3);
                 expect(result?.data["allowed-tools"]).toBe("tool1");
+            });
+        });
+
+        describe("given content with invalid YAML", () => {
+            it("should return null instead of throwing", () => {
+                // Arrange
+                const content = "---\n: invalid:\n  - :\n---\n";
+
+                // Act
+                const result = gateway.parseFrontmatter(content);
+
+                // Assert
+                expect(result).toBeNull();
+            });
+        });
+
+        describe("given frontmatter that parses to a non-object value", () => {
+            it("should return an empty data object", () => {
+                // Arrange - YAML that parses to a string, not an object
+                const content = "---\njust a string\n---\n";
+
+                // Act
+                const result = gateway.parseFrontmatter(content);
+
+                // Assert
+                expect(result).not.toBeNull();
+                expect(result?.data).toEqual({});
             });
         });
     });

@@ -463,4 +463,70 @@ describe("LintSkillFrontmatterUseCase", () => {
             );
         });
     });
+
+    describe("given a skill with unparseable YAML frontmatter", () => {
+        it("should return an error diagnostic without aborting other skills", async () => {
+            // Arrange
+            const skill1Name = "bad-yaml";
+            const skill2Name = "good-skill";
+            const discovered: DiscoveredSkillFile[] = [
+                {
+                    filePath: `/repo/.github/skills/${skill1Name}/SKILL.md`,
+                    skillName: skill1Name,
+                },
+                {
+                    filePath: `/repo/.github/skills/${skill2Name}/SKILL.md`,
+                    skillName: skill2Name,
+                },
+            ];
+            const goodFrontmatter: ParsedFrontmatter = {
+                data: {
+                    name: skill2Name,
+                    description: chance.sentence(),
+                    "allowed-tools": "tool1",
+                },
+                fieldLines: new Map([
+                    ["name", 2],
+                    ["description", 3],
+                    ["allowed-tools", 4],
+                ]),
+                frontmatterStartLine: 1,
+            };
+            const gateway = createMockGateway({
+                discoverSkills: vi.fn().mockResolvedValue(discovered),
+                readSkillFileContent: vi
+                    .fn()
+                    .mockResolvedValueOnce("---\n: invalid\n---\n")
+                    .mockResolvedValueOnce(
+                        "---\nname: good-skill\ndescription: OK\nallowed-tools: tool1\n---\n",
+                    ),
+                parseFrontmatter: vi
+                    .fn()
+                    .mockImplementationOnce(() => {
+                        throw new Error("YAML parse error");
+                    })
+                    .mockReturnValueOnce(goodFrontmatter),
+            });
+            const useCase = new LintSkillFrontmatterUseCase(gateway);
+
+            // Act
+            const result = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert - both skills should have results
+            expect(result.results).toHaveLength(2);
+            expect(result.totalSkills).toBe(2);
+
+            // First skill should have a parse error diagnostic
+            const badResult = result.results[0];
+            expect(badResult.valid).toBe(false);
+            expect(badResult.diagnostics[0].severity).toBe("error");
+            expect(badResult.diagnostics[0].message).toContain(
+                "Invalid YAML frontmatter",
+            );
+
+            // Second skill should be valid
+            const goodResult = result.results[1];
+            expect(goodResult.valid).toBe(true);
+        });
+    });
 });
