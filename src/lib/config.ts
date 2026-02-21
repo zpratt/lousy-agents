@@ -307,7 +307,12 @@ function buildWebappStructure(): FilesystemStructure {
             {
                 type: "file",
                 path: "biome.json",
-                content: readTemplateFile("biome.json"),
+                content: readTemplateFile("biome.template.json"),
+            },
+            {
+                type: "file",
+                path: ".gitignore",
+                content: readTemplateFile("gitignore.template"),
             },
             {
                 type: "file",
@@ -390,6 +395,11 @@ function buildWebappStructure(): FilesystemStructure {
                     ".github/workflows/assign-copilot.yml",
                 ),
             },
+            {
+                type: "file",
+                path: ".github/workflows/ci.yml",
+                content: readTemplateFile(".github/workflows/ci.yml"),
+            },
             // Specs directory
             {
                 type: "directory",
@@ -415,7 +425,11 @@ function buildWebappStructure(): FilesystemStructure {
                 path: ".vscode/launch.json",
                 content: readTemplateFile(".vscode/launch.json"),
             },
-            // Devcontainer configuration
+            {
+                type: "file",
+                path: ".vscode/mcp.json",
+                content: readTemplateFile(".vscode/mcp.json"),
+            },
             {
                 type: "directory",
                 path: ".devcontainer",
