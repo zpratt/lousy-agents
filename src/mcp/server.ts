@@ -12,6 +12,7 @@ import { z } from "zod";
 import {
     analyzeActionVersionsHandler,
     type CreateWorkflowHandler,
+    createClaudeCodeWebSetupHandler,
     createCopilotSetupWorkflowHandler,
     discoverEnvironmentHandler,
     discoverFeedbackLoopsHandler,
@@ -131,6 +132,13 @@ const TOOLS: ToolConfig[] = [
         inputSchema: createWorkflowInputSchema,
     },
     {
+        name: "create_claude_code_web_setup",
+        description:
+            "Create or update Claude Code web environment setup (.claude/settings.json with SessionStart hooks and CLAUDE.md documentation) based on detected environment configuration.",
+        handler: createClaudeCodeWebSetupHandler,
+        inputSchema: targetDirInputSchema,
+    },
+    {
         name: "analyze_action_versions",
         description:
             "Analyze GitHub Action versions used across all workflow files in a target directory",
@@ -189,6 +197,7 @@ export function createMcpServer(): McpServer {
 // Re-export tool handlers for testing
 export {
     analyzeActionVersionsHandler,
+    createClaudeCodeWebSetupHandler,
     createCopilotSetupWorkflowHandler,
     discoverEnvironmentHandler,
     discoverFeedbackLoopsHandler,

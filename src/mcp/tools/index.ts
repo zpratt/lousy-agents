@@ -3,6 +3,7 @@
  */
 
 export { analyzeActionVersionsHandler } from "./analyze-action-versions.js";
+export { createClaudeCodeWebSetupHandler } from "./create-claude-code-web-setup.js";
 export { createCopilotSetupWorkflowHandler } from "./create-copilot-setup-workflow.js";
 export { discoverEnvironmentHandler } from "./discover-environment.js";
 export { discoverFeedbackLoopsHandler } from "./discover-feedback-loops.js";
