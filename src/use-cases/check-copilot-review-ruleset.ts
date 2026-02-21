@@ -50,48 +50,11 @@ export interface RulesetPayload {
 }
 
 /**
- * Checks if any ruleset in the array contains a code_scanning rule with a Copilot tool
- * @param rulesets Array of repository rulesets to check
- * @returns True if a Copilot review rule is found
- */
-export function hasCopilotReviewRule(rulesets: Ruleset[]): boolean {
-    for (const ruleset of rulesets) {
-        if (!ruleset.rules) {
-            continue;
-        }
-
-        for (const rule of ruleset.rules) {
-            if (rule.type !== "code_scanning" || !rule.parameters) {
-                continue;
-            }
-
-            const tools = rule.parameters.code_scanning_tools;
-            if (!Array.isArray(tools)) {
-                continue;
-            }
-
-            for (const tool of tools) {
-                if (
-                    tool &&
-                    typeof tool === "object" &&
-                    typeof tool.tool === "string" &&
-                    tool.tool.toLowerCase().includes("copilot")
-                ) {
-                    return true;
-                }
-            }
-        }
-    }
-
-    return false;
-}
-
-/**
- * Finds the name of the first ruleset that contains a Copilot review rule
+ * Finds the first ruleset that contains a code_scanning rule with a Copilot tool
  * @param rulesets Array of repository rulesets to search
- * @returns The ruleset name or undefined if not found
+ * @returns The matching ruleset or undefined if not found
  */
-function findCopilotRulesetName(rulesets: Ruleset[]): string | undefined {
+function findCopilotRuleset(rulesets: Ruleset[]): Ruleset | undefined {
     for (const ruleset of rulesets) {
         if (!ruleset.rules) {
             continue;
@@ -114,13 +77,22 @@ function findCopilotRulesetName(rulesets: Ruleset[]): string | undefined {
                     typeof tool.tool === "string" &&
                     tool.tool.toLowerCase().includes("copilot")
                 ) {
-                    return ruleset.name;
+                    return ruleset;
                 }
             }
         }
     }
 
     return undefined;
+}
+
+/**
+ * Checks if any ruleset in the array contains a code_scanning rule with a Copilot tool
+ * @param rulesets Array of repository rulesets to check
+ * @returns True if a Copilot review rule is found
+ */
+export function hasCopilotReviewRule(rulesets: Ruleset[]): boolean {
+    return findCopilotRuleset(rulesets) !== undefined;
 }
 
 /**
@@ -175,11 +147,12 @@ export async function checkCopilotReviewRuleset(
 ): Promise<CopilotReviewStatus> {
     try {
         const rulesets = await gateway.listRulesets(owner, repo);
+        const copilotRuleset = findCopilotRuleset(rulesets);
 
-        if (hasCopilotReviewRule(rulesets)) {
+        if (copilotRuleset) {
             return {
                 hasRuleset: true,
-                rulesetName: findCopilotRulesetName(rulesets),
+                rulesetName: copilotRuleset.name,
             };
         }
 

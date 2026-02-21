@@ -141,26 +141,30 @@ export const copilotSetupCommand = defineCommand({
                 consola.success(
                     "Copilot Setup Steps workflow already contains all detected setup steps. No changes needed.",
                 );
-            } else {
-                const missingNames = missingCandidates
-                    .map((c) => c.action)
-                    .join(", ");
-                consola.info(`Adding missing setup steps: ${missingNames}`);
 
-                const updatedContent = await updateWorkflowWithMissingSteps(
-                    existingWorkflow,
-                    missingCandidates,
-                );
-
-                await workflowGateway.writeCopilotSetupWorkflow(
-                    targetDir,
-                    updatedContent,
-                );
-
-                consola.success(
-                    `Updated copilot-setup-steps.yml with ${missingCandidates.length} new step(s)`,
-                );
+                // Still check for Copilot PR review rulesets
+                await checkAndPromptRuleset(rulesetGateway, targetDir, prompt);
+                return;
             }
+
+            const missingNames = missingCandidates
+                .map((c) => c.action)
+                .join(", ");
+            consola.info(`Adding missing setup steps: ${missingNames}`);
+
+            const updatedContent = await updateWorkflowWithMissingSteps(
+                existingWorkflow,
+                missingCandidates,
+            );
+
+            await workflowGateway.writeCopilotSetupWorkflow(
+                targetDir,
+                updatedContent,
+            );
+
+            consola.success(
+                `Updated copilot-setup-steps.yml with ${missingCandidates.length} new step(s)`,
+            );
         } else {
             // Create new workflow
             consola.info("Creating new copilot-setup-steps.yml workflow...");
