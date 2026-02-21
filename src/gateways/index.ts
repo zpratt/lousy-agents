@@ -13,6 +13,11 @@ export {
     FileSystemAgentFileGateway,
 } from "./agent-file-gateway.js";
 export {
+    type ClaudeFileGateway,
+    createClaudeFileGateway,
+    FileSystemClaudeFileGateway,
+} from "./claude-file-gateway.js";
+export {
     createEnvironmentGateway,
     type EnvironmentGateway,
     FileSystemEnvironmentGateway,

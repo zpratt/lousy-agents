@@ -7,6 +7,7 @@ import { parse as parseYaml } from "yaml";
 import type { ActionToResolve } from "../entities/copilot-setup.js";
 import {
     analyzeActionVersionsHandler,
+    createClaudeCodeWebSetupHandler,
     createCopilotSetupWorkflowHandler,
     createMcpServer,
     discoverEnvironmentHandler,
@@ -579,6 +580,134 @@ jobs:
             expect(result.actionsToResolve).toHaveLength(0);
             expect(result.instructions).toBeUndefined();
             expect(result.message).toContain("All actions have been resolved");
+        });
+    });
+
+    describe("create_claude_code_web_setup handler", () => {
+        it("should create Claude setup files when environment is detected", async () => {
+            // Arrange
+            await writeFile(join(testDir, ".nvmrc"), "20.0.0");
+            await writeFile(
+                join(testDir, "package.json"),
+                JSON.stringify({ name: "test" }),
+            );
+            await writeFile(
+                join(testDir, "package-lock.json"),
+                JSON.stringify({}),
+            );
+
+            // Act
+            const response = await createClaudeCodeWebSetupHandler({
+                targetDir: testDir,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.success).toBe(true);
+            expect(result.action).toBe("created");
+            expect(result.hooks).toBeDefined();
+            expect((result.hooks as unknown[]).length).toBeGreaterThan(0);
+            expect(result.settingsPath).toContain(".claude/settings.json");
+            expect(result.documentationPath).toContain("CLAUDE.md");
+
+            // Verify files were created
+            const settingsContent = await readFile(
+                join(testDir, ".claude", "settings.json"),
+                "utf-8",
+            );
+            const settings = JSON.parse(settingsContent);
+            expect(settings.SessionStart).toBeDefined();
+            expect(settings.SessionStart).toContain("nvm install");
+            expect(settings.SessionStart).toContain("npm ci");
+
+            const docsContent = await readFile(
+                join(testDir, "CLAUDE.md"),
+                "utf-8",
+            );
+            expect(docsContent).toContain("## Environment Setup");
+            expect(docsContent).toContain("nvm install");
+        });
+
+        it("should update existing Claude setup files", async () => {
+            // Arrange
+            await mkdir(join(testDir, ".claude"), { recursive: true });
+            await writeFile(
+                join(testDir, ".claude", "settings.json"),
+                JSON.stringify({
+                    enabledPlugins: { "test@example": true },
+                }),
+            );
+            await writeFile(join(testDir, ".nvmrc"), "18.0.0");
+
+            // Act
+            const response = await createClaudeCodeWebSetupHandler({
+                targetDir: testDir,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.success).toBe(true);
+            expect(result.action).toBe("updated");
+
+            // Verify settings preserved existing properties
+            const settingsContent = await readFile(
+                join(testDir, ".claude", "settings.json"),
+                "utf-8",
+            );
+            const settings = JSON.parse(settingsContent);
+            expect(settings.enabledPlugins).toEqual({ "test@example": true });
+            expect(settings.SessionStart).toContain("nvm install");
+        });
+
+        it("should return error for non-existent directory", async () => {
+            // Arrange
+            const nonExistentDir = join(testDir, "does-not-exist");
+
+            // Act
+            const response = await createClaudeCodeWebSetupHandler({
+                targetDir: nonExistentDir,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.success).toBe(false);
+            expect(result.error).toContain("does not exist");
+        });
+
+        it("should return no_changes_needed when run twice without changes", async () => {
+            // Arrange - create environment
+            await writeFile(join(testDir, ".nvmrc"), "20.0.0");
+            await writeFile(
+                join(testDir, "package.json"),
+                JSON.stringify({ name: "test" }),
+            );
+            await writeFile(
+                join(testDir, "package-lock.json"),
+                JSON.stringify({}),
+            );
+
+            // Act - first run creates files
+            const firstResponse = await createClaudeCodeWebSetupHandler({
+                targetDir: testDir,
+            });
+            const firstResult = parseResult(firstResponse);
+
+            // Assert - first run creates
+            expect(firstResult.success).toBe(true);
+            expect(firstResult.action).toBe("created");
+
+            // Act - second run with no changes
+            const secondResponse = await createClaudeCodeWebSetupHandler({
+                targetDir: testDir,
+            });
+            const secondResult = parseResult(secondResponse);
+
+            // Assert - second run detects no changes needed
+            expect(secondResult.success).toBe(true);
+            expect(secondResult.action).toBe("no_changes_needed");
+            expect(secondResult.message).toContain(
+                "No changes needed - environment setup is already current",
+            );
         });
     });
 
