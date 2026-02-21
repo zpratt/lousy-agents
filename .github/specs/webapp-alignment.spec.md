@@ -303,11 +303,11 @@ sequenceDiagram
 - [x] `.github/specs/webapp-alignment.spec.md` exists
 - [x] Spec includes EARS acceptance criteria
 - [x] Spec includes data flow and sequence diagrams
-- [ ] `mise run ci && npm run build` passes
+- [x] `mise run ci && npm run build` passes
 
 **Done when**:
 - [x] All verification steps pass
-- [ ] Full validation suite passes
+- [x] Full validation suite passes
 
 ---
 
