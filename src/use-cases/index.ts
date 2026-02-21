@@ -22,6 +22,13 @@ export {
     CreateSkillUseCase,
 } from "./create-skill.js";
 export {
+	AgentSkillFrontmatterSchema,
+	LintSkillFrontmatterUseCase,
+	type LintSkillFrontmatterInput,
+	type LintSkillFrontmatterOutput,
+	type SkillLintGateway,
+} from "./lint-skill-frontmatter.js";
+export {
     type GenerateWorkflowOptions,
     generateWorkflowContent,
     updateWorkflowWithMissingSteps,

@@ -1,6 +1,7 @@
 import { defineCommand, runMain } from "citty";
 import { copilotSetupCommand } from "./commands/copilot-setup.js";
 import { initCommand } from "./commands/init.js";
+import { lintCommand } from "./commands/lint.js";
 import { newCommand } from "./commands/new.js";
 
 const main = defineCommand({
@@ -11,6 +12,7 @@ const main = defineCommand({
     },
     subCommands: {
         init: initCommand,
+        lint: lintCommand,
         new: newCommand,
         "copilot-setup": copilotSetupCommand,
     },
