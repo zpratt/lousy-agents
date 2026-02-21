@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -47,6 +48,107 @@ EXPOSE ${API_PORT}
 CMD ["npx", "tsx", "src/index.ts"]
 `;
 }
+
+describe("API template scaffolding", () => {
+    let projectDir: string;
+
+    beforeAll(async () => {
+        // Arrange: scaffold a new API project
+        projectDir = join(tmpdir(), `e2e-api-scaffold-${chance.guid()}`);
+        await mkdir(projectDir, { recursive: true });
+
+        const projectName = `test-api-${chance.word({ length: 6 }).toLowerCase()}`;
+        const mockPrompt = () => Promise.resolve(projectName);
+
+        await initCommand.run({
+            rawArgs: [],
+            args: { _: [], kind: "api", name: projectName },
+            cmd: initCommand,
+            data: { prompt: mockPrompt, targetDir: projectDir },
+        });
+    }, 30000);
+
+    afterAll(async () => {
+        if (projectDir) {
+            await rm(projectDir, { recursive: true, force: true });
+        }
+    });
+
+    describe("given a scaffolded API project", () => {
+        it("should have compatible biome configuration and package version", async () => {
+            // Arrange
+            const biomeConfigPath = join(projectDir, "biome.json");
+            const packageJsonPath = join(projectDir, "package.json");
+
+            // Act
+            const biomeConfigContent = await readFile(biomeConfigPath, "utf-8");
+            const packageJsonContent = await readFile(packageJsonPath, "utf-8");
+
+            const biomeConfig = JSON.parse(biomeConfigContent) as {
+                $schema: string;
+            };
+            const packageJson = JSON.parse(packageJsonContent) as {
+                devDependencies: { "@biomejs/biome": string };
+            };
+
+            // Assert - extract versions for comparison
+            const schemaVersion = biomeConfig.$schema.match(
+                /schemas\/(\d+\.\d+\.\d+)\//,
+            )?.[1];
+            const packageVersion =
+                packageJson.devDependencies["@biomejs/biome"];
+
+            expect(schemaVersion).toBeDefined();
+            expect(packageVersion).toBeDefined();
+            expect(schemaVersion).toBe(packageVersion);
+        });
+    });
+});
+
+describe("API template lint", () => {
+    let projectDir: string;
+
+    beforeAll(async () => {
+        // Arrange: scaffold a new API project
+        projectDir = join(tmpdir(), `e2e-api-lint-${chance.guid()}`);
+        await mkdir(projectDir, { recursive: true });
+
+        const projectName = `test-api-${chance.word({ length: 6 }).toLowerCase()}`;
+        const mockPrompt = () => Promise.resolve(projectName);
+
+        await initCommand.run({
+            rawArgs: [],
+            args: { _: [], kind: "api", name: projectName },
+            cmd: initCommand,
+            data: { prompt: mockPrompt, targetDir: projectDir },
+        });
+
+        // Initialize git so biome VCS integration can resolve .gitignore
+        execFileSync("git", ["init"], { cwd: projectDir, stdio: "pipe" });
+
+        // Install dependencies so biome binary is available
+        execFileSync("npm", ["install"], {
+            cwd: projectDir,
+            stdio: "pipe",
+            timeout: 120000,
+        });
+    }, 180000);
+
+    afterAll(async () => {
+        if (projectDir) {
+            await rm(projectDir, { recursive: true, force: true });
+        }
+    });
+
+    describe("given a scaffolded API project with dependencies installed", () => {
+        it("should pass npm run lint without errors", () => {
+            execFileSync("npm", ["run", "lint"], {
+                cwd: projectDir,
+                stdio: "pipe",
+            });
+        });
+    });
+});
 
 describe("API template end-to-end", () => {
     let container: StartedTestContainer;
