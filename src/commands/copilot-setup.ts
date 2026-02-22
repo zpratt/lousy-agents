@@ -36,6 +36,11 @@ interface CopilotSetupRulesetGateway extends RulesetGateway {
     ): Promise<{ owner: string; repo: string } | null>;
 }
 
+type PromptFunction = (
+    message: string,
+    options: { type: string },
+) => Promise<boolean>;
+
 const copilotSetupArgs = {};
 
 type CopilotSetupArgs = typeof copilotSetupArgs;
@@ -57,31 +62,17 @@ export const copilotSetupCommand = defineCommand({
                 ? context.data.targetDir
                 : process.cwd();
 
-        // Create gateways
+        // Create gateways — injected dependencies override defaults for testability
         const environmentGateway = createEnvironmentGateway();
         const workflowGateway = createWorkflowGateway();
-        const injectedRulesetGateway = context.data?.rulesetGateway;
         const rulesetGateway: CopilotSetupRulesetGateway =
-            injectedRulesetGateway !== null &&
-            typeof injectedRulesetGateway === "object" &&
-            typeof (injectedRulesetGateway as CopilotSetupRulesetGateway)
-                .isAuthenticated === "function" &&
-            typeof (injectedRulesetGateway as CopilotSetupRulesetGateway)
-                .getRepoInfo === "function" &&
-            typeof (injectedRulesetGateway as CopilotSetupRulesetGateway)
-                .listRulesets === "function" &&
-            typeof (injectedRulesetGateway as CopilotSetupRulesetGateway)
-                .createRuleset === "function"
-                ? (injectedRulesetGateway as CopilotSetupRulesetGateway)
-                : await createGitHubRulesetGateway();
+            (context.data
+                ?.rulesetGateway as CopilotSetupRulesetGateway | null) ??
+            (await createGitHubRulesetGateway());
         const prompt =
-            typeof context.data?.prompt === "function"
-                ? (context.data.prompt as (
-                      message: string,
-                      options: { type: string },
-                  ) => Promise<boolean>)
-                : (message: string, options: { type: string }) =>
-                      consola.prompt(message, options) as Promise<boolean>;
+            (context.data?.prompt as PromptFunction | null) ??
+            ((message, options) =>
+                consola.prompt(message, options) as Promise<boolean>);
 
         consola.info("Detecting environment configuration...");
 
@@ -217,7 +208,7 @@ export const copilotSetupCommand = defineCommand({
 async function checkAndPromptRuleset(
     rulesetGateway: CopilotSetupRulesetGateway,
     targetDir: string,
-    prompt: (message: string, options: { type: string }) => Promise<boolean>,
+    prompt: PromptFunction,
 ): Promise<void> {
     consola.info("Checking Copilot PR review ruleset...");
 

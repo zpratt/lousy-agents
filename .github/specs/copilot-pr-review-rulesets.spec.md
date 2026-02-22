@@ -27,10 +27,10 @@ so that I can **know whether my repository is configured for automated Copilot c
 
 #### Acceptance Criteria
 
-- When the user runs copilot-setup and is authenticated via `gh auth login`, the system shall check the repository for existing rulesets that enable Copilot code review
+- When the user runs copilot-setup and is authenticated with GitHub (GitHub token available), the system shall check the repository for existing rulesets that enable Copilot code review
 - When a Copilot PR review ruleset already exists, the system shall display a success message indicating the ruleset is configured
 - When no Copilot PR review ruleset exists, the system shall prompt the user to enable it
-- If the user is not authenticated with the GitHub CLI, then the system shall display a human-readable message explaining that `gh auth login` is required
+- If the user is not authenticated with GitHub (no token available), then the system shall display a human-readable message explaining that a GitHub token is required and how to provide it (for example, via `GH_TOKEN`/`GITHUB_TOKEN` or `gh auth login`)
 - If the user lacks admin access to the repository, then the system shall display a human-readable message explaining that admin permissions are needed to manage rulesets
 
 #### Notes
@@ -47,7 +47,7 @@ so that I can **enforce automated Copilot code review on my pull requests**.
 
 #### Acceptance Criteria
 
-- When the user confirms they want to enable Copilot PR review, the system shall create a ruleset with a `code_scanning` rule that includes Copilot Autofix
+- When the user confirms they want to enable Copilot PR review, the system shall create a ruleset that includes both a `copilot_code_review` rule and a `code_scanning` rule (with Copilot Autofix enabled)
 - When the ruleset is created successfully, the system shall display a success message with the ruleset name
 - If the GitHub API returns an error during ruleset creation, then the system shall display a human-readable error message with the status code
 - If the repository cannot be determined from git remote, then the system shall display a human-readable message explaining the issue
@@ -231,7 +231,7 @@ sequenceDiagram
 - `src/use-cases/check-copilot-review-ruleset.test.ts`
 
 **Requirements**:
-- When checking rulesets, the use case shall determine if any ruleset contains a `code_scanning` rule with a Copilot tool
+- When checking rulesets, the use case shall determine if any active ruleset contains a `code_scanning` or `copilot_code_review` rule with a Copilot tool
 - When building a new ruleset, the use case shall create a properly structured ruleset object
 - The use case shall define a port interface for the gateway
 

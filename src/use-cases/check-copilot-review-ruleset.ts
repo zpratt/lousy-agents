@@ -79,14 +79,15 @@ function isCopilotCodeScanningRule(rule: RulesetRule): boolean {
 }
 
 /**
- * Finds the first ruleset that contains a copilot_code_review rule
- * or a code_scanning rule with a Copilot tool
+ * Finds the first active ruleset that contains a copilot_code_review rule
+ * or a code_scanning rule with a Copilot tool.
+ * Only considers rulesets with "active" enforcement.
  * @param rulesets Array of repository rulesets to search
  * @returns The matching ruleset or undefined if not found
  */
 function findCopilotRuleset(rulesets: Ruleset[]): Ruleset | undefined {
     for (const ruleset of rulesets) {
-        if (!ruleset.rules) {
+        if (!ruleset.rules || ruleset.enforcement !== "active") {
             continue;
         }
 
@@ -104,9 +105,10 @@ function findCopilotRuleset(rulesets: Ruleset[]): Ruleset | undefined {
 }
 
 /**
- * Checks if any ruleset in the array contains a code_scanning rule with a Copilot tool
+ * Checks if any active ruleset contains a copilot_code_review rule
+ * or a code_scanning rule with a Copilot tool
  * @param rulesets Array of repository rulesets to check
- * @returns True if a Copilot review rule is found
+ * @returns True if an active Copilot review rule is found
  */
 export function hasCopilotReviewRule(rulesets: Ruleset[]): boolean {
     return findCopilotRuleset(rulesets) !== undefined;

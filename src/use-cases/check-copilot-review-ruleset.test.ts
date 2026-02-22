@@ -63,13 +63,13 @@ function buildCodeScanningRule(toolName: string): RulesetRule {
 }
 
 /**
- * Builds a ruleset with the given rules.
+ * Builds a ruleset with the given rules and optional enforcement level.
  */
-function buildRuleset(rules?: RulesetRule[]): Ruleset {
+function buildRuleset(rules?: RulesetRule[], enforcement = "active"): Ruleset {
     return {
         id: chance.natural(),
         name: chance.word(),
-        enforcement: "active",
+        enforcement,
         rules,
     };
 }
@@ -172,6 +172,21 @@ describe("Check Copilot Review Ruleset", () => {
                             },
                         },
                     ]),
+                ];
+
+                // Act
+                const result = hasCopilotReviewRule(rulesets);
+
+                // Assert
+                expect(result).toBe(false);
+            });
+        });
+
+        describe("when a matching ruleset has disabled enforcement", () => {
+            it("should return false", () => {
+                // Arrange
+                const rulesets: Ruleset[] = [
+                    buildRuleset([buildCopilotCodeReviewRule()], "disabled"),
                 ];
 
                 // Act

@@ -76,7 +76,10 @@ describe("Copilot Setup command", () => {
                 rawArgs: [],
                 args: { _: [] },
                 cmd: copilotSetupCommand,
-                data: { targetDir: testDir },
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                },
             });
 
             // Assert
@@ -94,7 +97,10 @@ describe("Copilot Setup command", () => {
                 rawArgs: [],
                 args: { _: [] },
                 cmd: copilotSetupCommand,
-                data: { targetDir: testDir },
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                },
             });
 
             // Assert
@@ -114,7 +120,10 @@ describe("Copilot Setup command", () => {
                 rawArgs: [],
                 args: { _: [] },
                 cmd: copilotSetupCommand,
-                data: { targetDir: testDir },
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                },
             });
 
             // Assert
@@ -138,7 +147,10 @@ describe("Copilot Setup command", () => {
                 rawArgs: [],
                 args: { _: [] },
                 cmd: copilotSetupCommand,
-                data: { targetDir: testDir },
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                },
             });
 
             // Assert
@@ -163,7 +175,10 @@ describe("Copilot Setup command", () => {
                 rawArgs: [],
                 args: { _: [] },
                 cmd: copilotSetupCommand,
-                data: { targetDir: testDir },
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                },
             });
 
             // Assert
@@ -206,7 +221,10 @@ jobs:
                 rawArgs: [],
                 args: { _: [] },
                 cmd: copilotSetupCommand,
-                data: { targetDir: testDir },
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                },
             });
 
             // Assert
@@ -246,7 +264,10 @@ jobs:
                 rawArgs: [],
                 args: { _: [] },
                 cmd: copilotSetupCommand,
-                data: { targetDir: testDir },
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                },
             });
 
             // Assert
@@ -286,7 +307,10 @@ jobs:
                 rawArgs: [],
                 args: { _: [] },
                 cmd: copilotSetupCommand,
-                data: { targetDir: testDir },
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                },
             });
 
             // Assert
@@ -324,7 +348,10 @@ jobs:
                 rawArgs: [],
                 args: { _: [] },
                 cmd: copilotSetupCommand,
-                data: { targetDir: testDir },
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                },
             });
 
             // Assert
@@ -350,7 +377,10 @@ jobs:
                 rawArgs: [],
                 args: { _: [] },
                 cmd: copilotSetupCommand,
-                data: { targetDir: testDir },
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                },
             });
 
             // Assert
@@ -398,7 +428,7 @@ jobs:
     });
 
     describe("when checking Copilot PR review rulesets", () => {
-        it("should warn when not authenticated with GitHub CLI", async () => {
+        it("should warn when no valid GitHub token is available", async () => {
             // Arrange
             const mockGateway = createMockRulesetGateway({
                 isAuthenticated: () => Promise.resolve(false),
