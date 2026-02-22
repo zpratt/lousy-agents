@@ -241,22 +241,25 @@ To use this MCP server with the hosted GitHub Copilot coding agent on github.com
 
 ```json
 {
-  "servers": {
+  "mcpServers": {
     "lousy-agents": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "-p", "@lousy-agents/cli", "lousy-agents-mcp"]
+      "args": ["-y", "-p", "@lousy-agents/cli@1.0.2", "lousy-agents-mcp"],
+      "tools": ["*"]
     }
   }
 }
 ```
+
+> Update the pinned `@lousy-agents/cli@1.0.2` version when you intentionally upgrade to a newer release.
 
 ### Steps to update MCP server settings on github.com
 
 1. Sign in to github.com and open your account **Settings**.
 2. Go to **Copilot** settings, then open **Coding agent** settings.
 3. Open the **MCP servers** section and choose **Edit** (or **Add server** if none exist yet).
-4. Paste the JSON block above into your MCP server configuration.
+4. Paste the JSON block above into the MCP server settings editor.
 5. Save changes, then start a new hosted Copilot coding agent session so it loads the updated MCP server list.
 
 ## Usage Examples
