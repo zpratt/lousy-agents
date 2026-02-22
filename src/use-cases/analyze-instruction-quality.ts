@@ -3,7 +3,6 @@
  * Orchestrates discovery, AST parsing, and scoring of feedback loop documentation.
  */
 
-import type { LintDiagnostic } from "../entities/lint.js";
 import type {
     CommandQualityScores,
     DiscoveredInstructionFile,
@@ -13,6 +12,7 @@ import {
     CONDITIONAL_KEYWORDS,
     DEFAULT_STRUCTURAL_HEADING_PATTERNS,
 } from "../entities/instruction-quality.js";
+import type { LintDiagnostic } from "../entities/lint.js";
 import type { InstructionFileDiscoveryGateway } from "../gateways/instruction-file-discovery-gateway.js";
 import type {
     MarkdownAstGateway,
@@ -69,8 +69,9 @@ export class AnalyzeInstructionQualityUseCase {
             throw new Error("Target directory is required");
         }
 
-        const headingPatterns =
-            input.headingPatterns ?? [...DEFAULT_STRUCTURAL_HEADING_PATTERNS];
+        const headingPatterns = input.headingPatterns ?? [
+            ...DEFAULT_STRUCTURAL_HEADING_PATTERNS,
+        ];
         const proximityWindow = input.proximityWindow ?? 3;
 
         const discoveredFiles =
@@ -365,13 +366,23 @@ export class AnalyzeInstructionQualityUseCase {
         return parts.join(" ");
     }
 
-    private collectText(node: { type: string; children?: unknown[]; value?: string }, parts: string[]): void {
+    private collectText(
+        node: { type: string; children?: unknown[]; value?: string },
+        parts: string[],
+    ): void {
         if (node.type === "text" && typeof node.value === "string") {
             parts.push(node.value);
         }
         if (Array.isArray(node.children)) {
             for (const child of node.children) {
-                this.collectText(child as { type: string; children?: unknown[]; value?: string }, parts);
+                this.collectText(
+                    child as {
+                        type: string;
+                        children?: unknown[];
+                        value?: string;
+                    },
+                    parts,
+                );
             }
         }
     }
@@ -415,8 +426,7 @@ export class AnalyzeInstructionQualityUseCase {
 
                 // Find the next heading of equal or higher level
                 const nextHeading = structure.headings.find(
-                    (h, idx) =>
-                        idx > headingIdx && h.depth <= heading.depth,
+                    (h, idx) => idx > headingIdx && h.depth <= heading.depth,
                 );
 
                 if (!nextHeading || codeLine < nextHeading.position.line) {
@@ -442,8 +452,7 @@ export class AnalyzeInstructionQualityUseCase {
                 }
 
                 const nextHeading = structure.headings.find(
-                    (h, idx) =>
-                        idx > headingIdx && h.depth <= heading.depth,
+                    (h, idx) => idx > headingIdx && h.depth <= heading.depth,
                 );
 
                 if (!nextHeading || codeLine < nextHeading.position.line) {

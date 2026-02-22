@@ -8,22 +8,6 @@ export type {
     ClaudeSetupResult,
     SessionStartHook,
 } from "./claude-setup.js";
-export type {
-    LintDiagnostic,
-    LintOutput,
-    LintSeverity,
-    LintTarget,
-} from "./lint.js";
-export type {
-    CommandQualityScores,
-    DiscoveredInstructionFile,
-    InstructionFileFormat,
-    InstructionQualityResult,
-} from "./instruction-quality.js";
-export {
-    CONDITIONAL_KEYWORDS,
-    DEFAULT_STRUCTURAL_HEADING_PATTERNS,
-} from "./instruction-quality.js";
 export { generateAgentContent, normalizeAgentName } from "./copilot-agent.js";
 export type {
     ActionToResolve,
@@ -48,6 +32,22 @@ export {
     MANDATORY_SCRIPT_NAMES,
     SCRIPT_PHASE_MAPPING,
 } from "./feedback-loop.js";
+export type {
+    CommandQualityScores,
+    DiscoveredInstructionFile,
+    InstructionFileFormat,
+    InstructionQualityResult,
+} from "./instruction-quality.js";
+export {
+    CONDITIONAL_KEYWORDS,
+    DEFAULT_STRUCTURAL_HEADING_PATTERNS,
+} from "./instruction-quality.js";
+export type {
+    LintDiagnostic,
+    LintOutput,
+    LintSeverity,
+    LintTarget,
+} from "./lint.js";
 export type {
     DiscoveredSkillFile,
     ParsedFrontmatter,

@@ -7,17 +7,18 @@ import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
 import type { LintDiagnostic, LintOutput } from "../entities/lint.js";
+import { createFormatter, type LintFormatType } from "../formatters/index.js";
 import { createAgentLintGateway } from "../gateways/agent-lint-gateway.js";
 import { createInstructionFileDiscoveryGateway } from "../gateways/instruction-file-discovery-gateway.js";
 import { createMarkdownAstGateway } from "../gateways/markdown-ast-gateway.js";
 import { createScriptDiscoveryGateway } from "../gateways/script-discovery-gateway.js";
 import { createSkillLintGateway } from "../gateways/skill-lint-gateway.js";
-import type { LintAgentFrontmatterOutput } from "../use-cases/lint-agent-frontmatter.js";
-import { LintAgentFrontmatterUseCase } from "../use-cases/lint-agent-frontmatter.js";
 import {
     AnalyzeInstructionQualityUseCase,
     type FeedbackLoopCommandsGateway,
 } from "../use-cases/analyze-instruction-quality.js";
+import type { LintAgentFrontmatterOutput } from "../use-cases/lint-agent-frontmatter.js";
+import { LintAgentFrontmatterUseCase } from "../use-cases/lint-agent-frontmatter.js";
 import type { LintSkillFrontmatterOutput } from "../use-cases/lint-skill-frontmatter.js";
 import { LintSkillFrontmatterUseCase } from "../use-cases/lint-skill-frontmatter.js";
 
@@ -173,9 +174,7 @@ async function lintInstructions(targetDir: string): Promise<LintOutput> {
 
     const output = await useCase.execute({ targetDir });
 
-    const filesAnalyzed = output.result.discoveredFiles.map(
-        (f) => f.filePath,
-    );
+    const filesAnalyzed = output.result.discoveredFiles.map((f) => f.filePath);
 
     // Display quality analysis results
     if (output.result.discoveredFiles.length === 0) {
@@ -208,9 +207,8 @@ async function lintInstructions(targetDir: string): Promise<LintOutput> {
             totalWarnings: output.diagnostics.filter(
                 (d) => d.severity === "warning",
             ).length,
-            totalInfos: output.diagnostics.filter(
-                (d) => d.severity === "info",
-            ).length,
+            totalInfos: output.diagnostics.filter((d) => d.severity === "info")
+                .length,
         },
     };
 }
@@ -236,6 +234,11 @@ export const lintCommand = defineCommand({
                 "Analyze instruction quality across all instruction file formats",
             default: false,
         },
+        format: {
+            type: "string",
+            description: "Output format: human (default), json, or rdjsonl",
+            default: "human",
+        },
     },
     run: async (context: CommandContext) => {
         const targetDir =
@@ -244,31 +247,58 @@ export const lintCommand = defineCommand({
                 : process.cwd();
 
         const lintAgentsFlag =
-            context.args?.agents === true ||
-            context.data?.agents === true;
+            context.args?.agents === true || context.data?.agents === true;
         const lintInstructionsFlag =
             context.args?.instructions === true ||
             context.data?.instructions === true;
 
+        const formatValue =
+            (context.args?.format as string) ??
+            (context.data?.format as string) ??
+            "human";
+        const format = (
+            ["human", "json", "rdjsonl"].includes(formatValue)
+                ? formatValue
+                : "human"
+        ) as LintFormatType;
+
         let totalErrors = 0;
         let totalWarnings = 0;
+        const allOutputs: LintOutput[] = [];
 
         if (lintInstructionsFlag) {
             const instructionOutput = await lintInstructions(targetDir);
-            displayLintOutput(instructionOutput, "instruction file(s)");
+            allOutputs.push(instructionOutput);
             totalErrors += instructionOutput.summary.totalErrors;
             totalWarnings += instructionOutput.summary.totalWarnings;
         } else if (lintAgentsFlag) {
             const agentOutput = await lintAgents(targetDir);
-            displayLintOutput(agentOutput, "agent(s)");
+            allOutputs.push(agentOutput);
             totalErrors += agentOutput.summary.totalErrors;
             totalWarnings += agentOutput.summary.totalWarnings;
         } else {
             // Default: lint skills
             const skillOutput = await lintSkills(targetDir);
-            displayLintOutput(skillOutput, "skill(s)");
+            allOutputs.push(skillOutput);
             totalErrors += skillOutput.summary.totalErrors;
             totalWarnings += skillOutput.summary.totalWarnings;
+        }
+
+        if (format !== "human") {
+            const formatter = createFormatter(format);
+            const formatted = formatter.format(allOutputs);
+            if (formatted) {
+                console.log(formatted);
+            }
+        } else {
+            for (const output of allOutputs) {
+                const label = lintInstructionsFlag
+                    ? "instruction file(s)"
+                    : lintAgentsFlag
+                      ? "agent(s)"
+                      : "skill(s)";
+                displayLintOutput(output, label);
+            }
         }
 
         if (totalErrors > 0) {
@@ -278,9 +308,7 @@ export const lintCommand = defineCommand({
         }
 
         if (totalWarnings > 0) {
-            consola.warn(
-                `Lint passed with ${totalWarnings} warning(s)`,
-            );
+            consola.warn(`Lint passed with ${totalWarnings} warning(s)`);
         } else {
             const target = lintInstructionsFlag
                 ? "instruction files"
@@ -291,4 +319,3 @@ export const lintCommand = defineCommand({
         }
     },
 });
-

@@ -58,9 +58,7 @@ describe("LintAgentFrontmatterUseCase", () => {
             // Arrange
             const agentName = "security";
             const filePath = `/repo/.github/agents/${agentName}.md`;
-            const discovered: DiscoveredAgentFile[] = [
-                { filePath, agentName },
-            ];
+            const discovered: DiscoveredAgentFile[] = [{ filePath, agentName }];
             const frontmatter = buildValidFrontmatter(agentName);
             const gateway = createMockGateway({
                 discoverAgents: vi.fn().mockResolvedValue(discovered),
@@ -88,9 +86,7 @@ describe("LintAgentFrontmatterUseCase", () => {
             // Arrange
             const agentName = "security";
             const filePath = `/repo/.github/agents/${agentName}.md`;
-            const discovered: DiscoveredAgentFile[] = [
-                { filePath, agentName },
-            ];
+            const discovered: DiscoveredAgentFile[] = [{ filePath, agentName }];
             const frontmatter: ParsedFrontmatter = {
                 data: { description: chance.sentence() },
                 fieldLines: new Map([["description", 2]]),
@@ -125,9 +121,7 @@ describe("LintAgentFrontmatterUseCase", () => {
             // Arrange
             const agentName = "security";
             const filePath = `/repo/.github/agents/${agentName}.md`;
-            const discovered: DiscoveredAgentFile[] = [
-                { filePath, agentName },
-            ];
+            const discovered: DiscoveredAgentFile[] = [{ filePath, agentName }];
             const frontmatter: ParsedFrontmatter = {
                 data: { name: agentName },
                 fieldLines: new Map([["name", 2]]),
@@ -160,9 +154,7 @@ describe("LintAgentFrontmatterUseCase", () => {
             // Arrange
             const agentName = "security";
             const filePath = `/repo/.github/agents/${agentName}.md`;
-            const discovered: DiscoveredAgentFile[] = [
-                { filePath, agentName },
-            ];
+            const discovered: DiscoveredAgentFile[] = [{ filePath, agentName }];
             const frontmatter: ParsedFrontmatter = {
                 data: {
                     name: "different-name",
@@ -204,9 +196,7 @@ describe("LintAgentFrontmatterUseCase", () => {
             // Arrange
             const agentName = "security";
             const filePath = `/repo/.github/agents/${agentName}.md`;
-            const discovered: DiscoveredAgentFile[] = [
-                { filePath, agentName },
-            ];
+            const discovered: DiscoveredAgentFile[] = [{ filePath, agentName }];
             const frontmatter: ParsedFrontmatter = {
                 data: { name: "Security", description: chance.sentence() },
                 fieldLines: new Map([
@@ -244,9 +234,7 @@ describe("LintAgentFrontmatterUseCase", () => {
             // Arrange
             const agentName = "security";
             const filePath = `/repo/.github/agents/${agentName}.md`;
-            const discovered: DiscoveredAgentFile[] = [
-                { filePath, agentName },
-            ];
+            const discovered: DiscoveredAgentFile[] = [{ filePath, agentName }];
             const gateway = createMockGateway({
                 discoverAgents: vi.fn().mockResolvedValue(discovered),
                 readAgentFileContent: vi
@@ -289,9 +277,7 @@ describe("LintAgentFrontmatterUseCase", () => {
             // Arrange
             const agentName = "security";
             const filePath = `/repo/.github/agents/${agentName}.md`;
-            const discovered: DiscoveredAgentFile[] = [
-                { filePath, agentName },
-            ];
+            const discovered: DiscoveredAgentFile[] = [{ filePath, agentName }];
             const frontmatter: ParsedFrontmatter = {
                 data: { name: agentName, description: "" },
                 fieldLines: new Map([

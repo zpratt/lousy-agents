@@ -12,10 +12,7 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
     let gateway: FileSystemInstructionFileDiscoveryGateway;
 
     beforeEach(async () => {
-        testDir = join(
-            tmpdir(),
-            `test-instruction-discovery-${chance.guid()}`,
-        );
+        testDir = join(tmpdir(), `test-instruction-discovery-${chance.guid()}`);
         await mkdir(testDir, { recursive: true });
         gateway = new FileSystemInstructionFileDiscoveryGateway();
     });
@@ -27,8 +24,7 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
     describe("when no instruction files exist", () => {
         it("should return an empty array", async () => {
             // Act
-            const files =
-                await gateway.discoverInstructionFiles(testDir);
+            const files = await gateway.discoverInstructionFiles(testDir);
 
             // Assert
             expect(files).toEqual([]);
@@ -46,8 +42,7 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
             );
 
             // Act
-            const files =
-                await gateway.discoverInstructionFiles(testDir);
+            const files = await gateway.discoverInstructionFiles(testDir);
 
             // Assert
             expect(files).toHaveLength(1);
@@ -58,11 +53,7 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
     describe("when .github/instructions/ has markdown files", () => {
         it("should discover them with copilot-scoped format", async () => {
             // Arrange
-            const instructionsDir = join(
-                testDir,
-                ".github",
-                "instructions",
-            );
+            const instructionsDir = join(testDir, ".github", "instructions");
             await mkdir(instructionsDir, { recursive: true });
             await writeFile(
                 join(instructionsDir, "test.instructions.md"),
@@ -70,8 +61,7 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
             );
 
             // Act
-            const files =
-                await gateway.discoverInstructionFiles(testDir);
+            const files = await gateway.discoverInstructionFiles(testDir);
 
             // Assert
             expect(files).toHaveLength(1);
@@ -90,8 +80,7 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
             );
 
             // Act
-            const files =
-                await gateway.discoverInstructionFiles(testDir);
+            const files = await gateway.discoverInstructionFiles(testDir);
 
             // Assert
             expect(files).toHaveLength(1);
@@ -102,14 +91,10 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
     describe("when AGENTS.md exists at repo root", () => {
         it("should discover it with agents-md format", async () => {
             // Arrange
-            await writeFile(
-                join(testDir, "AGENTS.md"),
-                "# Agents\n",
-            );
+            await writeFile(join(testDir, "AGENTS.md"), "# Agents\n");
 
             // Act
-            const files =
-                await gateway.discoverInstructionFiles(testDir);
+            const files = await gateway.discoverInstructionFiles(testDir);
 
             // Assert
             expect(files).toHaveLength(1);
@@ -120,14 +105,10 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
     describe("when CLAUDE.md exists at repo root", () => {
         it("should discover it with claude-md format", async () => {
             // Arrange
-            await writeFile(
-                join(testDir, "CLAUDE.md"),
-                "# Claude\n",
-            );
+            await writeFile(join(testDir, "CLAUDE.md"), "# Claude\n");
 
             // Act
-            const files =
-                await gateway.discoverInstructionFiles(testDir);
+            const files = await gateway.discoverInstructionFiles(testDir);
 
             // Assert
             expect(files).toHaveLength(1);
@@ -149,14 +130,10 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
                 join(agentsDir, "reviewer.md"),
                 "---\nname: reviewer\n---\n",
             );
-            await writeFile(
-                join(testDir, "CLAUDE.md"),
-                "# Claude\n",
-            );
+            await writeFile(join(testDir, "CLAUDE.md"), "# Claude\n");
 
             // Act
-            const files =
-                await gateway.discoverInstructionFiles(testDir);
+            const files = await gateway.discoverInstructionFiles(testDir);
 
             // Assert
             expect(files).toHaveLength(3);

@@ -33,11 +33,8 @@ export const analyzeInstructionQualityHandler: ToolHandler = async (
         const scriptGateway = createScriptDiscoveryGateway();
         const commandsGateway: FeedbackLoopCommandsGateway = {
             async getMandatoryCommands(targetDir: string) {
-                const scripts =
-                    await scriptGateway.discoverScripts(targetDir);
-                return scripts
-                    .filter((s) => s.isMandatory)
-                    .map((s) => s.name);
+                const scripts = await scriptGateway.discoverScripts(targetDir);
+                return scripts.filter((s) => s.isMandatory).map((s) => s.name);
             },
         };
 

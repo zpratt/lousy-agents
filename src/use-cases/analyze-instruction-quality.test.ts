@@ -88,9 +88,9 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             );
 
             // Act & Assert
-            await expect(
-                useCase.execute({ targetDir: "" }),
-            ).rejects.toThrow("Target directory is required");
+            await expect(useCase.execute({ targetDir: "" })).rejects.toThrow(
+                "Target directory is required",
+            );
         });
     });
 
@@ -104,7 +104,11 @@ describe("AnalyzeInstructionQualityUseCase", () => {
 
             const structure: MarkdownStructure = {
                 headings: [
-                    { text: "Validation Suite", depth: 2, position: { line: 1 } },
+                    {
+                        text: "Validation Suite",
+                        depth: 2,
+                        position: { line: 1 },
+                    },
                 ],
                 codeBlocks: [
                     {
@@ -242,9 +246,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                         {
                             type: "heading",
                             depth: 2,
-                            children: [
-                                { type: "text", value: "Commands" },
-                            ],
+                            children: [{ type: "text", value: "Commands" }],
                         },
                         {
                             type: "code",
@@ -339,9 +341,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                         {
                             type: "heading",
                             depth: 2,
-                            children: [
-                                { type: "text", value: "Validation" },
-                            ],
+                            children: [{ type: "text", value: "Validation" }],
                         },
                         {
                             type: "code",

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-    RemarkMarkdownAstGateway,
     findConditionalKeywordsInProximity,
+    RemarkMarkdownAstGateway,
 } from "./markdown-ast-gateway.js";
 
 describe("RemarkMarkdownAstGateway", () => {
@@ -46,8 +46,7 @@ describe("RemarkMarkdownAstGateway", () => {
         describe("when content has inline code", () => {
             it("should extract inline code values", () => {
                 // Arrange
-                const content =
-                    "Run `npm test` before committing.\n";
+                const content = "Run `npm test` before committing.\n";
 
                 // Act
                 const result = gateway.parseContent(content);

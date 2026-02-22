@@ -133,8 +133,7 @@ describe("FileSystemAgentLintGateway", () => {
             // Arrange
             const agentsDir = join(testDir, ".github", "agents");
             await mkdir(agentsDir, { recursive: true });
-            const expectedContent =
-                "---\nname: test\ndescription: test\n---\n";
+            const expectedContent = "---\nname: test\ndescription: test\n---\n";
             const filePath = join(agentsDir, "test.md");
             await writeFile(filePath, expectedContent);
 

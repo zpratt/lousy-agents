@@ -221,4 +221,44 @@ describe("lint command", () => {
             });
         });
     });
+
+    describe("when running with --format json", () => {
+        it("should output valid JSON for valid skills", async () => {
+            // Arrange
+            const skillName = "my-skill";
+            const skillDir = join(testDir, ".github", "skills", skillName);
+            await mkdir(skillDir, { recursive: true });
+            await writeFile(
+                join(skillDir, "SKILL.md"),
+                "---\nname: my-skill\ndescription: A test skill\nallowed-tools: tool1\n---\n# My Skill\n",
+            );
+
+            // Act & Assert
+            await expect(
+                lintCommand.run({
+                    rawArgs: [],
+                    args: { _: [], format: "json" },
+                    cmd: lintCommand,
+                    data: { targetDir: testDir, format: "json" },
+                }),
+            ).resolves.not.toThrow();
+        });
+
+        it("should throw for invalid skills even with json format", async () => {
+            // Arrange
+            const skillDir = join(testDir, ".github", "skills", "bad");
+            await mkdir(skillDir, { recursive: true });
+            await writeFile(join(skillDir, "SKILL.md"), "# No frontmatter\n");
+
+            // Act & Assert
+            await expect(
+                lintCommand.run({
+                    rawArgs: [],
+                    args: { _: [], format: "json" },
+                    cmd: lintCommand,
+                    data: { targetDir: testDir, format: "json" },
+                }),
+            ).rejects.toThrow("lint");
+        });
+    });
 });

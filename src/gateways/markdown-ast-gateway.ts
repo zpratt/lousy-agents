@@ -4,7 +4,7 @@
  */
 
 import { readFile } from "node:fs/promises";
-import type { Code, Heading, InlineCode, Paragraph, Root } from "mdast";
+import type { Code, Heading, InlineCode, Root } from "mdast";
 import { remark } from "remark";
 import { visit } from "unist-util-visit";
 
@@ -144,13 +144,23 @@ export function findConditionalKeywordsInProximity(
 /**
  * Extracts plain text content from any AST node recursively.
  */
-function extractTextFromNode(node: { type: string; children?: unknown[]; value?: string }): string {
+function extractTextFromNode(node: {
+    type: string;
+    children?: unknown[];
+    value?: string;
+}): string {
     if (node.value && typeof node.value === "string") {
         return node.value;
     }
 
     if (Array.isArray(node.children)) {
-        return (node.children as { type: string; children?: unknown[]; value?: string }[])
+        return (
+            node.children as {
+                type: string;
+                children?: unknown[];
+                value?: string;
+            }[]
+        )
             .map((child) => extractTextFromNode(child))
             .join(" ");
     }
