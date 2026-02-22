@@ -195,7 +195,7 @@ npx @lousy-agents/cli lint --format human
 
 ### JSON
 
-Structured JSON array of `LintOutput` objects written to stdout. Suitable for programmatic consumption and LLM interpretation.
+Structured JSON array of `LintDiagnostic` objects written to stdout. Suitable for programmatic consumption and LLM interpretation.
 
 ```bash
 npx @lousy-agents/cli lint --format json
@@ -204,25 +204,13 @@ npx @lousy-agents/cli lint --format json
 ```json
 [
   {
-    "diagnostics": [
-      {
-        "filePath": ".github/agents/security.md",
-        "line": 2,
-        "severity": "error",
-        "message": "Name is required",
-        "ruleId": "agent/missing-name",
-        "field": "name",
-        "target": "agent"
-      }
-    ],
-    "target": "agent",
-    "filesAnalyzed": [".github/agents/security.md"],
-    "summary": {
-      "totalFiles": 1,
-      "totalErrors": 1,
-      "totalWarnings": 0,
-      "totalInfos": 0
-    }
+    "filePath": ".github/agents/security.md",
+    "line": 2,
+    "severity": "error",
+    "message": "Name is required",
+    "ruleId": "agent/missing-name",
+    "field": "name",
+    "target": "agent"
   }
 ]
 ```

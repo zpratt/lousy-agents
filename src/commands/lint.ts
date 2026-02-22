@@ -322,8 +322,9 @@ export const lintCommand = defineCommand({
                 const label = targetLabels[output.target] ?? output.target;
                 if (output.target === "instruction") {
                     displayInstructionQuality(output);
+                } else {
+                    displayLintOutput(output, label);
                 }
-                displayLintOutput(output, label);
             }
         }
 

@@ -24,40 +24,48 @@ export class FileSystemAgentLintGateway implements AgentLintGateway {
             return [];
         }
 
-        const entries = await readdir(agentsDir, { withFileTypes: true });
+        const resolvedAgentsDir = resolve(agentsDir);
         const agents: DiscoveredAgentFile[] = [];
 
-        for (const entry of entries) {
-            if (!entry.isFile()) {
-                continue;
+        const walk = async (dir: string): Promise<void> => {
+            const entries = await readdir(dir, { withFileTypes: true });
+
+            for (const entry of entries) {
+                const name = entry.name;
+                if (
+                    name.includes("..") ||
+                    name.includes("/") ||
+                    name.includes("\\")
+                ) {
+                    continue;
+                }
+
+                const entryPath = join(dir, name);
+                const resolvedPath = resolve(entryPath);
+                const rel = relative(resolvedAgentsDir, resolvedPath);
+                if (rel.startsWith("..") || rel.startsWith(sep)) {
+                    continue;
+                }
+
+                if (entry.isDirectory()) {
+                    await walk(entryPath);
+                    continue;
+                }
+
+                if (!entry.isFile()) {
+                    continue;
+                }
+
+                if (!name.endsWith(".md")) {
+                    continue;
+                }
+
+                const agentName = basename(name, ".md");
+                agents.push({ filePath: entryPath, agentName });
             }
+        };
 
-            const name = entry.name;
-            if (
-                name.includes("..") ||
-                name.includes("/") ||
-                name.includes("\\")
-            ) {
-                continue;
-            }
-
-            if (!name.endsWith(".md")) {
-                continue;
-            }
-
-            const filePath = join(agentsDir, name);
-            const resolvedPath = resolve(filePath);
-            const resolvedAgentsDir = resolve(agentsDir);
-            const rel = relative(resolvedAgentsDir, resolvedPath);
-            if (rel.startsWith("..") || rel.startsWith(sep)) {
-                continue;
-            }
-
-            const agentName = basename(name, ".md");
-
-            agents.push({ filePath, agentName });
-        }
-
+        await walk(agentsDir);
         return agents;
     }
 

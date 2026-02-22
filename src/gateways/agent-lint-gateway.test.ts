@@ -56,6 +56,31 @@ describe("FileSystemAgentLintGateway", () => {
             });
         });
 
+        describe("when .github/agents/ contains subdirectories with markdown files", () => {
+            it("should discover agent files in nested directories", async () => {
+                // Arrange
+                const agentsDir = join(testDir, ".github", "agents");
+                const teamDir = join(agentsDir, "team");
+                await mkdir(teamDir, { recursive: true });
+                await writeFile(
+                    join(agentsDir, "security.md"),
+                    "---\nname: security\ndescription: test\n---\n",
+                );
+                await writeFile(
+                    join(teamDir, "reviewer.md"),
+                    "---\nname: reviewer\ndescription: test\n---\n",
+                );
+
+                // Act
+                const agents = await gateway.discoverAgents(testDir);
+
+                // Assert
+                expect(agents).toHaveLength(2);
+                const names = agents.map((a) => a.agentName).sort();
+                expect(names).toEqual(["reviewer", "security"]);
+            });
+        });
+
         describe("when .github/agents/ contains non-markdown files", () => {
             it("should skip non-markdown files", async () => {
                 // Arrange

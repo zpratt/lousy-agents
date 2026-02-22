@@ -275,9 +275,9 @@ export class AnalyzeInstructionQualityUseCase {
             });
         }
 
-        // Loop completeness: only check if execution clarity is 1
+        // Loop completeness: only check if in a fenced code block
         let loopCompleteness = 0;
-        if (executionClarity === 1 && inCodeBlock) {
+        if (inCodeBlock) {
             loopCompleteness = this.hasConditionalKeywordsNearCommand(
                 command,
                 structure,
@@ -296,7 +296,16 @@ export class AnalyzeInstructionQualityUseCase {
                     target: "instruction",
                 });
             }
-        } else if (executionClarity === 0) {
+        } else if (inInlineCode) {
+            diagnostics.push({
+                filePath: file.filePath,
+                line: 1,
+                severity: "warning",
+                message: `Command '${command}' appears in inline code but not in a fenced code block; cannot assess error handling`,
+                ruleId: "instruction/missing-error-handling",
+                target: "instruction",
+            });
+        } else {
             diagnostics.push({
                 filePath: file.filePath,
                 line: 1,

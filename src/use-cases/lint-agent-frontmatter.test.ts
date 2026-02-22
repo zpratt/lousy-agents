@@ -272,6 +272,38 @@ describe("LintAgentFrontmatterUseCase", () => {
         });
     });
 
+    describe("given an agent with opening --- but no closing delimiter", () => {
+        it("should return an error diagnostic with rule ID agent/invalid-frontmatter", async () => {
+            // Arrange
+            const agentName = "security";
+            const filePath = `/repo/.github/agents/${agentName}.md`;
+            const discovered: DiscoveredAgentFile[] = [{ filePath, agentName }];
+            const gateway = createMockGateway({
+                discoverAgents: vi.fn().mockResolvedValue(discovered),
+                readAgentFileContent: vi
+                    .fn()
+                    .mockResolvedValue(
+                        "---\nname: security\ndescription: test\n",
+                    ),
+                parseFrontmatter: vi.fn().mockReturnValue(null),
+            });
+            const useCase = new LintAgentFrontmatterUseCase(gateway);
+
+            // Act
+            const result = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert
+            expect(result.results[0].valid).toBe(false);
+            expect(result.results[0].diagnostics).toHaveLength(1);
+            expect(result.results[0].diagnostics[0].ruleId).toBe(
+                "agent/invalid-frontmatter",
+            );
+            expect(result.results[0].diagnostics[0].message).toContain(
+                "Invalid YAML frontmatter",
+            );
+        });
+    });
+
     describe("given an agent with empty description", () => {
         it("should return an error diagnostic for the empty description", async () => {
             // Arrange
@@ -303,7 +335,7 @@ describe("LintAgentFrontmatterUseCase", () => {
             // Assert
             expect(result.results[0].valid).toBe(false);
             const descDiag = result.results[0].diagnostics.find(
-                (d) => d.ruleId === "agent/missing-description",
+                (d) => d.ruleId === "agent/invalid-description",
             );
             expect(descDiag).toBeDefined();
         });

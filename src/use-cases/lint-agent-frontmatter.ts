@@ -160,10 +160,10 @@ export class LintAgentFrontmatterUseCase {
 
         if (!parsed) {
             if (diagnostics.length === 0) {
-                const message = hasFrontmatterDelimiters(content)
+                const message = hasOpeningDelimiter(content)
                     ? "Invalid YAML frontmatter. The content between --- delimiters could not be parsed as valid YAML."
                     : "Missing YAML frontmatter. Agent files must begin with --- delimited YAML frontmatter.";
-                const ruleId = hasFrontmatterDelimiters(content)
+                const ruleId = hasOpeningDelimiter(content)
                     ? "agent/invalid-frontmatter"
                     : "agent/missing-frontmatter";
                 diagnostics.push({
@@ -212,7 +212,7 @@ export class LintAgentFrontmatterUseCase {
                       parsed.frontmatterStartLine)
                     : parsed.frontmatterStartLine;
 
-                const ruleId = this.getRuleIdForField(fieldName, issue.message);
+                const ruleId = this.getRuleIdForField(fieldName, issue);
 
                 diagnostics.push({
                     line,
@@ -242,43 +242,28 @@ export class LintAgentFrontmatterUseCase {
 
     private getRuleIdForField(
         fieldName: string | undefined,
-        message: string,
+        issue: { code: string },
     ): string {
+        const isMissing = issue.code === "invalid_type";
+
         if (fieldName === "name") {
-            if (
-                message.includes("required") ||
-                message.includes("expected string")
-            ) {
-                return "agent/missing-name";
-            }
-            return "agent/invalid-name-format";
+            return isMissing
+                ? "agent/missing-name"
+                : "agent/invalid-name-format";
         }
         if (fieldName === "description") {
-            const lowerMessage = message.toLowerCase();
-            if (
-                lowerMessage.includes("required") ||
-                lowerMessage.includes("expected string")
-            ) {
-                return "agent/missing-description";
-            }
-            return "agent/invalid-description";
+            return isMissing
+                ? "agent/missing-description"
+                : "agent/invalid-description";
         }
         return "agent/invalid-field";
     }
 }
 
 /**
- * Checks whether content has opening and closing --- frontmatter delimiters.
+ * Checks whether content has an opening --- frontmatter delimiter.
  */
-function hasFrontmatterDelimiters(content: string): boolean {
+function hasOpeningDelimiter(content: string): boolean {
     const lines = content.split("\n");
-    if (lines[0]?.trim() !== "---") {
-        return false;
-    }
-    for (let i = 1; i < lines.length; i++) {
-        if (lines[i]?.trim() === "---") {
-            return true;
-        }
-    }
-    return false;
+    return lines[0]?.trim() === "---";
 }

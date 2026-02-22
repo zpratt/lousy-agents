@@ -287,6 +287,84 @@ describe("AnalyzeInstructionQualityUseCase", () => {
         });
     });
 
+    describe("given a command in inline code but not in a fenced code block", () => {
+        it("should return executionClarity of 1 and loopCompleteness of 0 with a diagnostic", async () => {
+            // Arrange
+            const filePath = "/repo/AGENTS.md";
+            const files: DiscoveredInstructionFile[] = [
+                { filePath, format: "agents-md" },
+            ];
+
+            const structure: MarkdownStructure = {
+                headings: [
+                    {
+                        text: "Validation",
+                        depth: 2,
+                        position: { line: 1 },
+                    },
+                ],
+                codeBlocks: [],
+                inlineCodes: [
+                    {
+                        value: "npm test",
+                        position: { line: 3 },
+                    },
+                ],
+                ast: {
+                    type: "root",
+                    children: [
+                        {
+                            type: "heading",
+                            depth: 2,
+                            children: [{ type: "text", value: "Validation" }],
+                        },
+                        {
+                            type: "paragraph",
+                            children: [
+                                {
+                                    type: "text",
+                                    value: "Run ",
+                                },
+                                {
+                                    type: "inlineCode",
+                                    value: "npm test",
+                                },
+                                {
+                                    type: "text",
+                                    value: " to verify.",
+                                },
+                            ],
+                        },
+                    ],
+                } as unknown as Root,
+            };
+
+            const structures = new Map([[filePath, structure]]);
+            const discoveryGateway = createMockDiscoveryGateway(files);
+            const astGateway = createMockAstGateway(structures);
+            const commandsGateway = createMockCommandsGateway(["npm test"]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act
+            const output = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert
+            expect(output.result.commandScores[0].executionClarity).toBe(1);
+            expect(output.result.commandScores[0].loopCompleteness).toBe(0);
+            expect(output.result.commandScores[0].structuralContext).toBe(1);
+            const errorHandlingDiag = output.diagnostics.find(
+                (d) =>
+                    d.ruleId === "instruction/missing-error-handling" &&
+                    d.message.includes("inline code"),
+            );
+            expect(errorHandlingDiag).toBeDefined();
+        });
+    });
+
     describe("given multiple instruction files", () => {
         it("should use the best score across files for each command", async () => {
             // Arrange
