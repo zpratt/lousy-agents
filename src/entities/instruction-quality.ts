@@ -22,7 +22,7 @@ export interface CommandQualityScores {
     readonly commandName: string;
     /** 1 if command is under a matched heading, 0 otherwise */
     readonly structuralContext: number;
-    /** 1 if command is in a code block, 0 otherwise */
+    /** 1 if command is in a code block or inline code, 0 otherwise */
     readonly executionClarity: number;
     /** 1 if conditional keywords found near the code block, 0 otherwise */
     readonly loopCompleteness: number;
