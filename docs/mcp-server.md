@@ -245,14 +245,14 @@ To use this MCP server with the hosted GitHub Copilot coding agent on github.com
     "lousy-agents": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "-p", "@lousy-agents/cli@1.0.2", "lousy-agents-mcp"],
+      "args": ["-y", "-p", "@lousy-agents/cli@2.7.0", "lousy-agents-mcp"],
       "tools": ["*"]
     }
   }
 }
 ```
 
-> Update the pinned `@lousy-agents/cli@1.0.2` version when you intentionally upgrade to a newer release.
+> Update the pinned `@lousy-agents/cli@2.7.0` version when you intentionally upgrade to a newer release.
 
 ### Steps to update MCP server settings on github.com
 
