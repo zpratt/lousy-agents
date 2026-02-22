@@ -60,13 +60,19 @@ export const copilotSetupCommand = defineCommand({
         // Create gateways
         const environmentGateway = createEnvironmentGateway();
         const workflowGateway = createWorkflowGateway();
+        const injectedRulesetGateway = context.data?.rulesetGateway;
         const rulesetGateway: CopilotSetupRulesetGateway =
-            context.data?.rulesetGateway instanceof Object &&
-            "isAuthenticated" in context.data.rulesetGateway &&
-            "getRepoInfo" in context.data.rulesetGateway &&
-            "listRulesets" in context.data.rulesetGateway &&
-            "createRuleset" in context.data.rulesetGateway
-                ? (context.data.rulesetGateway as CopilotSetupRulesetGateway)
+            injectedRulesetGateway !== null &&
+            typeof injectedRulesetGateway === "object" &&
+            typeof (injectedRulesetGateway as CopilotSetupRulesetGateway)
+                .isAuthenticated === "function" &&
+            typeof (injectedRulesetGateway as CopilotSetupRulesetGateway)
+                .getRepoInfo === "function" &&
+            typeof (injectedRulesetGateway as CopilotSetupRulesetGateway)
+                .listRulesets === "function" &&
+            typeof (injectedRulesetGateway as CopilotSetupRulesetGateway)
+                .createRuleset === "function"
+                ? (injectedRulesetGateway as CopilotSetupRulesetGateway)
                 : await createGitHubRulesetGateway();
         const prompt =
             typeof context.data?.prompt === "function"
