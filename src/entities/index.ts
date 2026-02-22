@@ -14,6 +14,16 @@ export type {
     LintSeverity,
     LintTarget,
 } from "./lint.js";
+export type {
+    CommandQualityScores,
+    DiscoveredInstructionFile,
+    InstructionFileFormat,
+    InstructionQualityResult,
+} from "./instruction-quality.js";
+export {
+    CONDITIONAL_KEYWORDS,
+    DEFAULT_STRUCTURAL_HEADING_PATTERNS,
+} from "./instruction-quality.js";
 export { generateAgentContent, normalizeAgentName } from "./copilot-agent.js";
 export type {
     ActionToResolve,

@@ -1,6 +1,6 @@
 /**
- * CLI command for linting agent skills and custom agent frontmatter.
- * Discovers skills and agents, validates frontmatter, and reports diagnostics.
+ * CLI command for linting agent skills, custom agents, and instruction files.
+ * Discovers targets, validates frontmatter/quality, and reports diagnostics.
  */
 
 import type { CommandContext } from "citty";
@@ -8,9 +8,16 @@ import { defineCommand } from "citty";
 import { consola } from "consola";
 import type { LintDiagnostic, LintOutput } from "../entities/lint.js";
 import { createAgentLintGateway } from "../gateways/agent-lint-gateway.js";
+import { createInstructionFileDiscoveryGateway } from "../gateways/instruction-file-discovery-gateway.js";
+import { createMarkdownAstGateway } from "../gateways/markdown-ast-gateway.js";
+import { createScriptDiscoveryGateway } from "../gateways/script-discovery-gateway.js";
 import { createSkillLintGateway } from "../gateways/skill-lint-gateway.js";
 import type { LintAgentFrontmatterOutput } from "../use-cases/lint-agent-frontmatter.js";
 import { LintAgentFrontmatterUseCase } from "../use-cases/lint-agent-frontmatter.js";
+import {
+    AnalyzeInstructionQualityUseCase,
+    type FeedbackLoopCommandsGateway,
+} from "../use-cases/analyze-instruction-quality.js";
 import type { LintSkillFrontmatterOutput } from "../use-cases/lint-skill-frontmatter.js";
 import { LintSkillFrontmatterUseCase } from "../use-cases/lint-skill-frontmatter.js";
 
@@ -144,18 +151,89 @@ async function lintAgents(targetDir: string): Promise<LintOutput> {
 }
 
 /**
- * The `lint` command for validating agent skill and custom agent files.
+ * Runs instruction quality analysis.
+ */
+async function lintInstructions(targetDir: string): Promise<LintOutput> {
+    const discoveryGateway = createInstructionFileDiscoveryGateway();
+    const astGateway = createMarkdownAstGateway();
+    const scriptGateway = createScriptDiscoveryGateway();
+
+    const commandsGateway: FeedbackLoopCommandsGateway = {
+        async getMandatoryCommands(dir: string) {
+            const scripts = await scriptGateway.discoverScripts(dir);
+            return scripts.filter((s) => s.isMandatory).map((s) => s.name);
+        },
+    };
+
+    const useCase = new AnalyzeInstructionQualityUseCase(
+        discoveryGateway,
+        astGateway,
+        commandsGateway,
+    );
+
+    const output = await useCase.execute({ targetDir });
+
+    const filesAnalyzed = output.result.discoveredFiles.map(
+        (f) => f.filePath,
+    );
+
+    // Display quality analysis results
+    if (output.result.discoveredFiles.length === 0) {
+        consola.info("No instruction files found");
+    } else {
+        consola.info(
+            `Discovered ${output.result.discoveredFiles.length} instruction file(s)`,
+        );
+        for (const file of output.result.discoveredFiles) {
+            consola.info(`  ${file.filePath} (${file.format})`);
+        }
+        consola.info(
+            `Overall instruction quality score: ${output.result.overallQualityScore}%`,
+        );
+    }
+
+    for (const suggestion of output.result.suggestions) {
+        consola.warn(suggestion);
+    }
+
+    return {
+        diagnostics: output.diagnostics,
+        target: "instruction",
+        filesAnalyzed,
+        summary: {
+            totalFiles: filesAnalyzed.length,
+            totalErrors: output.diagnostics.filter(
+                (d) => d.severity === "error",
+            ).length,
+            totalWarnings: output.diagnostics.filter(
+                (d) => d.severity === "warning",
+            ).length,
+            totalInfos: output.diagnostics.filter(
+                (d) => d.severity === "info",
+            ).length,
+        },
+    };
+}
+
+/**
+ * The `lint` command for validating agent skills, custom agents, and instruction files.
  */
 export const lintCommand = defineCommand({
     meta: {
         name: "lint",
         description:
-            "Lint agent skills and custom agents. Validates required and recommended fields in frontmatter.",
+            "Lint agent skills, custom agents, and instruction files. Validates frontmatter and instruction quality.",
     },
     args: {
         agents: {
             type: "boolean",
             description: "Lint custom agent frontmatter in .github/agents/",
+            default: false,
+        },
+        instructions: {
+            type: "boolean",
+            description:
+                "Analyze instruction quality across all instruction file formats",
             default: false,
         },
     },
@@ -168,11 +246,19 @@ export const lintCommand = defineCommand({
         const lintAgentsFlag =
             context.args?.agents === true ||
             context.data?.agents === true;
+        const lintInstructionsFlag =
+            context.args?.instructions === true ||
+            context.data?.instructions === true;
 
         let totalErrors = 0;
         let totalWarnings = 0;
 
-        if (lintAgentsFlag) {
+        if (lintInstructionsFlag) {
+            const instructionOutput = await lintInstructions(targetDir);
+            displayLintOutput(instructionOutput, "instruction file(s)");
+            totalErrors += instructionOutput.summary.totalErrors;
+            totalWarnings += instructionOutput.summary.totalWarnings;
+        } else if (lintAgentsFlag) {
             const agentOutput = await lintAgents(targetDir);
             displayLintOutput(agentOutput, "agent(s)");
             totalErrors += agentOutput.summary.totalErrors;
@@ -196,7 +282,11 @@ export const lintCommand = defineCommand({
                 `Lint passed with ${totalWarnings} warning(s)`,
             );
         } else {
-            const target = lintAgentsFlag ? "agents" : "skills";
+            const target = lintInstructionsFlag
+                ? "instruction files"
+                : lintAgentsFlag
+                  ? "agents"
+                  : "skills";
             consola.success(`All ${target} passed lint checks`);
         }
     },
