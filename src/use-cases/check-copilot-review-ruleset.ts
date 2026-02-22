@@ -50,7 +50,37 @@ export interface RulesetPayload {
 }
 
 /**
- * Finds the first ruleset that contains a code_scanning rule with a Copilot tool
+ * Checks if a rule is a copilot_code_review rule type
+ */
+function isCopilotCodeReviewRule(rule: RulesetRule): boolean {
+    return rule.type === "copilot_code_review";
+}
+
+/**
+ * Checks if a rule is a code_scanning rule with a Copilot tool
+ */
+function isCopilotCodeScanningRule(rule: RulesetRule): boolean {
+    if (rule.type !== "code_scanning" || !rule.parameters) {
+        return false;
+    }
+
+    const tools = rule.parameters.code_scanning_tools;
+    if (!Array.isArray(tools)) {
+        return false;
+    }
+
+    return tools.some(
+        (tool) =>
+            tool &&
+            typeof tool === "object" &&
+            typeof tool.tool === "string" &&
+            tool.tool.toLowerCase().includes("copilot"),
+    );
+}
+
+/**
+ * Finds the first ruleset that contains a copilot_code_review rule
+ * or a code_scanning rule with a Copilot tool
  * @param rulesets Array of repository rulesets to search
  * @returns The matching ruleset or undefined if not found
  */
@@ -61,24 +91,11 @@ function findCopilotRuleset(rulesets: Ruleset[]): Ruleset | undefined {
         }
 
         for (const rule of ruleset.rules) {
-            if (rule.type !== "code_scanning" || !rule.parameters) {
-                continue;
-            }
-
-            const tools = rule.parameters.code_scanning_tools;
-            if (!Array.isArray(tools)) {
-                continue;
-            }
-
-            for (const tool of tools) {
-                if (
-                    tool &&
-                    typeof tool === "object" &&
-                    typeof tool.tool === "string" &&
-                    tool.tool.toLowerCase().includes("copilot")
-                ) {
-                    return ruleset;
-                }
+            if (
+                isCopilotCodeReviewRule(rule) ||
+                isCopilotCodeScanningRule(rule)
+            ) {
+                return ruleset;
             }
         }
     }
@@ -114,6 +131,15 @@ export function buildCopilotReviewRulesetPayload(): RulesetPayload {
             },
         },
         rules: [
+            {
+                type: "copilot_code_review",
+                parameters: {
+                    // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                    review_on_push: true,
+                    // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                    review_draft_pull_requests: true,
+                },
+            },
             {
                 type: "code_scanning",
                 parameters: {

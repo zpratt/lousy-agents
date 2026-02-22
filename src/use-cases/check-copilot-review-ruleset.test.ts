@@ -25,6 +25,22 @@ function createMockGateway(
 }
 
 /**
+ * Builds a copilot_code_review rule with review parameters.
+ * Uses GitHub API snake_case field names.
+ */
+function buildCopilotCodeReviewRule(): RulesetRule {
+    return {
+        type: "copilot_code_review",
+        parameters: {
+            // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+            review_on_push: true,
+            // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+            review_draft_pull_requests: true,
+        },
+    };
+}
+
+/**
  * Builds a code_scanning rule with the specified tool name.
  * Uses GitHub API snake_case field names.
  */
@@ -60,6 +76,21 @@ function buildRuleset(rules?: RulesetRule[]): Ruleset {
 
 describe("Check Copilot Review Ruleset", () => {
     describe("hasCopilotReviewRule", () => {
+        describe("when a ruleset contains a copilot_code_review rule", () => {
+            it("should return true", () => {
+                // Arrange
+                const rulesets: Ruleset[] = [
+                    buildRuleset([buildCopilotCodeReviewRule()]),
+                ];
+
+                // Act
+                const result = hasCopilotReviewRule(rulesets);
+
+                // Assert
+                expect(result).toBe(true);
+            });
+        });
+
         describe("when a ruleset contains a code_scanning rule with Copilot Autofix tool", () => {
             it("should return true", () => {
                 // Arrange
@@ -160,8 +191,20 @@ describe("Check Copilot Review Ruleset", () => {
             // Assert
             expect(result.name).toBe("Copilot Code Review");
             expect(result.enforcement).toBe("active");
-            expect(result.rules).toHaveLength(1);
-            expect(result.rules[0].type).toBe("code_scanning");
+            expect(result.rules).toHaveLength(2);
+            expect(result.rules[0].type).toBe("copilot_code_review");
+            expect(result.rules[1].type).toBe("code_scanning");
+        });
+
+        it("should include copilot_code_review rule with review parameters", () => {
+            // Act
+            const result = buildCopilotReviewRulesetPayload();
+
+            // Assert
+            const rule = result.rules[0];
+            const params = rule.parameters as Record<string, unknown>;
+            expect(params.review_on_push).toBe(true);
+            expect(params.review_draft_pull_requests).toBe(true);
         });
 
         it("should include Copilot Autofix in code_scanning_tools", () => {
@@ -169,7 +212,7 @@ describe("Check Copilot Review Ruleset", () => {
             const result = buildCopilotReviewRulesetPayload();
 
             // Assert
-            const rule = result.rules[0];
+            const rule = result.rules[1];
             const params = rule.parameters as Record<string, unknown>;
             const tools = params.code_scanning_tools as Array<{
                 tool: string;
