@@ -1,22 +1,244 @@
 /**
- * CLI command for linting agent skill frontmatter.
- * Discovers skills, validates frontmatter, and reports diagnostics.
+ * CLI command for linting agent skills, custom agents, and instruction files.
+ * Discovers targets, validates frontmatter/quality, and reports diagnostics.
  */
 
 import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
+import type { LintDiagnostic, LintOutput } from "../entities/lint.js";
+import { createFormatter, type LintFormatType } from "../formatters/index.js";
+import { createAgentLintGateway } from "../gateways/agent-lint-gateway.js";
+import { createInstructionFileDiscoveryGateway } from "../gateways/instruction-file-discovery-gateway.js";
+import { createMarkdownAstGateway } from "../gateways/markdown-ast-gateway.js";
+import { createScriptDiscoveryGateway } from "../gateways/script-discovery-gateway.js";
 import { createSkillLintGateway } from "../gateways/skill-lint-gateway.js";
+import {
+    AnalyzeInstructionQualityUseCase,
+    type FeedbackLoopCommandsGateway,
+} from "../use-cases/analyze-instruction-quality.js";
+import type { LintAgentFrontmatterOutput } from "../use-cases/lint-agent-frontmatter.js";
+import { LintAgentFrontmatterUseCase } from "../use-cases/lint-agent-frontmatter.js";
+import type { LintSkillFrontmatterOutput } from "../use-cases/lint-skill-frontmatter.js";
 import { LintSkillFrontmatterUseCase } from "../use-cases/lint-skill-frontmatter.js";
 
 /**
- * The `lint` command for validating agent skill files.
+ * Converts skill lint output to unified LintOutput.
+ */
+function skillOutputToLintOutput(
+    output: LintSkillFrontmatterOutput,
+): LintOutput {
+    const diagnostics: LintDiagnostic[] = [];
+
+    for (const result of output.results) {
+        for (const d of result.diagnostics) {
+            diagnostics.push({
+                filePath: result.filePath,
+                line: d.line,
+                severity: d.severity,
+                message: d.message,
+                field: d.field,
+                target: "skill",
+            });
+        }
+    }
+
+    return {
+        diagnostics,
+        target: "skill",
+        filesAnalyzed: output.results.map((r) => r.filePath),
+        summary: {
+            totalFiles: output.totalSkills,
+            totalErrors: output.totalErrors,
+            totalWarnings: output.totalWarnings,
+            totalInfos: 0,
+        },
+    };
+}
+
+/**
+ * Converts agent lint output to unified LintOutput.
+ */
+function agentOutputToLintOutput(
+    output: LintAgentFrontmatterOutput,
+): LintOutput {
+    const diagnostics: LintDiagnostic[] = [];
+
+    for (const result of output.results) {
+        for (const d of result.diagnostics) {
+            diagnostics.push({
+                filePath: result.filePath,
+                line: d.line,
+                severity: d.severity,
+                message: d.message,
+                field: d.field,
+                ruleId: d.ruleId,
+                target: "agent",
+            });
+        }
+    }
+
+    return {
+        diagnostics,
+        target: "agent",
+        filesAnalyzed: output.results.map((r) => r.filePath),
+        summary: {
+            totalFiles: output.totalAgents,
+            totalErrors: output.totalErrors,
+            totalWarnings: output.totalWarnings,
+            totalInfos: 0,
+        },
+    };
+}
+
+/**
+ * Formats and displays a LintOutput using consola.
+ */
+function displayLintOutput(output: LintOutput, label: string): void {
+    if (output.summary.totalFiles === 0) {
+        consola.info(`No ${label} found`);
+        return;
+    }
+
+    consola.info(`Discovered ${output.summary.totalFiles} ${label}`);
+
+    // Group diagnostics by file
+    const filesSeen = new Set<string>();
+    const filesWithDiagnostics = new Set<string>();
+
+    for (const d of output.diagnostics) {
+        filesWithDiagnostics.add(d.filePath);
+    }
+
+    for (const file of output.filesAnalyzed) {
+        if (!filesWithDiagnostics.has(file)) {
+            consola.success(`${file}: OK`);
+        }
+        filesSeen.add(file);
+    }
+
+    for (const d of output.diagnostics) {
+        const prefix = `${d.filePath}:${d.line}`;
+        const fieldInfo = d.field ? ` [${d.field}]` : "";
+
+        if (d.severity === "error") {
+            consola.error(`${prefix}${fieldInfo}: ${d.message}`);
+        } else if (d.severity === "warning") {
+            consola.warn(`${prefix}${fieldInfo}: ${d.message}`);
+        } else {
+            consola.info(`${prefix}${fieldInfo}: ${d.message}`);
+        }
+    }
+}
+
+/**
+ * Runs skill linting.
+ */
+async function lintSkills(targetDir: string): Promise<LintOutput> {
+    const gateway = createSkillLintGateway();
+    const useCase = new LintSkillFrontmatterUseCase(gateway);
+    const output = await useCase.execute({ targetDir });
+    return skillOutputToLintOutput(output);
+}
+
+/**
+ * Runs agent linting.
+ */
+async function lintAgents(targetDir: string): Promise<LintOutput> {
+    const gateway = createAgentLintGateway();
+    const useCase = new LintAgentFrontmatterUseCase(gateway);
+    const output = await useCase.execute({ targetDir });
+    return agentOutputToLintOutput(output);
+}
+
+/**
+ * Runs instruction quality analysis.
+ */
+async function lintInstructions(targetDir: string): Promise<LintOutput> {
+    const discoveryGateway = createInstructionFileDiscoveryGateway();
+    const astGateway = createMarkdownAstGateway();
+    const scriptGateway = createScriptDiscoveryGateway();
+
+    const commandsGateway: FeedbackLoopCommandsGateway = {
+        async getMandatoryCommands(dir: string) {
+            const scripts = await scriptGateway.discoverScripts(dir);
+            return scripts.filter((s) => s.isMandatory).map((s) => s.name);
+        },
+    };
+
+    const useCase = new AnalyzeInstructionQualityUseCase(
+        discoveryGateway,
+        astGateway,
+        commandsGateway,
+    );
+
+    const output = await useCase.execute({ targetDir });
+
+    const filesAnalyzed = output.result.discoveredFiles.map((f) => f.filePath);
+
+    // Display quality analysis results
+    if (output.result.discoveredFiles.length === 0) {
+        consola.info("No instruction files found");
+    } else {
+        consola.info(
+            `Discovered ${output.result.discoveredFiles.length} instruction file(s)`,
+        );
+        for (const file of output.result.discoveredFiles) {
+            consola.info(`  ${file.filePath} (${file.format})`);
+        }
+        consola.info(
+            `Overall instruction quality score: ${output.result.overallQualityScore}%`,
+        );
+    }
+
+    for (const suggestion of output.result.suggestions) {
+        consola.warn(suggestion);
+    }
+
+    return {
+        diagnostics: output.diagnostics,
+        target: "instruction",
+        filesAnalyzed,
+        summary: {
+            totalFiles: filesAnalyzed.length,
+            totalErrors: output.diagnostics.filter(
+                (d) => d.severity === "error",
+            ).length,
+            totalWarnings: output.diagnostics.filter(
+                (d) => d.severity === "warning",
+            ).length,
+            totalInfos: output.diagnostics.filter((d) => d.severity === "info")
+                .length,
+        },
+    };
+}
+
+/**
+ * The `lint` command for validating agent skills, custom agents, and instruction files.
  */
 export const lintCommand = defineCommand({
     meta: {
         name: "lint",
         description:
-            "Lint agent skill frontmatter. Validates required and recommended fields in SKILL.md files.",
+            "Lint agent skills, custom agents, and instruction files. Validates frontmatter and instruction quality.",
+    },
+    args: {
+        agents: {
+            type: "boolean",
+            description: "Lint custom agent frontmatter in .github/agents/",
+            default: false,
+        },
+        instructions: {
+            type: "boolean",
+            description:
+                "Analyze instruction quality across all instruction file formats",
+            default: false,
+        },
+        format: {
+            type: "string",
+            description: "Output format: human (default), json, or rdjsonl",
+            default: "human",
+        },
     },
     run: async (context: CommandContext) => {
         const targetDir =
@@ -24,54 +246,76 @@ export const lintCommand = defineCommand({
                 ? context.data.targetDir
                 : process.cwd();
 
-        const gateway = createSkillLintGateway();
-        const useCase = new LintSkillFrontmatterUseCase(gateway);
+        const lintAgentsFlag =
+            context.args?.agents === true || context.data?.agents === true;
+        const lintInstructionsFlag =
+            context.args?.instructions === true ||
+            context.data?.instructions === true;
 
-        const output = await useCase.execute({ targetDir });
+        const formatValue =
+            (context.args?.format as string) ??
+            (context.data?.format as string) ??
+            "human";
+        const format = (
+            ["human", "json", "rdjsonl"].includes(formatValue)
+                ? formatValue
+                : "human"
+        ) as LintFormatType;
 
-        if (output.totalSkills === 0) {
-            consola.info("No skills found in .github/skills/");
-            return;
-        }
+        let totalErrors = 0;
+        let totalWarnings = 0;
+        const allOutputs: LintOutput[] = [];
 
-        consola.info(`Discovered ${output.totalSkills} skill(s)`);
-
-        for (const result of output.results) {
-            if (result.diagnostics.length === 0) {
-                consola.success(`${result.filePath}: OK`);
-                continue;
-            }
-
-            for (const diagnostic of result.diagnostics) {
-                const prefix = `${result.filePath}:${diagnostic.line}`;
-                const fieldInfo = diagnostic.field
-                    ? ` [${diagnostic.field}]`
-                    : "";
-
-                if (diagnostic.severity === "error") {
-                    consola.error(
-                        `${prefix}${fieldInfo}: ${diagnostic.message}`,
-                    );
-                } else {
-                    consola.warn(
-                        `${prefix}${fieldInfo}: ${diagnostic.message}`,
-                    );
-                }
-            }
-        }
-
-        if (output.totalErrors > 0) {
-            throw new Error(
-                `Skill lint failed: ${output.totalErrors} error(s), ${output.totalWarnings} warning(s)`,
-            );
-        }
-
-        if (output.totalWarnings > 0) {
-            consola.warn(
-                `Skill lint passed with ${output.totalWarnings} warning(s)`,
-            );
+        if (lintInstructionsFlag) {
+            const instructionOutput = await lintInstructions(targetDir);
+            allOutputs.push(instructionOutput);
+            totalErrors += instructionOutput.summary.totalErrors;
+            totalWarnings += instructionOutput.summary.totalWarnings;
+        } else if (lintAgentsFlag) {
+            const agentOutput = await lintAgents(targetDir);
+            allOutputs.push(agentOutput);
+            totalErrors += agentOutput.summary.totalErrors;
+            totalWarnings += agentOutput.summary.totalWarnings;
         } else {
-            consola.success("All skills passed lint checks");
+            // Default: lint skills
+            const skillOutput = await lintSkills(targetDir);
+            allOutputs.push(skillOutput);
+            totalErrors += skillOutput.summary.totalErrors;
+            totalWarnings += skillOutput.summary.totalWarnings;
+        }
+
+        if (format !== "human") {
+            const formatter = createFormatter(format);
+            const formatted = formatter.format(allOutputs);
+            if (formatted) {
+                process.stdout.write(`${formatted}\n`);
+            }
+        } else {
+            for (const output of allOutputs) {
+                const label = lintInstructionsFlag
+                    ? "instruction file(s)"
+                    : lintAgentsFlag
+                      ? "agent(s)"
+                      : "skill(s)";
+                displayLintOutput(output, label);
+            }
+        }
+
+        if (totalErrors > 0) {
+            throw new Error(
+                `lint failed: ${totalErrors} error(s), ${totalWarnings} warning(s)`,
+            );
+        }
+
+        if (totalWarnings > 0) {
+            consola.warn(`Lint passed with ${totalWarnings} warning(s)`);
+        } else {
+            const target = lintInstructionsFlag
+                ? "instruction files"
+                : lintAgentsFlag
+                  ? "agents"
+                  : "skills";
+            consola.success(`All ${target} passed lint checks`);
         }
     },
 });

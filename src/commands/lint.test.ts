@@ -161,4 +161,104 @@ describe("lint command", () => {
             ).rejects.toThrow("lint");
         });
     });
+
+    describe("when running with --agents flag", () => {
+        describe("when no agents exist", () => {
+            it("should complete without error", async () => {
+                // Act & Assert
+                await expect(
+                    lintCommand.run({
+                        rawArgs: [],
+                        args: { _: [], agents: true },
+                        cmd: lintCommand,
+                        data: { targetDir: testDir, agents: true },
+                    }),
+                ).resolves.not.toThrow();
+            });
+        });
+
+        describe("when agents have valid frontmatter", () => {
+            it("should complete without error", async () => {
+                // Arrange
+                const agentsDir = join(testDir, ".github", "agents");
+                await mkdir(agentsDir, { recursive: true });
+                await writeFile(
+                    join(agentsDir, "security.md"),
+                    "---\nname: security\ndescription: A security agent\n---\n# Security\n",
+                );
+
+                // Act & Assert
+                await expect(
+                    lintCommand.run({
+                        rawArgs: [],
+                        args: { _: [], agents: true },
+                        cmd: lintCommand,
+                        data: { targetDir: testDir, agents: true },
+                    }),
+                ).resolves.not.toThrow();
+            });
+        });
+
+        describe("when agents have invalid frontmatter", () => {
+            it("should throw an error indicating lint failures", async () => {
+                // Arrange
+                const agentsDir = join(testDir, ".github", "agents");
+                await mkdir(agentsDir, { recursive: true });
+                await writeFile(
+                    join(agentsDir, "security.md"),
+                    '---\nname: Security\ndescription: ""\n---\n',
+                );
+
+                // Act & Assert
+                await expect(
+                    lintCommand.run({
+                        rawArgs: [],
+                        args: { _: [], agents: true },
+                        cmd: lintCommand,
+                        data: { targetDir: testDir, agents: true },
+                    }),
+                ).rejects.toThrow("lint");
+            });
+        });
+    });
+
+    describe("when running with --format json", () => {
+        it("should output valid JSON for valid skills", async () => {
+            // Arrange
+            const skillName = "my-skill";
+            const skillDir = join(testDir, ".github", "skills", skillName);
+            await mkdir(skillDir, { recursive: true });
+            await writeFile(
+                join(skillDir, "SKILL.md"),
+                "---\nname: my-skill\ndescription: A test skill\nallowed-tools: tool1\n---\n# My Skill\n",
+            );
+
+            // Act & Assert
+            await expect(
+                lintCommand.run({
+                    rawArgs: [],
+                    args: { _: [], format: "json" },
+                    cmd: lintCommand,
+                    data: { targetDir: testDir, format: "json" },
+                }),
+            ).resolves.not.toThrow();
+        });
+
+        it("should throw for invalid skills even with json format", async () => {
+            // Arrange
+            const skillDir = join(testDir, ".github", "skills", "bad");
+            await mkdir(skillDir, { recursive: true });
+            await writeFile(join(skillDir, "SKILL.md"), "# No frontmatter\n");
+
+            // Act & Assert
+            await expect(
+                lintCommand.run({
+                    rawArgs: [],
+                    args: { _: [], format: "json" },
+                    cmd: lintCommand,
+                    data: { targetDir: testDir, format: "json" },
+                }),
+            ).rejects.toThrow("lint");
+        });
+    });
 });

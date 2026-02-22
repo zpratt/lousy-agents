@@ -11,6 +11,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
     analyzeActionVersionsHandler,
+    analyzeInstructionQualityHandler,
     type CreateWorkflowHandler,
     createClaudeCodeWebSetupHandler,
     createCopilotSetupWorkflowHandler,
@@ -152,6 +153,13 @@ const TOOLS: ToolConfig[] = [
         handler: resolveActionVersionsHandler,
         inputSchema: resolveActionsInputSchema,
     },
+    {
+        name: "analyze_instruction_quality",
+        description:
+            "Analyze the structural quality of feedback loop documentation in instruction files. Assesses structural context, execution clarity, and loop completeness across all supported instruction formats.",
+        handler: analyzeInstructionQualityHandler,
+        inputSchema: targetDirInputSchema,
+    },
 ];
 
 /**
@@ -197,6 +205,7 @@ export function createMcpServer(): McpServer {
 // Re-export tool handlers for testing
 export {
     analyzeActionVersionsHandler,
+    analyzeInstructionQualityHandler,
     createClaudeCodeWebSetupHandler,
     createCopilotSetupWorkflowHandler,
     discoverEnvironmentHandler,
