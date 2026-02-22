@@ -25,10 +25,6 @@ import {
     mergeCandidates,
 } from "../use-cases/setup-step-discovery.js";
 
-/**
- * Extended gateway interface for the copilot-setup command.
- * Includes authentication and repo info methods beyond the use-case port.
- */
 interface CopilotSetupRulesetGateway extends RulesetGateway {
     isAuthenticated(): Promise<boolean>;
     getRepoInfo(
@@ -45,9 +41,6 @@ const copilotSetupArgs = {};
 
 type CopilotSetupArgs = typeof copilotSetupArgs;
 
-/**
- * Main command implementation for copilot-setup
- */
 export const copilotSetupCommand = defineCommand({
     meta: {
         name: "copilot-setup",
@@ -56,13 +49,11 @@ export const copilotSetupCommand = defineCommand({
     },
     args: copilotSetupArgs,
     run: async (context: CommandContext<CopilotSetupArgs>) => {
-        // Support dependency injection for testing via context.data
         const targetDir =
             typeof context.data?.targetDir === "string"
                 ? context.data.targetDir
                 : process.cwd();
 
-        // Create gateways — injected dependencies override defaults for testability
         const environmentGateway = createEnvironmentGateway();
         const workflowGateway = createWorkflowGateway();
         const rulesetGateway: CopilotSetupRulesetGateway =
@@ -153,7 +144,6 @@ export const copilotSetupCommand = defineCommand({
                     "Copilot Setup Steps workflow already contains all detected setup steps. No changes needed.",
                 );
 
-                // Still check for Copilot PR review rulesets
                 await checkAndPromptRuleset(rulesetGateway, targetDir, prompt);
                 return;
             }
@@ -201,10 +191,6 @@ export const copilotSetupCommand = defineCommand({
     },
 });
 
-/**
- * Checks for Copilot PR review rulesets and prompts to create one if missing.
- * Handles all error cases gracefully with user-friendly messages.
- */
 async function checkAndPromptRuleset(
     rulesetGateway: CopilotSetupRulesetGateway,
     targetDir: string,
