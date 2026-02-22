@@ -1,4 +1,5 @@
 import Chance from "chance";
+import type { Root } from "mdast";
 import { describe, expect, it, vi } from "vitest";
 import type { DiscoveredInstructionFile } from "../entities/instruction-quality.js";
 import type { InstructionFileDiscoveryGateway } from "../gateways/instruction-file-discovery-gateway.js";
@@ -144,7 +145,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                             ],
                         },
                     ],
-                } as any,
+                } as unknown as Root,
             };
 
             const structures = new Map([[filePath, structure]]);
@@ -197,7 +198,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                             ],
                         },
                     ],
-                } as any,
+                } as unknown as Root,
             };
 
             const structures = new Map([[filePath, structure]]);
@@ -263,7 +264,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                             ],
                         },
                     ],
-                } as any,
+                } as unknown as Root,
             };
 
             const structures = new Map([[filePath, structure]]);
@@ -314,7 +315,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                             ],
                         },
                     ],
-                } as any,
+                } as unknown as Root,
             };
 
             // File 2: command in code block under heading (high quality)
@@ -358,7 +359,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                             ],
                         },
                     ],
-                } as any,
+                } as unknown as Root,
             };
 
             const structures = new Map([

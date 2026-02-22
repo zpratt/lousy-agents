@@ -94,9 +94,7 @@ export class FileSystemInstructionFileDiscoveryGateway
                 if (entry.endsWith(".md")) {
                     const filePath = join(dirPath, entry);
                     const resolvedFilePath = resolve(filePath);
-                    if (
-                        !resolvedFilePath.startsWith(`${resolvedDirPath}/`)
-                    ) {
+                    if (!resolvedFilePath.startsWith(`${resolvedDirPath}/`)) {
                         continue;
                     }
                     files.push({

@@ -1,3 +1,4 @@
+import type { Root } from "mdast";
 import { describe, expect, it } from "vitest";
 import {
     findConditionalKeywordsInProximity,
@@ -93,7 +94,7 @@ describe("findConditionalKeywordsInProximity", () => {
 
             // Act
             const result = findConditionalKeywordsInProximity(
-                ast as any,
+                ast as unknown as Root,
                 0,
                 3,
                 ["if", "fail", "fix"],
@@ -125,7 +126,7 @@ describe("findConditionalKeywordsInProximity", () => {
 
             // Act
             const result = findConditionalKeywordsInProximity(
-                ast as any,
+                ast as unknown as Root,
                 0,
                 3,
                 ["if", "fail", "fix"],
