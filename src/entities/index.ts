@@ -8,6 +8,12 @@ export type {
     ClaudeSetupResult,
     SessionStartHook,
 } from "./claude-setup.js";
+export type {
+    LintDiagnostic,
+    LintOutput,
+    LintSeverity,
+    LintTarget,
+} from "./lint.js";
 export { generateAgentContent, normalizeAgentName } from "./copilot-agent.js";
 export type {
     ActionToResolve,

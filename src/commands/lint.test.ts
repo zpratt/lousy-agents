@@ -161,4 +161,64 @@ describe("lint command", () => {
             ).rejects.toThrow("lint");
         });
     });
+
+    describe("when running with --agents flag", () => {
+        describe("when no agents exist", () => {
+            it("should complete without error", async () => {
+                // Act & Assert
+                await expect(
+                    lintCommand.run({
+                        rawArgs: [],
+                        args: { _: [], agents: true },
+                        cmd: lintCommand,
+                        data: { targetDir: testDir, agents: true },
+                    }),
+                ).resolves.not.toThrow();
+            });
+        });
+
+        describe("when agents have valid frontmatter", () => {
+            it("should complete without error", async () => {
+                // Arrange
+                const agentsDir = join(testDir, ".github", "agents");
+                await mkdir(agentsDir, { recursive: true });
+                await writeFile(
+                    join(agentsDir, "security.md"),
+                    "---\nname: security\ndescription: A security agent\n---\n# Security\n",
+                );
+
+                // Act & Assert
+                await expect(
+                    lintCommand.run({
+                        rawArgs: [],
+                        args: { _: [], agents: true },
+                        cmd: lintCommand,
+                        data: { targetDir: testDir, agents: true },
+                    }),
+                ).resolves.not.toThrow();
+            });
+        });
+
+        describe("when agents have invalid frontmatter", () => {
+            it("should throw an error indicating lint failures", async () => {
+                // Arrange
+                const agentsDir = join(testDir, ".github", "agents");
+                await mkdir(agentsDir, { recursive: true });
+                await writeFile(
+                    join(agentsDir, "security.md"),
+                    '---\nname: Security\ndescription: ""\n---\n',
+                );
+
+                // Act & Assert
+                await expect(
+                    lintCommand.run({
+                        rawArgs: [],
+                        args: { _: [], agents: true },
+                        cmd: lintCommand,
+                        data: { targetDir: testDir, agents: true },
+                    }),
+                ).rejects.toThrow("lint");
+            });
+        });
+    });
 });
