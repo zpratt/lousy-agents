@@ -235,6 +235,30 @@ Or if you have `@lousy-agents/cli` installed locally in your project:
 }
 ```
 
+## GitHub.com Hosted Copilot Coding Agent Configuration
+
+To use this MCP server with the hosted GitHub Copilot coding agent on github.com, add the server in your MCP server settings using this copy/paste configuration:
+
+```json
+{
+  "servers": {
+    "lousy-agents": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "-p", "@lousy-agents/cli", "lousy-agents-mcp"]
+    }
+  }
+}
+```
+
+### Steps to update MCP server settings on github.com
+
+1. Sign in to github.com and open your account **Settings**.
+2. Go to **Copilot** settings, then open **Coding agent** settings.
+3. Open the **MCP servers** section and choose **Edit** (or **Add server** if none exist yet).
+4. Paste the JSON block above into your MCP server configuration.
+5. Save changes, then start a new hosted Copilot coding agent session so it loads the updated MCP server list.
+
 ## Usage Examples
 
 Once configured, you can ask your AI assistant to:
