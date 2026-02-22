@@ -317,7 +317,7 @@ sequenceDiagram
 
 - Organization-level ruleset management
 - Enabling Copilot code review in repository settings (only rulesets)
-- Supporting other ruleset rule types beyond code_scanning
+- Supporting ruleset rule types beyond `copilot_code_review` and `code_scanning`
 - Interactive ruleset configuration (branch patterns, enforcement level)
 
 ## Future Considerations
