@@ -103,7 +103,6 @@ function displayLintOutput(output: LintOutput, label: string): void {
     consola.info(`Discovered ${output.summary.totalFiles} ${label}`);
 
     // Group diagnostics by file
-    const filesSeen = new Set<string>();
     const filesWithDiagnostics = new Set<string>();
 
     for (const d of output.diagnostics) {
@@ -114,7 +113,6 @@ function displayLintOutput(output: LintOutput, label: string): void {
         if (!filesWithDiagnostics.has(file)) {
             consola.success(`${file}: OK`);
         }
-        filesSeen.add(file);
     }
 
     for (const d of output.diagnostics) {
@@ -176,29 +174,11 @@ async function lintInstructions(targetDir: string): Promise<LintOutput> {
 
     const filesAnalyzed = output.result.discoveredFiles.map((f) => f.filePath);
 
-    // Display quality analysis results
-    if (output.result.discoveredFiles.length === 0) {
-        consola.info("No instruction files found");
-    } else {
-        consola.info(
-            `Discovered ${output.result.discoveredFiles.length} instruction file(s)`,
-        );
-        for (const file of output.result.discoveredFiles) {
-            consola.info(`  ${file.filePath} (${file.format})`);
-        }
-        consola.info(
-            `Overall instruction quality score: ${output.result.overallQualityScore}%`,
-        );
-    }
-
-    for (const suggestion of output.result.suggestions) {
-        consola.warn(suggestion);
-    }
-
     return {
         diagnostics: output.diagnostics,
         target: "instruction",
         filesAnalyzed,
+        qualityResult: output.result,
         summary: {
             totalFiles: filesAnalyzed.length,
             totalErrors: output.diagnostics.filter(
@@ -211,6 +191,34 @@ async function lintInstructions(targetDir: string): Promise<LintOutput> {
                 .length,
         },
     };
+}
+
+/**
+ * Displays instruction quality analysis results using consola.
+ */
+function displayInstructionQuality(output: LintOutput): void {
+    const result = output.qualityResult;
+    if (!result) {
+        return;
+    }
+
+    if (result.discoveredFiles.length === 0) {
+        consola.info("No instruction files found");
+    } else {
+        consola.info(
+            `Discovered ${result.discoveredFiles.length} instruction file(s)`,
+        );
+        for (const file of result.discoveredFiles) {
+            consola.info(`  ${file.filePath} (${file.format})`);
+        }
+        consola.info(
+            `Overall instruction quality score: ${result.overallQualityScore}%`,
+        );
+    }
+
+    for (const suggestion of result.suggestions) {
+        consola.warn(suggestion);
+    }
 }
 
 /**
@@ -312,6 +320,9 @@ export const lintCommand = defineCommand({
         } else {
             for (const output of allOutputs) {
                 const label = targetLabels[output.target] ?? output.target;
+                if (output.target === "instruction") {
+                    displayInstructionQuality(output);
+                }
                 displayLintOutput(output, label);
             }
         }
@@ -322,13 +333,15 @@ export const lintCommand = defineCommand({
             );
         }
 
-        if (totalWarnings > 0) {
-            consola.warn(`Lint passed with ${totalWarnings} warning(s)`);
-        } else {
-            const targets = allOutputs
-                .map((o) => targetLabels[o.target] ?? o.target)
-                .join(", ");
-            consola.success(`All ${targets} passed lint checks`);
+        if (format === "human") {
+            if (totalWarnings > 0) {
+                consola.warn(`Lint passed with ${totalWarnings} warning(s)`);
+            } else {
+                const targets = allOutputs
+                    .map((o) => targetLabels[o.target] ?? o.target)
+                    .join(", ");
+                consola.success(`All ${targets} passed lint checks`);
+            }
         }
     },
 });

@@ -154,7 +154,7 @@ export class LintAgentFrontmatterUseCase {
                 line: 1,
                 severity: "error",
                 message: errorMessage,
-                ruleId: "agent/missing-frontmatter",
+                ruleId: "agent/invalid-frontmatter",
             });
         }
 
@@ -163,11 +163,14 @@ export class LintAgentFrontmatterUseCase {
                 const message = hasFrontmatterDelimiters(content)
                     ? "Invalid YAML frontmatter. The content between --- delimiters could not be parsed as valid YAML."
                     : "Missing YAML frontmatter. Agent files must begin with --- delimited YAML frontmatter.";
+                const ruleId = hasFrontmatterDelimiters(content)
+                    ? "agent/invalid-frontmatter"
+                    : "agent/missing-frontmatter";
                 diagnostics.push({
                     line: 1,
                     severity: "error",
                     message,
-                    ruleId: "agent/missing-frontmatter",
+                    ruleId,
                 });
             }
 
@@ -251,7 +254,14 @@ export class LintAgentFrontmatterUseCase {
             return "agent/invalid-name-format";
         }
         if (fieldName === "description") {
-            return "agent/missing-description";
+            const lowerMessage = message.toLowerCase();
+            if (
+                lowerMessage.includes("required") ||
+                lowerMessage.includes("expected string")
+            ) {
+                return "agent/missing-description";
+            }
+            return "agent/invalid-description";
         }
         return "agent/invalid-field";
     }

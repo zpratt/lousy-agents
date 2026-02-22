@@ -4,7 +4,7 @@
  */
 
 import { readdir, readFile } from "node:fs/promises";
-import { basename, join, resolve } from "node:path";
+import { basename, join, relative, resolve, sep } from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { ParsedFrontmatter } from "../entities/skill.js";
 import type {
@@ -24,30 +24,36 @@ export class FileSystemAgentLintGateway implements AgentLintGateway {
             return [];
         }
 
-        const entries = await readdir(agentsDir);
+        const entries = await readdir(agentsDir, { withFileTypes: true });
         const agents: DiscoveredAgentFile[] = [];
 
         for (const entry of entries) {
+            if (!entry.isFile()) {
+                continue;
+            }
+
+            const name = entry.name;
             if (
-                entry.includes("..") ||
-                entry.includes("/") ||
-                entry.includes("\\")
+                name.includes("..") ||
+                name.includes("/") ||
+                name.includes("\\")
             ) {
                 continue;
             }
 
-            if (!entry.endsWith(".md")) {
+            if (!name.endsWith(".md")) {
                 continue;
             }
 
-            const filePath = join(agentsDir, entry);
+            const filePath = join(agentsDir, name);
             const resolvedPath = resolve(filePath);
             const resolvedAgentsDir = resolve(agentsDir);
-            if (!resolvedPath.startsWith(`${resolvedAgentsDir}/`)) {
+            const rel = relative(resolvedAgentsDir, resolvedPath);
+            if (rel.startsWith("..") || rel.startsWith(sep)) {
                 continue;
             }
 
-            const agentName = basename(entry, ".md");
+            const agentName = basename(name, ".md");
 
             agents.push({ filePath, agentName });
         }

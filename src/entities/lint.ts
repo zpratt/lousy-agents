@@ -3,6 +3,8 @@
  * Provides a unified diagnostic model for skills, agents, and instructions.
  */
 
+import type { InstructionQualityResult } from "./instruction-quality.js";
+
 /** Severity levels for lint diagnostics */
 export type LintSeverity = "error" | "warning" | "info";
 
@@ -28,6 +30,7 @@ export interface LintOutput {
     readonly diagnostics: readonly LintDiagnostic[];
     readonly target: LintTarget;
     readonly filesAnalyzed: readonly string[];
+    readonly qualityResult?: InstructionQualityResult;
     readonly summary: {
         readonly totalFiles: number;
         readonly totalErrors: number;
