@@ -17,9 +17,10 @@ Welcome to the Lousy Agents documentation! This directory contains detailed docu
   - Agent file structure
   - Usage examples
 
-- **[`lint` Command](lint.md)** - Validate agent skill frontmatter in SKILL.md files
-  - Automatic skill discovery
-  - Frontmatter validation with line-level diagnostics
+- **[`lint` Command](lint.md)** - Validate skills, agents, and instruction files
+  - Skill and agent frontmatter validation
+  - Instruction quality analysis (structural context, execution clarity, loop completeness)
+  - Multiple output formats (human, JSON, reviewdog)
   - CI integration
 
 - **[`copilot-setup` Command](copilot-setup.md)** - Generate GitHub Actions workflows for Copilot environment setup
@@ -60,11 +61,12 @@ The `new` command creates new resources for your project. See the [complete new 
 
 ### `lint`
 
-The `lint` command validates agent skill frontmatter in `.github/skills/*/SKILL.md` files. See the [complete lint documentation](lint.md) for:
+The `lint` command validates skills, agents, and instruction files. See the [complete lint documentation](lint.md) for:
 
-- Automatic skill discovery
-- Frontmatter validation rules
-- Line-level diagnostics
+- Skill and agent frontmatter validation
+- Instruction quality analysis
+- Target flags (`--skills`, `--agents`, `--instructions`)
+- Output formats (`--format human|json|rdjsonl`)
 - CI integration
 
 ### `copilot-setup`
