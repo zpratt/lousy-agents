@@ -111,3 +111,30 @@ export interface ResolvedVersion {
     /** Version tag for human-readable comment (e.g., "v4.0.0") */
     versionTag: string;
 }
+
+/**
+ * Represents a rule within a GitHub repository ruleset
+ */
+export interface RulesetRule {
+    type: string;
+    parameters?: Record<string, unknown>;
+}
+
+/**
+ * Represents a GitHub repository ruleset
+ */
+export interface Ruleset {
+    id: number;
+    name: string;
+    enforcement: string;
+    rules?: RulesetRule[];
+}
+
+/**
+ * Result of checking for Copilot PR review ruleset configuration
+ */
+export interface CopilotReviewStatus {
+    hasRuleset: boolean;
+    rulesetName?: string;
+    error?: string;
+}
