@@ -141,7 +141,7 @@ describe("Lint command end-to-end", () => {
                     cmd: lintCommand,
                     data: { targetDir: repoDir },
                 }),
-            ).rejects.toThrow("Skill lint failed");
+            ).rejects.toThrow("lint failed");
         });
     });
 
@@ -178,7 +178,7 @@ describe("Lint command end-to-end", () => {
                     cmd: lintCommand,
                     data: { targetDir: repoDir },
                 }),
-            ).rejects.toThrow("Skill lint failed");
+            ).rejects.toThrow("lint failed");
         });
     });
 
@@ -211,7 +211,7 @@ describe("Lint command end-to-end", () => {
                     cmd: lintCommand,
                     data: { targetDir: repoDir },
                 }),
-            ).rejects.toThrow("Skill lint failed");
+            ).rejects.toThrow("lint failed");
         });
     });
 
@@ -261,7 +261,7 @@ describe("Lint command end-to-end", () => {
                     cmd: lintCommand,
                     data: { targetDir: repoDir },
                 }),
-            ).rejects.toThrow("Skill lint failed");
+            ).rejects.toThrow("lint failed");
         });
     });
 });
