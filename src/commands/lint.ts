@@ -223,6 +223,11 @@ export const lintCommand = defineCommand({
             "Lint agent skills, custom agents, and instruction files. Validates frontmatter and instruction quality.",
     },
     args: {
+        skills: {
+            type: "boolean",
+            description: "Lint skill frontmatter in .github/skills/",
+            default: false,
+        },
         agents: {
             type: "boolean",
             description: "Lint custom agent frontmatter in .github/agents/",
@@ -246,11 +251,16 @@ export const lintCommand = defineCommand({
                 ? context.data.targetDir
                 : process.cwd();
 
+        const lintSkillsFlag =
+            context.args?.skills === true || context.data?.skills === true;
         const lintAgentsFlag =
             context.args?.agents === true || context.data?.agents === true;
         const lintInstructionsFlag =
             context.args?.instructions === true ||
             context.data?.instructions === true;
+
+        const noFlagProvided =
+            !lintSkillsFlag && !lintAgentsFlag && !lintInstructionsFlag;
 
         const formatValue =
             (context.args?.format as string) ??
@@ -266,23 +276,32 @@ export const lintCommand = defineCommand({
         let totalWarnings = 0;
         const allOutputs: LintOutput[] = [];
 
-        if (lintInstructionsFlag) {
-            const instructionOutput = await lintInstructions(targetDir);
-            allOutputs.push(instructionOutput);
-            totalErrors += instructionOutput.summary.totalErrors;
-            totalWarnings += instructionOutput.summary.totalWarnings;
-        } else if (lintAgentsFlag) {
-            const agentOutput = await lintAgents(targetDir);
-            allOutputs.push(agentOutput);
-            totalErrors += agentOutput.summary.totalErrors;
-            totalWarnings += agentOutput.summary.totalWarnings;
-        } else {
-            // Default: lint skills
+        if (noFlagProvided || lintSkillsFlag) {
             const skillOutput = await lintSkills(targetDir);
             allOutputs.push(skillOutput);
             totalErrors += skillOutput.summary.totalErrors;
             totalWarnings += skillOutput.summary.totalWarnings;
         }
+
+        if (noFlagProvided || lintAgentsFlag) {
+            const agentOutput = await lintAgents(targetDir);
+            allOutputs.push(agentOutput);
+            totalErrors += agentOutput.summary.totalErrors;
+            totalWarnings += agentOutput.summary.totalWarnings;
+        }
+
+        if (noFlagProvided || lintInstructionsFlag) {
+            const instructionOutput = await lintInstructions(targetDir);
+            allOutputs.push(instructionOutput);
+            totalErrors += instructionOutput.summary.totalErrors;
+            totalWarnings += instructionOutput.summary.totalWarnings;
+        }
+
+        const targetLabels: Record<string, string> = {
+            skill: "skill(s)",
+            agent: "agent(s)",
+            instruction: "instruction file(s)",
+        };
 
         if (format !== "human") {
             const formatter = createFormatter(format);
@@ -292,11 +311,7 @@ export const lintCommand = defineCommand({
             }
         } else {
             for (const output of allOutputs) {
-                const label = lintInstructionsFlag
-                    ? "instruction file(s)"
-                    : lintAgentsFlag
-                      ? "agent(s)"
-                      : "skill(s)";
+                const label = targetLabels[output.target] ?? output.target;
                 displayLintOutput(output, label);
             }
         }
@@ -310,12 +325,10 @@ export const lintCommand = defineCommand({
         if (totalWarnings > 0) {
             consola.warn(`Lint passed with ${totalWarnings} warning(s)`);
         } else {
-            const target = lintInstructionsFlag
-                ? "instruction files"
-                : lintAgentsFlag
-                  ? "agents"
-                  : "skills";
-            consola.success(`All ${target} passed lint checks`);
+            const targets = allOutputs
+                .map((o) => targetLabels[o.target] ?? o.target)
+                .join(", ");
+            consola.success(`All ${targets} passed lint checks`);
         }
     },
 });

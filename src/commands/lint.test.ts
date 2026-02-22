@@ -20,21 +20,21 @@ describe("lint command", () => {
     });
 
     describe("when no skills exist", () => {
-        it("should complete without error", async () => {
+        it("should complete without error when using --skills", async () => {
             // Act & Assert
             await expect(
                 lintCommand.run({
                     rawArgs: [],
-                    args: { _: [] },
+                    args: { _: [], skills: true },
                     cmd: lintCommand,
-                    data: { targetDir: testDir },
+                    data: { targetDir: testDir, skills: true },
                 }),
             ).resolves.not.toThrow();
         });
     });
 
     describe("when skills have valid frontmatter", () => {
-        it("should complete without error", async () => {
+        it("should complete without error when using --skills", async () => {
             // Arrange
             const skillName = "my-skill";
             const skillDir = join(testDir, ".github", "skills", skillName);
@@ -48,16 +48,16 @@ describe("lint command", () => {
             await expect(
                 lintCommand.run({
                     rawArgs: [],
-                    args: { _: [] },
+                    args: { _: [], skills: true },
                     cmd: lintCommand,
-                    data: { targetDir: testDir },
+                    data: { targetDir: testDir, skills: true },
                 }),
             ).resolves.not.toThrow();
         });
     });
 
     describe("when skills have invalid frontmatter", () => {
-        it("should throw an error indicating lint failures", async () => {
+        it("should throw an error indicating lint failures when using --skills", async () => {
             // Arrange
             const skillName = "my-skill";
             const skillDir = join(testDir, ".github", "skills", skillName);
@@ -71,16 +71,16 @@ describe("lint command", () => {
             await expect(
                 lintCommand.run({
                     rawArgs: [],
-                    args: { _: [] },
+                    args: { _: [], skills: true },
                     cmd: lintCommand,
-                    data: { targetDir: testDir },
+                    data: { targetDir: testDir, skills: true },
                 }),
             ).rejects.toThrow("lint");
         });
     });
 
     describe("when a skill has no frontmatter", () => {
-        it("should throw an error indicating missing frontmatter", async () => {
+        it("should throw an error indicating missing frontmatter when using --skills", async () => {
             // Arrange
             const skillName = "bad-skill";
             const skillDir = join(testDir, ".github", "skills", skillName);
@@ -94,16 +94,16 @@ describe("lint command", () => {
             await expect(
                 lintCommand.run({
                     rawArgs: [],
-                    args: { _: [] },
+                    args: { _: [], skills: true },
                     cmd: lintCommand,
-                    data: { targetDir: testDir },
+                    data: { targetDir: testDir, skills: true },
                 }),
             ).rejects.toThrow("lint");
         });
     });
 
     describe("when a skill name does not match parent directory", () => {
-        it("should throw an error indicating name mismatch", async () => {
+        it("should throw an error indicating name mismatch when using --skills", async () => {
             // Arrange
             const skillDir = join(testDir, ".github", "skills", "my-skill");
             await mkdir(skillDir, { recursive: true });
@@ -116,16 +116,16 @@ describe("lint command", () => {
             await expect(
                 lintCommand.run({
                     rawArgs: [],
-                    args: { _: [] },
+                    args: { _: [], skills: true },
                     cmd: lintCommand,
-                    data: { targetDir: testDir },
+                    data: { targetDir: testDir, skills: true },
                 }),
             ).rejects.toThrow("lint");
         });
     });
 
     describe("when multiple skills exist with mixed validity", () => {
-        it("should discover all skills and report errors", async () => {
+        it("should discover all skills and report errors when using --skills", async () => {
             // Arrange
             const validSkillDir = join(
                 testDir,
@@ -154,9 +154,9 @@ describe("lint command", () => {
             await expect(
                 lintCommand.run({
                     rawArgs: [],
-                    args: { _: [] },
+                    args: { _: [], skills: true },
                     cmd: lintCommand,
-                    data: { targetDir: testDir },
+                    data: { targetDir: testDir, skills: true },
                 }),
             ).rejects.toThrow("lint");
         });
@@ -237,9 +237,9 @@ describe("lint command", () => {
             await expect(
                 lintCommand.run({
                     rawArgs: [],
-                    args: { _: [], format: "json" },
+                    args: { _: [], format: "json", skills: true },
                     cmd: lintCommand,
-                    data: { targetDir: testDir, format: "json" },
+                    data: { targetDir: testDir, format: "json", skills: true },
                 }),
             ).resolves.not.toThrow();
         });
@@ -254,11 +254,25 @@ describe("lint command", () => {
             await expect(
                 lintCommand.run({
                     rawArgs: [],
-                    args: { _: [], format: "json" },
+                    args: { _: [], format: "json", skills: true },
                     cmd: lintCommand,
-                    data: { targetDir: testDir, format: "json" },
+                    data: { targetDir: testDir, format: "json", skills: true },
                 }),
             ).rejects.toThrow("lint");
+        });
+    });
+
+    describe("when running with no flags", () => {
+        it("should lint skills, agents, and instructions", async () => {
+            // Act & Assert - empty directory should succeed for all targets
+            await expect(
+                lintCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: lintCommand,
+                    data: { targetDir: testDir },
+                }),
+            ).resolves.not.toThrow();
         });
     });
 });
