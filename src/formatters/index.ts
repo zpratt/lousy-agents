@@ -19,7 +19,6 @@ export function createFormatter(format: LintFormatType): LintFormatter {
             return new JsonFormatter();
         case "rdjsonl":
             return new RdjsonlFormatter();
-        case "human":
         default:
             return new HumanFormatter();
     }

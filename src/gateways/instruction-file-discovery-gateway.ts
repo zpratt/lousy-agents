@@ -4,7 +4,7 @@
  */
 
 import { readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type {
     DiscoveredInstructionFile,
     InstructionFileFormat,
@@ -82,6 +82,7 @@ export class FileSystemInstructionFileDiscoveryGateway
 
         try {
             const entries = await readdir(dirPath);
+            const resolvedDirPath = resolve(dirPath);
             for (const entry of entries) {
                 if (
                     entry.includes("..") ||
@@ -91,8 +92,15 @@ export class FileSystemInstructionFileDiscoveryGateway
                     continue;
                 }
                 if (entry.endsWith(".md")) {
+                    const filePath = join(dirPath, entry);
+                    const resolvedFilePath = resolve(filePath);
+                    if (
+                        !resolvedFilePath.startsWith(`${resolvedDirPath}/`)
+                    ) {
+                        continue;
+                    }
                     files.push({
-                        filePath: join(dirPath, entry),
+                        filePath,
                         format,
                     });
                 }

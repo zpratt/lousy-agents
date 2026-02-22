@@ -288,7 +288,7 @@ export const lintCommand = defineCommand({
             const formatter = createFormatter(format);
             const formatted = formatter.format(allOutputs);
             if (formatted) {
-                console.log(formatted);
+                process.stdout.write(`${formatted}\n`);
             }
         } else {
             for (const output of allOutputs) {

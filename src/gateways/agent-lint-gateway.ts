@@ -4,7 +4,7 @@
  */
 
 import { readdir, readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { ParsedFrontmatter } from "../entities/skill.js";
 import type {
@@ -41,6 +41,12 @@ export class FileSystemAgentLintGateway implements AgentLintGateway {
             }
 
             const filePath = join(agentsDir, entry);
+            const resolvedPath = resolve(filePath);
+            const resolvedAgentsDir = resolve(agentsDir);
+            if (!resolvedPath.startsWith(`${resolvedAgentsDir}/`)) {
+                continue;
+            }
+
             const agentName = basename(entry, ".md");
 
             agents.push({ filePath, agentName });

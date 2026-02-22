@@ -3,8 +3,14 @@
  * Uses simple text formatting with severity indicators.
  */
 
-import type { LintOutput } from "../entities/lint.js";
+import type { LintOutput, LintSeverity } from "../entities/lint.js";
 import type { LintFormatter } from "./types.js";
+
+const SEVERITY_ICONS: Record<LintSeverity, string> = {
+    error: "✖",
+    warning: "⚠",
+    info: "ℹ",
+};
 
 /**
  * Formats lint output for human-readable console display.
@@ -32,12 +38,7 @@ export class HumanFormatter implements LintFormatter {
             for (const d of output.diagnostics) {
                 const prefix = `${d.filePath}:${d.line}`;
                 const fieldInfo = d.field ? ` [${d.field}]` : "";
-                const icon =
-                    d.severity === "error"
-                        ? "✖"
-                        : d.severity === "warning"
-                          ? "⚠"
-                          : "ℹ";
+                const icon = SEVERITY_ICONS[d.severity];
                 lines.push(`${icon} ${prefix}${fieldInfo}: ${d.message}`);
             }
         }
