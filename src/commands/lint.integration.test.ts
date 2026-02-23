@@ -318,9 +318,12 @@ describe("Lint command end-to-end", () => {
                 stdout = result.stdout;
                 stderr = result.stderr;
             } catch (err: unknown) {
-                const execErr = err as { stdout: string; stderr: string };
-                stdout = execErr.stdout;
-                stderr = execErr.stderr;
+                const execErr = err as {
+                    stdout?: string;
+                    stderr?: string;
+                };
+                stdout = execErr.stdout ?? "";
+                stderr = execErr.stderr ?? "";
             }
 
             // Assert - each non-empty line of stdout must be valid JSON

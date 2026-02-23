@@ -13,11 +13,11 @@ describe("lint command", () => {
     beforeEach(async () => {
         testDir = join(tmpdir(), `test-lint-cmd-${chance.guid()}`);
         await mkdir(testDir, { recursive: true });
+        process.exitCode = undefined;
     });
 
     afterEach(async () => {
         await rm(testDir, { recursive: true, force: true });
-        process.exitCode = undefined;
     });
 
     describe("when no skills exist", () => {
