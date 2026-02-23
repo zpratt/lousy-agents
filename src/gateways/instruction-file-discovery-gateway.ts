@@ -1,0 +1,132 @@
+/**
+ * Gateway for discovering instruction files across multiple formats.
+ * Supports GitHub Copilot, Claude Code, and community agent instruction formats.
+ */
+
+import { lstat, readdir } from "node:fs/promises";
+import { join, relative, resolve, sep } from "node:path";
+import type {
+    DiscoveredInstructionFile,
+    InstructionFileFormat,
+} from "../entities/instruction-quality.js";
+import type { InstructionFileDiscoveryGateway } from "../use-cases/analyze-instruction-quality.js";
+import { fileExists } from "./file-system-utils.js";
+
+// Re-export port type for consumers
+export type { InstructionFileDiscoveryGateway };
+
+/**
+ * File system implementation of the instruction file discovery gateway.
+ */
+export class FileSystemInstructionFileDiscoveryGateway
+    implements InstructionFileDiscoveryGateway
+{
+    async discoverInstructionFiles(
+        targetDir: string,
+    ): Promise<DiscoveredInstructionFile[]> {
+        const files: DiscoveredInstructionFile[] = [];
+
+        // .github/copilot-instructions.md
+        const copilotInstructions = join(
+            targetDir,
+            ".github",
+            "copilot-instructions.md",
+        );
+        if (
+            (await fileExists(copilotInstructions)) &&
+            !(await this.isSymlink(copilotInstructions))
+        ) {
+            files.push({
+                filePath: copilotInstructions,
+                format: "copilot-instructions",
+            });
+        }
+
+        // .github/instructions/*.md
+        const instructionsDir = join(targetDir, ".github", "instructions");
+        await this.discoverMdFilesInDir(
+            instructionsDir,
+            "copilot-scoped",
+            files,
+        );
+
+        // .github/agents/*.md
+        const agentsDir = join(targetDir, ".github", "agents");
+        await this.discoverMdFilesInDir(agentsDir, "copilot-agent", files);
+
+        // AGENTS.md at repo root
+        const agentsMd = join(targetDir, "AGENTS.md");
+        if ((await fileExists(agentsMd)) && !(await this.isSymlink(agentsMd))) {
+            files.push({ filePath: agentsMd, format: "agents-md" });
+        }
+
+        // CLAUDE.md at repo root
+        const claudeMd = join(targetDir, "CLAUDE.md");
+        if ((await fileExists(claudeMd)) && !(await this.isSymlink(claudeMd))) {
+            files.push({ filePath: claudeMd, format: "claude-md" });
+        }
+
+        return files;
+    }
+
+    private async discoverMdFilesInDir(
+        dirPath: string,
+        format: InstructionFileFormat,
+        files: DiscoveredInstructionFile[],
+    ): Promise<void> {
+        if (!(await fileExists(dirPath))) {
+            return;
+        }
+
+        try {
+            const entries = await readdir(dirPath, { withFileTypes: true });
+            const resolvedDirPath = resolve(dirPath);
+            for (const entry of entries) {
+                if (entry.isSymbolicLink()) {
+                    continue;
+                }
+                if (!entry.isFile()) {
+                    continue;
+                }
+                const name = entry.name;
+                if (
+                    name.includes("..") ||
+                    name.includes("/") ||
+                    name.includes("\\")
+                ) {
+                    continue;
+                }
+                if (name.endsWith(".md")) {
+                    const filePath = join(dirPath, name);
+                    const resolvedFilePath = resolve(filePath);
+                    const rel = relative(resolvedDirPath, resolvedFilePath);
+                    if (rel.startsWith("..") || rel.startsWith(sep)) {
+                        continue;
+                    }
+                    files.push({
+                        filePath,
+                        format,
+                    });
+                }
+            }
+        } catch {
+            // Skip directory if we can't read it
+        }
+    }
+
+    private async isSymlink(filePath: string): Promise<boolean> {
+        try {
+            const stats = await lstat(filePath);
+            return stats.isSymbolicLink();
+        } catch {
+            return false;
+        }
+    }
+}
+
+/**
+ * Creates and returns the default instruction file discovery gateway.
+ */
+export function createInstructionFileDiscoveryGateway(): InstructionFileDiscoveryGateway {
+    return new FileSystemInstructionFileDiscoveryGateway();
+}

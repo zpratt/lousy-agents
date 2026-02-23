@@ -10,6 +10,7 @@ Lousy Agents includes an MCP (Model Context Protocol) server that exposes workfl
 | `discover_workflow_setup_actions` | Find setup actions in existing GitHub Actions workflows |
 | `discover_feedback_loops` | Discover package.json scripts and CLI tools, mapping them to SDLC feedback loop phases |
 | `validate_instruction_coverage` | Validate that repository instructions document all mandatory feedback loop scripts and tools |
+| `analyze_instruction_quality` | Analyze the structural quality of feedback loop documentation in instruction files |
 | `read_copilot_setup_workflow` | Read the current Copilot Setup Steps workflow |
 | `create_copilot_setup_workflow` | Create or update the Copilot Setup Steps workflow with version resolution |
 | `create_claude_code_web_setup` | Create or update Claude Code web environment setup (`.claude/settings.json` and `CLAUDE.md`) |
@@ -275,6 +276,7 @@ Once configured, you can ask your AI assistant to:
 - "Show me which test and build commands are defined in package.json and workflows"
 - "Set up Claude Code environment for this project"
 - "Update the Claude Code SessionStart hooks based on my project configuration"
+- "Analyze the quality of my instruction files and suggest improvements"
 
 ## Architecture
 
@@ -287,5 +289,6 @@ The MCP server runs as a separate process that your AI assistant communicates wi
 5. Discover scripts and CLI tools used in SDLC feedback loops
 6. Validate instruction coverage for mandatory feedback loop steps
 7. Generate Claude Code web environment setup (SessionStart hooks and documentation)
+8. Analyze structural quality of feedback loop documentation in instruction files
 
 This enables more intelligent and context-aware assistance when working with GitHub Actions, project configuration, and ensuring that agents follow consistent feedback loops during development.
