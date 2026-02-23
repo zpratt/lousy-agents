@@ -3,9 +3,11 @@
  * Discovers targets, validates frontmatter/quality, and reports diagnostics.
  */
 
+import { resolve } from "node:path";
 import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
+import { z } from "zod";
 import type { LintDiagnostic, LintOutput } from "../entities/lint.js";
 import { createFormatter, type LintFormatType } from "../formatters/index.js";
 import { createAgentLintGateway } from "../gateways/agent-lint-gateway.js";
@@ -21,6 +23,26 @@ import type { LintAgentFrontmatterOutput } from "../use-cases/lint-agent-frontma
 import { LintAgentFrontmatterUseCase } from "../use-cases/lint-agent-frontmatter.js";
 import type { LintSkillFrontmatterOutput } from "../use-cases/lint-skill-frontmatter.js";
 import { LintSkillFrontmatterUseCase } from "../use-cases/lint-skill-frontmatter.js";
+
+/** Schema for validating target directory */
+const TargetDirSchema = z.string().min(1, "Target directory is required");
+
+/**
+ * Validates the target directory.
+ * Checks for path traversal attempts before resolution.
+ */
+function validateTargetDir(targetDir: string): string {
+    const parsed = TargetDirSchema.parse(targetDir);
+
+    // Check for path traversal attempts in raw input before resolution
+    if (parsed.includes("..")) {
+        throw new Error(
+            `Invalid target directory (path traversal detected): ${targetDir}`,
+        );
+    }
+
+    return resolve(parsed);
+}
 
 /**
  * Converts skill lint output to unified LintOutput.
@@ -254,10 +276,12 @@ export const lintCommand = defineCommand({
         },
     },
     run: async (context: CommandContext) => {
-        const targetDir =
+        const rawTargetDir =
             typeof context.data?.targetDir === "string"
                 ? context.data.targetDir
                 : process.cwd();
+
+        const targetDir = validateTargetDir(rawTargetDir);
 
         const lintSkillsFlag =
             context.args?.skills === true || context.data?.skills === true;
