@@ -5,9 +5,15 @@ import { defineCommand } from "citty";
 import { consola } from "consola";
 import {
     createEnvironmentGateway,
+    createGitHubRulesetGateway,
     createWorkflowGateway,
     fileExists,
 } from "../gateways/index.js";
+import {
+    buildCopilotReviewRulesetPayload,
+    checkCopilotReviewRuleset,
+    type RulesetGateway,
+} from "../use-cases/check-copilot-review-ruleset.js";
 import {
     buildCandidatesFromEnvironment,
     generateWorkflowContent,
@@ -19,13 +25,22 @@ import {
     mergeCandidates,
 } from "../use-cases/setup-step-discovery.js";
 
+interface CopilotSetupRulesetGateway extends RulesetGateway {
+    isAuthenticated(): Promise<boolean>;
+    getRepoInfo(
+        targetDir: string,
+    ): Promise<{ owner: string; repo: string } | null>;
+}
+
+type PromptFunction = (
+    message: string,
+    options: { type: string },
+) => Promise<boolean>;
+
 const copilotSetupArgs = {};
 
 type CopilotSetupArgs = typeof copilotSetupArgs;
 
-/**
- * Main command implementation for copilot-setup
- */
 export const copilotSetupCommand = defineCommand({
     meta: {
         name: "copilot-setup",
@@ -34,15 +49,21 @@ export const copilotSetupCommand = defineCommand({
     },
     args: copilotSetupArgs,
     run: async (context: CommandContext<CopilotSetupArgs>) => {
-        // Support dependency injection for testing via context.data
         const targetDir =
             typeof context.data?.targetDir === "string"
                 ? context.data.targetDir
                 : process.cwd();
 
-        // Create gateways
         const environmentGateway = createEnvironmentGateway();
         const workflowGateway = createWorkflowGateway();
+        const rulesetGateway: CopilotSetupRulesetGateway =
+            (context.data
+                ?.rulesetGateway as CopilotSetupRulesetGateway | null) ??
+            (await createGitHubRulesetGateway());
+        const prompt =
+            (context.data?.prompt as PromptFunction | null) ??
+            ((message, options) =>
+                consola.prompt(message, options) as Promise<boolean>);
 
         consola.info("Detecting environment configuration...");
 
@@ -122,6 +143,8 @@ export const copilotSetupCommand = defineCommand({
                 consola.success(
                     "Copilot Setup Steps workflow already contains all detected setup steps. No changes needed.",
                 );
+
+                await checkAndPromptRuleset(rulesetGateway, targetDir, prompt);
                 return;
             }
 
@@ -162,5 +185,78 @@ export const copilotSetupCommand = defineCommand({
                 consola.info(`Included setup steps: ${actionNames}`);
             }
         }
+
+        // Step 6: Check for Copilot PR review rulesets
+        await checkAndPromptRuleset(rulesetGateway, targetDir, prompt);
     },
 });
+
+async function checkAndPromptRuleset(
+    rulesetGateway: CopilotSetupRulesetGateway,
+    targetDir: string,
+    prompt: PromptFunction,
+): Promise<void> {
+    consola.info("Checking Copilot PR review ruleset...");
+
+    const isAuthenticated = await rulesetGateway.isAuthenticated();
+    if (!isAuthenticated) {
+        consola.warn(
+            "No valid GitHub token available. Set GH_TOKEN/GITHUB_TOKEN or run `gh auth login` to enable Copilot PR review ruleset management.",
+        );
+        return;
+    }
+
+    const repoInfo = await rulesetGateway.getRepoInfo(targetDir);
+    if (!repoInfo) {
+        consola.warn(
+            "Could not determine repository owner and name from git remote. Skipping ruleset check.",
+        );
+        return;
+    }
+
+    const status = await checkCopilotReviewRuleset(
+        rulesetGateway,
+        repoInfo.owner,
+        repoInfo.repo,
+    );
+
+    if (status.error) {
+        consola.warn(
+            `Could not check rulesets: ${status.error}. You may need admin access to manage rulesets.`,
+        );
+        return;
+    }
+
+    if (status.hasRuleset) {
+        consola.success(
+            `Copilot PR review ruleset is already configured: "${status.rulesetName}"`,
+        );
+        return;
+    }
+
+    const shouldCreate = await prompt(
+        "No Copilot PR review ruleset found. Would you like to create one?",
+        { type: "confirm" },
+    );
+
+    if (!shouldCreate) {
+        consola.info("Skipping Copilot PR review ruleset creation.");
+        return;
+    }
+
+    try {
+        const payload = buildCopilotReviewRulesetPayload();
+        await rulesetGateway.createRuleset(
+            repoInfo.owner,
+            repoInfo.repo,
+            payload,
+        );
+        consola.success(`Created Copilot PR review ruleset: "${payload.name}"`);
+    } catch (error) {
+        const message =
+            error instanceof Error ? error.message : "Unknown error";
+        consola.error(
+            `Failed to create ruleset: ${message}. You may need admin access to the repository.`,
+        );
+    }
+}

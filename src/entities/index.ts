@@ -11,8 +11,11 @@ export type {
 export { generateAgentContent, normalizeAgentName } from "./copilot-agent.js";
 export type {
     ActionToResolve,
+    CopilotReviewStatus,
     DetectedEnvironment,
     ResolvedVersion,
+    Ruleset,
+    RulesetRule,
     SetupStepCandidate,
     VersionFile,
     VersionFileType,
