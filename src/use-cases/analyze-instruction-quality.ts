@@ -13,12 +13,75 @@ import {
     DEFAULT_STRUCTURAL_HEADING_PATTERNS,
 } from "../entities/instruction-quality.js";
 import type { LintDiagnostic } from "../entities/lint.js";
-import type { InstructionFileDiscoveryGateway } from "../gateways/instruction-file-discovery-gateway.js";
-import type {
-    MarkdownAstGateway,
-    MarkdownStructure,
-} from "../gateways/markdown-ast-gateway.js";
-import { findConditionalKeywordsInProximity } from "../gateways/markdown-ast-gateway.js";
+
+/**
+ * A heading node with its depth and text content.
+ * Port type for markdown structure.
+ */
+export interface MarkdownHeading {
+    readonly text: string;
+    readonly depth: number;
+    readonly position: { readonly line: number };
+}
+
+/**
+ * A code block node.
+ * Port type for markdown structure.
+ */
+export interface MarkdownCodeBlock {
+    readonly value: string;
+    readonly lang?: string;
+    readonly position: { readonly line: number };
+    readonly nodeIndex: number;
+}
+
+/**
+ * An inline code node.
+ * Port type for markdown structure.
+ */
+export interface MarkdownInlineCode {
+    readonly value: string;
+    readonly position: { readonly line: number };
+}
+
+/**
+ * Extracted structural features from a Markdown file.
+ * Port type for use case dependencies.
+ */
+export interface MarkdownStructure {
+    readonly headings: readonly MarkdownHeading[];
+    readonly codeBlocks: readonly MarkdownCodeBlock[];
+    readonly inlineCodes: readonly MarkdownInlineCode[];
+    readonly ast: { readonly children: readonly unknown[] };
+}
+
+/**
+ * Port for Markdown AST operations.
+ */
+export interface MarkdownAstGateway {
+    parseFile(filePath: string): Promise<MarkdownStructure>;
+    parseContent(content: string): MarkdownStructure;
+    /**
+     * Checks if text in sibling nodes within a proximity window contains conditional keywords.
+     * Note: Performance is bounded by the CONDITIONAL_KEYWORDS constant size (~11 keywords)
+     * and proximityWindow (default 3 nodes), not by document size.
+     */
+    findConditionalKeywordsInProximity(
+        structure: MarkdownStructure,
+        codeBlockNodeIndex: number,
+        proximityWindow: number,
+        keywords: readonly string[],
+    ): boolean;
+}
+
+/**
+ * Port for discovering instruction files.
+ */
+export interface InstructionFileDiscoveryGateway {
+    discoverInstructionFiles(
+        targetDir: string,
+    ): Promise<DiscoveredInstructionFile[]>;
+}
 
 /**
  * Port for discovering mandatory feedback loop commands.
@@ -484,8 +547,8 @@ export class AnalyzeInstructionQualityUseCase {
             }
 
             if (
-                findConditionalKeywordsInProximity(
-                    structure.ast,
+                this.astGateway.findConditionalKeywordsInProximity(
+                    structure,
                     codeBlock.nodeIndex,
                     proximityWindow,
                     CONDITIONAL_KEYWORDS,

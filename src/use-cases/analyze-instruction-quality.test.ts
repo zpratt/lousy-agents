@@ -24,6 +24,7 @@ function createMockDiscoveryGateway(
 
 function createMockAstGateway(
     structures: Map<string, MarkdownStructure> = new Map(),
+    keywordResults: Map<number, boolean> = new Map(),
 ): MarkdownAstGateway {
     return {
         parseFile: vi.fn().mockImplementation((filePath: string) => {
@@ -39,6 +40,13 @@ function createMockAstGateway(
             inlineCodes: [],
             ast: { type: "root", children: [] },
         }),
+        findConditionalKeywordsInProximity: vi
+            .fn()
+            .mockImplementation(
+                (_structure: MarkdownStructure, codeBlockNodeIndex: number) => {
+                    return keywordResults.get(codeBlockNodeIndex) ?? false;
+                },
+            ),
     };
 }
 
@@ -149,8 +157,9 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             };
 
             const structures = new Map([[filePath, structure]]);
+            const keywordResults = new Map([[1, true]]);
             const discoveryGateway = createMockDiscoveryGateway(files);
-            const astGateway = createMockAstGateway(structures);
+            const astGateway = createMockAstGateway(structures, keywordResults);
             const commandsGateway = createMockCommandsGateway(["npm test"]);
             const useCase = new AnalyzeInstructionQualityUseCase(
                 discoveryGateway,
@@ -444,8 +453,9 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                 [file1, structure1],
                 [file2, structure2],
             ]);
+            const keywordResults = new Map([[1, true]]);
             const discoveryGateway = createMockDiscoveryGateway(files);
-            const astGateway = createMockAstGateway(structures);
+            const astGateway = createMockAstGateway(structures, keywordResults);
             const commandsGateway = createMockCommandsGateway(["npm test"]);
             const useCase = new AnalyzeInstructionQualityUseCase(
                 discoveryGateway,

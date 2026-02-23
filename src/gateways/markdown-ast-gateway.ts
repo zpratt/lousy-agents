@@ -4,47 +4,25 @@
  */
 
 import { readFile } from "node:fs/promises";
-import type { Code, Heading, InlineCode, Root } from "mdast";
+import type { Code, Heading, InlineCode } from "mdast";
 import { remark } from "remark";
 import { visit } from "unist-util-visit";
+import type {
+    MarkdownAstGateway,
+    MarkdownCodeBlock,
+    MarkdownHeading,
+    MarkdownInlineCode,
+    MarkdownStructure,
+} from "../use-cases/analyze-instruction-quality.js";
 
-/** A heading node with its depth and text content */
-export interface MarkdownHeading {
-    readonly text: string;
-    readonly depth: number;
-    readonly position: { readonly line: number };
-}
-
-/** A code block node */
-export interface MarkdownCodeBlock {
-    readonly value: string;
-    readonly lang?: string;
-    readonly position: { readonly line: number };
-    /** Index of the node in the root children list */
-    readonly nodeIndex: number;
-}
-
-/** An inline code node */
-export interface MarkdownInlineCode {
-    readonly value: string;
-    readonly position: { readonly line: number };
-}
-
-/** Extracted structural features from a Markdown file */
-export interface MarkdownStructure {
-    readonly headings: readonly MarkdownHeading[];
-    readonly codeBlocks: readonly MarkdownCodeBlock[];
-    readonly inlineCodes: readonly MarkdownInlineCode[];
-    readonly ast: Root;
-}
-
-/**
- * Port for Markdown AST operations.
- */
-export interface MarkdownAstGateway {
-    parseFile(filePath: string): Promise<MarkdownStructure>;
-    parseContent(content: string): MarkdownStructure;
-}
+// Re-export types for consumers that need them
+export type {
+    MarkdownAstGateway,
+    MarkdownCodeBlock,
+    MarkdownHeading,
+    MarkdownInlineCode,
+    MarkdownStructure,
+};
 
 /**
  * Remark-based implementation of the Markdown AST gateway.
@@ -102,6 +80,33 @@ export class RemarkMarkdownAstGateway implements MarkdownAstGateway {
         return { headings, codeBlocks, inlineCodes, ast };
     }
 
+    findConditionalKeywordsInProximity(
+        structure: MarkdownStructure,
+        codeBlockNodeIndex: number,
+        proximityWindow: number,
+        keywords: readonly string[],
+    ): boolean {
+        const ast = structure.ast;
+        const endIndex = Math.min(
+            ast.children.length,
+            codeBlockNodeIndex + 1 + proximityWindow,
+        );
+
+        for (let i = codeBlockNodeIndex + 1; i < endIndex; i++) {
+            const sibling = ast.children[i];
+            const text = extractTextFromNode(sibling);
+            const lowerText = text.toLowerCase();
+
+            for (const keyword of keywords) {
+                if (containsWordBoundary(lowerText, keyword.toLowerCase())) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     private extractHeadingText(node: Heading): string {
         const parts: string[] = [];
         visit(node, "text", (textNode: { value: string }) => {
@@ -112,33 +117,24 @@ export class RemarkMarkdownAstGateway implements MarkdownAstGateway {
 }
 
 /**
- * Checks if text in sibling nodes within a proximity window contains conditional keywords.
+ * Checks if text contains a keyword at a word boundary (safe string matching, no regex).
  */
-export function findConditionalKeywordsInProximity(
-    ast: Root,
-    codeBlockNodeIndex: number,
-    proximityWindow: number,
-    keywords: readonly string[],
-): boolean {
-    const endIndex = Math.min(
-        ast.children.length,
-        codeBlockNodeIndex + 1 + proximityWindow,
-    );
-
-    for (let i = codeBlockNodeIndex + 1; i < endIndex; i++) {
-        const sibling = ast.children[i];
-        const text = extractTextFromNode(sibling);
-        const lowerText = text.toLowerCase();
-
-        for (const keyword of keywords) {
-            const pattern = new RegExp(`\\b${keyword}\\b`, "i");
-            if (pattern.test(lowerText)) {
-                return true;
-            }
-        }
+function containsWordBoundary(text: string, keyword: string): boolean {
+    const index = text.indexOf(keyword);
+    if (index === -1) {
+        return false;
     }
 
-    return false;
+    const charBefore = index > 0 ? text[index - 1] : " ";
+    const charAfter =
+        index + keyword.length < text.length
+            ? text[index + keyword.length]
+            : " ";
+
+    const isWordBoundaryBefore = !/[a-z0-9]/i.test(charBefore);
+    const isWordBoundaryAfter = !/[a-z0-9]/i.test(charAfter);
+
+    return isWordBoundaryBefore && isWordBoundaryAfter;
 }
 
 /**

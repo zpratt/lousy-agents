@@ -1,9 +1,5 @@
-import type { Root } from "mdast";
 import { describe, expect, it } from "vitest";
-import {
-    findConditionalKeywordsInProximity,
-    RemarkMarkdownAstGateway,
-} from "./markdown-ast-gateway.js";
+import { RemarkMarkdownAstGateway } from "./markdown-ast-gateway.js";
 
 describe("RemarkMarkdownAstGateway", () => {
     const gateway = new RemarkMarkdownAstGateway();
@@ -73,28 +69,18 @@ describe("RemarkMarkdownAstGateway", () => {
 });
 
 describe("findConditionalKeywordsInProximity", () => {
+    const gateway = new RemarkMarkdownAstGateway();
+
     describe("when a paragraph following a code block contains conditional keywords", () => {
         it("should return true", () => {
             // Arrange
-            const ast = {
-                type: "root" as const,
-                children: [
-                    { type: "code", value: "npm test", lang: "bash" },
-                    {
-                        type: "paragraph",
-                        children: [
-                            {
-                                type: "text",
-                                value: "If any tests fail, fix them before proceeding.",
-                            },
-                        ],
-                    },
-                ],
-            };
+            const content =
+                "```bash\nnpm test\n```\n\nIf any tests fail, fix them before proceeding.\n";
+            const structure = gateway.parseContent(content);
 
             // Act
-            const result = findConditionalKeywordsInProximity(
-                ast as unknown as Root,
+            const result = gateway.findConditionalKeywordsInProximity(
+                structure,
                 0,
                 3,
                 ["if", "fail", "fix"],
@@ -108,25 +94,13 @@ describe("findConditionalKeywordsInProximity", () => {
     describe("when no conditional keywords are within the proximity window", () => {
         it("should return false", () => {
             // Arrange
-            const ast = {
-                type: "root" as const,
-                children: [
-                    { type: "code", value: "npm test", lang: "bash" },
-                    {
-                        type: "paragraph",
-                        children: [
-                            {
-                                type: "text",
-                                value: "Then run the build step.",
-                            },
-                        ],
-                    },
-                ],
-            };
+            const content =
+                "```bash\nnpm test\n```\n\nThen run the build step.\n";
+            const structure = gateway.parseContent(content);
 
             // Act
-            const result = findConditionalKeywordsInProximity(
-                ast as unknown as Root,
+            const result = gateway.findConditionalKeywordsInProximity(
+                structure,
                 0,
                 3,
                 ["if", "fail", "fix"],
