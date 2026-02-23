@@ -18,6 +18,7 @@ describe("lint command", () => {
 
     afterEach(async () => {
         await rm(testDir, { recursive: true, force: true });
+        process.exitCode = undefined;
     });
 
     describe("when no skills exist", () => {
