@@ -63,7 +63,7 @@
         "zod": "4.3.6"
     },
     "devDependencies": {
-        "@biomejs/biome": "2.4.3",
+        "@biomejs/biome": "2.4.4",
         "@rspack/cli": "1.7.6",
         "@rspack/core": "1.7.6",
         "@types/chance": "1.1.7",
