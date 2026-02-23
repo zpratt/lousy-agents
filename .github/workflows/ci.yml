@@ -87,22 +87,22 @@ jobs:
           npm install
           echo "Webapp smoke test passed"
 
-      - name: Smoke test - lint (valid skill)
+      - name: Smoke test - lint --skills (valid skill)
         run: |
           rm -rf /tmp/smoke-test-lint-valid
           mkdir -p /tmp/smoke-test-lint-valid/.github/skills/my-skill
           printf '%s\n' '---' 'name: my-skill' 'description: A valid test skill' 'allowed-tools: tool1' '---' '' '# my-skill' > /tmp/smoke-test-lint-valid/.github/skills/my-skill/SKILL.md
           cd /tmp/smoke-test-lint-valid
-          lousy-agents lint
+          lousy-agents lint --skills
           echo "Lint valid skill smoke test passed"
 
-      - name: Smoke test - lint (invalid skill exits non-zero)
+      - name: Smoke test - lint --skills (invalid skill exits non-zero)
         run: |
           rm -rf /tmp/smoke-test-lint-invalid
           mkdir -p /tmp/smoke-test-lint-invalid/.github/skills/bad-skill
           printf '%s\n' '---' 'description: Missing name field' '---' '' '# bad-skill' > /tmp/smoke-test-lint-invalid/.github/skills/bad-skill/SKILL.md
           cd /tmp/smoke-test-lint-invalid
-          if lousy-agents lint; then
+          if lousy-agents lint --skills; then
             echo "Expected lint to fail but it passed"
             exit 1
           else
@@ -110,10 +110,58 @@ jobs:
           fi
           echo "Lint invalid skill smoke test passed"
 
-      - name: Smoke test - lint (no skills)
+      - name: Smoke test - lint (no flags lints everything)
         run: |
           rm -rf /tmp/smoke-test-lint-empty
           mkdir -p /tmp/smoke-test-lint-empty
           cd /tmp/smoke-test-lint-empty
           lousy-agents lint
-          echo "Lint no skills smoke test passed"
+          echo "Lint no flags smoke test passed"
+
+      - name: Smoke test - lint --agents (valid agent)
+        run: |
+          rm -rf /tmp/smoke-test-lint-agent-valid
+          mkdir -p /tmp/smoke-test-lint-agent-valid/.github/agents
+          printf '%s\n' '---' 'name: my-agent' 'description: A valid test agent' '---' '' '# my-agent' > /tmp/smoke-test-lint-agent-valid/.github/agents/my-agent.md
+          cd /tmp/smoke-test-lint-agent-valid
+          lousy-agents lint --agents
+          echo "Lint valid agent smoke test passed"
+
+      - name: Smoke test - lint --agents (invalid agent exits non-zero)
+        run: |
+          rm -rf /tmp/smoke-test-lint-agent-invalid
+          mkdir -p /tmp/smoke-test-lint-agent-invalid/.github/agents
+          printf '%s\n' '---' 'description: Missing name field' '---' '' '# bad-agent' > /tmp/smoke-test-lint-agent-invalid/.github/agents/bad-agent.md
+          cd /tmp/smoke-test-lint-agent-invalid
+          if lousy-agents lint --agents; then
+            echo "Expected lint --agents to fail but it passed"
+            exit 1
+          else
+            echo "Lint --agents invalid agent correctly failed"
+          fi
+          echo "Lint invalid agent smoke test passed"
+
+      - name: Smoke test - lint --agents (no agents)
+        run: |
+          rm -rf /tmp/smoke-test-lint-agent-empty
+          mkdir -p /tmp/smoke-test-lint-agent-empty
+          cd /tmp/smoke-test-lint-agent-empty
+          lousy-agents lint --agents
+          echo "Lint no agents smoke test passed"
+
+      - name: Smoke test - lint --skills --format json (valid skill)
+        run: |
+          rm -rf /tmp/smoke-test-lint-json
+          mkdir -p /tmp/smoke-test-lint-json/.github/skills/my-skill
+          printf '%s\n' '---' 'name: my-skill' 'description: A valid test skill' 'allowed-tools: tool1' '---' '' '# my-skill' > /tmp/smoke-test-lint-json/.github/skills/my-skill/SKILL.md
+          cd /tmp/smoke-test-lint-json
+          lousy-agents lint --skills --format json
+          echo "Lint JSON format smoke test passed"
+
+      - name: Smoke test - lint --instructions (no instruction files)
+        run: |
+          rm -rf /tmp/smoke-test-lint-instructions-empty
+          mkdir -p /tmp/smoke-test-lint-instructions-empty
+          cd /tmp/smoke-test-lint-instructions-empty
+          lousy-agents lint --instructions
+          echo "Lint no instructions smoke test passed"

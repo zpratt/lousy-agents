@@ -37,9 +37,9 @@ describe("Lint command end-to-end", () => {
             await expect(
                 lintCommand.run({
                     rawArgs: [],
-                    args: { _: [] },
+                    args: { _: [], skills: true },
                     cmd: lintCommand,
-                    data: { targetDir: emptyDir },
+                    data: { targetDir: emptyDir, skills: true },
                 }),
             ).resolves.not.toThrow();
         });
@@ -71,9 +71,9 @@ describe("Lint command end-to-end", () => {
             await expect(
                 lintCommand.run({
                     rawArgs: [],
-                    args: { _: [] },
+                    args: { _: [], skills: true },
                     cmd: lintCommand,
-                    data: { targetDir: repoDir },
+                    data: { targetDir: repoDir, skills: true },
                 }),
             ).resolves.not.toThrow();
         });
@@ -107,9 +107,9 @@ describe("Lint command end-to-end", () => {
             await expect(
                 lintCommand.run({
                     rawArgs: [],
-                    args: { _: [] },
+                    args: { _: [], skills: true },
                     cmd: lintCommand,
-                    data: { targetDir: repoDir },
+                    data: { targetDir: repoDir, skills: true },
                 }),
             ).resolves.not.toThrow();
         });
@@ -137,11 +137,11 @@ describe("Lint command end-to-end", () => {
             await expect(
                 lintCommand.run({
                     rawArgs: [],
-                    args: { _: [] },
+                    args: { _: [], skills: true },
                     cmd: lintCommand,
-                    data: { targetDir: repoDir },
+                    data: { targetDir: repoDir, skills: true },
                 }),
-            ).rejects.toThrow("Skill lint failed");
+            ).rejects.toThrow("lint failed");
         });
     });
 
@@ -174,11 +174,11 @@ describe("Lint command end-to-end", () => {
             await expect(
                 lintCommand.run({
                     rawArgs: [],
-                    args: { _: [] },
+                    args: { _: [], skills: true },
                     cmd: lintCommand,
-                    data: { targetDir: repoDir },
+                    data: { targetDir: repoDir, skills: true },
                 }),
-            ).rejects.toThrow("Skill lint failed");
+            ).rejects.toThrow("lint failed");
         });
     });
 
@@ -207,11 +207,11 @@ describe("Lint command end-to-end", () => {
             await expect(
                 lintCommand.run({
                     rawArgs: [],
-                    args: { _: [] },
+                    args: { _: [], skills: true },
                     cmd: lintCommand,
-                    data: { targetDir: repoDir },
+                    data: { targetDir: repoDir, skills: true },
                 }),
-            ).rejects.toThrow("Skill lint failed");
+            ).rejects.toThrow("lint failed");
         });
     });
 
@@ -257,11 +257,11 @@ describe("Lint command end-to-end", () => {
             await expect(
                 lintCommand.run({
                     rawArgs: [],
-                    args: { _: [] },
+                    args: { _: [], skills: true },
                     cmd: lintCommand,
-                    data: { targetDir: repoDir },
+                    data: { targetDir: repoDir, skills: true },
                 }),
-            ).rejects.toThrow("Skill lint failed");
+            ).rejects.toThrow("lint failed");
         });
     });
 });
