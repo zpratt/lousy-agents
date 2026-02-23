@@ -3,7 +3,7 @@
  * Discovers agent files and parses YAML frontmatter.
  */
 
-import { readdir, readFile } from "node:fs/promises";
+import { lstat, readdir, readFile } from "node:fs/promises";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { ParsedFrontmatter } from "../entities/skill.js";
@@ -47,6 +47,10 @@ export class FileSystemAgentLintGateway implements AgentLintGateway {
                     continue;
                 }
 
+                if (entry.isSymbolicLink()) {
+                    continue;
+                }
+
                 if (entry.isDirectory()) {
                     await walk(entryPath);
                     continue;
@@ -70,6 +74,10 @@ export class FileSystemAgentLintGateway implements AgentLintGateway {
     }
 
     async readAgentFileContent(filePath: string): Promise<string> {
+        const stats = await lstat(filePath);
+        if (stats.isSymbolicLink()) {
+            throw new Error(`Symlinks are not allowed: ${filePath}`);
+        }
         return readFile(filePath, "utf-8");
     }
 

@@ -3,22 +3,17 @@
  * Supports GitHub Copilot, Claude Code, and community agent instruction formats.
  */
 
-import { readdir } from "node:fs/promises";
+import { lstat, readdir } from "node:fs/promises";
 import { join, relative, resolve, sep } from "node:path";
 import type {
     DiscoveredInstructionFile,
     InstructionFileFormat,
 } from "../entities/instruction-quality.js";
+import type { InstructionFileDiscoveryGateway } from "../use-cases/analyze-instruction-quality.js";
 import { fileExists } from "./file-system-utils.js";
 
-/**
- * Port for instruction file discovery operations.
- */
-export interface InstructionFileDiscoveryGateway {
-    discoverInstructionFiles(
-        targetDir: string,
-    ): Promise<DiscoveredInstructionFile[]>;
-}
+// Re-export port type for consumers
+export type { InstructionFileDiscoveryGateway };
 
 /**
  * File system implementation of the instruction file discovery gateway.
@@ -37,7 +32,10 @@ export class FileSystemInstructionFileDiscoveryGateway
             ".github",
             "copilot-instructions.md",
         );
-        if (await fileExists(copilotInstructions)) {
+        if (
+            (await fileExists(copilotInstructions)) &&
+            !(await this.isSymlink(copilotInstructions))
+        ) {
             files.push({
                 filePath: copilotInstructions,
                 format: "copilot-instructions",
@@ -58,13 +56,13 @@ export class FileSystemInstructionFileDiscoveryGateway
 
         // AGENTS.md at repo root
         const agentsMd = join(targetDir, "AGENTS.md");
-        if (await fileExists(agentsMd)) {
+        if ((await fileExists(agentsMd)) && !(await this.isSymlink(agentsMd))) {
             files.push({ filePath: agentsMd, format: "agents-md" });
         }
 
         // CLAUDE.md at repo root
         const claudeMd = join(targetDir, "CLAUDE.md");
-        if (await fileExists(claudeMd)) {
+        if ((await fileExists(claudeMd)) && !(await this.isSymlink(claudeMd))) {
             files.push({ filePath: claudeMd, format: "claude-md" });
         }
 
@@ -84,6 +82,9 @@ export class FileSystemInstructionFileDiscoveryGateway
             const entries = await readdir(dirPath, { withFileTypes: true });
             const resolvedDirPath = resolve(dirPath);
             for (const entry of entries) {
+                if (entry.isSymbolicLink()) {
+                    continue;
+                }
                 if (!entry.isFile()) {
                     continue;
                 }
@@ -110,6 +111,15 @@ export class FileSystemInstructionFileDiscoveryGateway
             }
         } catch {
             // Skip directory if we can't read it
+        }
+    }
+
+    private async isSymlink(filePath: string): Promise<boolean> {
+        try {
+            const stats = await lstat(filePath);
+            return stats.isSymbolicLink();
+        } catch {
+            return false;
         }
     }
 }
