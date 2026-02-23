@@ -4,13 +4,16 @@
  * Tests end-to-end lint functionality against real skill files on disk.
  */
 
+import { execFile } from "node:child_process";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import Chance from "chance";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { lintCommand } from "./lint.js";
 
+const execFileAsync = promisify(execFile);
 const chance = new Chance();
 
 describe("Lint command end-to-end", () => {
@@ -25,6 +28,10 @@ describe("Lint command end-to-end", () => {
         if (projectDir) {
             await rm(projectDir, { recursive: true, force: true });
         }
+    });
+
+    afterEach(() => {
+        process.exitCode = undefined;
     });
 
     describe("given a repository with no skills directory", () => {
@@ -116,7 +123,7 @@ describe("Lint command end-to-end", () => {
     });
 
     describe("given a repository with a skill missing required fields", () => {
-        it("should fail lint with error diagnostics", async () => {
+        it("should set non-zero exit code for lint failures", async () => {
             // Arrange
             const repoDir = join(projectDir, "missing-fields-repo");
             const skillDir = join(repoDir, ".github", "skills", "broken-skill");
@@ -133,20 +140,21 @@ describe("Lint command end-to-end", () => {
                 ].join("\n"),
             );
 
-            // Act & Assert
-            await expect(
-                lintCommand.run({
-                    rawArgs: [],
-                    args: { _: [], skills: true },
-                    cmd: lintCommand,
-                    data: { targetDir: repoDir, skills: true },
-                }),
-            ).rejects.toThrow("lint failed");
+            // Act
+            await lintCommand.run({
+                rawArgs: [],
+                args: { _: [], skills: true },
+                cmd: lintCommand,
+                data: { targetDir: repoDir, skills: true },
+            });
+
+            // Assert
+            expect(process.exitCode).toBe(1);
         });
     });
 
     describe("given a repository with a skill whose name does not match directory", () => {
-        it("should fail lint with name mismatch error", async () => {
+        it("should set non-zero exit code for name mismatch", async () => {
             // Arrange
             const repoDir = join(projectDir, "mismatch-repo");
             const skillDir = join(
@@ -170,20 +178,21 @@ describe("Lint command end-to-end", () => {
                 ].join("\n"),
             );
 
-            // Act & Assert
-            await expect(
-                lintCommand.run({
-                    rawArgs: [],
-                    args: { _: [], skills: true },
-                    cmd: lintCommand,
-                    data: { targetDir: repoDir, skills: true },
-                }),
-            ).rejects.toThrow("lint failed");
+            // Act
+            await lintCommand.run({
+                rawArgs: [],
+                args: { _: [], skills: true },
+                cmd: lintCommand,
+                data: { targetDir: repoDir, skills: true },
+            });
+
+            // Assert
+            expect(process.exitCode).toBe(1);
         });
     });
 
     describe("given a repository with a skill missing frontmatter entirely", () => {
-        it("should fail lint with missing frontmatter error", async () => {
+        it("should set non-zero exit code for missing frontmatter", async () => {
             // Arrange
             const repoDir = join(projectDir, "no-frontmatter-repo");
             const skillDir = join(
@@ -203,20 +212,21 @@ describe("Lint command end-to-end", () => {
                 ].join("\n"),
             );
 
-            // Act & Assert
-            await expect(
-                lintCommand.run({
-                    rawArgs: [],
-                    args: { _: [], skills: true },
-                    cmd: lintCommand,
-                    data: { targetDir: repoDir, skills: true },
-                }),
-            ).rejects.toThrow("lint failed");
+            // Act
+            await lintCommand.run({
+                rawArgs: [],
+                args: { _: [], skills: true },
+                cmd: lintCommand,
+                data: { targetDir: repoDir, skills: true },
+            });
+
+            // Assert
+            expect(process.exitCode).toBe(1);
         });
     });
 
     describe("given a repository with mixed valid and invalid skills", () => {
-        it("should fail lint and report errors for invalid skills", async () => {
+        it("should set non-zero exit code for mixed validity", async () => {
             // Arrange
             const repoDir = join(projectDir, "mixed-repo");
 
@@ -253,15 +263,78 @@ describe("Lint command end-to-end", () => {
                 ["---", "---", "", "# bad-skill", ""].join("\n"),
             );
 
-            // Act & Assert
-            await expect(
-                lintCommand.run({
-                    rawArgs: [],
-                    args: { _: [], skills: true },
-                    cmd: lintCommand,
-                    data: { targetDir: repoDir, skills: true },
-                }),
-            ).rejects.toThrow("lint failed");
+            // Act
+            await lintCommand.run({
+                rawArgs: [],
+                args: { _: [], skills: true },
+                cmd: lintCommand,
+                data: { targetDir: repoDir, skills: true },
+            });
+
+            // Assert
+            expect(process.exitCode).toBe(1);
+        });
+    });
+
+    describe("given lint failures with rdjsonl format", () => {
+        it("should produce parseable rdjsonl output without a stack trace", async () => {
+            // Arrange
+            const repoDir = join(projectDir, "rdjsonl-output-repo");
+            const skillDir = join(
+                repoDir,
+                ".github",
+                "skills",
+                "invalid-skill",
+            );
+            await mkdir(skillDir, { recursive: true });
+            await writeFile(
+                join(skillDir, "SKILL.md"),
+                [
+                    "---",
+                    "description: Missing name field",
+                    "---",
+                    "",
+                    "# invalid-skill",
+                    "",
+                ].join("\n"),
+            );
+
+            // Act
+            const tsxPath = join(process.cwd(), "node_modules", ".bin", "tsx");
+            const entryPath = join(process.cwd(), "src", "index.ts");
+
+            let stdout: string;
+            let stderr: string;
+            try {
+                const result = await execFileAsync(
+                    tsxPath,
+                    [entryPath, "lint", "--skills", "--format", "rdjsonl"],
+                    {
+                        cwd: repoDir,
+                        // biome-ignore lint/style/useNamingConvention: env var
+                        env: { ...process.env, NO_COLOR: "1" },
+                    },
+                );
+                stdout = result.stdout;
+                stderr = result.stderr;
+            } catch (err: unknown) {
+                const execErr = err as { stdout: string; stderr: string };
+                stdout = execErr.stdout;
+                stderr = execErr.stderr;
+            }
+
+            // Assert - each non-empty line of stdout must be valid JSON
+            const lines = stdout
+                .split("\n")
+                .filter((line) => line.trim() !== "");
+            expect(lines.length).toBeGreaterThan(0);
+
+            for (const line of lines) {
+                expect(() => JSON.parse(line)).not.toThrow();
+            }
+
+            // Assert - stderr must not contain a stack trace
+            expect(stderr).not.toMatch(/^\s+at\s+/m);
         });
     });
 });
