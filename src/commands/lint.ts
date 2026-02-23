@@ -353,9 +353,15 @@ export const lintCommand = defineCommand({
         }
 
         if (totalErrors > 0) {
-            throw new Error(
-                `lint failed: ${totalErrors} error(s), ${totalWarnings} warning(s)`,
-            );
+            process.exitCode = 1;
+
+            if (format === "human") {
+                consola.error(
+                    `lint failed: ${totalErrors} error(s), ${totalWarnings} warning(s)`,
+                );
+            }
+
+            return;
         }
 
         if (format === "human") {
