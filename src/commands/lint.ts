@@ -13,12 +13,9 @@ import { createFormatter, type LintFormatType } from "../formatters/index.js";
 import { createAgentLintGateway } from "../gateways/agent-lint-gateway.js";
 import { createInstructionFileDiscoveryGateway } from "../gateways/instruction-file-discovery-gateway.js";
 import { createMarkdownAstGateway } from "../gateways/markdown-ast-gateway.js";
-import { createScriptDiscoveryGateway } from "../gateways/script-discovery-gateway.js";
+import { createFeedbackLoopCommandsGateway } from "../gateways/script-discovery-gateway.js";
 import { createSkillLintGateway } from "../gateways/skill-lint-gateway.js";
-import {
-    AnalyzeInstructionQualityUseCase,
-    type FeedbackLoopCommandsGateway,
-} from "../use-cases/analyze-instruction-quality.js";
+import { AnalyzeInstructionQualityUseCase } from "../use-cases/analyze-instruction-quality.js";
 import type { LintAgentFrontmatterOutput } from "../use-cases/lint-agent-frontmatter.js";
 import { LintAgentFrontmatterUseCase } from "../use-cases/lint-agent-frontmatter.js";
 import type { LintSkillFrontmatterOutput } from "../use-cases/lint-skill-frontmatter.js";
@@ -177,14 +174,7 @@ async function lintAgents(targetDir: string): Promise<LintOutput> {
 async function lintInstructions(targetDir: string): Promise<LintOutput> {
     const discoveryGateway = createInstructionFileDiscoveryGateway();
     const astGateway = createMarkdownAstGateway();
-    const scriptGateway = createScriptDiscoveryGateway();
-
-    const commandsGateway: FeedbackLoopCommandsGateway = {
-        async getMandatoryCommands(dir: string) {
-            const scripts = await scriptGateway.discoverScripts(dir);
-            return scripts.filter((s) => s.isMandatory).map((s) => s.name);
-        },
-    };
+    const commandsGateway = createFeedbackLoopCommandsGateway();
 
     const useCase = new AnalyzeInstructionQualityUseCase(
         discoveryGateway,

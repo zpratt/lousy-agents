@@ -468,10 +468,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             const structures = new Map([[goodFile, goodStructure]]);
             const keywordResults = new Map([[1, true]]);
             const discoveryGateway = createMockDiscoveryGateway(files);
-            const astGateway = createMockAstGateway(
-                structures,
-                keywordResults,
-            );
+            const astGateway = createMockAstGateway(structures, keywordResults);
             const commandsGateway = createMockCommandsGateway(["npm test"]);
             const useCase = new AnalyzeInstructionQualityUseCase(
                 discoveryGateway,
@@ -485,6 +482,11 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             // Assert - should still analyze the good file
             expect(output.result.overallQualityScore).toBe(100);
             expect(output.result.commandScores[0].compositeScore).toBe(1);
+
+            // Assert - should track parsing errors
+            expect(output.result.parsingErrors).toHaveLength(1);
+            expect(output.result.parsingErrors[0].filePath).toBe(badFile);
+            expect(output.result.parsingErrors[0].error).toBeDefined();
         });
     });
 

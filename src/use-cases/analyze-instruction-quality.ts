@@ -7,6 +7,7 @@ import type {
     CommandQualityScores,
     DiscoveredInstructionFile,
     InstructionQualityResult,
+    ParsingError,
 } from "../entities/instruction-quality.js";
 import {
     CONDITIONAL_KEYWORDS,
@@ -154,6 +155,7 @@ export class AnalyzeInstructionQualityUseCase {
                     suggestions: [
                         "No agent instruction files found. Supported formats: .github/copilot-instructions.md, .github/instructions/*.md, .github/agents/*.md, AGENTS.md, CLAUDE.md",
                     ],
+                    parsingErrors: [],
                 },
                 diagnostics: [],
             };
@@ -161,14 +163,21 @@ export class AnalyzeInstructionQualityUseCase {
 
         // Analyze each file
         const fileStructures = new Map<string, MarkdownStructure>();
+        const parsingErrors: ParsingError[] = [];
         for (const file of discoveredFiles) {
             try {
                 const structure = await this.astGateway.parseFile(
                     file.filePath,
                 );
                 fileStructures.set(file.filePath, structure);
-            } catch {
-                // Skip files that can't be parsed
+            } catch (error) {
+                parsingErrors.push({
+                    filePath: file.filePath,
+                    error:
+                        error instanceof Error
+                            ? error.message
+                            : "Unknown parsing error",
+                });
             }
         }
 
@@ -238,6 +247,7 @@ export class AnalyzeInstructionQualityUseCase {
                 commandScores,
                 overallQualityScore,
                 suggestions,
+                parsingErrors,
             },
             diagnostics,
         };

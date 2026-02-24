@@ -38,6 +38,13 @@ export interface InstructionQualityResult {
     readonly commandScores: readonly CommandQualityScores[];
     readonly overallQualityScore: number;
     readonly suggestions: readonly string[];
+    readonly parsingErrors: readonly ParsingError[];
+}
+
+/** A file that failed to parse */
+export interface ParsingError {
+    readonly filePath: string;
+    readonly error: string;
 }
 
 /** Default heading patterns that indicate feedback loop sections */
