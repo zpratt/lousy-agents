@@ -7,6 +7,7 @@ import { parse as parseYaml } from "yaml";
 import type { ActionToResolve } from "../entities/copilot-setup.js";
 import {
     analyzeActionVersionsHandler,
+    analyzeInstructionQualityHandler,
     createClaudeCodeWebSetupHandler,
     createCopilotSetupWorkflowHandler,
     createMcpServer,
@@ -918,6 +919,96 @@ npm run test
             const suggestionsText = (result.suggestions as string[]).join("\n");
             expect(suggestionsText).toContain("phase:");
             expect(suggestionsText).toContain("Document");
+        });
+    });
+
+    describe("analyze_instruction_quality handler", () => {
+        it("should return quality analysis when instruction files exist with commands", async () => {
+            // Arrange
+            const packageJson = {
+                scripts: {
+                    test: "vitest run",
+                    build: "rspack build",
+                },
+            };
+            await writeFile(
+                join(testDir, "package.json"),
+                JSON.stringify(packageJson),
+            );
+
+            const githubDir = join(testDir, ".github");
+            await mkdir(githubDir, { recursive: true });
+            await writeFile(
+                join(githubDir, "copilot-instructions.md"),
+                [
+                    "## Validation",
+                    "",
+                    "```bash",
+                    "npm test",
+                    "```",
+                    "",
+                    "If tests fail, fix them before proceeding.",
+                    "",
+                ].join("\n"),
+            );
+
+            // Act
+            const response = await analyzeInstructionQualityHandler({
+                targetDir: testDir,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.success).toBe(true);
+            expect(result.overallQualityScore).toBeDefined();
+            expect(Array.isArray(result.commandScores)).toBe(true);
+            expect(Array.isArray(result.discoveredFiles)).toBe(true);
+            expect(Array.isArray(result.suggestions)).toBe(true);
+
+            const discoveredFiles = result.discoveredFiles as Array<{
+                filePath: string;
+                format: string;
+            }>;
+            expect(
+                discoveredFiles.some(
+                    (f) => f.format === "copilot-instructions",
+                ),
+            ).toBe(true);
+        });
+
+        it("should return zero score when no instruction files exist", async () => {
+            // Arrange - testDir has no instruction files
+
+            // Act
+            const response = await analyzeInstructionQualityHandler({
+                targetDir: testDir,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.success).toBe(true);
+            expect(result.overallQualityScore).toBe(0);
+            expect(Array.isArray(result.suggestions)).toBe(true);
+            expect(
+                (result.suggestions as string[]).some((s) =>
+                    s.includes("No agent instruction files found"),
+                ),
+            ).toBe(true);
+        });
+
+        it("should return error for non-existent directory", async () => {
+            // Arrange
+            const nonExistentDir = join(testDir, "does-not-exist");
+
+            // Act
+            const response = await analyzeInstructionQualityHandler({
+                targetDir: nonExistentDir,
+            });
+            const result = parseResult(response);
+
+            // Assert
+            expect(result.success).toBe(true);
+            expect(result.overallQualityScore).toBe(0);
         });
     });
 });

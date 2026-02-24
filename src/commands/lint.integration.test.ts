@@ -340,4 +340,105 @@ describe("Lint command end-to-end", () => {
             expect(stderr).not.toMatch(/^\s+at\s+/m);
         });
     });
+
+    describe("given a repository with instruction files and feedback loops", () => {
+        it("should analyze instruction quality with --instructions flag", async () => {
+            // Arrange
+            const repoDir = join(projectDir, "instruction-quality-repo");
+            const githubDir = join(repoDir, ".github");
+            await mkdir(githubDir, { recursive: true });
+            await writeFile(
+                join(githubDir, "copilot-instructions.md"),
+                [
+                    "## Validation",
+                    "",
+                    "```bash",
+                    "npm test",
+                    "```",
+                    "",
+                    "If tests fail, fix the failing assertions.",
+                    "",
+                ].join("\n"),
+            );
+            await writeFile(
+                join(repoDir, "package.json"),
+                JSON.stringify({
+                    scripts: {
+                        test: "vitest run",
+                        build: "rspack build",
+                    },
+                }),
+            );
+
+            // Act & Assert
+            await expect(
+                lintCommand.run({
+                    rawArgs: [],
+                    args: { _: [], instructions: true },
+                    cmd: lintCommand,
+                    data: { targetDir: repoDir, instructions: true },
+                }),
+            ).resolves.not.toThrow();
+        });
+    });
+
+    describe("given a repository with no instruction files", () => {
+        it("should complete without error with --instructions flag", async () => {
+            // Arrange
+            const repoDir = join(projectDir, "no-instructions-repo");
+            await mkdir(repoDir, { recursive: true });
+
+            // Act & Assert
+            await expect(
+                lintCommand.run({
+                    rawArgs: [],
+                    args: { _: [], instructions: true },
+                    cmd: lintCommand,
+                    data: { targetDir: repoDir, instructions: true },
+                }),
+            ).resolves.not.toThrow();
+        });
+    });
+
+    describe("given a repository with multiple instruction file formats", () => {
+        it("should discover and analyze all instruction files", async () => {
+            // Arrange
+            const repoDir = join(projectDir, "multi-format-repo");
+            const githubDir = join(repoDir, ".github");
+            const agentsDir = join(repoDir, ".github", "agents");
+            await mkdir(agentsDir, { recursive: true });
+            await writeFile(
+                join(githubDir, "copilot-instructions.md"),
+                "# Instructions\n\nRun `npm test`.\n",
+            );
+            await writeFile(
+                join(agentsDir, "reviewer.md"),
+                "---\nname: reviewer\n---\n# Reviewer\n",
+            );
+            await writeFile(
+                join(repoDir, "CLAUDE.md"),
+                "# Claude\n\nRun `npm test`.\n",
+            );
+            await writeFile(
+                join(repoDir, "AGENTS.md"),
+                "# Agents\n\nRun `npm test`.\n",
+            );
+            await writeFile(
+                join(repoDir, "package.json"),
+                JSON.stringify({
+                    scripts: { test: "vitest run" },
+                }),
+            );
+
+            // Act & Assert
+            await expect(
+                lintCommand.run({
+                    rawArgs: [],
+                    args: { _: [], instructions: true },
+                    cmd: lintCommand,
+                    data: { targetDir: repoDir, instructions: true },
+                }),
+            ).resolves.not.toThrow();
+        });
+    });
 });

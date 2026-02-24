@@ -270,6 +270,84 @@ describe("lint command", () => {
         });
     });
 
+    describe("when running with --instructions flag", () => {
+        describe("when no instruction files exist", () => {
+            it("should complete without error", async () => {
+                // Act & Assert
+                await expect(
+                    lintCommand.run({
+                        rawArgs: [],
+                        args: { _: [], instructions: true },
+                        cmd: lintCommand,
+                        data: { targetDir: testDir, instructions: true },
+                    }),
+                ).resolves.not.toThrow();
+            });
+        });
+
+        describe("when instruction files exist with well-documented commands", () => {
+            it("should complete without error", async () => {
+                // Arrange
+                const githubDir = join(testDir, ".github");
+                await mkdir(githubDir, { recursive: true });
+                await writeFile(
+                    join(githubDir, "copilot-instructions.md"),
+                    [
+                        "## Validation",
+                        "",
+                        "```bash",
+                        "npm test",
+                        "```",
+                        "",
+                        "If tests fail, fix them.",
+                        "",
+                    ].join("\n"),
+                );
+                await writeFile(
+                    join(testDir, "package.json"),
+                    JSON.stringify({
+                        scripts: { test: "vitest run" },
+                    }),
+                );
+
+                // Act & Assert
+                await expect(
+                    lintCommand.run({
+                        rawArgs: [],
+                        args: { _: [], instructions: true },
+                        cmd: lintCommand,
+                        data: { targetDir: testDir, instructions: true },
+                    }),
+                ).resolves.not.toThrow();
+            });
+        });
+
+        describe("when instruction files exist with --format json", () => {
+            it("should complete without error", async () => {
+                // Arrange
+                await writeFile(join(testDir, "AGENTS.md"), "# Agents\n");
+
+                // Act & Assert
+                await expect(
+                    lintCommand.run({
+                        rawArgs: [],
+                        args: {
+                            _: [],
+                            instructions: true,
+                            format: "json",
+                        },
+                        cmd: lintCommand,
+                        data: {
+                            targetDir: testDir,
+                            instructions: true,
+                            format: "json",
+                        },
+                    }),
+                ).resolves.not.toThrow();
+            });
+        });
+    });
+
     describe("when running with no flags", () => {
         it("should lint skills, agents, and instructions", async () => {
             // Act & Assert - empty directory should succeed for all targets
@@ -281,6 +359,23 @@ describe("lint command", () => {
                     data: { targetDir: testDir },
                 }),
             ).resolves.not.toThrow();
+        });
+    });
+
+    describe("when target directory contains path traversal", () => {
+        it("should reject the directory", async () => {
+            // Act & Assert
+            await expect(
+                lintCommand.run({
+                    rawArgs: [],
+                    args: { _: [], skills: true },
+                    cmd: lintCommand,
+                    data: {
+                        targetDir: "/tmp/../etc/passwd",
+                        skills: true,
+                    },
+                }),
+            ).rejects.toThrow("path traversal");
         });
     });
 });
