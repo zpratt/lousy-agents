@@ -101,9 +101,9 @@ runs:
 
         DIRECTORY='${{ inputs.directory }}'
 
-        # Validate directory contains only safe path characters
-        if [[ "$DIRECTORY" =~ [^a-zA-Z0-9_./-] ]]; then
-          echo "Error: directory input contains invalid characters: $DIRECTORY" >&2
+        # Validate directory contains only safe path characters and no traversal
+        if [[ "$DIRECTORY" =~ [^a-zA-Z0-9_./-] ]] || [[ "$DIRECTORY" =~ \.\. ]]; then
+          echo "Error: directory input contains invalid characters or path traversal: $DIRECTORY" >&2
           exit 1
         fi
 
