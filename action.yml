@@ -66,19 +66,48 @@ runs:
     - name: Install lousy-agents CLI
       if: inputs.version != 'local'
       shell: bash
-      run: npm install -g @lousy-agents/cli@${{ inputs.version }}
+      run: |
+        VERSION='${{ inputs.version }}'
+
+        # Allow only "latest" or semver-like versions (e.g., 1.2.3, 1.2.3-beta.1)
+        if [[ "$VERSION" != "latest" && ! "$VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}(-[0-9A-Za-z.-]+)?$ ]]; then
+          echo "Invalid version input for @lousy-agents/cli: $VERSION" >&2
+          exit 1
+        fi
+
+        npm install -g "@lousy-agents/cli@$VERSION"
 
     - name: Run lousy-agents lint
       shell: bash
       env:
         REVIEWDOG_GITHUB_API_TOKEN: ${{ inputs.github_token }}
       run: |
+        set -o pipefail
+
+        # When using a local CLI, ensure lousy-agents is available before running
+        if [ "${{ inputs.version }}" = "local" ]; then
+          if ! command -v lousy-agents >/dev/null 2>&1; then
+            echo "Error: 'lousy-agents' CLI not found in PATH while action input 'version' is set to 'local'." >&2
+            echo "Please install @lousy-agents/cli on the runner or set the 'version' input to a valid npm version." >&2
+            exit 1
+          fi
+        fi
+
         FLAGS=""
         if [ "${{ inputs.skills }}" = "true" ]; then FLAGS="$FLAGS --skills"; fi
         if [ "${{ inputs.agents }}" = "true" ]; then FLAGS="$FLAGS --agents"; fi
         if [ "${{ inputs.instructions }}" = "true" ]; then FLAGS="$FLAGS --instructions"; fi
+        FLAGS="${FLAGS# }"
 
-        cd "${{ inputs.directory }}"
+        DIRECTORY='${{ inputs.directory }}'
+
+        # Validate directory contains only safe path characters
+        if [[ "$DIRECTORY" =~ [^a-zA-Z0-9_./-] ]]; then
+          echo "Error: directory input contains invalid characters: $DIRECTORY" >&2
+          exit 1
+        fi
+
+        cd "$DIRECTORY"
 
         # Run lint and pipe to reviewdog
         lousy-agents lint $FLAGS --format rdjsonl | \

@@ -255,3 +255,63 @@ The `lint` command returns a non-zero exit code when errors are found, making it
 - name: Lint with reviewdog
   run: npx @lousy-agents/cli lint --format rdjsonl | reviewdog -f=rdjsonl
 ```
+
+---
+
+## GitHub Action
+
+A composite GitHub Action is available for automated inline PR review comments via [reviewdog](https://github.com/reviewdog/reviewdog). The action installs the CLI, runs `lousy-agents lint --format rdjsonl`, and pipes the output to reviewdog.
+
+### Quick Start
+
+```yaml
+- name: Lint with lousy-agents
+  uses: zpratt/lousy-agents@main
+  with:
+    github_token: ${{ github.token }}
+```
+
+When no target inputs are set, the action lints all targets (skills, agents, and instructions).
+
+### Inputs
+
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `github_token` | Yes | — | GitHub token for reviewdog API access |
+| `skills` | No | `false` | Lint skill frontmatter in `.github/skills/` |
+| `agents` | No | `false` | Lint agent frontmatter in `.github/agents/` |
+| `instructions` | No | `false` | Lint instruction quality |
+| `directory` | No | `.` | Target directory to lint |
+| `reporter` | No | `github-pr-check` | reviewdog reporter (`github-pr-check`, `github-pr-review`, `github-check`) |
+| `filter_mode` | No | `added` | reviewdog filter mode (`added`, `diff_context`, `file`, `nofilter`) |
+| `level` | No | `info` | Minimum severity level (`info`, `warning`, `error`) |
+| `version` | No | `latest` | `@lousy-agents/cli` version to install. Set to `local` to skip install. |
+
+### Examples
+
+Lint only agents with PR review comments:
+
+```yaml
+- name: Lint agents
+  uses: zpratt/lousy-agents@main
+  with:
+    github_token: ${{ github.token }}
+    agents: 'true'
+    reporter: 'github-pr-review'
+```
+
+Use a locally-built CLI (e.g., in the lousy-agents repo itself):
+
+```yaml
+- name: Build and link CLI
+  run: |
+    npm ci
+    npm run build
+    npm link
+
+- name: Lint with lousy-agents
+  uses: ./
+  with:
+    github_token: ${{ github.token }}
+    version: 'local'
+```
