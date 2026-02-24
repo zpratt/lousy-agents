@@ -47,6 +47,9 @@ jobs:
       - name: Link CLI
         run: npm link
 
+      - name: Verify CLI is available
+        run: lousy-agents --help
+
       - name: Lint with reviewdog
         uses: ./
         with:

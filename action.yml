@@ -9,7 +9,6 @@ inputs:
   github_token:
     description: 'GitHub token for reviewdog API access'
     required: true
-    default: ${{ github.token }}
   skills:
     description: 'Lint skill frontmatter in .github/skills/'
     required: false
@@ -81,9 +80,8 @@ runs:
 
         cd "${{ inputs.directory }}"
 
-        # Run lint and pipe to reviewdog; allow lint to exit non-zero
-        # so reviewdog still processes partial output
-        lousy-agents lint $FLAGS --format rdjsonl 2>/dev/null | \
+        # Run lint and pipe to reviewdog
+        lousy-agents lint $FLAGS --format rdjsonl | \
           reviewdog -f=rdjsonl \
             -name="lousy-agents-lint" \
             -reporter="${{ inputs.reporter }}" \
