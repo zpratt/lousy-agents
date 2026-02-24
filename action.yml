@@ -1,0 +1,91 @@
+---
+name: 'Lousy Agents Lint'
+description: >-
+  Lint agent instructions, agents, and skills with inline PR comments
+  via reviewdog. Uses the lousy-agents CLI rdjsonl output format.
+author: 'zpratt'
+
+inputs:
+  github_token:
+    description: 'GitHub token for reviewdog API access'
+    required: true
+    default: ${{ github.token }}
+  skills:
+    description: 'Lint skill frontmatter in .github/skills/'
+    required: false
+    default: 'false'
+  agents:
+    description: 'Lint agent frontmatter in .github/agents/'
+    required: false
+    default: 'false'
+  instructions:
+    description: 'Lint instruction quality across all instruction file formats'
+    required: false
+    default: 'false'
+  directory:
+    description: 'Target directory to lint (defaults to repository root)'
+    required: false
+    default: '.'
+  reporter:
+    description: >-
+      reviewdog reporter: github-pr-check (default), github-pr-review,
+      or github-check
+    required: false
+    default: 'github-pr-check'
+  filter_mode:
+    description: >-
+      reviewdog filter mode: added (default), diff_context, file, or nofilter
+    required: false
+    default: 'added'
+  level:
+    description: 'reviewdog minimum severity level: info, warning, or error'
+    required: false
+    default: 'info'
+  version:
+    description: >-
+      Version of @lousy-agents/cli to install from npm.
+      Set to "local" to skip installation and use the CLI already in PATH.
+    required: false
+    default: 'latest'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install reviewdog
+      # v1.5.0
+      uses: reviewdog/action-setup@d8a7baabd7f3e8544ee4dbde3ee41d0011c3a93f
+      with:
+        reviewdog_version: 'v0.21.0'
+
+    - name: Setup Node.js
+      if: inputs.version != 'local'
+      # v4.4.0
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: 'lts/*'
+
+    - name: Install lousy-agents CLI
+      if: inputs.version != 'local'
+      shell: bash
+      run: npm install -g @lousy-agents/cli@${{ inputs.version }}
+
+    - name: Run lousy-agents lint
+      shell: bash
+      env:
+        REVIEWDOG_GITHUB_API_TOKEN: ${{ inputs.github_token }}
+      run: |
+        FLAGS=""
+        if [ "${{ inputs.skills }}" = "true" ]; then FLAGS="$FLAGS --skills"; fi
+        if [ "${{ inputs.agents }}" = "true" ]; then FLAGS="$FLAGS --agents"; fi
+        if [ "${{ inputs.instructions }}" = "true" ]; then FLAGS="$FLAGS --instructions"; fi
+
+        cd "${{ inputs.directory }}"
+
+        # Run lint and pipe to reviewdog; allow lint to exit non-zero
+        # so reviewdog still processes partial output
+        lousy-agents lint $FLAGS --format rdjsonl 2>/dev/null | \
+          reviewdog -f=rdjsonl \
+            -name="lousy-agents-lint" \
+            -reporter="${{ inputs.reporter }}" \
+            -filter-mode="${{ inputs.filter_mode }}" \
+            -level="${{ inputs.level }}"
