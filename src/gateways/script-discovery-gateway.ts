@@ -9,7 +9,11 @@ import {
     determineScriptPhase,
     isScriptMandatory,
 } from "../entities/feedback-loop.js";
+import type { FeedbackLoopCommandsGateway } from "../use-cases/analyze-instruction-quality.js";
 import { fileExists } from "./file-system-utils.js";
+
+// Re-export port type for consumers
+export type { FeedbackLoopCommandsGateway };
 
 /**
  * Interface for package.json scripts section
@@ -86,7 +90,7 @@ export function createScriptDiscoveryGateway(): ScriptDiscoveryGateway {
  */
 export function createFeedbackLoopCommandsGateway(
     scriptGateway?: ScriptDiscoveryGateway,
-): { getMandatoryCommands(targetDir: string): Promise<string[]> } {
+): FeedbackLoopCommandsGateway {
     const gateway = scriptGateway ?? createScriptDiscoveryGateway();
     return {
         async getMandatoryCommands(targetDir: string) {
