@@ -487,6 +487,21 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             expect(output.result.parsingErrors).toHaveLength(1);
             expect(output.result.parsingErrors[0].filePath).toBe(badFile);
             expect(output.result.parsingErrors[0].error).toBeDefined();
+
+            // Assert - should emit diagnostic for parse error
+            const parseDiag = output.diagnostics.find(
+                (d) => d.ruleId === "instruction/parse-error",
+            );
+            expect(parseDiag).toBeDefined();
+            expect(parseDiag?.filePath).toBe(badFile);
+            expect(parseDiag?.severity).toBe("warning");
+
+            // Assert - should include suggestion about skipped files
+            expect(
+                output.result.suggestions.some((s) =>
+                    s.includes("could not be parsed"),
+                ),
+            ).toBe(true);
         });
     });
 

@@ -171,12 +171,13 @@ export class AnalyzeInstructionQualityUseCase {
                 );
                 fileStructures.set(file.filePath, structure);
             } catch (error) {
+                const errorMessage =
+                    error instanceof Error
+                        ? error.message
+                        : "Unknown parsing error";
                 parsingErrors.push({
                     filePath: file.filePath,
-                    error:
-                        error instanceof Error
-                            ? error.message
-                            : "Unknown parsing error",
+                    error: errorMessage,
                 });
             }
         }
@@ -184,6 +185,18 @@ export class AnalyzeInstructionQualityUseCase {
         // Score each mandatory command across all files
         const commandScores: CommandQualityScores[] = [];
         const diagnostics: LintDiagnostic[] = [];
+
+        // Emit diagnostics for parsing errors
+        for (const pe of parsingErrors) {
+            diagnostics.push({
+                filePath: pe.filePath,
+                line: 1,
+                severity: "warning",
+                message: `Failed to parse file: ${pe.error}`,
+                ruleId: "instruction/parse-error",
+                target: "instruction",
+            });
+        }
 
         for (const command of mandatoryCommands) {
             const bestAnalysis = this.findBestScore(
@@ -240,6 +253,15 @@ export class AnalyzeInstructionQualityUseCase {
 
         // Generate suggestions
         const suggestions = this.generateSuggestions(commandScores);
+
+        if (parsingErrors.length > 0) {
+            const skippedFiles = parsingErrors
+                .map((pe) => pe.filePath)
+                .join(", ");
+            suggestions.push(
+                `${parsingErrors.length} file(s) could not be parsed and were skipped: ${skippedFiles}. Analysis may be incomplete.`,
+            );
+        }
 
         return {
             result: {

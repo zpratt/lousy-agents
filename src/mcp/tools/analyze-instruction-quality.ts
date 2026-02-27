@@ -2,6 +2,7 @@
  * MCP tool handler for analyzing instruction quality.
  */
 
+import { fileExists } from "../../gateways/file-system-utils.js";
 import { createInstructionFileDiscoveryGateway } from "../../gateways/instruction-file-discovery-gateway.js";
 import { createMarkdownAstGateway } from "../../gateways/markdown-ast-gateway.js";
 import { createFeedbackLoopCommandsGateway } from "../../gateways/script-discovery-gateway.js";
@@ -21,6 +22,10 @@ export const analyzeInstructionQualityHandler: ToolHandler = async (
     args: ToolArgs,
 ) => {
     const dir = args.targetDir || process.cwd();
+
+    if (!(await fileExists(dir))) {
+        return errorResponse(`Target directory does not exist: ${dir}`);
+    }
 
     try {
         const discoveryGateway = createInstructionFileDiscoveryGateway();

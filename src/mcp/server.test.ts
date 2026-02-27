@@ -1007,8 +1007,8 @@ npm run test
             const result = parseResult(response);
 
             // Assert
-            expect(result.success).toBe(true);
-            expect(result.overallQualityScore).toBe(0);
+            expect(result.success).toBe(false);
+            expect(result.error).toContain("does not exist");
         });
     });
 });
