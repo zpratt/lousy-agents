@@ -407,22 +407,27 @@ describe("Lint command end-to-end", () => {
             const githubDir = join(repoDir, ".github");
             const agentsDir = join(repoDir, ".github", "agents");
             await mkdir(agentsDir, { recursive: true });
-            await writeFile(
-                join(githubDir, "copilot-instructions.md"),
-                "# Instructions\n\nRun `npm test`.\n",
-            );
-            await writeFile(
-                join(agentsDir, "reviewer.md"),
-                "---\nname: reviewer\n---\n# Reviewer\n",
-            );
-            await writeFile(
-                join(repoDir, "CLAUDE.md"),
-                "# Claude\n\nRun `npm test`.\n",
-            );
-            await writeFile(
-                join(repoDir, "AGENTS.md"),
-                "# Agents\n\nRun `npm test`.\n",
-            );
+            const instructionFiles = [
+                {
+                    path: join(githubDir, "copilot-instructions.md"),
+                    content: "# Instructions\n\nRun `npm test`.\n",
+                },
+                {
+                    path: join(agentsDir, "reviewer.md"),
+                    content: "---\nname: reviewer\n---\n# Reviewer\n",
+                },
+                {
+                    path: join(repoDir, "CLAUDE.md"),
+                    content: "# Claude\n\nRun `npm test`.\n",
+                },
+                {
+                    path: join(repoDir, "AGENTS.md"),
+                    content: "# Agents\n\nRun `npm test`.\n",
+                },
+            ];
+            for (const file of instructionFiles) {
+                await writeFile(file.path, file.content);
+            }
             await writeFile(
                 join(repoDir, "package.json"),
                 JSON.stringify({
