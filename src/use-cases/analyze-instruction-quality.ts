@@ -182,6 +182,9 @@ export class AnalyzeInstructionQualityUseCase {
             }
         }
 
+        // Sort parsing errors for deterministic output
+        parsingErrors.sort((a, b) => a.filePath.localeCompare(b.filePath));
+
         // Score each mandatory command across all files
         const commandScores: CommandQualityScores[] = [];
         const diagnostics: LintDiagnostic[] = [];
