@@ -7,6 +7,7 @@ import type {
     CommandQualityScores,
     DiscoveredInstructionFile,
     InstructionQualityResult,
+    ParsingError,
 } from "../entities/instruction-quality.js";
 import {
     CONDITIONAL_KEYWORDS,
@@ -154,6 +155,7 @@ export class AnalyzeInstructionQualityUseCase {
                     suggestions: [
                         "No agent instruction files found. Supported formats: .github/copilot-instructions.md, .github/instructions/*.md, .github/agents/*.md, AGENTS.md, CLAUDE.md",
                     ],
+                    parsingErrors: [],
                 },
                 diagnostics: [],
             };
@@ -161,20 +163,43 @@ export class AnalyzeInstructionQualityUseCase {
 
         // Analyze each file
         const fileStructures = new Map<string, MarkdownStructure>();
+        const parsingErrors: ParsingError[] = [];
         for (const file of discoveredFiles) {
             try {
                 const structure = await this.astGateway.parseFile(
                     file.filePath,
                 );
                 fileStructures.set(file.filePath, structure);
-            } catch {
-                // Skip files that can't be parsed
+            } catch (error) {
+                const errorMessage =
+                    error instanceof Error
+                        ? error.message
+                        : "Unknown parsing error";
+                parsingErrors.push({
+                    filePath: file.filePath,
+                    error: errorMessage,
+                });
             }
         }
+
+        // Sort parsing errors for deterministic output
+        parsingErrors.sort((a, b) => a.filePath.localeCompare(b.filePath));
 
         // Score each mandatory command across all files
         const commandScores: CommandQualityScores[] = [];
         const diagnostics: LintDiagnostic[] = [];
+
+        // Emit diagnostics for parsing errors
+        for (const pe of parsingErrors) {
+            diagnostics.push({
+                filePath: pe.filePath,
+                line: 1,
+                severity: "warning",
+                message: `Failed to parse file: ${pe.error}`,
+                ruleId: "instruction/parse-error",
+                target: "instruction",
+            });
+        }
 
         for (const command of mandatoryCommands) {
             const bestAnalysis = this.findBestScore(
@@ -232,12 +257,22 @@ export class AnalyzeInstructionQualityUseCase {
         // Generate suggestions
         const suggestions = this.generateSuggestions(commandScores);
 
+        if (parsingErrors.length > 0) {
+            const skippedFiles = parsingErrors
+                .map((pe) => pe.filePath)
+                .join(", ");
+            suggestions.push(
+                `${parsingErrors.length} file(s) could not be parsed and were skipped: ${skippedFiles}. Analysis may be incomplete.`,
+            );
+        }
+
         return {
             result: {
                 discoveredFiles,
                 commandScores,
                 overallQualityScore,
                 suggestions,
+                parsingErrors,
             },
             diagnostics,
         };
