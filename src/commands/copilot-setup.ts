@@ -30,6 +30,7 @@ interface CopilotSetupRulesetGateway extends RulesetGateway {
     getRepoInfo(
         targetDir: string,
     ): Promise<{ owner: string; repo: string } | null>;
+    hasAdvancedSecurity(owner: string, repo: string): Promise<boolean>;
 }
 
 type PromptFunction = (
@@ -245,7 +246,14 @@ async function checkAndPromptRuleset(
     }
 
     try {
-        const payload = buildCopilotReviewRulesetPayload();
+        const advancedSecurityEnabled =
+            await rulesetGateway.hasAdvancedSecurity(
+                repoInfo.owner,
+                repoInfo.repo,
+            );
+        const payload = buildCopilotReviewRulesetPayload({
+            advancedSecurityEnabled,
+        });
         await rulesetGateway.createRuleset(
             repoInfo.owner,
             repoInfo.repo,

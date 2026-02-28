@@ -129,6 +129,30 @@ export class OctokitRulesetGateway implements RulesetGateway {
         }
     }
 
+    async hasAdvancedSecurity(
+        owner: string,
+        repo: string,
+    ): Promise<boolean> {
+        if (!this.octokit) {
+            return false;
+        }
+        try {
+            const { data } = await this.octokit.rest.repos.get({ owner, repo });
+            const securityAnalysis = (
+                data as {
+                    // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                    security_and_analysis?: {
+                        // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                        advanced_security?: { status: string };
+                    };
+                }
+            ).security_and_analysis;
+            return securityAnalysis?.advanced_security?.status === "enabled";
+        } catch {
+            return false;
+        }
+    }
+
     async listRulesets(owner: string, repo: string): Promise<Ruleset[]> {
         if (!this.octokit) {
             throw new Error("Not authenticated");

@@ -17,6 +17,7 @@ function createMockOctokit(
         getAuthenticated?: () => Promise<unknown>;
         getRepoRulesets?: (args: unknown) => Promise<unknown>;
         createRepoRuleset?: (args: unknown) => Promise<unknown>;
+        get?: (args: unknown) => Promise<unknown>;
     } = {},
 ): Octokit {
     return {
@@ -32,6 +33,9 @@ function createMockOctokit(
                     vi.fn().mockResolvedValue({ data: [] }),
                 createRepoRuleset:
                     overrides.createRepoRuleset ??
+                    vi.fn().mockResolvedValue({ data: {} }),
+                get:
+                    overrides.get ??
                     vi.fn().mockResolvedValue({ data: {} }),
             },
         },
@@ -412,6 +416,119 @@ describe("GitHub Ruleset Gateway", () => {
                             payload,
                         ),
                     ).rejects.toThrow("Not authenticated");
+                });
+            });
+        });
+
+        describe("hasAdvancedSecurity", () => {
+            describe("when the repository has advanced security enabled", () => {
+                it("should return true", async () => {
+                    // Arrange
+                    const owner = chance.word();
+                    const repo = chance.word();
+                    const mockGet = vi.fn().mockResolvedValue({
+                        data: {
+                            // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                            security_and_analysis: {
+                                // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                                advanced_security: { status: "enabled" },
+                            },
+                        },
+                    });
+                    const mockOctokit = createMockOctokit({ get: mockGet });
+                    const gateway = new OctokitRulesetGateway(mockOctokit);
+
+                    // Act
+                    const result = await gateway.hasAdvancedSecurity(
+                        owner,
+                        repo,
+                    );
+
+                    // Assert
+                    expect(result).toBe(true);
+                    expect(mockGet).toHaveBeenCalledWith({ owner, repo });
+                });
+            });
+
+            describe("when the repository has advanced security disabled", () => {
+                it("should return false", async () => {
+                    // Arrange
+                    const mockGet = vi.fn().mockResolvedValue({
+                        data: {
+                            // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                            security_and_analysis: {
+                                // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                                advanced_security: { status: "disabled" },
+                            },
+                        },
+                    });
+                    const mockOctokit = createMockOctokit({ get: mockGet });
+                    const gateway = new OctokitRulesetGateway(mockOctokit);
+
+                    // Act
+                    const result = await gateway.hasAdvancedSecurity(
+                        chance.word(),
+                        chance.word(),
+                    );
+
+                    // Assert
+                    expect(result).toBe(false);
+                });
+            });
+
+            describe("when the response does not include security_and_analysis", () => {
+                it("should return false", async () => {
+                    // Arrange
+                    const mockGet = vi.fn().mockResolvedValue({
+                        data: {},
+                    });
+                    const mockOctokit = createMockOctokit({ get: mockGet });
+                    const gateway = new OctokitRulesetGateway(mockOctokit);
+
+                    // Act
+                    const result = await gateway.hasAdvancedSecurity(
+                        chance.word(),
+                        chance.word(),
+                    );
+
+                    // Assert
+                    expect(result).toBe(false);
+                });
+            });
+
+            describe("when the API call fails", () => {
+                it("should return false", async () => {
+                    // Arrange
+                    const mockGet = vi
+                        .fn()
+                        .mockRejectedValue(new Error("HTTP 403: Forbidden"));
+                    const mockOctokit = createMockOctokit({ get: mockGet });
+                    const gateway = new OctokitRulesetGateway(mockOctokit);
+
+                    // Act
+                    const result = await gateway.hasAdvancedSecurity(
+                        chance.word(),
+                        chance.word(),
+                    );
+
+                    // Assert
+                    expect(result).toBe(false);
+                });
+            });
+
+            describe("when no Octokit instance is available", () => {
+                it("should return false", async () => {
+                    // Arrange
+                    const gateway = new OctokitRulesetGateway(null);
+
+                    // Act
+                    const result = await gateway.hasAdvancedSecurity(
+                        chance.word(),
+                        chance.word(),
+                    );
+
+                    // Assert
+                    expect(result).toBe(false);
                 });
             });
         });
