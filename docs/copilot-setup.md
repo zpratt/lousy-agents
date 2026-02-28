@@ -1,6 +1,6 @@
 # `copilot-setup` Command
 
-Analyzes your project and automatically generates a GitHub Actions workflow (`copilot-setup-steps.yml`) that configures the environment for GitHub Copilot.
+Analyzes your project and automatically generates a GitHub Actions workflow (`copilot-setup-steps.yml`) that configures the environment for GitHub Copilot. It also checks for and optionally creates a Copilot PR review ruleset.
 
 ## Features
 
@@ -9,6 +9,7 @@ Analyzes your project and automatically generates a GitHub Actions workflow (`co
 - **Smart Merging**: Combines detected environment with existing workflow patterns
 - **Incremental Updates**: Only adds missing setup steps to existing workflows
 - **Package Manager Detection**: Detects lockfiles and adds dependency install steps
+- **PR Review Ruleset**: Checks for and creates Copilot PR review rulesets with code scanning rules based on your repository's security configuration
 - **Zero Configuration**: Works out of the box for common project setups
 
 This workflow ensures GitHub Copilot has the same environment context as your CI/CD pipelines, improving code suggestions and reducing hallucinations.
@@ -83,6 +84,62 @@ npx @lousy-agents/cli copilot-setup
 # Add .python-version file
 npx @lousy-agents/cli copilot-setup
 # Adds actions/setup-python to existing workflow
+```
+
+## Copilot PR Review Ruleset
+
+After generating or updating the workflow, the command checks your repository for a Copilot PR review ruleset and offers to create one if none exists.
+
+### What It Does
+
+1. **Authenticates** with GitHub using `GH_TOKEN`, `GITHUB_TOKEN`, or `gh auth token`
+2. **Checks** if an active ruleset with Copilot code review or code scanning rules already exists
+3. **Prompts** you to create a ruleset if none is found
+4. **Detects** whether [GitHub Advanced Security (GHAS)](https://docs.github.com/en/get-started/learning-about-github/about-github-advanced-security) is enabled on your repository
+5. **Creates** a ruleset tailored to your repository's security configuration
+
+### Ruleset Behavior
+
+The created ruleset always includes a **Copilot code review** rule that enables automated PR reviews. The inclusion of **code scanning** rules depends on whether GitHub Advanced Security is enabled:
+
+| Repository Configuration | Ruleset Rules                                                       |
+|--------------------------|----------------------------------------------------------------------|
+| GHAS **not** enabled     | `copilot_code_review` only                                           |
+| GHAS **enabled**         | `copilot_code_review` + `code_scanning` (CodeQL and Copilot Autofix) |
+
+When GHAS is enabled, the code scanning rule includes:
+
+- **CodeQL** — static analysis for security vulnerabilities
+- **Copilot Autofix** — AI-powered security fix suggestions
+
+### Authentication
+
+Ruleset management requires a GitHub token with repository admin permissions. The command resolves tokens in this order:
+
+1. `GH_TOKEN` environment variable
+2. `GITHUB_TOKEN` environment variable
+3. `gh auth token` CLI fallback
+
+If no token is available, the command skips the ruleset check with a warning.
+
+### Examples
+
+```bash
+# Set up with GitHub token
+export GH_TOKEN=ghp_your_token_here
+npx @lousy-agents/cli copilot-setup
+```
+
+When prompted:
+
+```
+No Copilot PR review ruleset found. Would you like to create one? (y/n)
+```
+
+Answering `y` creates the ruleset. The command reports what was created:
+
+```
+✓ Created Copilot PR review ruleset: "Copilot Code Review"
 ```
 
 ## Help

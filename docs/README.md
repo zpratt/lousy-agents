@@ -77,6 +77,7 @@ The `copilot-setup` command analyzes your project and generates GitHub Actions w
 - Workflow analysis and merging
 - Version file support
 - Generated workflow examples
+- Copilot PR review ruleset creation (with GHAS-aware code scanning)
 
 ### MCP Server
 
