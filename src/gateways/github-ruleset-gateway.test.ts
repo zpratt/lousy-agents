@@ -34,9 +34,7 @@ function createMockOctokit(
                 createRepoRuleset:
                     overrides.createRepoRuleset ??
                     vi.fn().mockResolvedValue({ data: {} }),
-                get:
-                    overrides.get ??
-                    vi.fn().mockResolvedValue({ data: {} }),
+                get: overrides.get ?? vi.fn().mockResolvedValue({ data: {} }),
             },
         },
     } as never;
