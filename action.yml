@@ -1,0 +1,158 @@
+---
+name: 'Lousy Agents Lint'
+description: >-
+  Lint instructions, agents, and skills via reviewdog. Produces inline
+  check annotations (github-pr-check, default) or PR review comments
+  (github-pr-review) depending on the reporter input.
+author: 'zpratt'
+
+inputs:
+  github_token:
+    description: 'GitHub token for reviewdog API access'
+    required: true
+  skills:
+    description: 'Lint skill frontmatter in .github/skills/'
+    required: false
+    default: 'false'
+  agents:
+    description: 'Lint agent frontmatter in .github/agents/'
+    required: false
+    default: 'false'
+  instructions:
+    description: 'Lint instruction quality across all instruction file formats'
+    required: false
+    default: 'false'
+  directory:
+    description: 'Target directory to lint (defaults to repository root)'
+    required: false
+    default: '.'
+  reporter:
+    description: >-
+      reviewdog reporter: github-pr-check (default), github-pr-review,
+      or github-check
+    required: false
+    default: 'github-pr-check'
+  filter_mode:
+    description: >-
+      reviewdog filter mode: added (default), diff_context, file, or nofilter
+    required: false
+    default: 'added'
+  level:
+    description: 'reviewdog minimum severity level: info, warning, or error'
+    required: false
+    default: 'info'
+  version:
+    description: >-
+      Version of @lousy-agents/cli to install from npm.
+      Set to "local" to skip installation and use the CLI already in PATH.
+    required: false
+    default: 'latest'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install reviewdog
+      # v1.5.0
+      uses: reviewdog/action-setup@d8a7baabd7f3e8544ee4dbde3ee41d0011c3a93f
+      with:
+        reviewdog_version: 'v0.21.0'
+
+    - name: Setup Node.js
+      if: inputs.version != 'local'
+      # v4.4.0
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: 'lts/*'
+
+    - name: Install lousy-agents CLI
+      if: inputs.version != 'local'
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+      run: |
+        VERSION="$INPUT_VERSION"
+
+        # Allow only "latest" or fully pinned semver versions (x.y.z, optionally with prerelease, e.g., 1.2.3, 1.2.3-beta.1)
+        if [[ "$VERSION" != "latest" && ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+          echo "Invalid version input for @lousy-agents/cli: $VERSION" >&2
+          exit 1
+        fi
+
+        npm install -g "@lousy-agents/cli@$VERSION"
+
+    - name: Run lousy-agents lint
+      shell: bash
+      env:
+        REVIEWDOG_GITHUB_API_TOKEN: ${{ inputs.github_token }}
+        INPUT_DIRECTORY: ${{ inputs.directory }}
+        INPUT_REPORTER: ${{ inputs.reporter }}
+        INPUT_FILTER_MODE: ${{ inputs.filter_mode }}
+        INPUT_LEVEL: ${{ inputs.level }}
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_SKILLS: ${{ inputs.skills }}
+        INPUT_AGENTS: ${{ inputs.agents }}
+        INPUT_INSTRUCTIONS: ${{ inputs.instructions }}
+      run: |
+        set -euo pipefail
+
+        # When using a local CLI, ensure lousy-agents is available before running
+        if [ "$INPUT_VERSION" = "local" ]; then
+          if ! command -v lousy-agents >/dev/null 2>&1; then
+            echo "Error: 'lousy-agents' CLI not found in PATH while action input 'version' is set to 'local'." >&2
+            echo "Please install @lousy-agents/cli on the runner or set the 'version' input to a valid npm version." >&2
+            exit 1
+          fi
+        fi
+
+        FLAGS=""
+        if [ "$INPUT_SKILLS" = "true" ]; then FLAGS="$FLAGS --skills"; fi
+        if [ "$INPUT_AGENTS" = "true" ]; then FLAGS="$FLAGS --agents"; fi
+        if [ "$INPUT_INSTRUCTIONS" = "true" ]; then FLAGS="$FLAGS --instructions"; fi
+        FLAGS="${FLAGS# }"
+
+        DIRECTORY="$INPUT_DIRECTORY"
+
+        # Reject empty directory input
+        if [[ -z "$DIRECTORY" ]]; then
+          echo "Error: directory input must not be empty. Provide a relative path within the workspace." >&2
+          exit 1
+        fi
+
+        # Reject absolute paths, home-relative paths, cd -, and path traversal
+        if [[ "$DIRECTORY" =~ [^a-zA-Z0-9_./-] ]] || [[ "$DIRECTORY" =~ \.\. ]] \
+           || [[ "$DIRECTORY" == /* ]] || [[ "$DIRECTORY" == ~* ]] || [[ "$DIRECTORY" == "-" ]]; then
+          echo "Error: directory input must be a relative path within the workspace: $DIRECTORY" >&2
+          exit 1
+        fi
+
+        if ! cd "$DIRECTORY"; then
+          echo "Error: failed to change directory to: $DIRECTORY" >&2
+          exit 1
+        fi
+
+        # Validate reporter against allowlist
+        case "$INPUT_REPORTER" in
+          github-pr-check|github-pr-review|github-check) ;;
+          *) echo "Error: invalid reporter: $INPUT_REPORTER. Must be github-pr-check, github-pr-review, or github-check." >&2; exit 1 ;;
+        esac
+
+        # Validate filter_mode against allowlist
+        case "$INPUT_FILTER_MODE" in
+          added|diff_context|file|nofilter) ;;
+          *) echo "Error: invalid filter_mode: $INPUT_FILTER_MODE. Must be added, diff_context, file, or nofilter." >&2; exit 1 ;;
+        esac
+
+        # Validate level against allowlist
+        case "$INPUT_LEVEL" in
+          info|warning|error) ;;
+          *) echo "Error: invalid level: $INPUT_LEVEL. Must be info, warning, or error." >&2; exit 1 ;;
+        esac
+
+        # Run lint and pipe to reviewdog
+        # shellcheck disable=SC2086 -- FLAGS is intentionally unquoted; it only contains hardcoded flag strings
+        lousy-agents lint $FLAGS --format rdjsonl | \
+          reviewdog -f=rdjsonl \
+            -name="lousy-agents-lint" \
+            -reporter="$INPUT_REPORTER" \
+            -filter-mode="$INPUT_FILTER_MODE" \
+            -level="$INPUT_LEVEL"

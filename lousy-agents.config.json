@@ -1,0 +1,9 @@
+{
+    "lint": {
+        "rules": {
+            "agents": {
+                "agent/invalid-name-format": "warn"
+            }
+        }
+    }
+}
