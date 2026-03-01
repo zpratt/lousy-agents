@@ -16,6 +16,7 @@ export interface SkillLintDiagnostic {
     readonly severity: SkillLintSeverity;
     readonly message: string;
     readonly field?: string;
+    readonly ruleId: string;
 }
 
 /**

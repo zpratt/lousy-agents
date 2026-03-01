@@ -7,6 +7,7 @@ import type {
     CommandQualityScores,
     DiscoveredInstructionFile,
     InstructionQualityResult,
+    InstructionSuggestion,
     ParsingError,
 } from "../entities/instruction-quality.js";
 import {
@@ -153,7 +154,10 @@ export class AnalyzeInstructionQualityUseCase {
                     commandScores: [],
                     overallQualityScore: 0,
                     suggestions: [
-                        "No agent instruction files found. Supported formats: .github/copilot-instructions.md, .github/instructions/*.md, .github/agents/*.md, AGENTS.md, CLAUDE.md",
+                        {
+                            message:
+                                "No agent instruction files found. Supported formats: .github/copilot-instructions.md, .github/instructions/*.md, .github/agents/*.md, AGENTS.md, CLAUDE.md",
+                        },
                     ],
                     parsingErrors: [],
                 },
@@ -261,9 +265,10 @@ export class AnalyzeInstructionQualityUseCase {
             const skippedFiles = parsingErrors
                 .map((pe) => pe.filePath)
                 .join(", ");
-            suggestions.push(
-                `${parsingErrors.length} file(s) could not be parsed and were skipped: ${skippedFiles}. Analysis may be incomplete.`,
-            );
+            suggestions.push({
+                message: `${parsingErrors.length} file(s) could not be parsed and were skipped: ${skippedFiles}. Analysis may be incomplete.`,
+                ruleId: "instruction/parse-error",
+            });
         }
 
         return {
@@ -598,17 +603,18 @@ export class AnalyzeInstructionQualityUseCase {
 
     private generateSuggestions(
         commandScores: readonly CommandQualityScores[],
-    ): string[] {
-        const suggestions: string[] = [];
+    ): InstructionSuggestion[] {
+        const suggestions: InstructionSuggestion[] = [];
 
         const lowStructural = commandScores.filter(
             (s) => s.structuralContext === 0 && s.bestSourceFile !== "",
         );
         if (lowStructural.length > 0) {
             const names = lowStructural.map((s) => s.commandName).join(", ");
-            suggestions.push(
-                `Commands not under a dedicated section: ${names}. Add a heading like "## Validation" or "## Feedback Loop" above these commands.`,
-            );
+            suggestions.push({
+                message: `Commands not under a dedicated section: ${names}. Add a heading like "## Validation" or "## Feedback Loop" above these commands.`,
+                ruleId: "instruction/command-outside-section",
+            });
         }
 
         const lowExecution = commandScores.filter(
@@ -616,9 +622,10 @@ export class AnalyzeInstructionQualityUseCase {
         );
         if (lowExecution.length > 0) {
             const names = lowExecution.map((s) => s.commandName).join(", ");
-            suggestions.push(
-                `Commands not in code blocks: ${names}. Document these commands in fenced code blocks for clarity.`,
-            );
+            suggestions.push({
+                message: `Commands not in code blocks: ${names}. Document these commands in fenced code blocks for clarity.`,
+                ruleId: "instruction/command-not-in-code-block",
+            });
         }
 
         const lowLoop = commandScores.filter(
@@ -629,17 +636,18 @@ export class AnalyzeInstructionQualityUseCase {
         );
         if (lowLoop.length > 0) {
             const names = lowLoop.map((s) => s.commandName).join(", ");
-            suggestions.push(
-                `Commands missing error handling guidance: ${names}. Add instructions for what to do if the command fails.`,
-            );
+            suggestions.push({
+                message: `Commands missing error handling guidance: ${names}. Add instructions for what to do if the command fails.`,
+                ruleId: "instruction/missing-error-handling",
+            });
         }
 
         const notFound = commandScores.filter((s) => s.bestSourceFile === "");
         if (notFound.length > 0) {
             const names = notFound.map((s) => s.commandName).join(", ");
-            suggestions.push(
-                `Commands not found in any instruction file: ${names}. Document these feedback loop commands in your instruction files.`,
-            );
+            suggestions.push({
+                message: `Commands not found in any instruction file: ${names}. Document these feedback loop commands in your instruction files.`,
+            });
         }
 
         return suggestions;

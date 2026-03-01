@@ -156,6 +156,7 @@ describe("LintSkillFrontmatterUseCase", () => {
             expect(nameDiagnostic).toBeDefined();
             expect(nameDiagnostic?.severity).toBe("error");
             expect(nameDiagnostic?.line).toBe(1);
+            expect(nameDiagnostic?.ruleId).toBe("skill/missing-name");
         });
     });
 
@@ -189,6 +190,7 @@ describe("LintSkillFrontmatterUseCase", () => {
             );
             expect(descDiagnostic).toBeDefined();
             expect(descDiagnostic?.severity).toBe("error");
+            expect(descDiagnostic?.ruleId).toBe("skill/missing-description");
         });
     });
 
@@ -231,6 +233,7 @@ describe("LintSkillFrontmatterUseCase", () => {
             expect(nameDiagnostic).toBeDefined();
             expect(nameDiagnostic?.severity).toBe("error");
             expect(nameDiagnostic?.line).toBe(2);
+            expect(nameDiagnostic?.ruleId).toBe("skill/name-mismatch");
         });
     });
 
@@ -268,6 +271,83 @@ describe("LintSkillFrontmatterUseCase", () => {
                 (d) => d.field === "name" && d.severity === "error",
             );
             expect(nameDiagnostic).toBeDefined();
+            expect(nameDiagnostic?.ruleId).toBe("skill/invalid-name-format");
+        });
+    });
+
+    describe("given a skill with name of wrong type", () => {
+        it("should return skill/invalid-name-format instead of skill/missing-name", async () => {
+            // Arrange
+            const skillName = "my-skill";
+            const filePath = `/repo/.github/skills/${skillName}/SKILL.md`;
+            const discovered: DiscoveredSkillFile[] = [{ filePath, skillName }];
+            const frontmatter: ParsedFrontmatter = {
+                data: { name: 123, description: chance.sentence() },
+                fieldLines: new Map([
+                    ["name", 2],
+                    ["description", 3],
+                ]),
+                frontmatterStartLine: 1,
+            };
+            const gateway = createMockGateway({
+                discoverSkills: vi.fn().mockResolvedValue(discovered),
+                readSkillFileContent: vi
+                    .fn()
+                    .mockResolvedValue(
+                        "---\nname: 123\ndescription: A skill\n---\n",
+                    ),
+                parseFrontmatter: vi.fn().mockReturnValue(frontmatter),
+            });
+            const useCase = new LintSkillFrontmatterUseCase(gateway);
+
+            // Act
+            const result = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert
+            expect(result.results[0].valid).toBe(false);
+            const nameDiagnostic = result.results[0].diagnostics.find(
+                (d) => d.field === "name" && d.severity === "error",
+            );
+            expect(nameDiagnostic).toBeDefined();
+            expect(nameDiagnostic?.ruleId).toBe("skill/invalid-name-format");
+        });
+    });
+
+    describe("given a skill with description of wrong type", () => {
+        it("should return skill/invalid-description instead of skill/missing-description", async () => {
+            // Arrange
+            const skillName = "my-skill";
+            const filePath = `/repo/.github/skills/${skillName}/SKILL.md`;
+            const discovered: DiscoveredSkillFile[] = [{ filePath, skillName }];
+            const frontmatter: ParsedFrontmatter = {
+                data: { name: skillName, description: 42 },
+                fieldLines: new Map([
+                    ["name", 2],
+                    ["description", 3],
+                ]),
+                frontmatterStartLine: 1,
+            };
+            const gateway = createMockGateway({
+                discoverSkills: vi.fn().mockResolvedValue(discovered),
+                readSkillFileContent: vi
+                    .fn()
+                    .mockResolvedValue(
+                        "---\nname: my-skill\ndescription: 42\n---\n",
+                    ),
+                parseFrontmatter: vi.fn().mockReturnValue(frontmatter),
+            });
+            const useCase = new LintSkillFrontmatterUseCase(gateway);
+
+            // Act
+            const result = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert
+            expect(result.results[0].valid).toBe(false);
+            const descDiagnostic = result.results[0].diagnostics.find(
+                (d) => d.field === "description" && d.severity === "error",
+            );
+            expect(descDiagnostic).toBeDefined();
+            expect(descDiagnostic?.ruleId).toBe("skill/invalid-description");
         });
     });
 
@@ -299,6 +379,12 @@ describe("LintSkillFrontmatterUseCase", () => {
             expect(warnings.length).toBeGreaterThan(0);
             const warningFields = warnings.map((w) => w.field);
             expect(warningFields).toContain("allowed-tools");
+            const allowedToolsWarning = warnings.find(
+                (w) => w.field === "allowed-tools",
+            );
+            expect(allowedToolsWarning?.ruleId).toBe(
+                "skill/missing-allowed-tools",
+            );
         });
     });
 
@@ -327,6 +413,9 @@ describe("LintSkillFrontmatterUseCase", () => {
             expect(result.results[0].diagnostics[0].message).toContain(
                 "Missing YAML frontmatter",
             );
+            expect(result.results[0].diagnostics[0].ruleId).toBe(
+                "skill/missing-frontmatter",
+            );
         });
     });
 
@@ -354,6 +443,9 @@ describe("LintSkillFrontmatterUseCase", () => {
             expect(result.results[0].diagnostics[0].severity).toBe("error");
             expect(result.results[0].diagnostics[0].message).toContain(
                 "Invalid YAML frontmatter",
+            );
+            expect(result.results[0].diagnostics[0].ruleId).toBe(
+                "skill/invalid-frontmatter",
             );
         });
     });
@@ -550,6 +642,9 @@ describe("LintSkillFrontmatterUseCase", () => {
             expect(badResult.diagnostics[0].severity).toBe("error");
             expect(badResult.diagnostics[0].message).toContain(
                 "Invalid YAML frontmatter",
+            );
+            expect(badResult.diagnostics[0].ruleId).toBe(
+                "skill/invalid-frontmatter",
             );
 
             // Second skill should be valid

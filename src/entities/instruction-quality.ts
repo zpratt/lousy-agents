@@ -32,12 +32,18 @@ export interface CommandQualityScores {
     readonly bestSourceFile: string;
 }
 
+/** A structured suggestion with an optional rule ID for filtering */
+export interface InstructionSuggestion {
+    readonly message: string;
+    readonly ruleId?: string;
+}
+
 /** Result of analyzing instruction quality for a repository */
 export interface InstructionQualityResult {
     readonly discoveredFiles: readonly DiscoveredInstructionFile[];
     readonly commandScores: readonly CommandQualityScores[];
     readonly overallQualityScore: number;
-    readonly suggestions: readonly string[];
+    readonly suggestions: readonly InstructionSuggestion[];
     readonly parsingErrors: readonly ParsingError[];
 }
 

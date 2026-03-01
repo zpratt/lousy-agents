@@ -78,7 +78,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             // Assert
             expect(output.result.overallQualityScore).toBe(0);
             expect(output.result.suggestions).toHaveLength(1);
-            expect(output.result.suggestions[0]).toContain(
+            expect(output.result.suggestions[0].message).toContain(
                 "No agent instruction files found",
             );
         });
@@ -499,7 +499,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             // Assert - should include suggestion about skipped files
             expect(
                 output.result.suggestions.some((s) =>
-                    s.includes("could not be parsed"),
+                    s.message.includes("could not be parsed"),
                 ),
             ).toBe(true);
         });
@@ -558,7 +558,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             expect(output.result.overallQualityScore).toBe(0);
             expect(
                 output.result.suggestions.some((s) =>
-                    s.includes("not found in any instruction file"),
+                    s.message.includes("not found in any instruction file"),
                 ),
             ).toBe(true);
         });
@@ -657,12 +657,12 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             // Assert - suggestions should mention code blocks and error handling
             expect(
                 output.result.suggestions.some((s) =>
-                    s.includes("not in code blocks"),
+                    s.message.includes("not in code blocks"),
                 ),
             ).toBe(true);
             expect(
                 output.result.suggestions.some((s) =>
-                    s.includes("error handling guidance"),
+                    s.message.includes("error handling guidance"),
                 ),
             ).toBe(true);
         });
