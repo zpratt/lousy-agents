@@ -78,7 +78,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             // Assert
             expect(output.result.overallQualityScore).toBe(0);
             expect(output.result.suggestions).toHaveLength(1);
-            expect(output.result.suggestions[0]).toContain(
+            expect(output.result.suggestions[0].message).toContain(
                 "No agent instruction files found",
             );
         });
@@ -371,6 +371,300 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                     d.message.includes("inline code"),
             );
             expect(errorHandlingDiag).toBeDefined();
+        });
+    });
+
+    describe("given no mandatory commands discovered", () => {
+        it("should return quality score of 0 with empty command scores", async () => {
+            // Arrange
+            const filePath = "/repo/AGENTS.md";
+            const files: DiscoveredInstructionFile[] = [
+                { filePath, format: "agents-md" },
+            ];
+
+            const structure: MarkdownStructure = {
+                headings: [],
+                codeBlocks: [],
+                inlineCodes: [],
+                ast: {
+                    type: "root",
+                    children: [],
+                } as unknown as Root,
+            };
+
+            const structures = new Map([[filePath, structure]]);
+            const discoveryGateway = createMockDiscoveryGateway(files);
+            const astGateway = createMockAstGateway(structures);
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act
+            const output = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert
+            expect(output.result.overallQualityScore).toBe(0);
+            expect(output.result.commandScores).toHaveLength(0);
+            expect(output.result.discoveredFiles).toHaveLength(1);
+        });
+    });
+
+    describe("given a file that fails to parse", () => {
+        it("should skip the file and continue analyzing remaining files", async () => {
+            // Arrange
+            const goodFile = "/repo/AGENTS.md";
+            const badFile = "/repo/CLAUDE.md";
+            const files: DiscoveredInstructionFile[] = [
+                { filePath: badFile, format: "claude-md" },
+                { filePath: goodFile, format: "agents-md" },
+            ];
+
+            const goodStructure: MarkdownStructure = {
+                headings: [
+                    {
+                        text: "Validation",
+                        depth: 2,
+                        position: { line: 1 },
+                    },
+                ],
+                codeBlocks: [
+                    {
+                        value: "npm test",
+                        lang: "bash",
+                        position: { line: 3 },
+                        nodeIndex: 1,
+                    },
+                ],
+                inlineCodes: [],
+                ast: {
+                    type: "root",
+                    children: [
+                        {
+                            type: "heading",
+                            depth: 2,
+                            children: [{ type: "text", value: "Validation" }],
+                        },
+                        {
+                            type: "code",
+                            value: "npm test",
+                            lang: "bash",
+                        },
+                        {
+                            type: "paragraph",
+                            children: [
+                                {
+                                    type: "text",
+                                    value: "If tests fail, fix them.",
+                                },
+                            ],
+                        },
+                    ],
+                } as unknown as Root,
+            };
+
+            const structures = new Map([[goodFile, goodStructure]]);
+            const keywordResults = new Map([[1, true]]);
+            const discoveryGateway = createMockDiscoveryGateway(files);
+            const astGateway = createMockAstGateway(structures, keywordResults);
+            const commandsGateway = createMockCommandsGateway(["npm test"]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act
+            const output = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert - should still analyze the good file
+            expect(output.result.overallQualityScore).toBe(100);
+            expect(output.result.commandScores[0].compositeScore).toBe(1);
+
+            // Assert - should track parsing errors
+            expect(output.result.parsingErrors).toHaveLength(1);
+            expect(output.result.parsingErrors[0].filePath).toBe(badFile);
+            expect(output.result.parsingErrors[0].error).toBeDefined();
+
+            // Assert - should emit diagnostic for parse error
+            const parseDiag = output.diagnostics.find(
+                (d) => d.ruleId === "instruction/parse-error",
+            );
+            expect(parseDiag).toBeDefined();
+            expect(parseDiag?.filePath).toBe(badFile);
+            expect(parseDiag?.severity).toBe("warning");
+
+            // Assert - should include suggestion about skipped files
+            expect(
+                output.result.suggestions.some((s) =>
+                    s.message.includes("could not be parsed"),
+                ),
+            ).toBe(true);
+        });
+    });
+
+    describe("given a command not found in any instruction file", () => {
+        it("should assign zero scores and include in suggestions", async () => {
+            // Arrange
+            const filePath = "/repo/AGENTS.md";
+            const files: DiscoveredInstructionFile[] = [
+                { filePath, format: "agents-md" },
+            ];
+
+            const structure: MarkdownStructure = {
+                headings: [],
+                codeBlocks: [],
+                inlineCodes: [],
+                ast: {
+                    type: "root",
+                    children: [
+                        {
+                            type: "paragraph",
+                            children: [
+                                {
+                                    type: "text",
+                                    value: "No relevant commands here.",
+                                },
+                            ],
+                        },
+                    ],
+                } as unknown as Root,
+            };
+
+            const structures = new Map([[filePath, structure]]);
+            const discoveryGateway = createMockDiscoveryGateway(files);
+            const astGateway = createMockAstGateway(structures);
+            const commandsGateway = createMockCommandsGateway([
+                "npm test",
+                "npm run build",
+            ]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act
+            const output = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert
+            expect(output.result.commandScores).toHaveLength(2);
+            for (const score of output.result.commandScores) {
+                expect(score.compositeScore).toBe(0);
+                expect(score.bestSourceFile).toBe("");
+            }
+            expect(output.result.overallQualityScore).toBe(0);
+            expect(
+                output.result.suggestions.some((s) =>
+                    s.message.includes("not found in any instruction file"),
+                ),
+            ).toBe(true);
+        });
+    });
+
+    describe("given commands with mixed quality across dimensions", () => {
+        it("should generate suggestions for each dimension with deficient scores", async () => {
+            // Arrange
+            const filePath = "/repo/.github/copilot-instructions.md";
+            const files: DiscoveredInstructionFile[] = [
+                { filePath, format: "copilot-instructions" },
+            ];
+
+            const structure: MarkdownStructure = {
+                headings: [
+                    {
+                        text: "Validation",
+                        depth: 2,
+                        position: { line: 1 },
+                    },
+                ],
+                codeBlocks: [
+                    {
+                        value: "npm test",
+                        lang: "bash",
+                        position: { line: 3 },
+                        nodeIndex: 1,
+                    },
+                ],
+                inlineCodes: [],
+                ast: {
+                    type: "root",
+                    children: [
+                        {
+                            type: "heading",
+                            depth: 2,
+                            children: [{ type: "text", value: "Validation" }],
+                        },
+                        {
+                            type: "code",
+                            value: "npm test",
+                            lang: "bash",
+                        },
+                        {
+                            type: "paragraph",
+                            children: [
+                                {
+                                    type: "text",
+                                    value: "Then run the next step.",
+                                },
+                            ],
+                        },
+                        {
+                            type: "paragraph",
+                            children: [
+                                {
+                                    type: "text",
+                                    value: "Make sure to run npm run build as well.",
+                                },
+                            ],
+                        },
+                    ],
+                } as unknown as Root,
+            };
+
+            const structures = new Map([[filePath, structure]]);
+            const discoveryGateway = createMockDiscoveryGateway(files);
+            const astGateway = createMockAstGateway(structures);
+            const commandsGateway = createMockCommandsGateway([
+                "npm test",
+                "npm run build",
+            ]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act
+            const output = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert - npm test: structural=1, execution=1, loop=0 (no conditional keywords)
+            const testScore = output.result.commandScores.find(
+                (s) => s.commandName === "npm test",
+            );
+            expect(testScore?.structuralContext).toBe(1);
+            expect(testScore?.executionClarity).toBe(1);
+            expect(testScore?.loopCompleteness).toBe(0);
+
+            // Assert - npm run build: in prose only
+            const buildScore = output.result.commandScores.find(
+                (s) => s.commandName === "npm run build",
+            );
+            expect(buildScore?.executionClarity).toBe(0);
+
+            // Assert - suggestions should mention code blocks and error handling
+            expect(
+                output.result.suggestions.some((s) =>
+                    s.message.includes("not in code blocks"),
+                ),
+            ).toBe(true);
+            expect(
+                output.result.suggestions.some((s) =>
+                    s.message.includes("error handling guidance"),
+                ),
+            ).toBe(true);
         });
     });
 

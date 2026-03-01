@@ -26,6 +26,18 @@ const RulesetSchema = z.object({
     rules: z.array(RulesetRuleSchema).optional(),
 });
 
+const RepoSecuritySchema = z.object({
+    // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+    security_and_analysis: z
+        .object({
+            // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+            advanced_security: z.object({
+                status: z.string(),
+            }),
+        })
+        .optional(),
+});
+
 export type ExecFunction = (
     command: string,
     args: string[],
@@ -126,6 +138,25 @@ export class OctokitRulesetGateway implements RulesetGateway {
             return parseRepoFromRemoteUrl(stdout.trim());
         } catch {
             return null;
+        }
+    }
+
+    async hasAdvancedSecurity(owner: string, repo: string): Promise<boolean> {
+        if (!this.octokit) {
+            return false;
+        }
+        try {
+            const { data } = await this.octokit.rest.repos.get({ owner, repo });
+            const parsed = RepoSecuritySchema.safeParse(data);
+            if (!parsed.success) {
+                return false;
+            }
+            return (
+                parsed.data.security_and_analysis?.advanced_security?.status ===
+                "enabled"
+            );
+        } catch {
+            return false;
         }
     }
 

@@ -35,6 +35,7 @@ interface MockRulesetGateway {
     getRepoInfo(
         targetDir: string,
     ): Promise<{ owner: string; repo: string } | null>;
+    hasAdvancedSecurity(owner: string, repo: string): Promise<boolean>;
     listRulesets(owner: string, repo: string): Promise<unknown[]>;
     createRuleset(owner: string, repo: string, payload: unknown): Promise<void>;
 }
@@ -46,6 +47,8 @@ function createMockRulesetGateway(
         isAuthenticated:
             overrides.isAuthenticated ?? (() => Promise.resolve(false)),
         getRepoInfo: overrides.getRepoInfo ?? (() => Promise.resolve(null)),
+        hasAdvancedSecurity:
+            overrides.hasAdvancedSecurity ?? (() => Promise.resolve(false)),
         listRulesets: overrides.listRulesets ?? (() => Promise.resolve([])),
         createRuleset:
             overrides.createRuleset ?? (() => Promise.resolve(undefined)),
@@ -523,6 +526,86 @@ jobs:
                 repo,
                 expect.objectContaining({ name: "Copilot Code Review" }),
             );
+        });
+
+        it("should include code_scanning rule with CodeQL when advanced security is enabled", async () => {
+            // Arrange
+            const owner = chance.word();
+            const repo = chance.word();
+            const createRuleset = vi.fn().mockResolvedValue(undefined);
+            const mockGateway = createMockRulesetGateway({
+                isAuthenticated: () => Promise.resolve(true),
+                getRepoInfo: () => Promise.resolve({ owner, repo }),
+                hasAdvancedSecurity: () => Promise.resolve(true),
+                listRulesets: () => Promise.resolve([]),
+                createRuleset,
+            });
+            const mockPrompt = vi.fn().mockResolvedValue(true);
+
+            // Act
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: mockGateway,
+                    prompt: mockPrompt,
+                },
+            });
+
+            // Assert
+            const payload = createRuleset.mock.calls[0][2] as {
+                rules: Array<{
+                    type: string;
+                    parameters?: Record<string, unknown>;
+                }>;
+            };
+            const codeScanningRule = payload.rules.find(
+                (r) => r.type === "code_scanning",
+            );
+            expect(codeScanningRule).toBeDefined();
+            const tools = codeScanningRule?.parameters
+                ?.code_scanning_tools as Array<{ tool: string }>;
+            expect(tools).toContainEqual(
+                expect.objectContaining({ tool: "CodeQL" }),
+            );
+        });
+
+        it("should not include code_scanning rule when advanced security is not enabled", async () => {
+            // Arrange
+            const owner = chance.word();
+            const repo = chance.word();
+            const createRuleset = vi.fn().mockResolvedValue(undefined);
+            const mockGateway = createMockRulesetGateway({
+                isAuthenticated: () => Promise.resolve(true),
+                getRepoInfo: () => Promise.resolve({ owner, repo }),
+                hasAdvancedSecurity: () => Promise.resolve(false),
+                listRulesets: () => Promise.resolve([]),
+                createRuleset,
+            });
+            const mockPrompt = vi.fn().mockResolvedValue(true);
+
+            // Act
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: mockGateway,
+                    prompt: mockPrompt,
+                },
+            });
+
+            // Assert
+            const payload = createRuleset.mock.calls[0][2] as {
+                rules: Array<{ type: string }>;
+            };
+            const codeScanningRules = payload.rules.filter(
+                (r) => r.type === "code_scanning",
+            );
+            expect(codeScanningRules).toHaveLength(0);
         });
 
         it("should skip ruleset creation when user declines", async () => {

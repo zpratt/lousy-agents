@@ -1,8 +1,3 @@
-/**
- * Use case for linting GitHub Copilot Agent Skill frontmatter.
- * Validates required and recommended fields, name format, and directory naming.
- */
-
 import { z } from "zod";
 import type {
     DiscoveredSkillFile,
@@ -11,10 +6,6 @@ import type {
     SkillLintResult,
 } from "../entities/skill.js";
 
-/**
- * Zod schema for validating agent skill frontmatter.
- * Based on the agentskills.io specification.
- */
 export const AgentSkillFrontmatterSchema = z.object({
     name: z
         .string()
@@ -40,30 +31,25 @@ export const AgentSkillFrontmatterSchema = z.object({
     "allowed-tools": z.string().optional(),
 });
 
-/**
- * Recommended (optional) fields that produce warnings when missing.
- */
 const RECOMMENDED_FIELDS = ["allowed-tools"] as const;
 
-/**
- * Port for skill lint gateway operations.
- */
+const RECOMMENDED_FIELD_RULE_IDS: Record<
+    (typeof RECOMMENDED_FIELDS)[number],
+    string
+> = {
+    "allowed-tools": "skill/missing-allowed-tools",
+} as const;
+
 export interface SkillLintGateway {
     discoverSkills(targetDir: string): Promise<DiscoveredSkillFile[]>;
     readSkillFileContent(filePath: string): Promise<string>;
     parseFrontmatter(content: string): ParsedFrontmatter | null;
 }
 
-/**
- * Input for the lint skill frontmatter use case.
- */
 export interface LintSkillFrontmatterInput {
     targetDir: string;
 }
 
-/**
- * Output from the lint skill frontmatter use case.
- */
 export interface LintSkillFrontmatterOutput {
     results: SkillLintResult[];
     totalSkills: number;
@@ -71,9 +57,6 @@ export interface LintSkillFrontmatterOutput {
     totalWarnings: number;
 }
 
-/**
- * Use case for linting skill frontmatter across a repository.
- */
 export class LintSkillFrontmatterUseCase {
     constructor(private readonly gateway: SkillLintGateway) {}
 
@@ -137,18 +120,24 @@ export class LintSkillFrontmatterUseCase {
                 line: 1,
                 severity: "error",
                 message: errorMessage,
+                ruleId: "skill/invalid-frontmatter",
             });
         }
 
         if (!parsed) {
             if (diagnostics.length === 0) {
-                const message = hasFrontmatterDelimiters(content)
+                const hasDelimiters = hasFrontmatterDelimiters(content);
+                const message = hasDelimiters
                     ? "Invalid YAML frontmatter. The content between --- delimiters could not be parsed as valid YAML."
                     : "Missing YAML frontmatter. Skill files must begin with --- delimited YAML frontmatter.";
+                const ruleId = hasDelimiters
+                    ? "skill/invalid-frontmatter"
+                    : "skill/missing-frontmatter";
                 diagnostics.push({
                     line: 1,
                     severity: "error",
                     message,
+                    ruleId,
                 });
             }
 
@@ -180,7 +169,6 @@ export class LintSkillFrontmatterUseCase {
     ): SkillLintDiagnostic[] {
         const diagnostics: SkillLintDiagnostic[] = [];
 
-        // Validate against Zod schema
         const result = AgentSkillFrontmatterSchema.safeParse(parsed.data);
 
         if (!result.success) {
@@ -191,16 +179,22 @@ export class LintSkillFrontmatterUseCase {
                       parsed.frontmatterStartLine)
                     : parsed.frontmatterStartLine;
 
+                const ruleId = this.getRuleIdForField(
+                    fieldName,
+                    issue.code,
+                    parsed.data,
+                );
+
                 diagnostics.push({
                     line,
                     severity: "error",
                     message: issue.message,
                     field: fieldName,
+                    ruleId,
                 });
             }
         }
 
-        // Check name matches parent directory
         if (result.success && result.data.name !== parentDirName) {
             const nameLine =
                 parsed.fieldLines.get("name") ?? parsed.frontmatterStartLine;
@@ -209,10 +203,10 @@ export class LintSkillFrontmatterUseCase {
                 severity: "error",
                 message: `Frontmatter name '${result.data.name}' must match parent directory name '${parentDirName}'`,
                 field: "name",
+                ruleId: "skill/name-mismatch",
             });
         }
 
-        // Check recommended fields
         for (const field of RECOMMENDED_FIELDS) {
             if (parsed.data[field] === undefined) {
                 diagnostics.push({
@@ -220,17 +214,39 @@ export class LintSkillFrontmatterUseCase {
                     severity: "warning",
                     message: `Recommended field '${field}' is missing`,
                     field,
+                    ruleId: RECOMMENDED_FIELD_RULE_IDS[field],
                 });
             }
         }
 
         return diagnostics;
     }
+
+    private getRuleIdForField(
+        fieldName: string | undefined,
+        issueCode: string,
+        inputData: Record<string, unknown>,
+    ): string {
+        // Check the actual input data for field presence rather than
+        // relying on Zod message text which can change across versions.
+        const isMissing =
+            issueCode === "invalid_type" &&
+            (fieldName === undefined || !Object.hasOwn(inputData, fieldName));
+
+        if (fieldName === "name") {
+            return isMissing
+                ? "skill/missing-name"
+                : "skill/invalid-name-format";
+        }
+        if (fieldName === "description") {
+            return isMissing
+                ? "skill/missing-description"
+                : "skill/invalid-description";
+        }
+        return "skill/invalid-frontmatter";
+    }
 }
 
-/**
- * Checks whether content has opening and closing --- frontmatter delimiters.
- */
 function hasFrontmatterDelimiters(content: string): boolean {
     const lines = content.split("\n");
     if (lines[0]?.trim() !== "---") {

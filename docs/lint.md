@@ -10,7 +10,64 @@ Validates agent skills, custom agents, and instruction files. Discovers lint tar
 - **Instruction Quality Analysis**: Scores feedback loop documentation across three dimensions (structural context, execution clarity, loop completeness)
 - **Line-Level Diagnostics**: Reports errors and warnings with exact line numbers
 - **Multiple Output Formats**: Human-readable (default), JSON, and reviewdog-compatible JSON Lines
+- **Configurable Rules**: Customize rule severity per-project via `lousy-agents.config.ts`
 - **Exit Codes**: Returns non-zero exit code when errors are found, enabling CI integration
+
+## Configuration
+
+The lint command supports per-rule severity configuration through a `lousy-agents.config.ts` file (or any [c12-supported format](https://github.com/unjs/c12#readme)) placed in your project root.
+
+### Configuration File
+
+Create a configuration file in your project root:
+
+```typescript
+// lousy-agents.config.ts
+export default {
+  lint: {
+    rules: {
+      agents: {
+        "agent/invalid-name-format": "warn",
+        "agent/name-mismatch": "off",
+      },
+      instructions: {
+        "instruction/command-outside-section": "off",
+      },
+      skills: {
+        "skill/missing-allowed-tools": "error",
+      },
+    },
+  },
+};
+```
+
+### Severity Levels
+
+| Severity | Behavior |
+|----------|----------|
+| `"error"` | Emits an error diagnostic and causes a non-zero exit code |
+| `"warn"` | Emits a warning diagnostic but does not affect the exit code |
+| `"off"` | Suppresses the diagnostic entirely |
+
+### Default Behavior
+
+When no configuration file is found, or when a rule is not specified in the configuration, the lint command uses the default severity for each rule. Defaults match the current hardcoded behavior:
+
+- **Agent rules**: All default to `"error"` except `agent/invalid-field` which defaults to `"warn"`
+- **Instruction rules**: All default to `"warn"`
+- **Skill rules**: All default to `"error"` except `skill/missing-allowed-tools` which defaults to `"warn"`
+
+### Configuration File Formats
+
+The configuration is loaded using [c12](https://github.com/unjs/c12) with the name `lousy-agents`. Supported formats include:
+
+- `lousy-agents.config.ts`
+- `lousy-agents.config.mjs`
+- `lousy-agents.config.js`
+- `.lousy-agentsrc.json`
+- `.lousy-agentsrc.yaml`
+
+> **Security note**: Configuration files (`.ts`, `.mjs`, `.js`) execute code at load time. Treat them with the same rigor as source code. The lint command only loads configuration from the target directory being linted.
 
 ## Usage
 
@@ -68,6 +125,19 @@ Validates YAML frontmatter in `.github/skills/*/SKILL.md` files.
 - Name should match the skill's directory name
 - YAML frontmatter must be present and valid
 
+### Rule IDs
+
+| Rule ID | Default Severity | Description |
+|---------|-----------------|-------------|
+| `skill/missing-frontmatter` | `error` | No YAML frontmatter found |
+| `skill/invalid-frontmatter` | `error` | YAML frontmatter present but could not be parsed |
+| `skill/missing-name` | `error` | Name field is missing |
+| `skill/invalid-name-format` | `error` | Name is not lowercase alphanumeric with hyphens or exceeds 64 chars |
+| `skill/name-mismatch` | `error` | Name does not match the parent directory name |
+| `skill/missing-description` | `error` | Description field is missing |
+| `skill/invalid-description` | `error` | Description is whitespace-only, too long, or wrong type |
+| `skill/missing-allowed-tools` | `warn` | Recommended `allowed-tools` field is missing |
+
 ### Examples
 
 #### Successful Skill Lint
@@ -102,15 +172,16 @@ Validates YAML frontmatter in `.github/agents/*.md` files.
 
 ### Rule IDs
 
-| Rule ID | Description |
-|---------|-------------|
-| `agent/missing-frontmatter` | No YAML frontmatter found |
-| `agent/invalid-frontmatter` | YAML frontmatter present but could not be parsed |
-| `agent/missing-name` | Name field is missing |
-| `agent/invalid-name-format` | Name is not lowercase-with-hyphens or exceeds 64 chars |
-| `agent/name-mismatch` | Name does not match the filename stem |
-| `agent/missing-description` | Description field is missing |
-| `agent/invalid-description` | Description is whitespace-only, too long, or wrong type |
+| Rule ID | Default Severity | Description |
+|---------|-----------------|-------------|
+| `agent/missing-frontmatter` | `error` | No YAML frontmatter found |
+| `agent/invalid-frontmatter` | `error` | YAML frontmatter present but could not be parsed |
+| `agent/missing-name` | `error` | Name field is missing |
+| `agent/invalid-name-format` | `error` | Name is not lowercase alphanumeric with hyphens or exceeds 64 chars |
+| `agent/name-mismatch` | `error` | Name does not match the filename stem |
+| `agent/missing-description` | `error` | Description field is missing |
+| `agent/invalid-description` | `error` | Description is whitespace-only, too long, or wrong type |
+| `agent/invalid-field` | `warn` | Other field validation failure |
 
 ### Examples
 
@@ -156,6 +227,15 @@ Each feedback loop command is scored on three dimensions (0 or 1 each):
 | **Structural Context** | Command appears under a matched heading (e.g., `## Validation`, `## Commands`) |
 | **Execution Clarity** | Command appears inside a code block (fenced or inline) |
 | **Loop Completeness** | Conditional keywords (`if`, `fail`, `fix`, `error`, etc.) appear near the code block |
+
+### Rule IDs
+
+| Rule ID | Default Severity | Description |
+|---------|-----------------|-------------|
+| `instruction/parse-error` | `warn` | Instruction file could not be parsed |
+| `instruction/command-not-in-code-block` | `warn` | Command appears only in prose, not in a code block |
+| `instruction/command-outside-section` | `warn` | Command is not under a dedicated feedback loop section |
+| `instruction/missing-error-handling` | `warn` | Command has no error handling guidance |
 
 The **composite score** per command is the average of the three dimensions. The **overall quality score** (0–100%) is the average of all mandatory command composite scores.
 

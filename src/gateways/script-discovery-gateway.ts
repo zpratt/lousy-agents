@@ -9,7 +9,11 @@ import {
     determineScriptPhase,
     isScriptMandatory,
 } from "../entities/feedback-loop.js";
+import type { FeedbackLoopCommandsGateway } from "../use-cases/analyze-instruction-quality.js";
 import { fileExists } from "./file-system-utils.js";
+
+// Re-export port type for consumers
+export type { FeedbackLoopCommandsGateway };
 
 /**
  * Interface for package.json scripts section
@@ -79,4 +83,19 @@ export class FileSystemScriptDiscoveryGateway
  */
 export function createScriptDiscoveryGateway(): ScriptDiscoveryGateway {
     return new FileSystemScriptDiscoveryGateway();
+}
+
+/**
+ * Creates a FeedbackLoopCommandsGateway that discovers mandatory commands from package.json scripts.
+ */
+export function createFeedbackLoopCommandsGateway(
+    scriptGateway?: ScriptDiscoveryGateway,
+): FeedbackLoopCommandsGateway {
+    const gateway = scriptGateway ?? createScriptDiscoveryGateway();
+    return {
+        async getMandatoryCommands(targetDir: string) {
+            const scripts = await gateway.discoverScripts(targetDir);
+            return scripts.filter((s) => s.isMandatory).map((s) => s.name);
+        },
+    };
 }

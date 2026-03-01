@@ -2,7 +2,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { lintCommand } from "./lint.js";
 
 const chance = new Chance();
@@ -270,6 +270,84 @@ describe("lint command", () => {
         });
     });
 
+    describe("when running with --instructions flag", () => {
+        describe("when no instruction files exist", () => {
+            it("should complete without error", async () => {
+                // Act & Assert
+                await expect(
+                    lintCommand.run({
+                        rawArgs: [],
+                        args: { _: [], instructions: true },
+                        cmd: lintCommand,
+                        data: { targetDir: testDir, instructions: true },
+                    }),
+                ).resolves.not.toThrow();
+            });
+        });
+
+        describe("when instruction files exist with well-documented commands", () => {
+            it("should complete without error", async () => {
+                // Arrange
+                const githubDir = join(testDir, ".github");
+                await mkdir(githubDir, { recursive: true });
+                await writeFile(
+                    join(githubDir, "copilot-instructions.md"),
+                    [
+                        "## Validation",
+                        "",
+                        "```bash",
+                        "npm test",
+                        "```",
+                        "",
+                        "If tests fail, fix them.",
+                        "",
+                    ].join("\n"),
+                );
+                await writeFile(
+                    join(testDir, "package.json"),
+                    JSON.stringify({
+                        scripts: { test: "vitest run" },
+                    }),
+                );
+
+                // Act & Assert
+                await expect(
+                    lintCommand.run({
+                        rawArgs: [],
+                        args: { _: [], instructions: true },
+                        cmd: lintCommand,
+                        data: { targetDir: testDir, instructions: true },
+                    }),
+                ).resolves.not.toThrow();
+            });
+        });
+
+        describe("when instruction files exist with --format json", () => {
+            it("should complete without error", async () => {
+                // Arrange
+                await writeFile(join(testDir, "AGENTS.md"), "# Agents\n");
+
+                // Act & Assert
+                await expect(
+                    lintCommand.run({
+                        rawArgs: [],
+                        args: {
+                            _: [],
+                            instructions: true,
+                            format: "json",
+                        },
+                        cmd: lintCommand,
+                        data: {
+                            targetDir: testDir,
+                            instructions: true,
+                            format: "json",
+                        },
+                    }),
+                ).resolves.not.toThrow();
+            });
+        });
+    });
+
     describe("when running with no flags", () => {
         it("should lint skills, agents, and instructions", async () => {
             // Act & Assert - empty directory should succeed for all targets
@@ -281,6 +359,220 @@ describe("lint command", () => {
                     data: { targetDir: testDir },
                 }),
             ).resolves.not.toThrow();
+        });
+    });
+
+    describe("when target directory contains path traversal", () => {
+        it("should reject the directory", async () => {
+            // Act & Assert
+            await expect(
+                lintCommand.run({
+                    rawArgs: [],
+                    args: { _: [], skills: true },
+                    cmd: lintCommand,
+                    data: {
+                        targetDir: "/tmp/../etc/passwd",
+                        skills: true,
+                    },
+                }),
+            ).rejects.toThrow("path traversal");
+        });
+    });
+
+    describe("when lint config sets a rule to off", () => {
+        it("should suppress diagnostics for that rule", async () => {
+            // Arrange
+            const skillDir = join(testDir, ".github", "skills", "my-skill");
+            await mkdir(skillDir, { recursive: true });
+            await writeFile(
+                join(skillDir, "SKILL.md"),
+                "---\nname: my-skill\ndescription: A test skill\n---\n# My Skill\n",
+            );
+            await writeFile(
+                join(testDir, "lousy-agents.config.ts"),
+                `export default {
+                    lint: {
+                        rules: {
+                            skills: {
+                                "skill/missing-allowed-tools": "off",
+                            },
+                        },
+                    },
+                };`,
+            );
+
+            // Act - use JSON format to capture and verify diagnostics
+            const writeSpy = vi
+                .spyOn(process.stdout, "write")
+                .mockImplementation(() => true);
+
+            let capturedCalls: unknown[][] = [];
+            try {
+                await lintCommand.run({
+                    rawArgs: [],
+                    args: { _: [], skills: true, format: "json" },
+                    cmd: lintCommand,
+                    data: {
+                        targetDir: testDir,
+                        skills: true,
+                        format: "json",
+                    },
+                });
+                capturedCalls = [...writeSpy.mock.calls];
+            } finally {
+                writeSpy.mockRestore();
+            }
+
+            // Assert - JSON formatter outputs a flat array of LintDiagnostic objects
+            const jsonOutput = capturedCalls
+                .map((call) => String(call[0]))
+                .join("");
+            const diagnostics = JSON.parse(jsonOutput) as {
+                target: string;
+                ruleId?: string;
+            }[];
+            const offRuleDiagnostics = diagnostics.filter(
+                (d) =>
+                    d.target === "skill" &&
+                    d.ruleId === "skill/missing-allowed-tools",
+            );
+            expect(offRuleDiagnostics).toHaveLength(0);
+            expect(process.exitCode).toBeUndefined();
+        });
+    });
+
+    describe("when lint config demotes an error to warn", () => {
+        it("should exit with code 0 when only warnings remain", async () => {
+            // Arrange - skill with missing name (normally an error)
+            const skillDir = join(testDir, ".github", "skills", "my-skill");
+            await mkdir(skillDir, { recursive: true });
+            await writeFile(
+                join(skillDir, "SKILL.md"),
+                "---\ndescription: Missing name field\n---\n# my-skill\n",
+            );
+            await writeFile(
+                join(testDir, "lousy-agents.config.ts"),
+                `export default {
+                    lint: {
+                        rules: {
+                            skills: {
+                                "skill/missing-name": "warn",
+                                "skill/missing-allowed-tools": "off",
+                            },
+                        },
+                    },
+                };`,
+            );
+
+            // Act
+            await lintCommand.run({
+                rawArgs: [],
+                args: { _: [], skills: true },
+                cmd: lintCommand,
+                data: { targetDir: testDir, skills: true },
+            });
+
+            // Assert - should pass with warnings only
+            expect(process.exitCode).toBeUndefined();
+        });
+    });
+
+    describe("when lint config has an invalid severity value", () => {
+        it("should exit with code 1 and log an error", async () => {
+            // Arrange
+            await writeFile(
+                join(testDir, "lousy-agents.config.ts"),
+                `export default {
+                    lint: {
+                        rules: {
+                            skills: {
+                                "skill/missing-name": "fatal",
+                            },
+                        },
+                    },
+                };`,
+            );
+
+            // Act
+            await lintCommand.run({
+                rawArgs: [],
+                args: { _: [], skills: true },
+                cmd: lintCommand,
+                data: { targetDir: testDir, skills: true },
+            });
+
+            // Assert
+            expect(process.exitCode).toBe(1);
+        });
+    });
+
+    describe("when instruction rule is set to off", () => {
+        it("should suppress corresponding instruction diagnostics and suggestions", async () => {
+            // Arrange - instruction file with command not in code block
+            const githubDir = join(testDir, ".github");
+            await mkdir(githubDir, { recursive: true });
+            await writeFile(
+                join(githubDir, "copilot-instructions.md"),
+                ["## Validation", "", "Run npm test to validate.", ""].join(
+                    "\n",
+                ),
+            );
+            await writeFile(
+                join(testDir, "package.json"),
+                JSON.stringify({ scripts: { test: "vitest run" } }),
+            );
+            await writeFile(
+                join(testDir, "lousy-agents.config.ts"),
+                `export default {
+                    lint: {
+                        rules: {
+                            instructions: {
+                                "instruction/command-not-in-code-block": "off",
+                                "instruction/missing-error-handling": "off",
+                            },
+                        },
+                    },
+                };`,
+            );
+
+            // Act - capture consola.warn calls to verify suggestion suppression
+            const { consola } = await import("consola");
+            const warnSpy = vi
+                .spyOn(consola, "warn")
+                .mockImplementation(() => {});
+            const infoSpy = vi
+                .spyOn(consola, "info")
+                .mockImplementation(() => {});
+            const errorSpy = vi
+                .spyOn(consola, "error")
+                .mockImplementation(() => {});
+
+            try {
+                await lintCommand.run({
+                    rawArgs: [],
+                    args: { _: [], instructions: true },
+                    cmd: lintCommand,
+                    data: {
+                        targetDir: testDir,
+                        instructions: true,
+                    },
+                });
+
+                // Assert - suggestions for off rules should not be logged
+                const warnMessages = warnSpy.mock.calls.map((call) =>
+                    String(call[0]),
+                );
+                const suppressedWarnings = warnMessages.filter(
+                    (msg) =>
+                        msg.includes("not in code blocks") ||
+                        msg.includes("missing error handling guidance"),
+                );
+                expect(suppressedWarnings).toHaveLength(0);
+            } finally {
+                warnSpy.mockRestore();
+                infoSpy.mockRestore();
+                errorSpy.mockRestore();
+            }
         });
     });
 });

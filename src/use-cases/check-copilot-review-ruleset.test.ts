@@ -199,42 +199,95 @@ describe("Check Copilot Review Ruleset", () => {
     });
 
     describe("buildCopilotReviewRulesetPayload", () => {
-        it("should return a valid ruleset payload", () => {
-            // Act
-            const result = buildCopilotReviewRulesetPayload();
+        describe("when advanced security is not enabled", () => {
+            it("should return a payload with only copilot_code_review rule", () => {
+                // Act
+                const result = buildCopilotReviewRulesetPayload({
+                    advancedSecurityEnabled: false,
+                });
 
-            // Assert
-            expect(result.name).toBe("Copilot Code Review");
-            expect(result.enforcement).toBe("active");
-            expect(result.rules).toHaveLength(2);
-            expect(result.rules[0].type).toBe("copilot_code_review");
-            expect(result.rules[1].type).toBe("code_scanning");
+                // Assert
+                expect(result.name).toBe("Copilot Code Review");
+                expect(result.enforcement).toBe("active");
+                expect(result.rules).toHaveLength(1);
+                expect(result.rules[0].type).toBe("copilot_code_review");
+            });
+
+            it("should include copilot_code_review rule with review parameters", () => {
+                // Act
+                const result = buildCopilotReviewRulesetPayload({
+                    advancedSecurityEnabled: false,
+                });
+
+                // Assert
+                const rule = result.rules[0];
+                const params = rule.parameters as Record<string, unknown>;
+                expect(params.review_on_push).toBe(true);
+                expect(params.review_draft_pull_requests).toBe(true);
+            });
+
+            it("should not include code_scanning rule", () => {
+                // Act
+                const result = buildCopilotReviewRulesetPayload({
+                    advancedSecurityEnabled: false,
+                });
+
+                // Assert
+                const codeScanningRules = result.rules.filter(
+                    (r) => r.type === "code_scanning",
+                );
+                expect(codeScanningRules).toHaveLength(0);
+            });
         });
 
-        it("should include copilot_code_review rule with review parameters", () => {
-            // Act
-            const result = buildCopilotReviewRulesetPayload();
+        describe("when advanced security is enabled", () => {
+            it("should return a payload with copilot_code_review and code_scanning rules", () => {
+                // Act
+                const result = buildCopilotReviewRulesetPayload({
+                    advancedSecurityEnabled: true,
+                });
 
-            // Assert
-            const rule = result.rules[0];
-            const params = rule.parameters as Record<string, unknown>;
-            expect(params.review_on_push).toBe(true);
-            expect(params.review_draft_pull_requests).toBe(true);
-        });
+                // Assert
+                expect(result.name).toBe("Copilot Code Review");
+                expect(result.enforcement).toBe("active");
+                expect(result.rules).toHaveLength(2);
+                expect(result.rules[0].type).toBe("copilot_code_review");
+                expect(result.rules[1].type).toBe("code_scanning");
+            });
 
-        it("should include Copilot Autofix in code_scanning_tools", () => {
-            // Act
-            const result = buildCopilotReviewRulesetPayload();
+            it("should include CodeQL in code_scanning_tools", () => {
+                // Act
+                const result = buildCopilotReviewRulesetPayload({
+                    advancedSecurityEnabled: true,
+                });
 
-            // Assert
-            const rule = result.rules[1];
-            const params = rule.parameters as Record<string, unknown>;
-            const tools = params.code_scanning_tools as Array<{
-                tool: string;
-            }>;
-            expect(tools).toContainEqual(
-                expect.objectContaining({ tool: "Copilot Autofix" }),
-            );
+                // Assert
+                const rule = result.rules[1];
+                const params = rule.parameters as Record<string, unknown>;
+                const tools = params.code_scanning_tools as Array<{
+                    tool: string;
+                }>;
+                expect(tools).toContainEqual(
+                    expect.objectContaining({ tool: "CodeQL" }),
+                );
+            });
+
+            it("should include Copilot Autofix in code_scanning_tools", () => {
+                // Act
+                const result = buildCopilotReviewRulesetPayload({
+                    advancedSecurityEnabled: true,
+                });
+
+                // Assert
+                const rule = result.rules[1];
+                const params = rule.parameters as Record<string, unknown>;
+                const tools = params.code_scanning_tools as Array<{
+                    tool: string;
+                }>;
+                expect(tools).toContainEqual(
+                    expect.objectContaining({ tool: "Copilot Autofix" }),
+                );
+            });
         });
     });
 
