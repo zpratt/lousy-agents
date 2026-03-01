@@ -1,10 +1,11 @@
 import type { Octokit } from "@octokit/rest";
 import Chance from "chance";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     type ExecFunction,
     OctokitRulesetGateway,
     parseRepoFromRemoteUrl,
+    resolveGitHubToken,
 } from "./github-ruleset-gateway.js";
 
 const chance = new Chance();
@@ -528,6 +529,99 @@ describe("GitHub Ruleset Gateway", () => {
                     // Assert
                     expect(result).toBe(false);
                 });
+            });
+        });
+    });
+
+    describe("resolveGitHubToken", () => {
+        afterEach(() => {
+            vi.unstubAllEnvs();
+        });
+
+        describe("when GH_TOKEN is set", () => {
+            it("should return the trimmed GH_TOKEN value", async () => {
+                // Arrange
+                const token = chance.hash();
+                vi.stubEnv("GH_TOKEN", `  ${token}  `);
+                vi.stubEnv("GITHUB_TOKEN", "");
+                const exec = vi.fn<ExecFunction>();
+
+                // Act
+                const result = await resolveGitHubToken(exec);
+
+                // Assert
+                expect(result).toBe(token);
+                expect(exec).not.toHaveBeenCalled();
+            });
+        });
+
+        describe("when GH_TOKEN is unset and GITHUB_TOKEN is set", () => {
+            it("should fall through to GITHUB_TOKEN", async () => {
+                // Arrange
+                const token = chance.hash();
+                vi.stubEnv("GH_TOKEN", "");
+                vi.stubEnv("GITHUB_TOKEN", token);
+                const exec = vi.fn<ExecFunction>();
+
+                // Act
+                const result = await resolveGitHubToken(exec);
+
+                // Assert
+                expect(result).toBe(token);
+                expect(exec).not.toHaveBeenCalled();
+            });
+        });
+
+        describe("when GH_TOKEN is whitespace-only and GITHUB_TOKEN is set", () => {
+            it("should fall through to GITHUB_TOKEN", async () => {
+                // Arrange
+                const token = chance.hash();
+                vi.stubEnv("GH_TOKEN", "   ");
+                vi.stubEnv("GITHUB_TOKEN", token);
+                const exec = vi.fn<ExecFunction>();
+
+                // Act
+                const result = await resolveGitHubToken(exec);
+
+                // Assert
+                expect(result).toBe(token);
+                expect(exec).not.toHaveBeenCalled();
+            });
+        });
+
+        describe("when both env vars are empty", () => {
+            it("should fall back to gh auth token", async () => {
+                // Arrange
+                const token = chance.hash();
+                vi.stubEnv("GH_TOKEN", "");
+                vi.stubEnv("GITHUB_TOKEN", "");
+                const exec = vi
+                    .fn<ExecFunction>()
+                    .mockResolvedValue({ stdout: `${token}\n`, stderr: "" });
+
+                // Act
+                const result = await resolveGitHubToken(exec);
+
+                // Assert
+                expect(result).toBe(token);
+                expect(exec).toHaveBeenCalledWith("gh", ["auth", "token"]);
+            });
+        });
+
+        describe("when gh CLI fails and both env vars are empty", () => {
+            it("should return null", async () => {
+                // Arrange
+                vi.stubEnv("GH_TOKEN", "");
+                vi.stubEnv("GITHUB_TOKEN", "");
+                const exec = vi
+                    .fn<ExecFunction>()
+                    .mockRejectedValue(new Error("gh not found"));
+
+                // Act
+                const result = await resolveGitHubToken(exec);
+
+                // Assert
+                expect(result).toBeNull();
             });
         });
     });
