@@ -572,7 +572,7 @@ describe("GitHub Ruleset Gateway", () => {
             });
         });
 
-        describe("when both env vars are unset", () => {
+        describe("when both env vars are empty", () => {
             it("should fall back to gh auth token", async () => {
                 // Arrange
                 const token = chance.hash();
@@ -591,7 +591,7 @@ describe("GitHub Ruleset Gateway", () => {
             });
         });
 
-        describe("when gh CLI fails and no env vars are set", () => {
+        describe("when gh CLI fails and both env vars are empty", () => {
             it("should return null", async () => {
                 // Arrange
                 vi.stubEnv("GH_TOKEN", "");
