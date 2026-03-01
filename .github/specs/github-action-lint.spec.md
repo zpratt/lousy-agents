@@ -48,7 +48,7 @@ so that I can **control how and where lint feedback appears on PRs**.
 
 #### Acceptance Criteria
 
-- Where the `reporter` input is set, the action shall use the specified reviewdog reporter (github-pr-check or github-pr-review)
+- Where the `reporter` input is set, the action shall use the specified reviewdog reporter (github-pr-check, github-pr-review, or github-check)
 - Where the `filter_mode` input is set, the action shall use the specified reviewdog filter mode
 - When no reporter is specified, the action shall default to `github-pr-check`
 - When no filter mode is specified, the action shall default to `added`

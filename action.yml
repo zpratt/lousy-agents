@@ -69,8 +69,8 @@ runs:
       run: |
         VERSION='${{ inputs.version }}'
 
-        # Allow only "latest" or semver-like versions (e.g., 1.2.3, 1.2.3-beta.1)
-        if [[ "$VERSION" != "latest" && ! "$VERSION" =~ ^[0-9]+(\.[0-9]+){0,2}(-[0-9A-Za-z.-]+)?$ ]]; then
+        # Allow only "latest" or fully pinned semver versions (x.y.z, optionally with prerelease, e.g., 1.2.3, 1.2.3-beta.1)
+        if [[ "$VERSION" != "latest" && ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
           echo "Invalid version input for @lousy-agents/cli: $VERSION" >&2
           exit 1
         fi
@@ -101,9 +101,10 @@ runs:
 
         DIRECTORY='${{ inputs.directory }}'
 
-        # Validate directory contains only safe path characters and no traversal
-        if [[ "$DIRECTORY" =~ [^a-zA-Z0-9_./-] ]] || [[ "$DIRECTORY" =~ \.\. ]]; then
-          echo "Error: directory input contains invalid characters or path traversal: $DIRECTORY" >&2
+        # Reject absolute paths, home-relative paths, cd -, and path traversal
+        if [[ "$DIRECTORY" =~ [^a-zA-Z0-9_./-] ]] || [[ "$DIRECTORY" =~ \.\. ]] \
+           || [[ "$DIRECTORY" == /* ]] || [[ "$DIRECTORY" == ~* ]] || [[ "$DIRECTORY" == "-" ]]; then
+          echo "Error: directory input must be a relative path within the workspace: $DIRECTORY" >&2
           exit 1
         fi
 
