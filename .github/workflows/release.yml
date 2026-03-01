@@ -16,6 +16,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Only run on main repository, not forks, and only if CI succeeded
     if: >
       github.repository == 'zpratt/lousy-agents' &&
