@@ -11,6 +11,7 @@ permissions:
 jobs:
   assign-agent:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Assign and Instruct Copilot
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8.0.0

@@ -16,6 +16,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Only run on main repository, not forks, and only if CI succeeded
     if: >
       github.repository == 'zpratt/lousy-agents' &&
@@ -29,20 +30,20 @@ jobs:
 
     steps:
       - name: Checkout
-        # v4.2.2
+        # v6.0.2
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Setup mise
-        # v3.5.1
+        # v3.6.1
         uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8
         with:
           github_token: ${{ github.token }}
 
       - name: Cache npm dependencies
-        # v5.0.2
+        # v5.0.3
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306
         with:
           path: ~/.npm
@@ -60,7 +61,7 @@ jobs:
         run: mise run build
 
       - name: Attest build provenance
-        # v3.2.0
+        # v4.1.0
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32
         with:
           subject-path: 'dist/**/*'
