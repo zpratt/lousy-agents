@@ -9,6 +9,8 @@ name: CI
     branches:
       - main
 
+permissions: {}
+
 jobs:
   lint-review:
     if: >-
