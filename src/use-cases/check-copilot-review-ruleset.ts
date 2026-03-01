@@ -75,10 +75,54 @@ export function hasCopilotReviewRule(rulesets: Ruleset[]): boolean {
     return findCopilotRuleset(rulesets) !== undefined;
 }
 
+export interface BuildRulesetPayloadOptions {
+    advancedSecurityEnabled: boolean;
+}
+
 /**
- * Builds a ruleset payload for enabling Copilot code review
+ * Builds a ruleset payload for enabling Copilot code review.
+ * Includes code_scanning rules configured with CodeQL and Copilot Autofix when GitHub Advanced Security is enabled.
  */
-export function buildCopilotReviewRulesetPayload(): RulesetPayload {
+export function buildCopilotReviewRulesetPayload(
+    options: BuildRulesetPayloadOptions,
+): RulesetPayload {
+    const rules: RulesetRule[] = [
+        {
+            type: "copilot_code_review",
+            parameters: {
+                // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                review_on_push: true,
+                // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                review_draft_pull_requests: true,
+            },
+        },
+    ];
+
+    if (options.advancedSecurityEnabled) {
+        rules.push({
+            type: "code_scanning",
+            parameters: {
+                // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                code_scanning_tools: [
+                    {
+                        tool: "CodeQL",
+                        // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                        security_alerts_threshold: "high_or_higher",
+                        // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                        alerts_threshold: "errors",
+                    },
+                    {
+                        tool: "Copilot Autofix",
+                        // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                        security_alerts_threshold: "high_or_higher",
+                        // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                        alerts_threshold: "errors",
+                    },
+                ],
+            },
+        });
+    }
+
     return {
         name: "Copilot Code Review",
         enforcement: "active",
@@ -92,32 +136,7 @@ export function buildCopilotReviewRulesetPayload(): RulesetPayload {
                 exclude: [],
             },
         },
-        rules: [
-            {
-                type: "copilot_code_review",
-                parameters: {
-                    // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
-                    review_on_push: true,
-                    // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
-                    review_draft_pull_requests: true,
-                },
-            },
-            {
-                type: "code_scanning",
-                parameters: {
-                    // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
-                    code_scanning_tools: [
-                        {
-                            tool: "Copilot Autofix",
-                            // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
-                            security_alerts_threshold: "high_or_higher",
-                            // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
-                            alerts_threshold: "errors",
-                        },
-                    ],
-                },
-            },
-        ],
+        rules,
     };
 }
 
