@@ -167,7 +167,7 @@ sequenceDiagram
 - `action.yml` (new)
 
 **Requirements**:
-- The action shall accept inputs for github_token, skills, agents, instructions, directory, reporter, filter_mode, and version
+- The action shall accept inputs for github_token, skills, agents, instructions, directory, reporter, filter_mode, level, and version
 - The action shall install reviewdog via reviewdog/action-setup (pinned to SHA)
 - When version is not `local`, the action shall set up Node.js and install @lousy-agents/cli from npm
 - The action shall run `lousy-agents lint` with the `--format rdjsonl` flag and pipe output to reviewdog
@@ -200,7 +200,7 @@ sequenceDiagram
 - The CI workflow shall include a new `lint-review` job that uses the local action via `uses: ./`
 - The lint-review job shall only run on pull_request events
 - The lint-review job shall pass the github token for reviewdog API access
-- The lint-review job shall have `pull-requests: write` permission for posting review comments
+- The lint-review job shall request only `pull-requests: read` permission and rely on the default `github-pr-check` reporter for inline annotations
 - The lint-review job shall use `version: local` and have the CLI available via npm link
 - All action references shall be pinned to commit SHA with version comment
 
