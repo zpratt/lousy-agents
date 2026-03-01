@@ -54,7 +54,7 @@ export const analyzeInstructionQualityHandler: ToolHandler = async (
                 bestSourceFile: s.bestSourceFile,
             })),
             overallQualityScore: output.result.overallQualityScore,
-            suggestions: output.result.suggestions,
+            suggestions: output.result.suggestions.map((s) => s.message),
             parsingErrors: output.result.parsingErrors,
             diagnostics: output.diagnostics.map((d) => ({
                 filePath: d.filePath,
