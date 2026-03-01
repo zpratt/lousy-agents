@@ -50,8 +50,10 @@ so that I can **control how and where lint feedback appears on PRs**.
 
 - Where the `reporter` input is set, the action shall use the specified reviewdog reporter (github-pr-check, github-pr-review, or github-check)
 - Where the `filter_mode` input is set, the action shall use the specified reviewdog filter mode
+- Where the `level` input is set, the action shall use the specified reviewdog level when reporting diagnostics
 - When no reporter is specified, the action shall default to `github-pr-check`
 - When no filter mode is specified, the action shall default to `added`
+- When no `level` is specified, the action shall default to `info`
 
 ---
 

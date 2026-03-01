@@ -1,7 +1,7 @@
 ---
 name: 'Lousy Agents Lint'
 description: >-
-  Lint agent instructions, agents, and skills with inline PR comments
+  Lint instructions, agents, and skills with inline PR comments
   via reviewdog. Uses the lousy-agents CLI rdjsonl output format.
 author: 'zpratt'
 
