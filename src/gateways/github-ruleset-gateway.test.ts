@@ -1,6 +1,6 @@
 import type { Octokit } from "@octokit/rest";
 import Chance from "chance";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
     type ExecFunction,
     OctokitRulesetGateway,
@@ -534,6 +534,10 @@ describe("GitHub Ruleset Gateway", () => {
     });
 
     describe("resolveGitHubToken", () => {
+        afterEach(() => {
+            vi.unstubAllEnvs();
+        });
+
         describe("when GH_TOKEN is set", () => {
             it("should return the trimmed GH_TOKEN value", async () => {
                 // Arrange
@@ -548,8 +552,6 @@ describe("GitHub Ruleset Gateway", () => {
                 // Assert
                 expect(result).toBe(token);
                 expect(exec).not.toHaveBeenCalled();
-
-                vi.unstubAllEnvs();
             });
         });
 
@@ -567,8 +569,6 @@ describe("GitHub Ruleset Gateway", () => {
                 // Assert
                 expect(result).toBe(token);
                 expect(exec).not.toHaveBeenCalled();
-
-                vi.unstubAllEnvs();
             });
         });
 
@@ -588,8 +588,6 @@ describe("GitHub Ruleset Gateway", () => {
                 // Assert
                 expect(result).toBe(token);
                 expect(exec).toHaveBeenCalledWith("gh", ["auth", "token"]);
-
-                vi.unstubAllEnvs();
             });
         });
 
@@ -607,8 +605,6 @@ describe("GitHub Ruleset Gateway", () => {
 
                 // Assert
                 expect(result).toBeNull();
-
-                vi.unstubAllEnvs();
             });
         });
     });
