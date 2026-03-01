@@ -81,8 +81,9 @@ runs:
       shell: bash
       env:
         REVIEWDOG_GITHUB_API_TOKEN: ${{ inputs.github_token }}
+        INPUT_DIRECTORY: ${{ inputs.directory }}
       run: |
-        set -o pipefail
+        set -euo pipefail
 
         # When using a local CLI, ensure lousy-agents is available before running
         if [ "${{ inputs.version }}" = "local" ]; then
@@ -99,7 +100,13 @@ runs:
         if [ "${{ inputs.instructions }}" = "true" ]; then FLAGS="$FLAGS --instructions"; fi
         FLAGS="${FLAGS# }"
 
-        DIRECTORY='${{ inputs.directory }}'
+        DIRECTORY="$INPUT_DIRECTORY"
+
+        # Reject empty directory input
+        if [[ -z "$DIRECTORY" ]]; then
+          echo "Error: directory input must not be empty. Provide a relative path within the workspace." >&2
+          exit 1
+        fi
 
         # Reject absolute paths, home-relative paths, cd -, and path traversal
         if [[ "$DIRECTORY" =~ [^a-zA-Z0-9_./-] ]] || [[ "$DIRECTORY" =~ \.\. ]] \
@@ -108,7 +115,10 @@ runs:
           exit 1
         fi
 
-        cd "$DIRECTORY"
+        if ! cd "$DIRECTORY"; then
+          echo "Error: failed to change directory to: $DIRECTORY" >&2
+          exit 1
+        fi
 
         # Run lint and pipe to reviewdog
         lousy-agents lint $FLAGS --format rdjsonl | \
