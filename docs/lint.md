@@ -335,3 +335,106 @@ The `lint` command returns a non-zero exit code when errors are found, making it
 - name: Lint with reviewdog
   run: npx @lousy-agents/cli lint --format rdjsonl | reviewdog -f=rdjsonl
 ```
+
+---
+
+## GitHub Action
+
+A composite GitHub Action is available for automated inline feedback via [reviewdog](https://github.com/reviewdog/reviewdog). The action installs the CLI, runs `lousy-agents lint --format rdjsonl`, and pipes the output to reviewdog. By default it produces GitHub Check annotations (`github-pr-check`); switch to `reporter: github-pr-review` for inline PR review comments.
+
+### Quick Start
+
+```yaml
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.fork == false
+    permissions:
+      contents: read
+      checks: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Lint with lousy-agents
+        uses: zpratt/lousy-agents@v3
+        with:
+          github_token: ${{ github.token }}
+```
+
+When no target inputs are set, the action lints all targets (skills, agents, and instructions).
+
+### Inputs
+
+| Input | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `github_token` | Yes | — | GitHub token for reviewdog API access |
+| `skills` | No | `false` | Lint skill frontmatter in `.github/skills/` |
+| `agents` | No | `false` | Lint agent frontmatter in `.github/agents/` |
+| `instructions` | No | `false` | Lint instruction quality |
+| `directory` | No | `.` | Target directory to lint |
+| `reporter` | No | `github-pr-check` | reviewdog reporter (`github-pr-check`, `github-pr-review`, `github-check`) |
+| `filter_mode` | No | `added` | reviewdog filter mode (`added`, `diff_context`, `file`, `nofilter`) |
+| `level` | No | `info` | Minimum severity level (`info`, `warning`, `error`) |
+| `version` | No | `latest` | `@lousy-agents/cli` version to install. Set to `local` to skip install. |
+
+### Permissions
+
+The action uses reviewdog to post results via the GitHub API, so the workflow job
+needs explicit `permissions` depending on the chosen `reporter`:
+
+| Reporter | Required Permissions |
+|----------|---------------------|
+| `github-pr-check` (default) | `contents: read`, `checks: write` |
+| `github-check` | `contents: read`, `checks: write` |
+| `github-pr-review` | `contents: read`, `pull-requests: write` |
+
+Example job-level permissions for the default reporter:
+
+```yaml
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: zpratt/lousy-agents@v3
+        with:
+          github_token: ${{ github.token }}
+```
+
+> **Note:** For PRs from forks the `GITHUB_TOKEN` is read-only, so reviewdog
+> cannot post checks or reviews. Guard the job with
+> `if: github.event.pull_request.head.repo.fork == false` to avoid 403 errors.
+
+### Examples
+
+Lint only agents with PR review comments:
+
+```yaml
+- name: Lint agents
+  uses: zpratt/lousy-agents@v3
+  with:
+    github_token: ${{ github.token }}
+    agents: 'true'
+    reporter: 'github-pr-review'
+```
+
+Use a locally-built CLI (e.g., in the lousy-agents repo itself):
+
+```yaml
+- name: Build and link CLI
+  run: |
+    npm ci
+    npm run build
+    npm link
+
+- name: Lint with lousy-agents
+  uses: ./
+  with:
+    github_token: ${{ github.token }}
+    version: 'local'
+```

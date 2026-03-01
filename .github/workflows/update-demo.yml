@@ -21,11 +21,11 @@ jobs:
 
     steps:
       - name: Checkout code
-        # v6.0.1
+        # v6.0.2
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
       - name: Setup mise
-        # v3.5.1
+        # v3.6.1
         uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8
         with:
           github_token: ${{ github.token }}
@@ -45,14 +45,14 @@ jobs:
           sudo apt-get install -y ffmpeg
 
       - name: Generate demo.gif
-        # v1.3.0
+        # v2.1.0
         uses: charmbracelet/vhs-action@59641cdc7fadf3978db65eb8c6937ea2752f4ec3
         with:
           path: demo.tape
           install-fonts: false
 
       - name: Generate new-copilot-agent.gif
-        # v1.3.0
+        # v2.1.0
         uses: charmbracelet/vhs-action@59641cdc7fadf3978db65eb8c6937ea2752f4ec3
         with:
           path: new-copilot-agent.tape
