@@ -204,16 +204,17 @@ export class OctokitRulesetGateway implements RulesetGateway {
 /**
  * Resolves a GitHub token from GH_TOKEN/GITHUB_TOKEN env vars, with gh CLI fallback
  */
-export async function resolveGitHubToken(): Promise<string | null> {
-    const envToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+export async function resolveGitHubToken(
+    exec: ExecFunction = defaultExec,
+): Promise<string | null> {
+    const envToken =
+        process.env.GH_TOKEN?.trim() || process.env.GITHUB_TOKEN?.trim();
     if (envToken) {
         return envToken;
     }
 
     try {
-        const { stdout } = await execFileAsync("gh", ["auth", "token"], {
-            encoding: "utf-8",
-        });
+        const { stdout } = await exec("gh", ["auth", "token"]);
         const token = stdout.trim();
         return token || null;
     } catch {
