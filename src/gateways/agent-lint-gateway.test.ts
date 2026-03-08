@@ -56,6 +56,54 @@ describe("FileSystemAgentLintGateway", () => {
             });
         });
 
+        describe("when .github/agents/ contains .agent.md files", () => {
+            it("should strip the .agent.md compound extension from the agent name", async () => {
+                // Arrange
+                const agentsDir = join(testDir, ".github", "agents");
+                await mkdir(agentsDir, { recursive: true });
+                await writeFile(
+                    join(agentsDir, "agent-reviewer.agent.md"),
+                    "---\nname: agent-reviewer\ndescription: test\n---\n",
+                );
+                await writeFile(
+                    join(agentsDir, "feature-planner.agent.md"),
+                    "---\nname: feature-planner\ndescription: test\n---\n",
+                );
+
+                // Act
+                const agents = await gateway.discoverAgents(testDir);
+
+                // Assert
+                expect(agents).toHaveLength(2);
+                const names = agents.map((a) => a.agentName).sort();
+                expect(names).toEqual(["agent-reviewer", "feature-planner"]);
+            });
+        });
+
+        describe("when .github/agents/ contains a mix of .md and .agent.md files", () => {
+            it("should extract correct agent names for both extensions", async () => {
+                // Arrange
+                const agentsDir = join(testDir, ".github", "agents");
+                await mkdir(agentsDir, { recursive: true });
+                await writeFile(
+                    join(agentsDir, "reviewer.md"),
+                    "---\nname: reviewer\ndescription: test\n---\n",
+                );
+                await writeFile(
+                    join(agentsDir, "feature-planner.agent.md"),
+                    "---\nname: feature-planner\ndescription: test\n---\n",
+                );
+
+                // Act
+                const agents = await gateway.discoverAgents(testDir);
+
+                // Assert
+                expect(agents).toHaveLength(2);
+                const names = agents.map((a) => a.agentName).sort();
+                expect(names).toEqual(["feature-planner", "reviewer"]);
+            });
+        });
+
         describe("when .github/agents/ contains subdirectories with markdown files", () => {
             it("should discover agent files in nested directories", async () => {
                 // Arrange
