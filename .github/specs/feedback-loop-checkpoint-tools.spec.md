@@ -51,7 +51,7 @@ so that I can **have a complete picture of what feedback loops ran during a sess
 
 - The checkpoint system shall provide a shell wrapper script that can be configured as npm’s `script-shell`.
 - When configured, the wrapper shall record the script name, start time, exit code, and duration for every `npm run` invocation.
-- The wrapper shall forward its arguments to `/bin/sh` unchanged (e.g., `exec /bin/sh "$@"`) and exit with the original exit code. When invoked by npm as `script-shell`, npm provides `-c <script>` as arguments — the wrapper must not add an extra `-c`.
+- The wrapper shall invoke the wrapped npm lifecycle command via `/bin/sh` as a child process (not `exec`), wait for it to complete, capture its exit status, write the JSONL record, and then exit with the same exit code. Using `exec` would replace the wrapper process and prevent post-execution logging. When invoked by npm as `script-shell`, npm provides `-c <script>` as arguments — the wrapper must pass these through unchanged and must not add an extra `-c`.
 - The wrapper shall write log entries to the active session’s log directory, or to an untracked log if no active session exists.
 - The wrapper's raw log record shall include a completion `timestamp` (ISO 8601) and `durationMs`; `startedAt` is defined as `timestamp - durationMs` and does not need to be stored as a separate field.
 - If the wrapper encounters an error in its own logic, then it shall fall back to executing the command without recording and shall not prevent the script from running.
@@ -237,7 +237,7 @@ sequenceDiagram
     Wrapper->>FS: Read .lousy-agents/active-session.json
     FS-->>Wrapper: sessionId (or not found)
     Wrapper->>Wrapper: Record start time
-    Wrapper->>Shell: exec /bin/sh "$@"  (npm provides -c "vitest run")
+    Wrapper->>Shell: /bin/sh "$@"  (npm provides -c "vitest run", run as subprocess)
     Shell-->>Wrapper: exit code
     Wrapper->>FS: Append JSON line to session.jsonl (O_APPEND)
     Wrapper-->>npm: exit with original code
@@ -246,13 +246,13 @@ sequenceDiagram
 
 ### Dual-Path Interaction and Write Integrity
 
-The two capture paths are designed to be complementary, not redundant. The `run_feedback` MCP tool executes the underlying command directly (e.g., `vitest run`, not `npm run test`) to avoid triggering the npm shell wrapper. This means:
+The two capture paths are designed to be complementary, not redundant. The `run_feedback` MCP tool SHALL resolve workflow steps to underlying `package.json` script commands and execute those directly (e.g., run the script's `vitest run` command, not the workflow-level `npm test` / `npm run build` wrapper) to avoid triggering the npm shell wrapper. This means:
 
-- When the agent uses the MCP tool: only the MCP path writes to the session log (source: “mcp”, with rich outputSummary).
-- When the agent shells out to `npm run` directly: only the wrapper path writes (source: “npm-instrumentation”, without outputSummary).
-- Both paths never fire for the same execution under normal operation.
+- When the agent uses the MCP tool with a direct script command: only the MCP path writes to the session log (source: "mcp", with rich outputSummary).
+- When the agent shells out to `npm run` directly (e.g., `npm run test`): only the wrapper path writes (source: "npm-instrumentation", without outputSummary).
+- Both paths are not expected to fire for the same execution under normal operation, provided `run_feedback` is invoked with script command lines rather than `npm …` workflow tool commands.
 
-The `SessionLogGateway` includes timestamp-based deduplication as a safety net, preferring MCP-sourced entries when near-simultaneous entries exist for the same phase. This guards against edge cases (e.g., an agent calling `run_feedback` with a command that itself invokes `npm run` internally).
+The `SessionLogGateway` includes timestamp-based deduplication as a safety net, preferring MCP-sourced entries when near-simultaneous entries exist for the same phase. This explicitly guards documented dual-capture scenarios where a script or command executed via `run_feedback` itself transitively invokes `npm run` (or where `run_feedback` is misused with an `npm …` command).
 
 All writes to `.jsonl` files use append mode with each entry emitted as a single complete JSON line. On POSIX systems, `O_APPEND` ensures the write offset is atomically set to end-of-file before each write, preventing interleaving under concurrent execution. Each JSON line is self-contained and newline-terminated, so a truncated write from a killed process produces at most one malformed line. The gateway skips malformed lines on read without discarding adjacent valid entries.
 
@@ -614,7 +614,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 - The shell wrapper shall read `npm_lifecycle_event` and `npm_lifecycle_script` from the environment.
 - The wrapper shall read `.lousy-agents/active-session.json` to obtain the current session ID.
-- The wrapper shall record the start time, delegate to the underlying shell using the original arguments exactly as received (e.g., `exec /bin/sh "$@"`), without adding an extra `-c` flag, and capture the exit code. When npm invokes the wrapper as `script-shell`, it already provides `-c <script>` as arguments.
+- The wrapper shall record the start time, invoke the underlying shell command as a child process using `/bin/sh` (e.g., `/bin/sh "$@"`), wait for completion, capture the exit code, write the JSONL record, and exit with the original exit code. The wrapper must not use `exec`, as that would replace the wrapper process and prevent post-execution logging. When npm invokes the wrapper as `script-shell`, it already provides `-c <script>` as arguments — the wrapper must not add an extra `-c`.
 - When an active session marker exists, the wrapper shall append a **raw script execution record** as a single JSON line to `.lousy-agents/sessions/{sessionId}/session.jsonl` with `scriptName` (from `npm_lifecycle_event`), `command` (from `npm_lifecycle_script`), `source` (`"npm-instrumentation"`), exit code, duration, and timestamp (completion time). This is not a `StepRecord` — it omits `phase` and `outputSummary`. The `SessionLogGateway` converts raw records into `StepRecord` entries on read by applying the shared `determineScriptPhase` logic and setting `outputSummary` to `null`.
 - When no active session marker exists, the wrapper shall append the same raw script execution record to `.lousy-agents/untracked/session.jsonl`. The file path determines session association (no `sessionId` field is needed).
 - The wrapper shall open the `.jsonl` file in append mode (e.g., `>>` redirection) and emit each entry as a single, complete, newline-terminated JSON line. Under concurrent execution (e.g., parallel npm scripts), entries shall not interleave — each line shall be a valid JSON object. The wrapper shall not use multiple writes or buffered I/O for a single entry.
@@ -753,45 +753,105 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 -----
 
-### Task 8: Integration Tests
+### Task 8a: MCP Path Integration Tests
 
 **Depends on**: Task 7b
 
-**Objective**: End-to-end tests that verify the full checkpoint workflow.
+**Objective**: Integration tests for the MCP tool execution path.
 
-**Context**: Similar to `src/use-cases/feedback-loop-discovery.integration.test.ts`, these tests create a realistic project structure and exercise the complete flow. Integration tests run under the separate integration test config (`vitest.integration.config.ts`).
+**Context**: Similar to `src/use-cases/feedback-loop-discovery.integration.test.ts`, these tests create a realistic project structure and exercise the MCP-driven workflow. Integration tests run under the separate integration test config (`vitest.integration.config.ts`).
 
 **Affected files**:
 
-- `src/use-cases/checkpoint.integration.test.ts` (new)
+- `src/use-cases/checkpoint-mcp-path.integration.test.ts` (new)
 
 **Requirements**:
 
 - Tests shall follow the Arrange-Act-Assert pattern and use Chance.js for generated test data, consistent with `test.instructions.md`.
 - Tests shall create a temporary project with a package.json containing test, lint, and build scripts.
 - Tests shall verify the MCP tool path: call `run_feedback` for each phase and verify session log entries and progress computation.
-- Tests shall verify the npm instrumentation path: configure `script-shell`, run `npm test`, and verify the `.jsonl` log entry.
-- Tests shall verify the merge: after both paths produce entries, `session_status` shall return a unified view.
-- Tests shall verify no dual-capture: when `run_feedback` executes a command, confirm only one entry (source: “mcp”) appears in the session log, not a duplicate from the shell wrapper. This validates that `run_feedback` executes commands directly rather than via `npm run`.
-- Tests shall verify deduplication as a safety net: manually insert near-simultaneous entries from both sources for the same phase into the session log and confirm the gateway deduplicates them, preferring the MCP-sourced entry.
-- Tests shall verify concurrent writes: simulate parallel npm script execution (e.g., two wrapper processes appending to the same `.jsonl` simultaneously) and confirm no data corruption or interleaving.
 - Tests shall verify retry tracking: run a failing command, then a passing one, and verify attempt history.
-- Tests shall verify untracked adoption: create entries in `.lousy-agents/untracked/`, start a session, and confirm entries are adopted into the active session.
+- Tests shall verify no dual-capture: when `run_feedback` executes a command, confirm only one entry (source: "mcp") appears in the session log, not a duplicate from the shell wrapper. This validates that `run_feedback` executes commands directly rather than via `npm run`.
 - Tests shall clean up temporary directories after tests.
 
 **Verification**:
 
-- [ ] `npm run test:integration` passes (including new checkpoint tests)
+- [ ] `npm run test:integration` passes (including new MCP path tests)
 - [ ] No leftover temporary directories
 
 **Done when**:
 
 - [ ] All verification steps pass
 - [ ] No new errors in affected files
-- [ ] Integration tests cover both capture paths and their merge
-- [ ] Acceptance criteria across Stories 1-5 are exercised end-to-end
+- [ ] Acceptance criteria for Story 1 (run_feedback MCP tool) exercised end-to-end
 - [ ] Code follows patterns in `.github/copilot-instructions.md`
 
+-----
+
+### Task 8b: npm Instrumentation Integration Tests
+
+**Depends on**: Task 8a
+
+**Objective**: Integration tests for the npm shell wrapper instrumentation path.
+
+**Context**: Exercises the npm `script-shell` wrapper end-to-end by configuring a real temporary project and running `npm test` against it.
+
+**Affected files**:
+
+- `src/use-cases/checkpoint-npm-path.integration.test.ts` (new)
+
+**Requirements**:
+
+- Tests shall follow the Arrange-Act-Assert pattern and use Chance.js for generated test data.
+- Tests shall verify the npm instrumentation path: configure `script-shell`, run `npm test`, and verify the `.jsonl` log entry.
+- Tests shall verify untracked adoption: create entries in `.lousy-agents/untracked/`, start a session, and confirm entries are adopted into the active session.
+- Tests shall verify the merge: after both paths produce entries, `session_status` shall return a unified view.
+- Tests shall clean up temporary directories after tests.
+
+**Verification**:
+
+- [ ] `npm run test:integration` passes (including new instrumentation tests)
+- [ ] No leftover temporary directories
+
+**Done when**:
+
+- [ ] All verification steps pass
+- [ ] No new errors in affected files
+- [ ] Acceptance criteria for Story 2 (npm instrumentation) and Story 3 (merged session_status) exercised end-to-end
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
+
+-----
+
+### Task 8c: Merge, Deduplication, and Concurrency Edge Cases
+
+**Depends on**: Task 8b
+
+**Objective**: Integration tests for deduplication, concurrent writes, and edge-case scenarios.
+
+**Context**: These tests focus on correctness guarantees under concurrent and adversarial conditions, exercising the deduplication logic and write integrity of the `.jsonl` append format.
+
+**Affected files**:
+
+- `src/use-cases/checkpoint-edge-cases.integration.test.ts` (new)
+
+**Requirements**:
+
+- Tests shall follow the Arrange-Act-Assert pattern and use Chance.js for generated test data.
+- Tests shall verify deduplication as a safety net: manually insert near-simultaneous entries from both sources for the same phase into the session log and confirm the gateway deduplicates them, preferring the MCP-sourced entry.
+- Tests shall verify concurrent writes: simulate parallel npm script execution (e.g., two wrapper processes appending to the same `.jsonl` simultaneously) and confirm no data corruption or interleaving.
+- Tests shall clean up temporary directories after tests.
+
+**Verification**:
+
+- [ ] `npm run test:integration` passes (including new edge-case tests)
+- [ ] No leftover temporary directories
+
+**Done when**:
+
+- [ ] All verification steps pass
+- [ ] No new errors in affected files
+- [ ] Deduplication and concurrency acceptance criteria exercised end-to-end
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
 -----
 
 ### Task 9: Update Documentation
