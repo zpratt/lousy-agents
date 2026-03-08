@@ -5,12 +5,6 @@
                 "agent/invalid-name-format": "warn",
                 "agent/invalid-field": "error"
             },
-            "instructions": {
-                "instruction/parse-error": "error",
-                "instruction/command-not-in-code-block": "error",
-                "instruction/command-outside-section": "error",
-                "instruction/missing-error-handling": "error"
-            },
             "skills": {
                 "skill/missing-allowed-tools": "error"
             }
