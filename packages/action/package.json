@@ -1,0 +1,6 @@
+{
+    "name": "@lousy-agents/action",
+    "version": "1.0.2",
+    "private": true,
+    "description": "GitHub Action for lousy-agents lint with reviewdog integration"
+}

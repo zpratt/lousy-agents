@@ -80,8 +80,8 @@ run = "npm run build"
 description = "Run smoke tests against the built CLI"
 depends = ["build"]
 run = [
-    "./dist/index.js --help",
-    "./dist/index.js init --help"
+    "./packages/cli/dist/index.js --help",
+    "./packages/cli/dist/index.js init --help"
 ]
 
 [tasks.ci] # only dependencies to be run
