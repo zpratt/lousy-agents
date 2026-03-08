@@ -64,7 +64,9 @@ export class FileSystemAgentLintGateway implements AgentLintGateway {
                     continue;
                 }
 
-                const agentName = basename(name, ".md");
+                const agentName = name.endsWith(".agent.md")
+                    ? basename(name, ".agent.md")
+                    : basename(name, ".md");
                 agents.push({ filePath: entryPath, agentName });
             }
         };
