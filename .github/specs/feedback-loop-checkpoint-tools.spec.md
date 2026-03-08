@@ -17,31 +17,6 @@ AI coding agents working through multi-step development tasks (write test, imple
 - **Primary value**: Customer — Increases trust in agent output by providing transparency into whether mandatory steps were followed, reducing time spent reviewing agent work.
 - **Secondary value**: Future — Creates a foundation for cross-session analytics, workflow enforcement, and self-introspection capabilities without committing to those features now.
 
-## Concepts
-
-### Dual-Path Capture
-
-The checkpoint system captures agent workflow data through two complementary mechanisms:
-
-1. **MCP Tool Path (Primary)**: An MCP tool called `run_feedback` that agents call instead of shelling out directly. This provides the richest experience: structured results, progress summaries, and contextual guidance. The agent is motivated to use this path because it returns better information than raw command output.
-1. **npm Instrumentation Path (Fallback)**: An npm `script-shell` wrapper that intercepts all `npm run` invocations transparently. When an agent shells out to `npm test` directly (bypassing the MCP tool), the wrapper captures the script name, start time, exit code, and duration. This path requires no agent cooperation and no changes to package.json scripts.
-
-Both paths write to the same session log. The MCP server merges data from both sources when reporting progress.
-
-### Session Scope
-
-A session represents a single agent working on a single task. The session lifecycle is tied to the MCP server process lifetime: a new session begins when the MCP server starts and ends when the process exits. The MCP server generates a unique session ID on startup (UUID) and holds it in memory for the duration of the process.
-
-To enable the npm shell wrapper (which runs in a separate process) to associate its log entries with the active session, the MCP server writes a lightweight marker file (`.lousy-agents/active-session.json`) on startup containing the session ID and start timestamp. The wrapper reads this file to tag its entries. When the MCP server process exits, the marker file is cleaned up (best-effort). If the wrapper finds no marker file (e.g., MCP server isn’t running), it generates entries with a `null` session ID, which the next MCP server session will adopt as “prior untracked activity.”
-
-Session data is stored in `.lousy-agents/sessions/{sessionId}/` within the project, keeping session history organized and preventing collision between concurrent or sequential sessions.
-
-### Workflow Steps
-
-Workflow steps are derived from the existing `discover_feedback_loops` use case. Mandatory steps (test, lint, build, format) form the checklist. Each step tracks its phase, the command executed, whether it passed or failed, the timestamp, and optionally a summary of the output (e.g., “14 tests passed, 0 failed”).
-
------
-
 ## User Stories
 
 ### Story 1: Run Feedback Loop via MCP Tool
@@ -143,10 +118,129 @@ so that **the agent can understand what has already been attempted and adjust it
 The checkpoint system follows Clean Architecture principles consistent with the existing codebase:
 
 ```
-Entities:        WorkflowSession, WorkflowStep, StepAttempt
+Entities:        WorkflowSession, StepRecord, WorkflowProgress, ActiveSessionMarker
 Use Cases:       RunFeedbackUseCase, SessionStatusUseCase, EnableInstrumentationUseCase
 Gateways:        SessionLogGateway (file system), CommandExecutionGateway (child process)
-Infrastructure:  MCP tool handlers, shell wrapper script, .npmrc management
+Infrastructure:  MCP tool handlers, shell wrapper script, .npmrc management, composition root
+```
+
+### Key Concepts
+
+**Dual-Path Capture:** The checkpoint system captures agent workflow data through two complementary mechanisms. The MCP Tool Path (primary) is an MCP tool called `run_feedback` that agents call instead of shelling out directly, providing structured results, progress summaries, and contextual guidance. The npm Instrumentation Path (fallback) is an npm `script-shell` wrapper that intercepts all `npm run` invocations transparently when agents bypass the MCP tool. Both paths write to the same session log, and the MCP server merges data from both sources when reporting progress.
+
+**Session Scope:** A session represents a single agent working on a single task. The session lifecycle is tied to the MCP server process lifetime: a new session begins when the MCP server starts and ends when the process exits. The MCP server generates a unique session ID on startup (UUID at the infrastructure layer, passed into domain types as a string) and holds it in memory for the duration of the process. To enable the npm shell wrapper (which runs in a separate process) to associate its log entries with the active session, the MCP server writes a lightweight marker file (`.lousy-agents/active-session.json`) on startup containing the session ID and start timestamp. The wrapper reads this file to tag its entries. When the MCP server process exits, the marker file is cleaned up (best-effort). If the wrapper finds no marker file, it generates entries with a `null` session ID, which the next MCP server session will adopt as “prior untracked activity.” Session data is stored in `.lousy-agents/sessions/{sessionId}/` within the project.
+
+**Workflow Steps:** Workflow steps are derived from the existing `discover_feedback_loops` use case. Mandatory steps (test, lint, build, format) form the checklist. Each step tracks its phase, the command executed, whether it passed or failed, the timestamp, and optionally a summary of the output.
+
+### Diagrams
+
+#### Data Flow
+
+```mermaid
+flowchart TB
+    subgraph Agent["Agent (Copilot / Claude Code)"]
+        MCP_CALL["MCP tool call: run_feedback"]
+        SHELL_OUT["Shell out: npm run test"]
+    end
+
+    subgraph MCP["MCP Server Process"]
+        RF_TOOL["run_feedback tool handler"]
+        SS_TOOL["session_status tool handler"]
+        EI_TOOL["enable_instrumentation tool handler"]
+    end
+
+    subgraph UseCases["Use Cases Layer"]
+        RF_UC["RunFeedbackUseCase"]
+        SS_UC["SessionStatusUseCase"]
+        EI_UC["EnableInstrumentationUseCase"]
+        DFL["DiscoverFeedbackLoopsUseCase (existing)"]
+    end
+
+    subgraph Gateways["Gateways Layer"]
+        SLG["SessionLogGateway"]
+        CEG["CommandExecutionGateway"]
+    end
+
+    subgraph FileSystem["File System"]
+        SESSION_JSON[".lousy-agents/sessions/{id}/session.json"]
+        SESSION_JSONL[".lousy-agents/sessions/{id}/session.jsonl"]
+        ACTIVE_MARKER[".lousy-agents/active-session.json"]
+        NPMRC[".npmrc (script-shell config)"]
+    end
+
+    subgraph NPM["npm Script Execution"]
+        WRAPPER["lousy-agents-shell.sh wrapper"]
+    end
+
+    MCP_CALL --> RF_TOOL
+    MCP_CALL --> SS_TOOL
+    RF_TOOL --> RF_UC
+    SS_TOOL --> SS_UC
+    EI_TOOL --> EI_UC
+
+    RF_UC --> DFL
+    RF_UC --> CEG
+    RF_UC --> SLG
+    SS_UC --> SLG
+
+    SLG --> SESSION_JSON
+    SLG --> SESSION_JSONL
+    SLG --> ACTIVE_MARKER
+    EI_UC --> NPMRC
+
+    SHELL_OUT --> WRAPPER
+    WRAPPER --> ACTIVE_MARKER
+    WRAPPER --> SESSION_JSONL
+```
+
+#### Sequence: run_feedback Tool Call
+
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant MCPTool as run_feedback tool
+    participant UseCase as RunFeedbackUseCase
+    participant Discovery as DiscoverFeedbackLoopsUseCase
+    participant CmdGateway as CommandExecutionGateway
+    participant LogGateway as SessionLogGateway
+
+    Agent->>MCPTool: run_feedback(targetDir, "test")
+    MCPTool->>UseCase: execute(targetDir, "test")
+    UseCase->>Discovery: execute(targetDir)
+    Discovery-->>UseCase: feedbackLoops (scripts, tools)
+    UseCase->>UseCase: Look up command for "test" phase
+    UseCase->>CmdGateway: execute("vitest run", targetDir)
+    CmdGateway-->>UseCase: exitCode, output, durationMs
+    UseCase->>UseCase: Generate outputSummary (head/tail truncation)
+    UseCase->>LogGateway: writeStep(sessionId, stepRecord)
+    LogGateway-->>UseCase: confirmed
+    UseCase->>LogGateway: readSession(sessionId)
+    LogGateway-->>UseCase: WorkflowSession (merged json + jsonl)
+    UseCase->>UseCase: computeProgress(session)
+    UseCase-->>MCPTool: output + stepRecord + WorkflowProgress
+    MCPTool-->>Agent: Structured response with progress summary
+```
+
+#### Sequence: npm Shell Wrapper (Fallback Path)
+
+```mermaid
+sequenceDiagram
+    participant Agent
+    participant npm
+    participant Wrapper as lousy-agents-shell.sh
+    participant Shell as /bin/sh
+    participant FS as File System
+
+    Agent->>npm: npm run test
+    npm->>Wrapper: script-shell invocation
+    Wrapper->>FS: Read .lousy-agents/active-session.json
+    FS-->>Wrapper: sessionId (or not found)
+    Wrapper->>Wrapper: Record start time
+    Wrapper->>Shell: /bin/sh -c "vitest run"
+    Shell-->>Wrapper: exit code
+    Wrapper->>FS: Append JSON line to session.jsonl (O_APPEND)
+    Wrapper-->>npm: exit with original code
+    npm-->>Agent: Command output
 ```
 
 ### Dual-Path Interaction and Write Integrity
@@ -163,22 +257,23 @@ All writes to `.jsonl` files use POSIX `O_APPEND` with single-buffer writes to g
 
 ### Components Affected
 
-- `src/entities/checkpoint.ts` (new) — Session, step, and attempt domain types
-- `src/use-cases/run-feedback.ts` (new) — Orchestrates command execution and session logging
-- `src/use-cases/run-feedback.test.ts` (new) — Use case tests
+- `src/entities/checkpoint.ts` (new) — Session, step, and attempt domain types; `computeProgress` pure function
+- `src/use-cases/run-feedback.ts` (new) — Orchestrates command execution and session logging; imports port interfaces from gateways
+- `src/use-cases/run-feedback.test.ts` (new) — Use case tests with injected mock gateways
 - `src/use-cases/session-status.ts` (new) — Reads and merges session log data
 - `src/use-cases/session-status.test.ts` (new) — Use case tests
 - `src/use-cases/enable-instrumentation.ts` (new) — Manages .npmrc configuration
 - `src/use-cases/enable-instrumentation.test.ts` (new) — Use case tests
-- `src/gateways/session-log-gateway.ts` (new) — File system adapter for session log read/write
+- `src/gateways/session-log-gateway.ts` (new) — Defines `SessionLogGateway` port interface and file system implementation; exports `SCHEMA_VERSION` constant
 - `src/gateways/session-log-gateway.test.ts` (new) — Gateway tests
-- `src/gateways/command-execution-gateway.ts` (new) — Child process execution adapter
+- `src/gateways/command-execution-gateway.ts` (new) — Defines `CommandExecutionGateway` port interface and child process implementation
 - `src/gateways/command-execution-gateway.test.ts` (new) — Gateway tests
 - `src/mcp/tools/run-feedback.ts` (new) — MCP tool handler
 - `src/mcp/tools/session-status.ts` (new) — MCP tool handler
 - `src/mcp/tools/enable-instrumentation.ts` (new) — MCP tool handler
-- `src/mcp/server.ts` (update) — Register new tools
-- `bin/lousy-agents-shell.sh` (new) — npm script-shell wrapper
+- `src/mcp/server.ts` (update) — Register new tools, session lifecycle management
+- `src/mcp-server.ts` (update) — Composition root wiring for new gateways and use cases
+- `bin/lousy-agents-shell.sh` (new) — npm script-shell wrapper (bash, no Node.js dependency)
 - `src/commands/instrument.ts` (new, optional) — CLI command for enabling instrumentation
 
 ### Dependencies
@@ -187,7 +282,7 @@ All writes to `.jsonl` files use POSIX `O_APPEND` with single-buffer writes to g
 - `child_process` (Node.js built-in) — For command execution in `run_feedback`
 - `zod` (existing) — For session log schema validation
 
-### Data Model
+### Data Model Changes
 
 #### Active Session Marker (`.lousy-agents/active-session.json`)
 
@@ -310,18 +405,20 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 **Requirements**:
 
-- The `WorkflowSession` type shall include schemaVersion (number, initially 1), sessionId (UUID string), workingDirectory, startedAt, project metadata (name and packageManager), mandatoryPhases (string array capturing which phases were mandatory at session creation time), and an array of `StepRecord` entries.
+- The `WorkflowSession` type shall include schemaVersion (number), sessionId (string), workingDirectory, startedAt, project metadata (name and packageManager), mandatoryPhases (string array capturing which phases were mandatory at session creation time), and an array of `StepRecord` entries. All fields are plain data — no ID generation, no timestamps, no side effects. The infrastructure layer (MCP server composition root) generates UUIDs and timestamps and passes them in when constructing a session.
 - The `StepRecord` type shall include phase, command, source (“mcp” | “npm-instrumentation”), exitCode, durationMs, timestamp, and optional outputSummary.
-- The `ActiveSessionMarker` type shall include sessionId, startedAt, and pid (process ID of the MCP server).
+- The `ActiveSessionMarker` type shall include sessionId, startedAt, and pid (number, process ID of the MCP server).
 - The `WorkflowProgress` type shall represent the computed state of a session: for each mandatory phase, whether it is not-started, passed, or failed, with attempt count.
 - A `computeProgress` function shall accept a `WorkflowSession` and return `WorkflowProgress`, using the session’s embedded `mandatoryPhases` rather than requiring an external list. This ensures progress can be computed from the session log alone, supporting offline analysis.
 - When multiple attempts exist for a phase, `computeProgress` shall use the most recent attempt to determine pass/fail status.
-- The `SCHEMA_VERSION` shall be exported as a constant (value: 1) for use by gateways during read validation and write.
+- Entity types shall NOT import from any other layer, shall NOT depend on Node.js built-ins (e.g., `crypto`, `process`), and shall NOT generate IDs or timestamps.
 
 **Verification**:
 
 - [ ] `npm test src/entities/checkpoint.test.ts` passes
 - [ ] `npx biome check src/entities/checkpoint.ts` passes
+- [ ] `npm run build` succeeds
+- [ ] Entity file has zero imports from `src/use-cases/`, `src/gateways/`, `src/commands/`, `src/mcp/`, or `src/lib/`
 
 **Done when**:
 
@@ -347,6 +444,8 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 **Requirements**:
 
+- The gateway file shall export a `SCHEMA_VERSION` constant (value: 1) used when writing `session.json` and when validating schema on read. This is a serialization concern and belongs in the gateway layer, not in entities.
+- The gateway shall define a `SessionLogGateway` interface (port) that use cases depend on, with methods for reading sessions, writing step records, managing the active-session marker, and adopting untracked entries.
 - The gateway shall read `session.json` and `session.jsonl` from `.lousy-agents/sessions/{sessionId}/` in the target project.
 - The gateway shall merge entries from both files into a single `WorkflowSession`, sorted by timestamp.
 - When merging, the gateway shall deduplicate entries that were captured by both paths for the same execution. Two entries shall be considered duplicates when they share the same phase and their timestamps are within a configurable tolerance (default 1 second). In case of a duplicate, the MCP-sourced entry shall be preferred because it carries richer data (outputSummary).
@@ -362,6 +461,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 - [ ] `npm test src/gateways/session-log-gateway.test.ts` passes
 - [ ] `npx biome check src/gateways/session-log-gateway.ts` passes
+- [ ] `npm run build` succeeds
 
 **Done when**:
 
@@ -386,6 +486,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 **Requirements**:
 
+- The gateway file shall define a `CommandExecutionGateway` interface (port) that use cases depend on, with a method for executing a command and returning structured results.
 - The gateway shall execute a command string in a specified working directory and return the exit code, combined stdout/stderr (interleaved in output order), and duration in milliseconds.
 - The gateway shall capture output up to a configurable limit (default 50,000 characters) and discard older output beyond that limit, retaining the most recent output. This is a safety bound to prevent unbounded memory growth; the use case layer is responsible for the user-facing truncation strategy.
 - If the command fails to spawn (e.g., command not found), then the gateway shall return a structured error rather than throwing.
@@ -395,6 +496,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 - [ ] `npm test src/gateways/command-execution-gateway.test.ts` passes
 - [ ] `npx biome check src/gateways/command-execution-gateway.ts` passes
+- [ ] `npm run build` succeeds
 
 **Done when**:
 
@@ -418,6 +520,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 **Requirements**:
 
+- The use case shall depend on the `SessionLogGateway`, `CommandExecutionGateway`, and `DiscoverFeedbackLoopsUseCase` interfaces (ports), not concrete implementations. Dependencies shall be injected via constructor injection.
 - When given a phase name and target directory, the use case shall look up the command via `discover_feedback_loops` and execute it via the command execution gateway.
 - The use case shall execute the underlying command directly (e.g., `vitest run`) rather than via `npm run`, to avoid triggering the npm `script-shell` wrapper and producing duplicate entries. The discovered command from `discover_feedback_loops` already provides the raw command string.
 - When the command completes, the use case shall write a `StepRecord` to the session log via the session log gateway.
@@ -431,6 +534,8 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 - [ ] `npm test src/use-cases/run-feedback.test.ts` passes
 - [ ] `npx biome check src/use-cases/run-feedback.ts` passes
+- [ ] `npm run build` succeeds
+- [ ] Use case file imports only from `src/entities/` and port interfaces, not from `src/gateways/`, `src/mcp/`, or `src/commands/`
 
 **Done when**:
 
@@ -454,6 +559,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 **Requirements**:
 
+- The use case shall depend on the `SessionLogGateway` and `DiscoverFeedbackLoopsUseCase` interfaces (ports) via constructor injection, not concrete implementations.
 - When given a target directory, the use case shall read the active session log and compute `WorkflowProgress` using the session’s embedded `mandatoryPhases` field. This makes progress computation self-contained and independent of re-running discovery.
 - The progress shall merge data from both MCP and npm-instrumentation sources.
 - When no session log exists, the use case shall fall back to `discover_feedback_loops` to determine mandatory phases and return all steps as “not started.”
@@ -464,6 +570,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 - [ ] `npm test src/use-cases/session-status.test.ts` passes
 - [ ] `npx biome check src/use-cases/session-status.ts` passes
+- [ ] `npm run build` succeeds
 
 **Done when**:
 
@@ -472,19 +579,17 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 -----
 
-### Task 6: Create npm Shell Wrapper
+### Task 6a: Create npm Shell Wrapper Script
 
 **Depends on**: Task 1
 
 **Objective**: Create the shell wrapper script that captures npm script execution data.
 
-**Context**: This is a lightweight shell script that npm invokes via the `script-shell` configuration. It must be fast and fail-safe.
+**Context**: This is a lightweight bash script that npm invokes via the `script-shell` configuration. It must be fast and fail-safe. It operates independently of the Node.js codebase.
 
 **Affected files**:
 
 - `bin/lousy-agents-shell.sh` (new)
-- `src/use-cases/enable-instrumentation.ts` (new)
-- `src/use-cases/enable-instrumentation.test.ts` (new)
 
 **Requirements**:
 
@@ -497,16 +602,14 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 - Each JSON line shall be self-contained and newline-terminated so that a truncated write (e.g., from SIGKILL) produces at most one malformed line without corrupting subsequent entries.
 - The wrapper shall exit with the original command’s exit code.
 - If any instrumentation logic fails (write error, missing env var, missing marker), then the wrapper shall silently continue and execute the command without recording.
-- The `enable_instrumentation` use case shall write `script-shell=/path/to/lousy-agents-shell.sh` to `.npmrc`.
-- If `.npmrc` already contains a `script-shell` entry with a different value, then the use case shall return a warning and not overwrite.
 
 **Verification**:
 
-- [ ] `npm test src/use-cases/enable-instrumentation.test.ts` passes
-- [ ] `npx biome check src/use-cases/enable-instrumentation.ts` passes
 - [ ] Manual test: `npm_lifecycle_event=test npm_lifecycle_script="echo hello" bin/lousy-agents-shell.sh -c "echo hello"` produces a `.lousy-agents/untracked/session.jsonl` entry (when no active session marker exists)
 - [ ] Manual test: wrapper exits with same code as wrapped command
 - [ ] Manual test: with an active-session marker present, entries are written to the correct session directory
+- [ ] Manual test: wrapper completes in under 50ms overhead beyond the wrapped command
+- [ ] `shellcheck bin/lousy-agents-shell.sh` passes (if shellcheck is available)
 
 **Done when**:
 
@@ -516,9 +619,43 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 -----
 
+### Task 6b: Create EnableInstrumentationUseCase
+
+**Depends on**: Task 6a
+
+**Objective**: Create the use case for enabling npm instrumentation by configuring `.npmrc` to use the shell wrapper.
+
+**Context**: This use case manages `.npmrc` configuration and verifies the wrapper script is accessible. It follows the same use case patterns as `RunFeedbackUseCase`.
+
+**Affected files**:
+
+- `src/use-cases/enable-instrumentation.ts` (new)
+- `src/use-cases/enable-instrumentation.test.ts` (new)
+
+**Requirements**:
+
+- The use case shall write `script-shell=/path/to/lousy-agents-shell.sh` to `.npmrc` in the target directory.
+- If `.npmrc` already contains a `script-shell` entry with a different value, then the use case shall return a warning and not overwrite.
+- If `.npmrc` already exists, then the use case shall append the `script-shell` entry without overwriting existing configuration.
+- The use case shall verify the wrapper script is accessible at the configured path.
+- The use case shall depend on a file system gateway interface (port) for `.npmrc` operations, injected via constructor.
+
+**Verification**:
+
+- [ ] `npm test src/use-cases/enable-instrumentation.test.ts` passes
+- [ ] `npx biome check src/use-cases/enable-instrumentation.ts` passes
+- [ ] `npm run build` succeeds
+
+**Done when**:
+
+- [ ] All verification steps pass
+- [ ] No new errors in affected files
+
+-----
+
 ### Task 7: Register MCP Tools
 
-**Depends on**: Task 4, Task 5, Task 6
+**Depends on**: Task 4, Task 5, Task 6b
 
 **Objective**: Wire the new use cases into the MCP server as tools.
 
@@ -529,8 +666,9 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 - `src/mcp/tools/run-feedback.ts` (new)
 - `src/mcp/tools/session-status.ts` (new)
 - `src/mcp/tools/enable-instrumentation.ts` (new)
-- `src/mcp/server.ts` (update)
+- `src/mcp/server.ts` (update) — Register new tools
 - `src/mcp/server.test.ts` (update)
+- `src/mcp-server.ts` (update) — Composition root: instantiate gateways, wire use cases, manage session lifecycle
 
 **Requirements**:
 
@@ -539,7 +677,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 - The `enable_instrumentation` tool shall accept `targetDir` (string, required) parameter.
 - When called, each tool shall invoke the corresponding use case and return structured JSON responses.
 - The tool descriptions shall clearly communicate their purpose so that agents naturally discover and prefer them.
-- The MCP server shall generate a UUID session ID on startup and write the active-session marker via the `SessionLogGateway`.
+- The MCP server composition root (`src/mcp-server.ts`) shall generate a UUID session ID on startup using `crypto.randomUUID()` and write the active-session marker via the `SessionLogGateway`. UUID generation is an infrastructure concern and must not be performed in entities or use cases.
 - On the first tool call that provides a `targetDir`, the MCP server shall initialize the `session.json` with project metadata (name from package.json, packageManager) and `mandatoryPhases` (from `discover_feedback_loops`). This lazy initialization handles the fact that the target directory is not known until the agent makes a tool call.
 - The MCP server shall register a process exit handler (SIGTERM, SIGINT, beforeExit) that removes the active-session marker via the `SessionLogGateway`.
 - When the MCP server starts and finds a stale active-session marker (pid no longer running), it shall clean it up before writing its own.
@@ -566,7 +704,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 **Objective**: End-to-end tests that verify the full checkpoint workflow.
 
-**Context**: Similar to `src/use-cases/feedback-loop-discovery.integration.test.ts`, these tests create a realistic project structure and exercise the complete flow.
+**Context**: Similar to `src/use-cases/feedback-loop-discovery.integration.test.ts`, these tests create a realistic project structure and exercise the complete flow. Integration tests run under the separate integration test config (`vitest.integration.config.ts`).
 
 **Affected files**:
 
@@ -574,6 +712,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 **Requirements**:
 
+- Tests shall follow the Arrange-Act-Assert pattern and use Chance.js for generated test data, consistent with `test.instructions.md`.
 - Tests shall create a temporary project with a package.json containing test, lint, and build scripts.
 - Tests shall verify the MCP tool path: call `run_feedback` for each phase and verify session log entries and progress computation.
 - Tests shall verify the npm instrumentation path: configure `script-shell`, run `npm test`, and verify the `.jsonl` log entry.
