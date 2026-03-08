@@ -6,11 +6,11 @@ AI coding agents working through multi-step development tasks (write test, imple
 
 ## Personas
 
-|Persona                               |Impact  |Notes                                                                                                                         |
-|--------------------------------------|--------|------------------------------------------------------------------------------------------------------------------------------|
-|Software Engineer Learning Vibe Coding|Positive|Primary user. Gets confidence that agents are following the expected workflow without manually checking each step.            |
-|Team Lead                             |Positive|Gains visibility into agent workflow adherence across sessions. Can identify patterns in where agents get stuck or skip steps.|
-|Platform Engineer                     |Positive|Can integrate checkpoint data into CI gates or reporting. Standard instrumentation reduces per-repo configuration.            |
+| Persona | Impact | Notes |
+|---------|--------|-------|
+| Software Engineer Learning Vibe Coding | Positive | Primary user. Gets confidence that agents are following the expected workflow without manually checking each step. |
+| Team Lead | Positive | Gains visibility into agent workflow adherence across sessions. Can identify patterns in where agents get stuck or skip steps. |
+| Platform Engineer | Positive | Can integrate checkpoint data into CI gates or reporting. Standard instrumentation reduces per-repo configuration. |
 
 ## Value Assessment
 
@@ -27,7 +27,7 @@ so that I can **see what the agent has completed and what remains without leavin
 
 #### Acceptance Criteria
 
-- When the agent calls `run_feedback` with a phase name (e.g., “test”), the MCP server shall execute the discovered command for that phase.
+- When the agent calls `run_feedback` with a target directory and phase name (e.g., `targetDir: "/path/to/project"`, `phase: "test"`), the MCP server shall execute the discovered command for that phase in the specified directory.
 - When the command completes, the MCP server shall record the step in the session log with the phase, command, exit code, duration, and timestamp.
 - When the command completes, the MCP server shall return the command output alongside a progress summary listing completed and remaining mandatory steps.
 - If the requested phase has no discovered command, then the MCP server shall return an error indicating no command is configured for that phase.
@@ -51,7 +51,7 @@ so that I can **have a complete picture of what feedback loops ran during a sess
 
 - The checkpoint system shall provide a shell wrapper script that can be configured as npm’s `script-shell`.
 - When configured, the wrapper shall record the script name, start time, exit code, and duration for every `npm run` invocation.
-- The wrapper shall delegate execution to the system’s default shell and exit with the original exit code.
+- The wrapper shall delegate execution to `/bin/sh -c` and exit with the original exit code.
 - The wrapper shall write log entries to the active session’s log directory, or to an untracked log if no active session exists.
 - If the wrapper encounters an error in its own logic, then it shall fall back to executing the command without recording and shall not prevent the script from running.
 - If the target session directory does not exist, then the wrapper shall create it.
@@ -128,7 +128,7 @@ Infrastructure:  MCP tool handlers, shell wrapper script, .npmrc management, com
 
 **Dual-Path Capture:** The checkpoint system captures agent workflow data through two complementary mechanisms. The MCP Tool Path (primary) is an MCP tool called `run_feedback` that agents call instead of shelling out directly, providing structured results, progress summaries, and contextual guidance. The npm Instrumentation Path (fallback) is an npm `script-shell` wrapper that intercepts all `npm run` invocations transparently when agents bypass the MCP tool. Both paths write to the same session log, and the MCP server merges data from both sources when reporting progress.
 
-**Session Scope:** A session represents a single agent working on a single task. The session lifecycle is tied to the MCP server process lifetime: a new session begins when the MCP server starts and ends when the process exits. The MCP server generates a unique session ID on startup (UUID at the infrastructure layer, passed into domain types as a string) and holds it in memory for the duration of the process. To enable the npm shell wrapper (which runs in a separate process) to associate its log entries with the active session, the MCP server writes a lightweight marker file (`.lousy-agents/active-session.json`) on startup containing the session ID and start timestamp. The wrapper reads this file to tag its entries. When the MCP server process exits, the marker file is cleaned up (best-effort). If the wrapper finds no marker file, it generates entries with a `null` session ID, which the next MCP server session will adopt as “prior untracked activity.” Session data is stored in `.lousy-agents/sessions/{sessionId}/` within the project.
+**Session Scope:** A session represents a single agent working on a single task. The session lifecycle is tied to the MCP server process lifetime: a new session begins when the MCP server starts and ends when the process exits. The MCP server generates a unique session ID on startup (UUID at the infrastructure layer, passed into domain types as a string) and holds it in memory for the duration of the process. To enable the npm shell wrapper (which runs in a separate process) to associate its log entries with the active session, the MCP server writes a lightweight marker file (`.lousy-agents/active-session.json`) on startup containing the session ID and start timestamp. The wrapper reads this file to tag its entries. When the MCP server process exits, the marker file is cleaned up (best-effort). If the wrapper finds no marker file, it writes entries to `.lousy-agents/untracked/session.jsonl` instead. These entries use the same `StepRecord` JSON structure (no `sessionId` field needed — the file path determines association). The next MCP server session will adopt untracked entries as prior activity. Session data is stored in `.lousy-agents/sessions/{sessionId}/` within the project.
 
 **Workflow Steps:** Workflow steps are derived from the existing `discover_feedback_loops` use case. Mandatory steps (test, lint, build, format) form the checklist. Each step tracks its phase, the command executed, whether it passed or failed, the timestamp, and optionally a summary of the output.
 
@@ -406,7 +406,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 **Requirements**:
 
 - The `WorkflowSession` type shall include schemaVersion (number), sessionId (string), workingDirectory, startedAt, project metadata (name and packageManager), mandatoryPhases (string array capturing which phases were mandatory at session creation time), and an array of `StepRecord` entries. All fields are plain data — no ID generation, no timestamps, no side effects. The infrastructure layer (MCP server composition root) generates UUIDs and timestamps and passes them in when constructing a session.
-- The `StepRecord` type shall include phase, command, source (“mcp” | “npm-instrumentation”), exitCode, durationMs, timestamp, and optional outputSummary.
+- The `StepRecord` type shall include phase, command, source ("mcp" | "npm-instrumentation"), exitCode, durationMs, timestamp, and outputSummary (`string | null`, represented as `null` in JSON when no summary is available).
 - The `ActiveSessionMarker` type shall include sessionId, startedAt, and pid (number, process ID of the MCP server).
 - The `WorkflowProgress` type shall represent the computed state of a session: for each mandatory phase, whether it is not-started, passed, or failed, with attempt count.
 - A `computeProgress` function shall accept a `WorkflowSession` and return `WorkflowProgress`, using the session’s embedded `mandatoryPhases` rather than requiring an external list. This ensures progress can be computed from the session log alone, supporting offline analysis.
@@ -607,11 +607,12 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 - The wrapper shall read `.lousy-agents/active-session.json` to obtain the current session ID.
 - The wrapper shall record the start time, delegate to `/bin/sh -c` with the original arguments, and capture the exit code.
 - When an active session marker exists, the wrapper shall append a JSON line to `.lousy-agents/sessions/{sessionId}/session.jsonl` with phase (mapped from script name using existing `SCRIPT_PHASE_MAPPING`), command, exit code, duration, and timestamp.
-- When no active session marker exists, the wrapper shall append to `.lousy-agents/untracked/session.jsonl` with a null session ID.
+- When no active session marker exists, the wrapper shall append to `.lousy-agents/untracked/session.jsonl`. The entry uses the same `StepRecord` JSON structure as tracked entries (no `sessionId` field is needed — the file path determines association).
 - The wrapper shall open the `.jsonl` file in append mode (e.g., `>>` redirection) and emit each entry as a single, complete, newline-terminated JSON line. Under concurrent execution (e.g., parallel npm scripts), entries shall not interleave — each line shall be a valid JSON object. The wrapper shall not use multiple writes or buffered I/O for a single entry.
 - Each JSON line shall be self-contained and newline-terminated so that a truncated write (e.g., from SIGKILL) produces at most one malformed line without corrupting subsequent entries.
 - The wrapper shall exit with the original command’s exit code.
 - If any instrumentation logic fails (write error, missing env var, missing marker), then the wrapper shall silently continue and execute the command without recording.
+- The shell wrapper requires a POSIX-compatible environment (`/bin/sh`, standard POSIX utilities). It is supported on macOS and Linux. Windows users must use WSL or a POSIX compatibility layer (e.g., Git Bash). This aligns with the npm-only scope for v1 (see Out of Scope).
 
 **Verification**:
 
