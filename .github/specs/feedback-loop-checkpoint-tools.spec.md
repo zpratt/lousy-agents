@@ -118,7 +118,7 @@ so that **the agent can understand what has already been attempted and adjust it
 The checkpoint system follows Clean Architecture principles consistent with the existing codebase:
 
 ```
-Entities:        WorkflowSession, StepRecord, WorkflowProgress, ActiveSessionMarker
+Entities:        WorkflowSession, StepRecord (multiple records per step for attempts), WorkflowProgress, ActiveSessionMarker
 Use Cases:       RunFeedbackUseCase, SessionStatusUseCase, EnableInstrumentationUseCase
 Gateways:        SessionLogGateway (file system), CommandExecutionGateway (child process)
 Infrastructure:  MCP tool handlers, shell wrapper script, .npmrc management, composition root
@@ -253,7 +253,7 @@ The two capture paths are designed to be complementary, not redundant. The `run_
 
 The `SessionLogGateway` includes timestamp-based deduplication as a safety net, preferring MCP-sourced entries when near-simultaneous entries exist for the same phase. This guards against edge cases (e.g., an agent calling `run_feedback` with a command that itself invokes `npm run` internally).
 
-All writes to `.jsonl` files use POSIX `O_APPEND` with single-buffer writes to guarantee atomicity under concurrent execution. Each JSON line is self-contained and newline-terminated, so a truncated write from a killed process produces at most one malformed line. The gateway skips malformed lines on read without discarding adjacent valid entries.
+All writes to `.jsonl` files use append mode with each entry emitted as a single complete JSON line. On POSIX systems, `O_APPEND` ensures the write offset is atomically set to end-of-file before each write, preventing interleaving under concurrent execution. Each JSON line is self-contained and newline-terminated, so a truncated write from a killed process produces at most one malformed line. The gateway skips malformed lines on read without discarding adjacent valid entries.
 
 ### Components Affected
 
@@ -355,12 +355,12 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 ### Open Questions
 
-- [x] ~Should the shell wrapper communicate with the MCP server process directly (e.g., via local socket) instead of writing to a shared file?~ **Resolved: File-based via shared JSONL.** The wrapper appends entries to the session’s `.jsonl` file using `O_APPEND` mode. POSIX guarantees atomic appends for writes under `PIPE_BUF` (4096 bytes on Linux); a single checkpoint entry is ~200-300 bytes, well within this limit. This avoids coupling the wrapper to the MCP server process and eliminates the need for IPC coordination. The `SessionLogGateway` handles the merge on read.
+- [x] ~Should the shell wrapper communicate with the MCP server process directly (e.g., via local socket) instead of writing to a shared file?~ **Resolved: File-based via shared JSONL.** The wrapper appends entries to the session’s `.jsonl` file using append mode. Each entry is written as a single complete JSON line to minimize the risk of interleaved output. On platforms where `O_APPEND` is supported, POSIX guarantees that the write offset is atomically set to end-of-file before each write. A single checkpoint entry is ~200-300 bytes. If a write is interrupted or truncated (e.g., by SIGKILL), at most one malformed line results; the reader skips malformed lines on read. This avoids coupling the wrapper to the MCP server process and eliminates the need for IPC coordination. The `SessionLogGateway` handles the merge on read.
 - [x] ~Should `run_feedback` capture and parse structured test output (e.g., Vitest JSON reporter) for richer summaries, or is raw output truncation sufficient for v1?~ **Resolved: Raw output with tail-biased truncation.** Parsing structured output couples the system to specific test frameworks and provides marginal benefit since LLMs can extract meaning from raw terminal output. The `outputSummary` shall use a head-and-tail truncation strategy: retain the first ~500 characters (command context) and the last ~4,000 characters (results, errors, summary lines), with a truncation notice in between when the full output exceeds the limit. This captures the actionable information regardless of framework.
 - [x] ~What is the right session boundary?~ **Resolved: MCP server process lifetime.** The server generates a session ID on startup, writes an active-session marker, and cleans it up on exit. The shell wrapper reads the marker to associate its entries with the correct session.
 - [x] ~Should the `.lousy-agents/` directory be gitignored by default?~ **Resolved: Not gitignored. User’s choice.** Session logs are not added to `.gitignore` by default. Users who want to exclude them can add `.lousy-agents/` to their own `.gitignore`. Retaining session history by default enables future analytics use cases (cross-session trend analysis, prompting agents to analyze their own past performance) without requiring users to opt in ahead of time. The session log schema must be stable and self-describing to support analysis by both tooling and LLMs reading the raw files.
-- [x] ~How should the wrapper handle concurrent npm script execution (e.g., `npm-run-all` running test and lint in parallel)?~ **Resolved: Safe by design.** `O_APPEND` atomic writes prevent interleaving. Each parallel wrapper process writes its own complete JSON line independently. Write order may differ from completion order, but every entry carries a timestamp and `computeProgress` uses the most recent result per phase, making write order irrelevant.
-- [ ] How should the MCP server handle unclean shutdown (crash, SIGKILL) where the active-session marker is not cleaned up? Options: check the `pid` field on startup and remove stale markers, or always overwrite.
+- [x] ~How should the wrapper handle concurrent npm script execution (e.g., `npm-run-all` running test and lint in parallel)?~ **Resolved: Safe by design.** Append-mode writes with one complete JSON line per `write()` call prevent interleaving. Each parallel wrapper process writes its own complete JSON line independently. Write order may differ from completion order, but every entry carries a timestamp and `computeProgress` uses the most recent result per phase, making write order irrelevant.
+- [x] ~How should the MCP server handle unclean shutdown (crash, SIGKILL) where the active-session marker is not cleaned up?~ **Resolved: PID-based stale marker cleanup.** On startup, the MCP server checks the `pid` field in any existing `active-session.json` marker. If the PID is no longer running, the marker is removed before writing a new one (see Task 2 requirements).
 
 -----
 
@@ -425,6 +425,8 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 - [ ] All verification steps pass
 - [ ] No new errors in affected files
 - [ ] Types are exported from `src/entities/index.ts`
+- [ ] Acceptance criteria for Story 1 (baseline checkpoint entities) satisfied
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 -----
 
@@ -467,6 +469,8 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 - [ ] All verification steps pass
 - [ ] No new errors in affected files
+- [ ] Acceptance criteria for Session Log Gateway (reading, writing, merging, deduplication, stale marker cleanup) satisfied
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 -----
 
@@ -502,6 +506,8 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 - [ ] All verification steps pass
 - [ ] No new errors in affected files
+- [ ] Acceptance criteria for command execution (exit code, output capture, timeout, spawn failure) satisfied
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 -----
 
@@ -535,12 +541,14 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 - [ ] `npm test src/use-cases/run-feedback.test.ts` passes
 - [ ] `npx biome check src/use-cases/run-feedback.ts` passes
 - [ ] `npm run build` succeeds
-- [ ] Use case file imports only from `src/entities/` and port interfaces, not from `src/gateways/`, `src/mcp/`, or `src/commands/`
+- [ ] Use case file imports only from `src/entities/` and port interfaces (types/interfaces), not concrete gateway implementations, `src/mcp/`, or `src/commands/`
 
 **Done when**:
 
 - [ ] All verification steps pass
 - [ ] No new errors in affected files
+- [ ] Acceptance criteria for Story 1 (run_feedback) and Story 5 (contextual recovery) satisfied
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 -----
 
@@ -576,6 +584,8 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 - [ ] All verification steps pass
 - [ ] No new errors in affected files
+- [ ] Acceptance criteria for Story 3 (session_status) satisfied
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 -----
 
@@ -598,7 +608,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 - The wrapper shall record the start time, delegate to `/bin/sh -c` with the original arguments, and capture the exit code.
 - When an active session marker exists, the wrapper shall append a JSON line to `.lousy-agents/sessions/{sessionId}/session.jsonl` with phase (mapped from script name using existing `SCRIPT_PHASE_MAPPING`), command, exit code, duration, and timestamp.
 - When no active session marker exists, the wrapper shall append to `.lousy-agents/untracked/session.jsonl` with a null session ID.
-- The wrapper shall open the `.jsonl` file with `O_APPEND | O_CREAT | O_WRONLY` flags to guarantee atomic appends under POSIX. Each entry shall be written as a single `write()` call (not multiple writes or buffered I/O) to ensure atomicity under concurrent execution.
+- The wrapper shall open the `.jsonl` file in append mode (e.g., `>>` redirection) and emit each entry as a single, complete, newline-terminated JSON line. Under concurrent execution (e.g., parallel npm scripts), entries shall not interleave — each line shall be a valid JSON object. The wrapper shall not use multiple writes or buffered I/O for a single entry.
 - Each JSON line shall be self-contained and newline-terminated so that a truncated write (e.g., from SIGKILL) produces at most one malformed line without corrupting subsequent entries.
 - The wrapper shall exit with the original command’s exit code.
 - If any instrumentation logic fails (write error, missing env var, missing marker), then the wrapper shall silently continue and execute the command without recording.
@@ -616,6 +626,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 - [ ] All verification steps pass
 - [ ] Wrapper handles failure in its own logic gracefully
 - [ ] Wrapper adds negligible overhead (< 50ms)
+- [ ] Acceptance criteria for Story 2 (npm script capture via instrumentation) satisfied
 
 -----
 
@@ -650,25 +661,24 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 - [ ] All verification steps pass
 - [ ] No new errors in affected files
+- [ ] Acceptance criteria for Story 4 (instrument a project for npm capture) satisfied
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 -----
 
-### Task 7: Register MCP Tools
+### Task 7a: Create MCP Tool Handlers
 
 **Depends on**: Task 4, Task 5, Task 6b
 
-**Objective**: Wire the new use cases into the MCP server as tools.
+**Objective**: Create the MCP tool handler files for the three checkpoint tools.
 
-**Context**: Follows the existing MCP tool registration pattern in `src/mcp/server.ts`.
+**Context**: Follows the existing MCP tool handler pattern in `src/mcp/tools/`. Each tool handler is a thin adapter that validates input, calls the corresponding use case, and formats the response.
 
 **Affected files**:
 
 - `src/mcp/tools/run-feedback.ts` (new)
 - `src/mcp/tools/session-status.ts` (new)
 - `src/mcp/tools/enable-instrumentation.ts` (new)
-- `src/mcp/server.ts` (update) — Register new tools
-- `src/mcp/server.test.ts` (update)
-- `src/mcp-server.ts` (update) — Composition root: instantiate gateways, wire use cases, manage session lifecycle
 
 **Requirements**:
 
@@ -677,14 +687,9 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 - The `enable_instrumentation` tool shall accept `targetDir` (string, required) parameter.
 - When called, each tool shall invoke the corresponding use case and return structured JSON responses.
 - The tool descriptions shall clearly communicate their purpose so that agents naturally discover and prefer them.
-- The MCP server composition root (`src/mcp-server.ts`) shall generate a UUID session ID on startup using `crypto.randomUUID()` and write the active-session marker via the `SessionLogGateway`. UUID generation is an infrastructure concern and must not be performed in entities or use cases.
-- On the first tool call that provides a `targetDir`, the MCP server shall initialize the `session.json` with project metadata (name from package.json, packageManager) and `mandatoryPhases` (from `discover_feedback_loops`). This lazy initialization handles the fact that the target directory is not known until the agent makes a tool call.
-- The MCP server shall register a process exit handler (SIGTERM, SIGINT, beforeExit) that removes the active-session marker via the `SessionLogGateway`.
-- When the MCP server starts and finds a stale active-session marker (pid no longer running), it shall clean it up before writing its own.
 
 **Verification**:
 
-- [ ] `npm test src/mcp/server.test.ts` passes (including new tool tests)
 - [ ] `npx biome check src/mcp/tools/run-feedback.ts` passes
 - [ ] `npx biome check src/mcp/tools/session-status.ts` passes
 - [ ] `npx biome check src/mcp/tools/enable-instrumentation.ts` passes
@@ -693,14 +698,52 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 **Done when**:
 
 - [ ] All verification steps pass
+- [ ] No new errors in affected files
+- [ ] Acceptance criteria for Story 1 (run_feedback tool interface) and Story 3 (session_status tool interface) satisfied
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
+
+-----
+
+### Task 7b: Wire Tools into MCP Server and Composition Root
+
+**Depends on**: Task 7a
+
+**Objective**: Register the new tool handlers in the MCP server and wire up dependency injection in the composition root.
+
+**Context**: The MCP server (`src/mcp/server.ts`) registers tools, and the composition root (`src/mcp-server.ts`) instantiates gateways, creates use cases, and manages the session lifecycle (marker file, exit cleanup).
+
+**Affected files**:
+
+- `src/mcp/server.ts` (update) — Register new tools
+- `src/mcp/server.test.ts` (update)
+- `src/mcp-server.ts` (update) — Composition root: instantiate gateways, wire use cases, manage session lifecycle
+
+**Requirements**:
+
+- The MCP server composition root (`src/mcp-server.ts`) shall generate a UUID session ID on startup using `crypto.randomUUID()` and write the active-session marker via the `SessionLogGateway`. UUID generation is an infrastructure concern and must not be performed in entities or use cases.
+- On the first tool call that provides a `targetDir`, the MCP server shall initialize the `session.json` with project metadata (name from package.json, packageManager) and `mandatoryPhases` (from `discover_feedback_loops`). This lazy initialization handles the fact that the target directory is not known until the agent makes a tool call.
+- The MCP server shall register a process exit handler (SIGTERM, SIGINT, beforeExit) that removes the active-session marker via the `SessionLogGateway`.
+- When the MCP server starts and finds a stale active-session marker (pid no longer running), it shall clean it up before writing its own.
+
+**Verification**:
+
+- [ ] `npm test src/mcp/server.test.ts` passes (including new tool tests)
+- [ ] `npm run build` succeeds
+
+**Done when**:
+
+- [ ] All verification steps pass
+- [ ] No new errors in affected files
 - [ ] Tools are registered and callable via MCP protocol
 - [ ] Tool descriptions are clear and encourage agent adoption
+- [ ] Acceptance criteria for session lifecycle management (Story 1, Story 2) satisfied
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 -----
 
 ### Task 8: Integration Tests
 
-**Depends on**: Task 7
+**Depends on**: Task 7b
 
 **Objective**: End-to-end tests that verify the full checkpoint workflow.
 
@@ -732,14 +775,16 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 **Done when**:
 
 - [ ] All verification steps pass
+- [ ] No new errors in affected files
 - [ ] Integration tests cover both capture paths and their merge
+- [ ] Acceptance criteria across Stories 1-5 are exercised end-to-end
 - [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 -----
 
 ### Task 9: Update Documentation
 
-**Depends on**: Task 7
+**Depends on**: Task 7b
 
 **Objective**: Document the checkpoint system in the project docs.
 
@@ -769,6 +814,8 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 **Done when**:
 
+- [ ] All verification steps pass
+- [ ] No new errors in affected files
 - [ ] Documentation review complete
 - [ ] All existing docs updated to reference new feature
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [ ] Acceptance criteria related to user-facing documentation satisfied
