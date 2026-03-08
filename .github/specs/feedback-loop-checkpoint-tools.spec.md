@@ -627,7 +627,9 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 - [ ] All verification steps pass
 - [ ] Wrapper handles failure in its own logic gracefully
 - [ ] Wrapper adds negligible overhead (< 50ms)
+- [ ] No new errors in affected files
 - [ ] Acceptance criteria for Story 2 (npm script capture via instrumentation) satisfied
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 -----
 
