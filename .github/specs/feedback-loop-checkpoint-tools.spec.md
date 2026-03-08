@@ -53,6 +53,7 @@ so that I can **have a complete picture of what feedback loops ran during a sess
 - When configured, the wrapper shall record the script name, start time, exit code, and duration for every `npm run` invocation.
 - The wrapper shall delegate execution to `/bin/sh -c` and exit with the original exit code.
 - The wrapper shall write log entries to the active session’s log directory, or to an untracked log if no active session exists.
+- The wrapper's raw log record shall include a completion `timestamp` (ISO 8601) and `durationMs`; `startedAt` is defined as `timestamp - durationMs` and does not need to be stored as a separate field.
 - If the wrapper encounters an error in its own logic, then it shall fall back to executing the command without recording and shall not prevent the script from running.
 - If the target session directory does not exist, then the wrapper shall create it.
 
@@ -282,11 +283,23 @@ All writes to `.jsonl` files use append mode with each entry emitted as a single
 - `child_process` (Node.js built-in) — For command execution in `run_feedback`
 - `zod` (existing) — For session log schema validation
 
+### Wrapper Distribution
+
+The shell wrapper (`bin/lousy-agents-shell.sh`) is copied to `dist/lousy-agents-shell.sh` during the build step. The `dist/` directory is already listed in `package.json`'s `files` array, so the wrapper ships with every published version of the package.
+
+When `EnableInstrumentationUseCase` writes the `.npmrc` entry, it resolves the wrapper's absolute path at runtime using `import.meta.url`:
+
+```typescript
+const wrapperPath = new URL('../../lousy-agents-shell.sh', import.meta.url).pathname;
+```
+
+When the package is installed, this resolves to `<project_root>/node_modules/lousy-agents/dist/lousy-agents-shell.sh`. The `.npmrc` entry written by the use case uses this absolute path, ensuring npm can locate the wrapper regardless of the user's working directory.
+
 ### Data Model Changes
 
 #### Active Session Marker (`.lousy-agents/active-session.json`)
 
-Written by the MCP server on startup, read by the npm shell wrapper, cleaned up on exit.
+Created by the MCP server the first time a checkpoint or instrumentation tool runs for a given `targetDir`, stored under that project's `.lousy-agents` directory, read by the npm shell wrapper during instrumented command execution, and removed when the MCP session for that `targetDir` ends.
 
 ```json
 {
@@ -318,15 +331,6 @@ Written by the MCP server on startup, read by the npm shell wrapper, cleaned up 
       "durationMs": 4523,
       "timestamp": "2026-03-07T14:31:12.000Z",
       "outputSummary": "14 tests passed, 0 failed"
-    },
-    {
-      "phase": "test",
-      "command": "vitest run",
-      "source": "npm-instrumentation",
-      "exitCode": 1,
-      "durationMs": 3201,
-      "timestamp": "2026-03-07T14:32:45.000Z",
-      "outputSummary": null
     }
   ]
 }
@@ -334,7 +338,7 @@ Written by the MCP server on startup, read by the npm shell wrapper, cleaned up 
 
 The `schemaVersion` field enables forward-compatible migrations as the schema evolves. The `project` and `mandatoryPhases` fields capture the context needed to interpret the session independently, so someone (or an agent) reading the log months later can understand what was expected without re-running `discover_feedback_loops`.
 
-The `source` field distinguishes entries created by the MCP tool (“mcp”) from those captured by the npm wrapper (“npm-instrumentation”). The MCP path can provide `outputSummary`; the npm wrapper path typically cannot.
+The `steps` array in `session.json` contains only steps recorded by the MCP tool (`source: "mcp"`). npm-instrumentation steps are never written to `session.json`; they are appended by the shell wrapper to the append-only `session.jsonl` file. The `SessionLogGateway` merges both sources in memory at read time, producing a unified step list. This separation keeps `session.json` as a clean, MCP-authored record while `session.jsonl` serves as an append-only crash-safe capture of instrumented npm events.
 
 #### Shell Wrapper Data Flow
 
@@ -600,6 +604,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 **Affected files**:
 
 - `bin/lousy-agents-shell.sh` (new)
+- `rspack.config.ts` (update) — Add a step to copy `bin/lousy-agents-shell.sh` to `dist/lousy-agents-shell.sh` so it ships with the published package
 
 **Requirements**:
 
@@ -648,7 +653,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 **Requirements**:
 
-- The use case shall write `script-shell=/path/to/lousy-agents-shell.sh` to `.npmrc` in the target directory.
+- The use case shall write `script-shell=<absolute-path>` to `.npmrc` in the target directory, where the wrapper path is resolved at runtime using `new URL('../../lousy-agents-shell.sh', import.meta.url).pathname` relative to the compiled use case module in `dist/use-cases/`.
 - If `.npmrc` already contains a `script-shell` entry with a different value, then the use case shall return a warning and not overwrite.
 - If `.npmrc` already exists, then the use case shall append the `script-shell` entry without overwriting existing configuration.
 - The use case shall verify the wrapper script is accessible at the configured path.
