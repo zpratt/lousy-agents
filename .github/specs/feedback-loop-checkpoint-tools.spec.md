@@ -130,7 +130,7 @@ Infrastructure:  MCP tool handlers, shell wrapper script, .npmrc management, com
 
 **Session Scope:** A session represents a single agent working on a single task. The session lifecycle is tied to the MCP server process lifetime: a new session begins when the MCP server starts and ends when the process exits. The MCP server generates a unique session ID on startup (UUID at the infrastructure layer, passed into domain types as a string) and holds it in memory for the duration of the process. To enable the npm shell wrapper (which runs in a separate process) to associate its log entries with the active session, the MCP server writes a lightweight marker file (`.lousy-agents/active-session.json`) on startup containing the session ID and start timestamp. The wrapper reads this file to tag its entries. When the MCP server process exits, the marker file is cleaned up (best-effort). If the wrapper finds no marker file, it writes entries to `.lousy-agents/untracked/session.jsonl` instead. These entries use the same `StepRecord` JSON structure (no `sessionId` field needed — the file path determines association). The next MCP server session will adopt untracked entries as prior activity. Session data is stored in `.lousy-agents/sessions/{sessionId}/` within the project.
 
-**Workflow Steps:** Workflow steps are derived from the existing `discover_feedback_loops` use case. Mandatory steps (test, lint, build, format) form the checklist. Each step tracks its phase, the command executed, whether it passed or failed, the timestamp, and optionally a summary of the output.
+**Workflow Steps:** Workflow steps are derived from the existing `discover_feedback_loops` use case. Mandatory checklist items are the phases from that output where `isMandatory` is `true`, so the checklist matches the feedback commands actually available in the target project (typically covering test, lint, build, and format, but varying by project configuration). Each step tracks its phase, the command executed, whether it passed or failed, the timestamp, and optionally a summary of the output.
 
 ### Diagrams
 
@@ -606,7 +606,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 - The shell wrapper shall read `npm_lifecycle_event` and `npm_lifecycle_script` from the environment.
 - The wrapper shall read `.lousy-agents/active-session.json` to obtain the current session ID.
 - The wrapper shall record the start time, delegate to `/bin/sh -c` with the original arguments, and capture the exit code.
-- When an active session marker exists, the wrapper shall append a JSON line to `.lousy-agents/sessions/{sessionId}/session.jsonl` with phase (mapped from script name using existing `SCRIPT_PHASE_MAPPING`), command, exit code, duration, and timestamp.
+- When an active session marker exists, the wrapper shall append a JSON line to `.lousy-agents/sessions/{sessionId}/session.jsonl` with `scriptName` (from `npm_lifecycle_event`), `command` (from `npm_lifecycle_script`), exit code, duration, and timestamp. Phase determination is deferred to the Node.js `SessionLogGateway`, which applies the shared `determineScriptPhase` logic when ingesting the `.jsonl`, avoiding duplication of the TypeScript `SCRIPT_PHASE_MAPPING` in shell.
 - When no active session marker exists, the wrapper shall append to `.lousy-agents/untracked/session.jsonl`. The entry uses the same `StepRecord` JSON structure as tracked entries (no `sessionId` field is needed — the file path determines association).
 - The wrapper shall open the `.jsonl` file in append mode (e.g., `>>` redirection) and emit each entry as a single, complete, newline-terminated JSON line. Under concurrent execution (e.g., parallel npm scripts), entries shall not interleave — each line shall be a valid JSON object. The wrapper shall not use multiple writes or buffered I/O for a single entry.
 - Each JSON line shall be self-contained and newline-terminated so that a truncated write (e.g., from SIGKILL) produces at most one malformed line without corrupting subsequent entries.
@@ -820,3 +820,4 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 - [ ] Documentation review complete
 - [ ] All existing docs updated to reference new feature
 - [ ] Acceptance criteria related to user-facing documentation satisfied
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
