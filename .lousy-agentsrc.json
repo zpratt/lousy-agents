@@ -1,0 +1,32 @@
+{
+    "lint": {
+        "rules": {
+            "agents": {
+                "agent/missing-frontmatter": "error",
+                "agent/invalid-frontmatter": "error",
+                "agent/missing-name": "error",
+                "agent/invalid-name-format": "error",
+                "agent/name-mismatch": "error",
+                "agent/missing-description": "error",
+                "agent/invalid-description": "error",
+                "agent/invalid-field": "error"
+            },
+            "instructions": {
+                "instruction/parse-error": "error",
+                "instruction/command-not-in-code-block": "error",
+                "instruction/command-outside-section": "error",
+                "instruction/missing-error-handling": "error"
+            },
+            "skills": {
+                "skill/missing-frontmatter": "error",
+                "skill/invalid-frontmatter": "error",
+                "skill/missing-name": "error",
+                "skill/invalid-name-format": "error",
+                "skill/name-mismatch": "error",
+                "skill/missing-description": "error",
+                "skill/invalid-description": "error",
+                "skill/missing-allowed-tools": "error"
+            }
+        }
+    }
+}
