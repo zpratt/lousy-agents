@@ -51,7 +51,7 @@ so that I can **have a complete picture of what feedback loops ran during a sess
 
 - The checkpoint system shall provide a shell wrapper script that can be configured as npm’s `script-shell`.
 - When configured, the wrapper shall record the script name, start time, exit code, and duration for every `npm run` invocation.
-- The wrapper shall delegate execution to `/bin/sh -c` and exit with the original exit code.
+- The wrapper shall forward its arguments to `/bin/sh` unchanged (e.g., `exec /bin/sh "$@"`) and exit with the original exit code. When invoked by npm as `script-shell`, npm provides `-c <script>` as arguments — the wrapper must not add an extra `-c`.
 - The wrapper shall write log entries to the active session’s log directory, or to an untracked log if no active session exists.
 - The wrapper's raw log record shall include a completion `timestamp` (ISO 8601) and `durationMs`; `startedAt` is defined as `timestamp - durationMs` and does not need to be stored as a separate field.
 - If the wrapper encounters an error in its own logic, then it shall fall back to executing the command without recording and shall not prevent the script from running.
@@ -237,7 +237,7 @@ sequenceDiagram
     Wrapper->>FS: Read .lousy-agents/active-session.json
     FS-->>Wrapper: sessionId (or not found)
     Wrapper->>Wrapper: Record start time
-    Wrapper->>Shell: /bin/sh -c "vitest run"
+    Wrapper->>Shell: exec /bin/sh "$@"  (npm provides -c "vitest run")
     Shell-->>Wrapper: exit code
     Wrapper->>FS: Append JSON line to session.jsonl (O_APPEND)
     Wrapper-->>npm: exit with original code
@@ -287,13 +287,17 @@ All writes to `.jsonl` files use append mode with each entry emitted as a single
 
 The shell wrapper (`bin/lousy-agents-shell.sh`) is copied to `dist/lousy-agents-shell.sh` during the build step. The `dist/` directory is already listed in `package.json`'s `files` array, so the wrapper ships with every published version of the package.
 
-When `EnableInstrumentationUseCase` writes the `.npmrc` entry, it resolves the wrapper's absolute path at runtime using `import.meta.url`:
+When `EnableInstrumentationUseCase` writes the `.npmrc` entry, it resolves the wrapper path at runtime using `fileURLToPath` and converts it to a path relative to the target project directory:
 
 ```typescript
-const wrapperPath = new URL('../../lousy-agents-shell.sh', import.meta.url).pathname;
+import { fileURLToPath } from 'node:url';
+import { relative } from 'node:path';
+
+const absolutePath = fileURLToPath(new URL('../../lousy-agents-shell.sh', import.meta.url));
+const relativePath = './' + relative(targetDir, absolutePath);
 ```
 
-When the package is installed, this resolves to `<project_root>/node_modules/lousy-agents/dist/lousy-agents-shell.sh`. The `.npmrc` entry written by the use case uses this absolute path, ensuring npm can locate the wrapper regardless of the user's working directory.
+When the package is installed, `absolutePath` resolves to `<project_root>/node_modules/lousy-agents/dist/lousy-agents-shell.sh`. The `.npmrc` entry uses a project-relative path (e.g., `script-shell=./node_modules/lousy-agents/dist/lousy-agents-shell.sh`) rather than an absolute path, ensuring the configuration is portable across development machines and CI environments where the absolute path would differ.
 
 ### Data Model Changes
 
@@ -348,7 +352,7 @@ npm run test
     → wrapper reads .lousy-agents/active-session.json for sessionId
     → wrapper reads npm_lifecycle_event ("test") and npm_lifecycle_script ("vitest run")
     → wrapper records start time
-    → wrapper delegates to /bin/sh -c "$@"
+    → wrapper delegates to /bin/sh "$@"  (npm already provides -c)
     → wrapper captures exit code
     → wrapper appends JSON line to .lousy-agents/sessions/{sessionId}/session.jsonl
        (or .lousy-agents/untracked/session.jsonl if no active session marker exists)
@@ -496,7 +500,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 - The gateway file shall define a `CommandExecutionGateway` interface (port) that use cases depend on, with a method for executing a command and returning structured results.
 - The gateway shall execute a command string in a specified working directory and return the exit code, combined stdout/stderr (interleaved in output order), and duration in milliseconds.
-- The gateway shall capture output up to a configurable limit (default 50,000 characters) and discard older output beyond that limit, retaining the most recent output. This is a safety bound to prevent unbounded memory growth; the use case layer is responsible for the user-facing truncation strategy.
+- The gateway shall capture output up to a configurable limit (default 50,000 characters) and, within that limit, retain both the earliest (head) and most recent (tail) portions, discarding only middle sections as needed. This preserves both the command context (beginning of output) and the results or errors (end of output), ensuring the use case can generate accurate head-and-tail `outputSummary` values even for long-running commands. This is a safety bound to prevent unbounded memory growth; the use case layer is responsible for the user-facing truncation strategy.
 - If the command fails to spawn (e.g., command not found), then the gateway shall return a structured error rather than throwing.
 - The gateway shall support a timeout option (default 5 minutes) after which the process is killed and an error is returned.
 
@@ -610,7 +614,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 - The shell wrapper shall read `npm_lifecycle_event` and `npm_lifecycle_script` from the environment.
 - The wrapper shall read `.lousy-agents/active-session.json` to obtain the current session ID.
-- The wrapper shall record the start time, delegate to `/bin/sh -c` with the original arguments, and capture the exit code.
+- The wrapper shall record the start time, delegate to the underlying shell using the original arguments exactly as received (e.g., `exec /bin/sh "$@"`), without adding an extra `-c` flag, and capture the exit code. When npm invokes the wrapper as `script-shell`, it already provides `-c <script>` as arguments.
 - When an active session marker exists, the wrapper shall append a **raw script execution record** as a single JSON line to `.lousy-agents/sessions/{sessionId}/session.jsonl` with `scriptName` (from `npm_lifecycle_event`), `command` (from `npm_lifecycle_script`), `source` (`"npm-instrumentation"`), exit code, duration, and timestamp (completion time). This is not a `StepRecord` — it omits `phase` and `outputSummary`. The `SessionLogGateway` converts raw records into `StepRecord` entries on read by applying the shared `determineScriptPhase` logic and setting `outputSummary` to `null`.
 - When no active session marker exists, the wrapper shall append the same raw script execution record to `.lousy-agents/untracked/session.jsonl`. The file path determines session association (no `sessionId` field is needed).
 - The wrapper shall open the `.jsonl` file in append mode (e.g., `>>` redirection) and emit each entry as a single, complete, newline-terminated JSON line. Under concurrent execution (e.g., parallel npm scripts), entries shall not interleave — each line shall be a valid JSON object. The wrapper shall not use multiple writes or buffered I/O for a single entry.
@@ -653,7 +657,7 @@ Note: The wrapper writes to a `.jsonl` (JSON Lines) append-only file for crash s
 
 **Requirements**:
 
-- The use case shall write `script-shell=<absolute-path>` to `.npmrc` in the target directory, where the wrapper path is resolved at runtime using `new URL('../../lousy-agents-shell.sh', import.meta.url).pathname` relative to the compiled use case module in `dist/use-cases/`.
+- The use case shall write `script-shell=<project-relative-path>` to `.npmrc` in the target directory, where the wrapper path is resolved at runtime using `fileURLToPath(new URL('../../lousy-agents-shell.sh', import.meta.url))` relative to the compiled use case module in `dist/use-cases/`, then converted to a path relative to the target directory (e.g., `./node_modules/lousy-agents/dist/lousy-agents-shell.sh`). A project-relative path ensures the `.npmrc` entry is portable across development machines and CI environments.
 - If `.npmrc` already contains a `script-shell` entry with a different value, then the use case shall return a warning and not overwrite.
 - If `.npmrc` already exists, then the use case shall append the `script-shell` entry without overwriting existing configuration.
 - The use case shall verify the wrapper script is accessible at the configured path.
