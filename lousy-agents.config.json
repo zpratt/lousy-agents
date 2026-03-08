@@ -2,7 +2,11 @@
     "lint": {
         "rules": {
             "agents": {
-                "agent/invalid-name-format": "warn"
+                "agent/invalid-name-format": "warn",
+                "agent/invalid-field": "error"
+            },
+            "skills": {
+                "skill/missing-allowed-tools": "error"
             }
         }
     }
