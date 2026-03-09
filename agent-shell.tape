@@ -37,6 +37,8 @@ Type "printf 'script-shell=./node_modules/.bin/agent-shell\n' > .npmrc"
 Enter
 Type "printf '.agent-shell/\n' > .gitignore"
 Enter
+Type "export PATH=\"$DEMO/node_modules/.bin:$PATH\""
+Enter
 Sleep 300ms
 
 Type "clear"
