@@ -3,7 +3,6 @@
  */
 
 import { readdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { SetupStepCandidate } from "../entities/copilot-setup.js";
 import {
@@ -14,21 +13,20 @@ import {
     deduplicateCandidates,
     extractSetupStepsFromWorkflow,
 } from "../use-cases/setup-step-discovery.js";
-import { fileExists } from "./file-system-utils.js";
+import {
+    assertFileSizeWithinLimit,
+    fileExists,
+    resolveSafePath,
+} from "./file-system-utils.js";
 import type { WorkflowGateway } from "./workflow-gateway.js";
 
-/**
- * Possible filenames for the Copilot Setup Steps workflow.
- * Supports both .yml and .yaml extensions.
- */
 const COPILOT_SETUP_WORKFLOW_FILENAMES = [
     "copilot-setup-steps.yml",
     "copilot-setup-steps.yaml",
 ];
 
-/**
- * File system implementation of the workflow gateway
- */
+const MAX_WORKFLOW_FILE_BYTES = 1024 * 1024;
+
 export class FileSystemWorkflowGateway implements WorkflowGateway {
     private config: CopilotSetupConfig | null = null;
 
@@ -39,16 +37,14 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
         return this.config;
     }
 
-    /**
-     * Finds the path to an existing Copilot Setup Steps workflow file.
-     * @returns The full path if found, or null if no workflow exists.
-     */
     private async findCopilotSetupWorkflowPath(
         targetDir: string,
     ): Promise<string | null> {
-        const workflowsDir = join(targetDir, ".github", "workflows");
         for (const filename of COPILOT_SETUP_WORKFLOW_FILENAMES) {
-            const workflowPath = join(workflowsDir, filename);
+            const workflowPath = await resolveSafePath(
+                targetDir,
+                `.github/workflows/${filename}`,
+            );
             if (await fileExists(workflowPath)) {
                 return workflowPath;
             }
@@ -59,7 +55,10 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
     async parseWorkflowsForSetupActions(
         targetDir: string,
     ): Promise<SetupStepCandidate[]> {
-        const workflowsDir = join(targetDir, ".github", "workflows");
+        const workflowsDir = await resolveSafePath(
+            targetDir,
+            ".github/workflows",
+        );
 
         if (!(await fileExists(workflowsDir))) {
             return [];
@@ -74,9 +73,19 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
         const allCandidates: SetupStepCandidate[] = [];
 
         for (const file of yamlFiles) {
-            const filePath = join(workflowsDir, file);
+            const filePath = await resolveSafePath(
+                targetDir,
+                `.github/workflows/${file}`,
+            );
+
+            await assertFileSizeWithinLimit(
+                filePath,
+                MAX_WORKFLOW_FILE_BYTES,
+                `Workflow file '${file}'`,
+            );
+            const content = await readFile(filePath, "utf-8");
+
             try {
-                const content = await readFile(filePath, "utf-8");
                 const workflow = parseYaml(content);
                 const candidates = extractSetupStepsFromWorkflow(
                     workflow,
@@ -84,8 +93,7 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
                 );
                 allCandidates.push(...candidates);
             } catch {
-                // Skip files that can't be parsed as valid YAML workflows
-                // This is expected for malformed or non-workflow YAML files
+                // Skip malformed YAML workflow files while continuing scan.
             }
         }
 
@@ -99,9 +107,13 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
 
     async getCopilotSetupWorkflowPath(targetDir: string): Promise<string> {
         const existingPath = await this.findCopilotSetupWorkflowPath(targetDir);
-        return (
-            existingPath ||
-            join(targetDir, ".github", "workflows", "copilot-setup-steps.yml")
+        if (existingPath) {
+            return existingPath;
+        }
+
+        return resolveSafePath(
+            targetDir,
+            ".github/workflows/copilot-setup-steps.yml",
         );
     }
 
@@ -112,6 +124,11 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
             return null;
         }
 
+        await assertFileSizeWithinLimit(
+            workflowPath,
+            MAX_WORKFLOW_FILE_BYTES,
+            "Copilot setup workflow",
+        );
         const content = await readFile(workflowPath, "utf-8");
         return parseYaml(content);
     }
@@ -120,21 +137,18 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
         targetDir: string,
         content: string,
     ): Promise<void> {
-        // Check if an existing workflow file exists (either extension)
         const existingPath = await this.findCopilotSetupWorkflowPath(targetDir);
-
-        // Use existing path if found, otherwise default to .yml
         const workflowPath =
-            existingPath ||
-            join(targetDir, ".github", "workflows", "copilot-setup-steps.yml");
+            existingPath ??
+            (await resolveSafePath(
+                targetDir,
+                ".github/workflows/copilot-setup-steps.yml",
+            ));
 
         await writeFile(workflowPath, content, "utf-8");
     }
 }
 
-/**
- * Creates and returns the default workflow gateway
- */
 export function createWorkflowGateway(): WorkflowGateway {
     return new FileSystemWorkflowGateway();
 }

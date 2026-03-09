@@ -387,4 +387,46 @@ describe("log argument parsing", () => {
         expect(result.listSessions).toBe(false);
         expect(result.json).toBe(false);
     });
+
+    it("should record an error when --last has no following value", () => {
+        // Arrange
+        const args = ["--last"];
+
+        // Act
+        const result = parseLogArgs(args);
+
+        // Assert
+        expect(result.errors).toBeDefined();
+        expect(result.errors).toEqual(
+            expect.arrayContaining([expect.stringContaining("--last")]),
+        );
+    });
+
+    it("should record an error when --actor has no following value", () => {
+        // Arrange
+        const args = ["--actor"];
+
+        // Act
+        const result = parseLogArgs(args);
+
+        // Assert
+        expect(result.errors).toBeDefined();
+        expect(result.errors).toEqual(
+            expect.arrayContaining([expect.stringContaining("--actor")]),
+        );
+    });
+
+    it("should record an error when --script has no following value", () => {
+        // Arrange
+        const args = ["--script"];
+
+        // Act
+        const result = parseLogArgs(args);
+
+        // Assert
+        expect(result.errors).toBeDefined();
+        expect(result.errors).toEqual(
+            expect.arrayContaining([expect.stringContaining("--script")]),
+        );
+    });
 });

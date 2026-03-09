@@ -17,7 +17,14 @@ const ALLOWLIST_EXACT = new Set([
     "ci",
 ]);
 
-const BLOCKLIST_PATTERNS = ["secret", "token", "key", "password", "credential"];
+const BLOCKLIST_PATTERNS = [
+    "secret",
+    "token",
+    "key",
+    "password",
+    "credential",
+    "auth",
+];
 
 function isAllowlisted(name: string): boolean {
     const lower = name.toLowerCase();
@@ -52,7 +59,7 @@ function truncateValue(value: string): { value: string; truncated: boolean } {
 export function captureEnv(
     env: Record<string, string | undefined>,
 ): Record<string, string> {
-    const result: Record<string, string> = {};
+    const result: Record<string, string> = Object.create(null);
     let anyTruncated = false;
 
     for (const [name, value] of Object.entries(env)) {

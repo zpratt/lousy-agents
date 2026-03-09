@@ -11,34 +11,69 @@ import type {
     VersionFile,
     VersionFileType,
 } from "../entities/copilot-setup.js";
-import type { ActionVersionGateway } from "../gateways/action-version-gateway.js";
-import { createActionVersionGateway } from "../gateways/action-version-gateway.js";
 import {
     type CopilotSetupConfig,
-    getVersionFileConfigKeyMap,
-    getVersionTypeToActionMap,
-    loadCopilotSetupConfig,
-} from "../lib/copilot-setup-config.js";
+    DEFAULT_COPILOT_SETUP_CONFIG,
+    type SetupActionConfig,
+} from "../entities/copilot-setup-config.js";
 
 /**
- * Builds setup step candidates from detected environment
- * @param environment The detected environment configuration
- * @param versionGateway Optional gateway for looking up action versions (defaults to local)
- * @param config Optional copilot-setup configuration
- * @returns Array of setup step candidates
+ * Port for action version lookup.
+ */
+export interface ActionVersionPort {
+    getVersion(actionName: string): Promise<string | undefined>;
+}
+
+const DEFAULT_ACTION_VERSIONS: Record<string, string> = {
+    "actions/setup-node": "v4",
+    "actions/setup-python": "v5",
+    "actions/setup-java": "v4",
+    "actions/setup-ruby": "v1",
+    "actions/setup-go": "v5",
+    "jdx/mise-action": "v2",
+};
+
+const defaultActionVersionPort: ActionVersionPort = {
+    async getVersion(actionName: string): Promise<string | undefined> {
+        return DEFAULT_ACTION_VERSIONS[actionName];
+    },
+};
+
+function getVersionTypeToActionMap(
+    setupActions: SetupActionConfig[],
+): Partial<Record<VersionFileType, string>> {
+    const map: Partial<Record<VersionFileType, string>> = {};
+    for (const action of setupActions) {
+        map[action.type] = action.action;
+    }
+    return map;
+}
+
+function getVersionFileConfigKeyMap(
+    setupActions: SetupActionConfig[],
+): Partial<Record<VersionFileType, string>> {
+    const map: Partial<Record<VersionFileType, string>> = {};
+    for (const action of setupActions) {
+        map[action.type] = action.versionFileKey;
+    }
+    return map;
+}
+
+/**
+ * Builds setup step candidates from detected environment.
  */
 export async function buildCandidatesFromEnvironment(
     environment: DetectedEnvironment,
-    versionGateway: ActionVersionGateway = createActionVersionGateway(),
-    config?: CopilotSetupConfig,
+    versionGateway: ActionVersionPort = defaultActionVersionPort,
+    config: CopilotSetupConfig = DEFAULT_COPILOT_SETUP_CONFIG,
 ): Promise<SetupStepCandidate[]> {
-    const loadedConfig = config || (await loadCopilotSetupConfig());
-    const versionTypeToAction = getVersionTypeToActionMap(loadedConfig);
-    const versionFileConfigKeys = getVersionFileConfigKeyMap(loadedConfig);
+    const versionTypeToAction = getVersionTypeToActionMap(config.setupActions);
+    const versionFileConfigKeys = getVersionFileConfigKeyMap(
+        config.setupActions,
+    );
 
     const candidates: SetupStepCandidate[] = [];
 
-    // If mise.toml is present, add mise-action only
     if (environment.hasMise) {
         const miseVersion = await versionGateway.getVersion("jdx/mise-action");
         candidates.push({
@@ -49,7 +84,6 @@ export async function buildCandidatesFromEnvironment(
         return candidates;
     }
 
-    // Otherwise, add individual setup actions for each version file
     const setupCandidates = await buildCandidatesFromVersionFiles(
         environment.versionFiles,
         versionTypeToAction,
@@ -58,32 +92,22 @@ export async function buildCandidatesFromEnvironment(
     );
     candidates.push(...setupCandidates);
 
-    // Add install steps for detected package managers
     const installCandidates = buildInstallCandidatesFromPackageManagers(
         environment.packageManagers,
-        loadedConfig,
+        config,
     );
     candidates.push(...installCandidates);
 
     return candidates;
 }
 
-/**
- * Builds setup step candidates from individual version files
- * @param versionFiles Array of version files to process
- * @param versionTypeToAction Map from version file type to action name
- * @param versionFileConfigKeys Map from version file type to config key
- * @param versionGateway Gateway for looking up action versions
- * @returns Array of setup step candidates
- */
 async function buildCandidatesFromVersionFiles(
     versionFiles: VersionFile[],
     versionTypeToAction: Partial<Record<VersionFileType, string>>,
     versionFileConfigKeys: Partial<Record<VersionFileType, string>>,
-    versionGateway: ActionVersionGateway,
+    versionGateway: ActionVersionPort,
 ): Promise<SetupStepCandidate[]> {
     const candidates: SetupStepCandidate[] = [];
-    // Track which types we've already added to deduplicate (e.g., .nvmrc and .node-version)
     const addedTypes = new Set<VersionFileType>();
 
     for (const versionFile of versionFiles) {
@@ -114,12 +138,6 @@ async function buildCandidatesFromVersionFiles(
     return candidates;
 }
 
-/**
- * Builds install step candidates from detected package managers
- * @param packageManagers Array of detected package managers
- * @param config Configuration for package manager mappings
- * @returns Array of install step candidates
- */
 function buildInstallCandidatesFromPackageManagers(
     packageManagers: PackageManagerFile[],
     config: CopilotSetupConfig,
@@ -128,24 +146,18 @@ function buildInstallCandidatesFromPackageManagers(
     const addedTypes = new Set<string>();
 
     for (const pm of packageManagers) {
-        // Skip if we've already added this package manager type
         if (addedTypes.has(pm.type)) {
             continue;
         }
         addedTypes.add(pm.type);
 
-        // Find the config for this package manager
         const pmConfig = config.packageManagers.find((c) => c.type === pm.type);
         if (!pmConfig) {
             continue;
         }
 
-        // Determine a descriptive name for the install step
         const stepName = getInstallStepName(pm.type);
 
-        // Create install step candidate
-        // Note: Empty action string indicates this is a run step (uses 'run' field instead of 'uses')
-        // This is checked in workflow-generator.ts buildStepFromCandidate()
         candidates.push({
             action: "",
             source: "version-file",
@@ -157,9 +169,6 @@ function buildInstallCandidatesFromPackageManagers(
     return candidates;
 }
 
-/**
- * Gets a descriptive name for an install step based on package manager type
- */
 function getInstallStepName(packageManagerType: string): string {
     const names: Record<string, string> = {
         npm: "Install Node.js dependencies",

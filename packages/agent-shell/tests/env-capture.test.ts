@@ -252,6 +252,38 @@ describe("captureEnv", () => {
             expect(result.CI).toBe("true");
         });
     });
+
+    describe("prototype pollution protection", () => {
+        it("should return a null-prototype object", () => {
+            // Arrange
+            const env = { CI: "true" };
+
+            // Act
+            const result = captureEnv(env);
+
+            // Assert
+            expect(Object.getPrototypeOf(result)).toBeNull();
+        });
+    });
+
+    describe("auth keyword blocking", () => {
+        it("should block variables containing 'auth' in their name", () => {
+            // Arrange
+            const env = {
+                GITHUB_AUTH_HEADER: "Bearer secret",
+                npm_config_auth: "token123",
+                CI: "true",
+            };
+
+            // Act
+            const result = captureEnv(env);
+
+            // Assert
+            expect(result).not.toHaveProperty("GITHUB_AUTH_HEADER");
+            expect(result).not.toHaveProperty("npm_config_auth");
+            expect(result.CI).toBe("true");
+        });
+    });
 });
 
 describe("captureTags", () => {

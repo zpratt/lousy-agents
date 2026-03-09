@@ -3,13 +3,14 @@
  */
 
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
 import type { SetupStepCandidate } from "@lousy-agents/core/entities/copilot-setup.js";
 import {
     createEnvironmentGateway,
     createWorkflowGateway,
     fileExists,
+    resolveSafePath,
 } from "@lousy-agents/core/gateways/index.js";
+import { loadCopilotSetupConfig } from "@lousy-agents/core/lib/copilot-setup-config.js";
 import {
     buildActionsToResolve,
     VERSION_RESOLUTION_INSTRUCTIONS,
@@ -41,6 +42,7 @@ async function gatherCandidates(
 ): Promise<SetupStepCandidate[]> {
     const environmentGateway = createEnvironmentGateway();
     const workflowGateway = createWorkflowGateway();
+    const copilotSetupConfig = await loadCopilotSetupConfig();
 
     // Detect environment configuration
     const environment = await environmentGateway.detectEnvironment(dir);
@@ -51,7 +53,11 @@ async function gatherCandidates(
         : [];
 
     // Build candidates from environment
-    const envCandidates = await buildCandidatesFromEnvironment(environment);
+    const envCandidates = await buildCandidatesFromEnvironment(
+        environment,
+        undefined,
+        copilotSetupConfig,
+    );
 
     // Merge candidates (workflow takes precedence)
     return mergeCandidates(workflowCandidates, envCandidates);
@@ -180,7 +186,7 @@ export const createCopilotSetupWorkflowHandler: CreateWorkflowHandler = async (
     }
 
     const workflowGateway = createWorkflowGateway();
-    const workflowsDir = join(dir, ".github", "workflows");
+    const workflowsDir = await resolveSafePath(dir, ".github/workflows");
     const workflowsDirExists = await fileExists(workflowsDir);
 
     // Gather all candidates

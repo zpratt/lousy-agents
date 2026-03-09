@@ -14,10 +14,8 @@ import type {
     VersionFile,
     VersionFileType,
 } from "../entities/copilot-setup.js";
-import {
-    type CopilotSetupConfig,
-    loadCopilotSetupConfig,
-} from "../lib/copilot-setup-config.js";
+import type { CopilotSetupConfig } from "../entities/copilot-setup-config.js";
+import { DEFAULT_COPILOT_SETUP_CONFIG } from "../entities/copilot-setup-config.js";
 
 /**
  * List of allowed version filenames.
@@ -56,9 +54,9 @@ function isValidVersionFilename(filename: string): boolean {
  */
 export async function buildSessionStartHooks(
     environment: DetectedEnvironment,
-    config?: CopilotSetupConfig,
+    config: CopilotSetupConfig = DEFAULT_COPILOT_SETUP_CONFIG,
 ): Promise<SessionStartHook[]> {
-    const loadedConfig = config || (await loadCopilotSetupConfig());
+    const loadedConfig = config;
     const hooks: SessionStartHook[] = [];
 
     // If mise.toml is present, add mise install

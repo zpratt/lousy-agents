@@ -100,5 +100,6 @@ function createDefaultDeps(): TelemetryDeps {
         writeStderr: (msg) => {
             process.stderr.write(msg);
         },
+        now: () => new Date().toISOString(),
     };
 }

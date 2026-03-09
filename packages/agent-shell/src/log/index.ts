@@ -11,7 +11,7 @@ import {
     listSessions,
     parseDuration,
     queryEvents,
-    resolveEventsDir,
+    resolveReadEventsDir,
 } from "./query.js";
 
 export interface LogOptions {
@@ -21,6 +21,7 @@ export interface LogOptions {
     script?: string;
     listSessions: boolean;
     json: boolean;
+    errors?: string[];
 }
 
 export function parseLogArgs(args: string[]): LogOptions {
@@ -36,16 +37,33 @@ export function parseLogArgs(args: string[]): LogOptions {
 
         switch (arg) {
             case "--last":
-                options.last = args[++i];
+                if (i + 1 < args.length) {
+                    options.last = args[++i];
+                } else {
+                    options.errors = options.errors ?? [];
+                    options.errors.push(
+                        "--last requires a value (e.g., 30m, 1h, 1d)",
+                    );
+                }
                 break;
             case "--actor":
-                options.actor = args[++i];
+                if (i + 1 < args.length) {
+                    options.actor = args[++i];
+                } else {
+                    options.errors = options.errors ?? [];
+                    options.errors.push("--actor requires a value");
+                }
                 break;
             case "--failures":
                 options.failures = true;
                 break;
             case "--script":
-                options.script = args[++i];
+                if (i + 1 < args.length) {
+                    options.script = args[++i];
+                } else {
+                    options.errors = options.errors ?? [];
+                    options.errors.push("--script requires a value");
+                }
                 break;
             case "--list-sessions":
                 options.listSessions = true;
@@ -81,7 +99,14 @@ export async function runLog(args: string[]): Promise<number> {
     const options = parseLogArgs(args);
     const deps = createDefaultQueryDeps();
 
-    const { dir, error } = await resolveEventsDir(process.env, deps);
+    if (options.errors && options.errors.length > 0) {
+        for (const err of options.errors) {
+            process.stderr.write(`agent-shell: ${err}\n`);
+        }
+        return 1;
+    }
+
+    const { dir, error } = await resolveReadEventsDir(process.env, deps);
     if (error) {
         process.stderr.write(`agent-shell: ${error}\n`);
         return 1;

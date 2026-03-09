@@ -1,7 +1,8 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { detectActor } from "./actor.js";
 import { captureEnv, captureTags } from "./env-capture.js";
+import { isWithinProjectRoot } from "./path-utils.js";
 import type { ShimResult } from "./shim.js";
 import type { ScriptEndEvent, ShimErrorEvent } from "./types.js";
 import { SCHEMA_VERSION } from "./types.js";
@@ -13,26 +14,11 @@ export interface TelemetryDeps {
     cwd: () => string;
     randomUUID: () => string;
     writeStderr: (msg: string) => void;
+    now: () => string;
 }
 
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const DEFAULT_EVENTS_SUBDIR = ".agent-shell/events";
-
-function isWithinProjectRoot(
-    resolvedPath: string,
-    projectRoot: string,
-): boolean {
-    const normalizedPath = resolvedPath.endsWith("/")
-        ? resolvedPath
-        : `${resolvedPath}/`;
-    const normalizedRoot = projectRoot.endsWith("/")
-        ? projectRoot
-        : `${projectRoot}/`;
-    return (
-        normalizedPath.startsWith(normalizedRoot) ||
-        resolvedPath === projectRoot
-    );
-}
 
 export function resolveSessionId(
     env: Record<string, string | undefined>,
@@ -59,7 +45,7 @@ export function resolveSessionId(
     return provided;
 }
 
-export async function resolveEventsDir(
+export async function resolveWriteEventsDir(
     env: Record<string, string | undefined>,
     deps: TelemetryDeps,
 ): Promise<string> {
@@ -72,6 +58,16 @@ export async function resolveEventsDir(
         if (logDir.includes("..")) {
             deps.writeStderr(
                 `agent-shell: AGENTSHELL_LOG_DIR contains path traversal, using default\n`,
+            );
+            await deps.mkdir(defaultDir, { recursive: true });
+            return defaultDir;
+        }
+
+        // Reject external paths (including absolute) before any filesystem side-effects
+        const resolvedLogical = resolve(projectRoot, logDir);
+        if (!isWithinProjectRoot(resolvedLogical, projectRoot)) {
+            deps.writeStderr(
+                `agent-shell: AGENTSHELL_LOG_DIR resolves outside project root, using default\n`,
             );
             await deps.mkdir(defaultDir, { recursive: true });
             return defaultDir;
@@ -116,7 +112,7 @@ export async function emitScriptEndEvent(
     deps: TelemetryDeps,
 ): Promise<void> {
     const sessionId = resolveSessionId(options.env, deps);
-    const eventsDir = await resolveEventsDir(options.env, deps);
+    const eventsDir = await resolveWriteEventsDir(options.env, deps);
 
     const capturedEnv = captureEnv(options.env);
     const tags = captureTags(options.env);
@@ -130,7 +126,7 @@ export async function emitScriptEndEvent(
         exit_code: options.result.exitCode,
         signal: options.result.signal,
         duration_ms: options.result.durationMs,
-        timestamp: new Date().toISOString(),
+        timestamp: deps.now(),
         env: capturedEnv,
         tags,
         ...(options.env.npm_lifecycle_event && {
@@ -156,7 +152,7 @@ export async function emitShimErrorEvent(
     deps: TelemetryDeps,
 ): Promise<void> {
     const sessionId = resolveSessionId(options.env, deps);
-    const eventsDir = await resolveEventsDir(options.env, deps);
+    const eventsDir = await resolveWriteEventsDir(options.env, deps);
 
     const capturedEnv = captureEnv(options.env);
     const tags = captureTags(options.env);
@@ -167,7 +163,7 @@ export async function emitShimErrorEvent(
         event: "shim_error",
         command: options.command,
         actor: detectActor(options.env),
-        timestamp: new Date().toISOString(),
+        timestamp: deps.now(),
         env: capturedEnv,
         tags,
     };

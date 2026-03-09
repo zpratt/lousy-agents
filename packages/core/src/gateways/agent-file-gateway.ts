@@ -5,7 +5,7 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { fileExists } from "./file-system-utils.js";
+import { fileExists, resolveSafePath } from "./file-system-utils.js";
 
 /**
  * Interface for agent file gateway
@@ -64,7 +64,7 @@ export class FileSystemAgentFileGateway implements AgentFileGateway {
     }
 
     async ensureAgentsDirectory(targetDir: string): Promise<void> {
-        const agentsDir = join(targetDir, ".github", "agents");
+        const agentsDir = await resolveSafePath(targetDir, ".github/agents");
         await mkdir(agentsDir, { recursive: true });
     }
 
@@ -73,7 +73,10 @@ export class FileSystemAgentFileGateway implements AgentFileGateway {
         agentName: string,
         content: string,
     ): Promise<void> {
-        const filePath = this.getAgentFilePath(targetDir, agentName);
+        const filePath = await resolveSafePath(
+            targetDir,
+            `.github/agents/${agentName}.md`,
+        );
         await writeFile(filePath, content, { encoding: "utf-8" });
     }
 }

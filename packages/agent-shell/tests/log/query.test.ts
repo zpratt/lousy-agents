@@ -6,7 +6,7 @@ import {
     listSessions,
     parseDuration,
     queryEvents,
-    resolveEventsDir,
+    resolveReadEventsDir,
 } from "../../src/log/query.js";
 
 const chance = new Chance();
@@ -469,7 +469,7 @@ describe("events directory resolution", () => {
             const env = { AGENTSHELL_LOG_DIR: "/project/custom-logs" };
 
             // Act
-            const result = await resolveEventsDir(env, deps);
+            const result = await resolveReadEventsDir(env, deps);
 
             // Assert
             expect(result.dir).toBe("/project/custom-logs");
@@ -489,7 +489,7 @@ describe("events directory resolution", () => {
             const env = { AGENTSHELL_LOG_DIR: "/project/sneaky-link" };
 
             // Act
-            const result = await resolveEventsDir(env, deps);
+            const result = await resolveReadEventsDir(env, deps);
 
             // Assert
             expect(result.error).toBeDefined();
@@ -504,7 +504,7 @@ describe("events directory resolution", () => {
             const env = {};
 
             // Act
-            const result = await resolveEventsDir(env, deps);
+            const result = await resolveReadEventsDir(env, deps);
 
             // Assert
             expect(result.dir).toBe("/project/.agent-shell/events");

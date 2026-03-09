@@ -168,6 +168,19 @@ describe("runShim", () => {
             // Assert
             expect(result.exitCode).toBe(0);
         });
+
+        it("should still resolve with the shim result when onComplete rejects", async () => {
+            // Arrange
+            const onComplete = vi
+                .fn()
+                .mockRejectedValue(new Error("telemetry failure"));
+
+            // Act
+            const result = await runShim({ command: "exit 0", onComplete });
+
+            // Assert
+            expect(result.exitCode).toBe(0);
+        });
     });
 
     describe("stdout and stderr passthrough", () => {

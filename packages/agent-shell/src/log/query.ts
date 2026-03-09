@@ -1,5 +1,6 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
 import { join } from "node:path";
+import { isWithinProjectRoot } from "../path-utils.js";
 import type { ScriptEvent } from "../types.js";
 import { ScriptEventSchema } from "../types.js";
 
@@ -61,23 +62,7 @@ export function parseDuration(duration: string): number {
     return value * UNIT_MS[unit];
 }
 
-function isWithinProjectRoot(
-    resolvedPath: string,
-    projectRoot: string,
-): boolean {
-    const normalizedPath = resolvedPath.endsWith("/")
-        ? resolvedPath
-        : `${resolvedPath}/`;
-    const normalizedRoot = projectRoot.endsWith("/")
-        ? projectRoot
-        : `${projectRoot}/`;
-    return (
-        normalizedPath.startsWith(normalizedRoot) ||
-        resolvedPath === projectRoot
-    );
-}
-
-export async function resolveEventsDir(
+export async function resolveReadEventsDir(
     env: Record<string, string | undefined>,
     deps: QueryDeps,
 ): Promise<{ dir: string; error?: string }> {

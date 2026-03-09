@@ -60,7 +60,11 @@ export async function runShim(options: ShimOptions): Promise<ShimResult> {
             };
 
             if (options.onComplete) {
-                await options.onComplete(result);
+                try {
+                    await options.onComplete(result);
+                } catch {
+                    // onComplete errors must not prevent shim result from resolving
+                }
             }
 
             resolve(result);

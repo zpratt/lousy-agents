@@ -5,7 +5,7 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { fileExists } from "./file-system-utils.js";
+import { fileExists, resolveSafePath } from "./file-system-utils.js";
 
 /**
  * Interface for skill file gateway
@@ -86,7 +86,10 @@ export class FileSystemSkillFileGateway implements SkillFileGateway {
         targetDir: string,
         skillName: string,
     ): Promise<void> {
-        const skillDir = this.getSkillDirectoryPath(targetDir, skillName);
+        const skillDir = await resolveSafePath(
+            targetDir,
+            `.github/skills/${skillName}`,
+        );
         await mkdir(skillDir, { recursive: true });
     }
 
@@ -95,7 +98,10 @@ export class FileSystemSkillFileGateway implements SkillFileGateway {
         skillName: string,
         content: string,
     ): Promise<void> {
-        const filePath = this.getSkillFilePath(targetDir, skillName);
+        const filePath = await resolveSafePath(
+            targetDir,
+            `.github/skills/${skillName}/SKILL.md`,
+        );
         await writeFile(filePath, content, { encoding: "utf-8" });
     }
 }

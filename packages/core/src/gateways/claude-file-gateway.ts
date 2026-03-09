@@ -4,9 +4,8 @@
  */
 
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import type { ClaudeSettings } from "../entities/claude-setup.js";
-import { fileExists } from "./file-system-utils.js";
+import { fileExists, resolveSafePath } from "./file-system-utils.js";
 
 /**
  * Interface for Claude file gateway
@@ -47,7 +46,10 @@ export interface ClaudeFileGateway {
  */
 export class FileSystemClaudeFileGateway implements ClaudeFileGateway {
     async readSettings(targetDir: string): Promise<ClaudeSettings | null> {
-        const settingsPath = join(targetDir, ".claude", "settings.json");
+        const settingsPath = await resolveSafePath(
+            targetDir,
+            ".claude/settings.json",
+        );
 
         if (!(await fileExists(settingsPath))) {
             return null;
@@ -66,8 +68,11 @@ export class FileSystemClaudeFileGateway implements ClaudeFileGateway {
         targetDir: string,
         settings: ClaudeSettings,
     ): Promise<void> {
-        const claudeDir = join(targetDir, ".claude");
-        const settingsPath = join(claudeDir, "settings.json");
+        const claudeDir = await resolveSafePath(targetDir, ".claude");
+        const settingsPath = await resolveSafePath(
+            targetDir,
+            ".claude/settings.json",
+        );
 
         // Ensure .claude directory exists
         await mkdir(claudeDir, { recursive: true });
@@ -78,7 +83,7 @@ export class FileSystemClaudeFileGateway implements ClaudeFileGateway {
     }
 
     async readDocumentation(targetDir: string): Promise<string | null> {
-        const docPath = join(targetDir, "CLAUDE.md");
+        const docPath = await resolveSafePath(targetDir, "CLAUDE.md");
 
         if (!(await fileExists(docPath))) {
             return null;
@@ -91,7 +96,7 @@ export class FileSystemClaudeFileGateway implements ClaudeFileGateway {
         targetDir: string,
         content: string,
     ): Promise<void> {
-        const docPath = join(targetDir, "CLAUDE.md");
+        const docPath = await resolveSafePath(targetDir, "CLAUDE.md");
 
         // Ensure content has trailing newline
         const normalizedContent = content.endsWith("\n")

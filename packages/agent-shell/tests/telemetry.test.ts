@@ -6,8 +6,8 @@ import type { TelemetryDeps } from "../src/telemetry.js";
 import {
     emitScriptEndEvent,
     emitShimErrorEvent,
-    resolveEventsDir,
     resolveSessionId,
+    resolveWriteEventsDir,
 } from "../src/telemetry.js";
 import { ScriptEndEventSchema, ShimErrorEventSchema } from "../src/types.js";
 
@@ -28,6 +28,7 @@ function createMockDeps(
         cwd: vi.fn().mockReturnValue("/project"),
         randomUUID: vi.fn().mockReturnValue("generated-uuid"),
         writeStderr: vi.fn(),
+        now: vi.fn().mockReturnValue("2026-01-01T00:00:00.000Z"),
         written,
         ...overrides,
     };
@@ -159,7 +160,7 @@ describe("events directory resolution", () => {
             });
 
             // Act
-            const result = await resolveEventsDir(env, deps);
+            const result = await resolveWriteEventsDir(env, deps);
 
             // Assert
             expect(result).toBe("/project/custom-logs");
@@ -173,10 +174,29 @@ describe("events directory resolution", () => {
             const deps = createMockDeps();
 
             // Act
-            const result = await resolveEventsDir(env, deps);
+            const result = await resolveWriteEventsDir(env, deps);
 
             // Assert
             expect(result).toBe("/project/.agent-shell/events");
+            expect(deps.writeStderr).toHaveBeenCalledOnce();
+        });
+    });
+
+    describe("given AGENTSHELL_LOG_DIR with an absolute path outside project root", () => {
+        it("should fall back to default without creating the external directory", async () => {
+            // Arrange
+            const env = { AGENTSHELL_LOG_DIR: "/tmp/evil" };
+            const deps = createMockDeps();
+
+            // Act
+            const result = await resolveWriteEventsDir(env, deps);
+
+            // Assert
+            expect(result).toBe("/project/.agent-shell/events");
+            expect(deps.mkdir).not.toHaveBeenCalledWith(
+                "/tmp/evil",
+                expect.anything(),
+            );
             expect(deps.writeStderr).toHaveBeenCalledOnce();
         });
     });
@@ -190,7 +210,7 @@ describe("events directory resolution", () => {
             });
 
             // Act
-            const result = await resolveEventsDir(env, deps);
+            const result = await resolveWriteEventsDir(env, deps);
 
             // Assert
             expect(result).toBe("/project/.agent-shell/events");
@@ -205,7 +225,7 @@ describe("events directory resolution", () => {
             const deps = createMockDeps();
 
             // Act
-            const result = await resolveEventsDir(env, deps);
+            const result = await resolveWriteEventsDir(env, deps);
 
             // Assert
             expect(result).toBe("/project/.agent-shell/events");
@@ -219,7 +239,7 @@ describe("events directory resolution", () => {
             const deps = createMockDeps();
 
             // Act
-            await resolveEventsDir(env, deps);
+            await resolveWriteEventsDir(env, deps);
 
             // Assert
             expect(deps.mkdir).toHaveBeenCalledWith(
@@ -282,7 +302,7 @@ describe("event writing", () => {
             expect(validated.exit_code).toBe(shimResult.exitCode);
             expect(validated.signal).toBe(shimResult.signal);
             expect(validated.duration_ms).toBe(shimResult.durationMs);
-            expect(validated.timestamp).toBeDefined();
+            expect(validated.timestamp).toBe("2026-01-01T00:00:00.000Z");
             expect(validated.env).toBeDefined();
             expect(validated.tags).toBeDefined();
         });
@@ -356,6 +376,30 @@ describe("event writing", () => {
             expect(validated.event).toBe("shim_error");
             expect(validated.command).toBe(command);
             expect(validated.session_id).toBe("generated-uuid");
+            expect(validated.timestamp).toBe("2026-01-01T00:00:00.000Z");
+        });
+    });
+
+    describe("given a custom now function", () => {
+        it("should use the injected timestamp in emitted events", async () => {
+            // Arrange
+            const command = chance.sentence();
+            const shimResult = createShimResult();
+            const fixedTimestamp = "2030-06-15T12:00:00.000Z";
+            const deps = createMockDeps({
+                now: vi.fn().mockReturnValue(fixedTimestamp),
+            });
+            const env = {};
+
+            // Act
+            await emitScriptEndEvent(
+                { command, result: shimResult, env },
+                deps,
+            );
+
+            // Assert
+            const parsed = JSON.parse(deps.written[0]);
+            expect(parsed.timestamp).toBe(fixedTimestamp);
         });
     });
 });
