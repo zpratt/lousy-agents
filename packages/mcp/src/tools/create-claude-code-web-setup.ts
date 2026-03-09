@@ -14,6 +14,7 @@ import {
     createEnvironmentGateway,
     fileExists,
 } from "@lousy-agents/core/gateways/index.js";
+import { loadCopilotSetupConfig } from "@lousy-agents/core/lib/copilot-setup-config.js";
 import {
     buildSessionStartHooks,
     generateEnvironmentSetupSection,
@@ -44,9 +45,10 @@ export const createClaudeCodeWebSetupHandler: ToolHandler = async (
 
     // Detect environment configuration
     const environment = await environmentGateway.detectEnvironment(dir);
+    const copilotSetupConfig = await loadCopilotSetupConfig();
 
     // Build SessionStart hooks from environment
-    const hooks = await buildSessionStartHooks(environment);
+    const hooks = await buildSessionStartHooks(environment, copilotSetupConfig);
 
     // Read existing settings
     const existingSettings = await claudeGateway.readSettings(dir);

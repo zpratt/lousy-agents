@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
@@ -143,6 +143,25 @@ describe("SkillFileGateway", () => {
                 const filePath = join(skillDir, "SKILL.md");
                 const fileContent = await readFile(filePath, "utf-8");
                 expect(fileContent).toBe(content);
+            });
+        });
+
+        describe("given skill directory path contains a symbolic link", () => {
+            it("should reject to prevent writing outside the target directory", async () => {
+                // Arrange
+                const skillName = chance.word();
+                const content = chance.paragraph();
+                const externalDir = join(tmpdir(), `external-${chance.guid()}`);
+                await mkdir(externalDir, { recursive: true });
+
+                const githubDir = join(testDir, ".github");
+                await mkdir(githubDir, { recursive: true });
+                await symlink(externalDir, join(githubDir, "skills"));
+
+                // Act & Assert
+                await expect(
+                    gateway.writeSkillFile(testDir, skillName, content),
+                ).rejects.toThrow("symbolic link");
             });
         });
     });

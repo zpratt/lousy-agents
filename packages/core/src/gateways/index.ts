@@ -22,7 +22,13 @@ export {
     type EnvironmentGateway,
     FileSystemEnvironmentGateway,
 } from "./environment-gateway.js";
-export { fileExists } from "./file-system-utils.js";
+export {
+    assertFileSizeWithinLimit,
+    assertPathHasNoSymbolicLinks,
+    fileExists,
+    resolvePathWithinRoot,
+    resolveSafePath,
+} from "./file-system-utils.js";
 export {
     createGitHubRulesetGateway,
     OctokitRulesetGateway,

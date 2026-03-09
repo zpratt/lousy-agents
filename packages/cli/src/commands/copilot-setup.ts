@@ -1,11 +1,12 @@
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
 import {
     createEnvironmentGateway,
     createGitHubRulesetGateway,
     createWorkflowGateway,
     fileExists,
+    resolveSafePath,
 } from "@lousy-agents/core/gateways/index.js";
+import { loadCopilotSetupConfig } from "@lousy-agents/core/lib/copilot-setup-config.js";
 import {
     buildCopilotReviewRulesetPayload,
     checkCopilotReviewRuleset,
@@ -57,6 +58,7 @@ export const copilotSetupCommand = defineCommand({
 
         const environmentGateway = createEnvironmentGateway();
         const workflowGateway = createWorkflowGateway();
+        const copilotSetupConfig = await loadCopilotSetupConfig();
         const rulesetGateway: CopilotSetupRulesetGateway =
             (context.data
                 ?.rulesetGateway as CopilotSetupRulesetGateway | null) ??
@@ -84,7 +86,10 @@ export const copilotSetupCommand = defineCommand({
         }
 
         // Step 2: Parse existing workflows for setup actions
-        const workflowsDir = join(targetDir, ".github", "workflows");
+        const workflowsDir = await resolveSafePath(
+            targetDir,
+            ".github/workflows",
+        );
         const workflowsDirExists = await fileExists(workflowsDir);
 
         const workflowCandidates = workflowsDirExists
@@ -101,7 +106,11 @@ export const copilotSetupCommand = defineCommand({
         }
 
         // Step 3: Build candidates from environment
-        const envCandidates = await buildCandidatesFromEnvironment(environment);
+        const envCandidates = await buildCandidatesFromEnvironment(
+            environment,
+            undefined,
+            copilotSetupConfig,
+        );
 
         // Step 4: Merge candidates (workflow takes precedence)
         const allCandidates = mergeCandidates(

@@ -4,261 +4,166 @@
  */
 
 import { loadConfig } from "c12";
+import { z } from "zod";
 import type {
     PackageManagerType,
     VersionFileType,
 } from "../entities/copilot-setup.js";
+import {
+    type CopilotSetupConfig,
+    DEFAULT_COPILOT_SETUP_CONFIG,
+    PACKAGE_MANAGER_INSTALL_COMMANDS,
+} from "../entities/copilot-setup-config.js";
+
+export type {
+    CopilotSetupConfig,
+    PackageManagerMapping,
+    SetupActionConfig,
+    VersionFileMapping,
+} from "../entities/copilot-setup-config.js";
+
+const SAFE_BASENAME_PATTERN = /^[A-Za-z0-9._-]+$/;
+const SAFE_ACTION_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const SAFE_VERSION_KEY_PATTERN = /^[a-z][a-z0-9-]*$/;
+const MAX_FILENAME_LENGTH = 255;
+
+const VERSION_FILE_TYPES: [VersionFileType, ...VersionFileType[]] = [
+    "node",
+    "python",
+    "java",
+    "ruby",
+    "go",
+];
+
+const PACKAGE_MANAGER_TYPES: [PackageManagerType, ...PackageManagerType[]] = [
+    "npm",
+    "yarn",
+    "pnpm",
+    "pip",
+    "pipenv",
+    "poetry",
+    "bundler",
+    "cargo",
+    "composer",
+    "maven",
+    "gradle",
+    "gomod",
+    "pub",
+];
+
+function isSafeBasename(value: string): boolean {
+    return (
+        value.length > 0 &&
+        value.length <= MAX_FILENAME_LENGTH &&
+        SAFE_BASENAME_PATTERN.test(value) &&
+        !value.includes("..")
+    );
+}
+
+const VersionFileMappingSchema = z
+    .object({
+        filename: z.string(),
+        type: z.enum(VERSION_FILE_TYPES),
+    })
+    .strict()
+    .superRefine((value, context) => {
+        if (!isSafeBasename(value.filename)) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["filename"],
+                message:
+                    "versionFiles.filename must be a safe basename without traversal or directory separators",
+            });
+        }
+    });
+
+const SetupActionConfigSchema = z
+    .object({
+        action: z.string().regex(SAFE_ACTION_PATTERN, {
+            message: "setupActions.action must be in owner/repo format",
+        }),
+        type: z.enum(VERSION_FILE_TYPES),
+        versionFileKey: z.string().regex(SAFE_VERSION_KEY_PATTERN, {
+            message:
+                "setupActions.versionFileKey must use lowercase kebab-case",
+        }),
+    })
+    .strict();
+
+const PackageManagerMappingSchema = z
+    .object({
+        type: z.enum(PACKAGE_MANAGER_TYPES),
+        manifestFile: z.string(),
+        lockfile: z.string().optional(),
+        requiresLockfile: z.boolean().optional(),
+        installCommand: z.string(),
+    })
+    .strict()
+    .superRefine((value, context) => {
+        if (!isSafeBasename(value.manifestFile)) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["manifestFile"],
+                message:
+                    "packageManagers.manifestFile must be a safe basename without traversal or directory separators",
+            });
+        }
+
+        if (value.lockfile && !isSafeBasename(value.lockfile)) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["lockfile"],
+                message:
+                    "packageManagers.lockfile must be a safe basename without traversal or directory separators",
+            });
+        }
+
+        const expectedInstallCommand =
+            PACKAGE_MANAGER_INSTALL_COMMANDS[value.type];
+        if (value.installCommand !== expectedInstallCommand) {
+            context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["installCommand"],
+                message: `packageManagers.installCommand for ${value.type} must be '${expectedInstallCommand}'`,
+            });
+        }
+    });
+
+const CopilotSetupConfigSchema = z.object({
+    versionFiles: z.array(VersionFileMappingSchema).min(1),
+    setupActions: z.array(SetupActionConfigSchema).min(1),
+    setupActionPatterns: z
+        .array(
+            z.string().regex(SAFE_ACTION_PATTERN, {
+                message:
+                    "setupActionPatterns entries must be in owner/repo format",
+            }),
+        )
+        .min(1),
+    packageManagers: z.array(PackageManagerMappingSchema).min(1),
+});
 
 /**
- * Configuration for a version file mapping
+ * Validates loaded copilot-setup configuration and rejects unsafe values.
  */
-export interface VersionFileMapping {
-    /**
-     * The filename to detect (e.g., ".nvmrc")
-     */
-    filename: string;
-    /**
-     * The version file type (e.g., "node")
-     */
-    type: VersionFileType;
+export function validateCopilotSetupConfig(
+    config: unknown,
+): CopilotSetupConfig {
+    return CopilotSetupConfigSchema.parse(config);
 }
 
 /**
- * Configuration for a setup action
- */
-export interface SetupActionConfig {
-    /**
-     * The action name (e.g., "actions/setup-node")
-     */
-    action: string;
-    /**
-     * The version file type this action handles
-     */
-    type: VersionFileType;
-    /**
-     * The "with" config key for version file (e.g., "node-version-file")
-     */
-    versionFileKey: string;
-}
-
-/**
- * Configuration for a package manager mapping
- */
-export interface PackageManagerMapping {
-    /**
-     * The type of package manager (e.g., "npm", "pip")
-     */
-    type: PackageManagerType;
-    /**
-     * The manifest filename to detect (e.g., "package.json", "requirements.txt")
-     */
-    manifestFile: string;
-    /**
-     * Optional lockfile to detect (e.g., "package-lock.json")
-     */
-    lockfile?: string;
-    /**
-     * Whether the lockfile must exist for this package manager to be detected.
-     * Useful for tools like Poetry where pyproject.toml is ambiguous (used by many tools),
-     * but poetry.lock confirms it's a Poetry project.
-     */
-    requiresLockfile?: boolean;
-    /**
-     * The install command to run (e.g., "npm ci", "pip install -r requirements.txt")
-     */
-    installCommand: string;
-}
-
-/**
- * Configuration for copilot-setup command
- */
-export interface CopilotSetupConfig {
-    /**
-     * List of idiomatic version files to detect
-     */
-    versionFiles: VersionFileMapping[];
-    /**
-     * List of setup actions and their configuration
-     */
-    setupActions: SetupActionConfig[];
-    /**
-     * List of action patterns to detect in existing workflows
-     */
-    setupActionPatterns: string[];
-    /**
-     * List of package manager mappings for install step generation
-     */
-    packageManagers: PackageManagerMapping[];
-}
-
-/**
- * Default version file mappings
- */
-const DEFAULT_VERSION_FILES: VersionFileMapping[] = [
-    { filename: ".nvmrc", type: "node" },
-    { filename: ".node-version", type: "node" },
-    { filename: ".python-version", type: "python" },
-    { filename: ".java-version", type: "java" },
-    { filename: ".ruby-version", type: "ruby" },
-    { filename: ".go-version", type: "go" },
-];
-
-/**
- * Default setup action configurations
- */
-const DEFAULT_SETUP_ACTIONS: SetupActionConfig[] = [
-    {
-        action: "actions/setup-node",
-        type: "node",
-        versionFileKey: "node-version-file",
-    },
-    {
-        action: "actions/setup-python",
-        type: "python",
-        versionFileKey: "python-version-file",
-    },
-    {
-        action: "actions/setup-java",
-        type: "java",
-        versionFileKey: "java-version-file",
-    },
-    {
-        action: "actions/setup-ruby",
-        type: "ruby",
-        versionFileKey: "ruby-version-file",
-    },
-    {
-        action: "actions/setup-go",
-        type: "go",
-        versionFileKey: "go-version-file",
-    },
-];
-
-/**
- * Default setup action patterns to detect in workflows
- */
-const DEFAULT_SETUP_ACTION_PATTERNS: string[] = [
-    "actions/setup-node",
-    "actions/setup-python",
-    "actions/setup-java",
-    "actions/setup-go",
-    "actions/setup-ruby",
-    "jdx/mise-action",
-];
-
-/**
- * Default package manager mappings
- * Based on Dependabot supported ecosystems
- */
-const DEFAULT_PACKAGE_MANAGERS: PackageManagerMapping[] = [
-    // Node.js package managers
-    {
-        type: "npm",
-        manifestFile: "package.json",
-        lockfile: "package-lock.json",
-        installCommand: "npm ci",
-    },
-    {
-        type: "yarn",
-        manifestFile: "package.json",
-        lockfile: "yarn.lock",
-        installCommand: "yarn install --frozen-lockfile",
-    },
-    {
-        type: "pnpm",
-        manifestFile: "package.json",
-        lockfile: "pnpm-lock.yaml",
-        installCommand: "pnpm install --frozen-lockfile",
-    },
-    // Python package managers
-    {
-        type: "pip",
-        manifestFile: "requirements.txt",
-        installCommand: "pip install -r requirements.txt",
-    },
-    {
-        type: "pipenv",
-        manifestFile: "Pipfile",
-        lockfile: "Pipfile.lock",
-        installCommand: "pipenv install --deploy",
-    },
-    {
-        type: "poetry",
-        manifestFile: "pyproject.toml",
-        lockfile: "poetry.lock",
-        requiresLockfile: true,
-        installCommand: "poetry install --no-root",
-    },
-    // Ruby
-    {
-        type: "bundler",
-        manifestFile: "Gemfile",
-        lockfile: "Gemfile.lock",
-        installCommand: "bundle install",
-    },
-    // Rust
-    {
-        type: "cargo",
-        manifestFile: "Cargo.toml",
-        lockfile: "Cargo.lock",
-        installCommand: "cargo build",
-    },
-    // PHP
-    {
-        type: "composer",
-        manifestFile: "composer.json",
-        lockfile: "composer.lock",
-        installCommand: "composer install",
-    },
-    // Java
-    {
-        type: "maven",
-        manifestFile: "pom.xml",
-        installCommand: "mvn install -DskipTests",
-    },
-    {
-        type: "gradle",
-        manifestFile: "build.gradle",
-        installCommand: "gradle build -x test",
-    },
-    // Go
-    {
-        type: "gomod",
-        manifestFile: "go.mod",
-        lockfile: "go.sum",
-        installCommand: "go mod download",
-    },
-    // Dart/Flutter
-    {
-        type: "pub",
-        manifestFile: "pubspec.yaml",
-        lockfile: "pubspec.lock",
-        installCommand: "dart pub get",
-    },
-];
-
-/**
- * Default copilot-setup configuration
- */
-const DEFAULT_CONFIG: CopilotSetupConfig = {
-    versionFiles: DEFAULT_VERSION_FILES,
-    setupActions: DEFAULT_SETUP_ACTIONS,
-    setupActionPatterns: DEFAULT_SETUP_ACTION_PATTERNS,
-    packageManagers: DEFAULT_PACKAGE_MANAGERS,
-};
-
-/**
- * Loads the copilot-setup configuration using c12
- * Falls back to defaults if no configuration is found
+ * Loads the copilot-setup configuration using c12.
+ * Falls back to defaults if no configuration is found.
  */
 export async function loadCopilotSetupConfig(): Promise<CopilotSetupConfig> {
     const { config } = await loadConfig<CopilotSetupConfig>({
         name: "lousy-agents",
-        defaults: DEFAULT_CONFIG,
+        defaults: DEFAULT_COPILOT_SETUP_CONFIG,
         packageJson: "copilotSetup",
     });
 
-    return config || DEFAULT_CONFIG;
+    return validateCopilotSetupConfig(config ?? DEFAULT_COPILOT_SETUP_CONFIG);
 }
 
 /**
@@ -272,8 +177,8 @@ export function resetCopilotSetupConfigCache(): void {
 }
 
 /**
- * Gets a version file type to action mapping from config
- * Returns a partial record as not all types may be configured
+ * Gets a version file type to action mapping from config.
+ * Returns a partial record as not all types may be configured.
  */
 export function getVersionTypeToActionMap(
     config: CopilotSetupConfig,
@@ -286,8 +191,8 @@ export function getVersionTypeToActionMap(
 }
 
 /**
- * Gets a version file type to config key mapping from config
- * Returns a partial record as not all types may be configured
+ * Gets a version file type to config key mapping from config.
+ * Returns a partial record as not all types may be configured.
  */
 export function getVersionFileConfigKeyMap(
     config: CopilotSetupConfig,
@@ -300,7 +205,7 @@ export function getVersionFileConfigKeyMap(
 }
 
 /**
- * Gets a filename to version type mapping from config
+ * Gets a filename to version type mapping from config.
  */
 export function getVersionFilenameToTypeMap(
     config: CopilotSetupConfig,

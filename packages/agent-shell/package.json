@@ -1,0 +1,42 @@
+{
+    "name": "@lousy-agents/agent-shell",
+    "version": "0.1.0",
+    "description": "A flight recorder for npm script execution",
+    "type": "module",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/zpratt/lousy-agents.git",
+        "directory": "packages/agent-shell"
+    },
+    "author": "zpratt",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/zpratt/lousy-agents/issues"
+    },
+    "homepage": "https://github.com/zpratt/lousy-agents/tree/main/packages/agent-shell#readme",
+    "keywords": [
+        "npm",
+        "script-shell",
+        "telemetry",
+        "observability",
+        "coding-agent",
+        "flight-recorder"
+    ],
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
+    "files": [
+        "dist"
+    ],
+    "bin": {
+        "agent-shell": "dist/index.js"
+    },
+    "scripts": {
+        "build": "rspack build --config rspack.config.ts && chmod +x dist/index.js"
+    },
+    "dependencies": {
+        "zod": "4.3.6"
+    },
+    "devDependencies": {}
+}

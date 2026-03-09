@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
@@ -141,6 +141,25 @@ describe("AgentFileGateway", () => {
                 const filePath = join(agentsDir, `${agentName}.md`);
                 const fileContent = await readFile(filePath, "utf-8");
                 expect(fileContent).toBe(content);
+            });
+        });
+
+        describe("given agents directory is a symbolic link", () => {
+            it("should reject to prevent writing outside the target directory", async () => {
+                // Arrange
+                const agentName = chance.word();
+                const content = chance.paragraph();
+                const externalDir = join(tmpdir(), `external-${chance.guid()}`);
+                await mkdir(externalDir, { recursive: true });
+
+                const githubDir = join(testDir, ".github");
+                await mkdir(githubDir, { recursive: true });
+                await symlink(externalDir, join(githubDir, "agents"));
+
+                // Act & Assert
+                await expect(
+                    gateway.writeAgentFile(testDir, agentName, content),
+                ).rejects.toThrow("symbolic link");
             });
         });
     });

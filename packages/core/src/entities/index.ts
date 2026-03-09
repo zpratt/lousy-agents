@@ -22,6 +22,16 @@ export type {
     WorkflowStep,
 } from "./copilot-setup.js";
 export type {
+    CopilotSetupConfig,
+    PackageManagerMapping,
+    SetupActionConfig,
+    VersionFileMapping,
+} from "./copilot-setup-config.js";
+export {
+    DEFAULT_COPILOT_SETUP_CONFIG,
+    PACKAGE_MANAGER_INSTALL_COMMANDS,
+} from "./copilot-setup-config.js";
+export type {
     DiscoveredFeedbackLoops,
     DiscoveredScript,
     DiscoveredTool,

