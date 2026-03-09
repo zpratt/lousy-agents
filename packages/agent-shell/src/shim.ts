@@ -26,13 +26,24 @@ export async function runShim(options: ShimOptions): Promise<ShimResult> {
     return new Promise<ShimResult>((resolve) => {
         const child: ChildProcess = spawn("/bin/sh", ["-c", options.command], {
             stdio: "inherit",
+            detached: true,
         });
 
         const handlers = new Map<NodeJS.Signals, () => void>();
 
         for (const signal of FORWARDED_SIGNALS) {
             const handler = () => {
-                child.kill(signal);
+                if (child.pid !== undefined) {
+                    try {
+                        // Kill the entire process group so grandchildren (e.g. sleep spawned
+                        // by sh without exec) also receive the signal and release any
+                        // inherited pipes, preventing the parent from hanging on 'close'.
+                        process.kill(-child.pid, signal);
+                    } catch {
+                        // Process group may have already exited; fall back to direct kill
+                        child.kill(signal);
+                    }
+                }
             };
             handlers.set(signal, handler);
             process.on(signal, handler);
