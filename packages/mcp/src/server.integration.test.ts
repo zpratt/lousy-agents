@@ -20,7 +20,7 @@ import { McpTestClient } from "./lib/mcp-test-client.js";
 const chance = new Chance();
 
 // Check if dist file exists - skip tests if not built
-const mcpPackageDir = resolve(dirname(fileURLToPath(import.meta.url)));
+const mcpPackageDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const distExists = existsSync(resolve(mcpPackageDir, "dist", "mcp-server.js"));
 
 describe.skipIf(!distExists)("MCP Server Integration Tests", () => {

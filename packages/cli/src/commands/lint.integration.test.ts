@@ -7,7 +7,8 @@
 import { execFile } from "node:child_process";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import Chance from "chance";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -15,6 +16,11 @@ import { lintCommand } from "./lint.js";
 
 const execFileAsync = promisify(execFile);
 const chance = new Chance();
+const cliPackageDir = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "..",
+);
 
 describe("Lint command end-to-end", () => {
     let projectDir: string;
@@ -301,7 +307,7 @@ describe("Lint command end-to-end", () => {
 
             // Act
             const tsxPath = join(process.cwd(), "node_modules", ".bin", "tsx");
-            const entryPath = join(process.cwd(), "src", "index.ts");
+            const entryPath = join(cliPackageDir, "src", "index.ts");
 
             let stdout: string;
             let stderr: string;

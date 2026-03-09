@@ -44,6 +44,7 @@ export class McpTestClient {
         const mcpServerPath = resolvePath(
             dirname(fileURLToPath(import.meta.url)),
             "..",
+            "..",
             "dist",
             "mcp-server.js",
         );

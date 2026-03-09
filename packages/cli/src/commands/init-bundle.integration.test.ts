@@ -9,14 +9,19 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import Chance from "chance";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const chance = new Chance();
 
-const projectRoot = process.cwd();
-const distPath = join(projectRoot, "dist", "index.js");
+const cliPackageDir = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "..",
+);
+const distPath = join(cliPackageDir, "dist", "index.js");
 const distExists = existsSync(distPath);
 
 describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
@@ -27,7 +32,7 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
         packDir = join(tmpdir(), `pack-test-${chance.guid()}`);
         mkdirSync(packDir, { recursive: true });
         execFileSync("npm", ["pack", "--pack-destination", packDir], {
-            cwd: projectRoot,
+            cwd: cliPackageDir,
             stdio: "pipe",
             maxBuffer: 10 * 1024 * 1024,
         });
