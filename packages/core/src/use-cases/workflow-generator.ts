@@ -20,16 +20,15 @@ import {
     VERSION_PLACEHOLDER,
 } from "./action-resolution.js";
 import type { ActionVersionPort } from "./candidate-builder.js";
+import { createActionVersionPort } from "./candidate-builder.js";
 
 const DEFAULT_ACTION_VERSIONS: Record<string, string> = {
     "actions/checkout": "v4",
 };
 
-const defaultActionVersionPort: ActionVersionPort = {
-    async getVersion(actionName: string): Promise<string | undefined> {
-        return DEFAULT_ACTION_VERSIONS[actionName];
-    },
-};
+const defaultActionVersionPort = createActionVersionPort(
+    DEFAULT_ACTION_VERSIONS,
+);
 
 /**
  * Extended step props type that supports YAML Scalar values for the 'uses' field.

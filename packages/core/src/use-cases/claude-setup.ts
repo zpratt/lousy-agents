@@ -56,7 +56,6 @@ export async function buildSessionStartHooks(
     environment: DetectedEnvironment,
     config: CopilotSetupConfig = DEFAULT_COPILOT_SETUP_CONFIG,
 ): Promise<SessionStartHook[]> {
-    const loadedConfig = config;
     const hooks: SessionStartHook[] = [];
 
     // If mise.toml is present, add mise install
@@ -68,7 +67,7 @@ export async function buildSessionStartHooks(
         // After mise install, add package manager install hooks
         const packageManagerHooks = buildPackageManagerHooks(
             environment.packageManagers,
-            loadedConfig,
+            config,
         );
         hooks.push(...packageManagerHooks);
         return hooks;
@@ -81,7 +80,7 @@ export async function buildSessionStartHooks(
     // Add package manager install hooks
     const packageManagerHooks = buildPackageManagerHooks(
         environment.packageManagers,
-        loadedConfig,
+        config,
     );
     hooks.push(...packageManagerHooks);
 

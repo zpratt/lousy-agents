@@ -83,9 +83,9 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
                 MAX_WORKFLOW_FILE_BYTES,
                 `Workflow file '${file}'`,
             );
-            const content = await readFile(filePath, "utf-8");
 
             try {
+                const content = await readFile(filePath, "utf-8");
                 const workflow = parseYaml(content);
                 const candidates = extractSetupStepsFromWorkflow(
                     workflow,
@@ -93,7 +93,7 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
                 );
                 allCandidates.push(...candidates);
             } catch {
-                // Skip malformed YAML workflow files while continuing scan.
+                // Skip unreadable or malformed YAML workflow files while continuing scan.
             }
         }
 

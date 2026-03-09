@@ -14,14 +14,30 @@ import type {
 import {
     type CopilotSetupConfig,
     DEFAULT_COPILOT_SETUP_CONFIG,
-    type SetupActionConfig,
 } from "../entities/copilot-setup-config.js";
+import {
+    getVersionFileConfigKeyMap,
+    getVersionTypeToActionMap,
+} from "../lib/copilot-setup-config.js";
 
 /**
  * Port for action version lookup.
  */
 export interface ActionVersionPort {
     getVersion(actionName: string): Promise<string | undefined>;
+}
+
+/**
+ * Creates an ActionVersionPort backed by a static version map.
+ */
+export function createActionVersionPort(
+    versionMap: Record<string, string>,
+): ActionVersionPort {
+    return {
+        async getVersion(actionName: string): Promise<string | undefined> {
+            return versionMap[actionName];
+        },
+    };
 }
 
 const DEFAULT_ACTION_VERSIONS: Record<string, string> = {
@@ -33,31 +49,9 @@ const DEFAULT_ACTION_VERSIONS: Record<string, string> = {
     "jdx/mise-action": "v2",
 };
 
-const defaultActionVersionPort: ActionVersionPort = {
-    async getVersion(actionName: string): Promise<string | undefined> {
-        return DEFAULT_ACTION_VERSIONS[actionName];
-    },
-};
-
-function getVersionTypeToActionMap(
-    setupActions: SetupActionConfig[],
-): Partial<Record<VersionFileType, string>> {
-    const map: Partial<Record<VersionFileType, string>> = {};
-    for (const action of setupActions) {
-        map[action.type] = action.action;
-    }
-    return map;
-}
-
-function getVersionFileConfigKeyMap(
-    setupActions: SetupActionConfig[],
-): Partial<Record<VersionFileType, string>> {
-    const map: Partial<Record<VersionFileType, string>> = {};
-    for (const action of setupActions) {
-        map[action.type] = action.versionFileKey;
-    }
-    return map;
-}
+const defaultActionVersionPort = createActionVersionPort(
+    DEFAULT_ACTION_VERSIONS,
+);
 
 /**
  * Builds setup step candidates from detected environment.
@@ -67,10 +61,8 @@ export async function buildCandidatesFromEnvironment(
     versionGateway: ActionVersionPort = defaultActionVersionPort,
     config: CopilotSetupConfig = DEFAULT_COPILOT_SETUP_CONFIG,
 ): Promise<SetupStepCandidate[]> {
-    const versionTypeToAction = getVersionTypeToActionMap(config.setupActions);
-    const versionFileConfigKeys = getVersionFileConfigKeyMap(
-        config.setupActions,
-    );
+    const versionTypeToAction = getVersionTypeToActionMap(config);
+    const versionFileConfigKeys = getVersionFileConfigKeyMap(config);
 
     const candidates: SetupStepCandidate[] = [];
 
