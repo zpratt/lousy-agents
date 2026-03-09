@@ -1,0 +1,53 @@
+{
+    "name": "@lousy-agents/cli",
+    "version": "1.0.2",
+    "description": "CLI scaffolding tool that sets up projects with structure, instructions, and feedback loops for AI coding assistants",
+    "type": "module",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/zpratt/lousy-agents.git",
+        "directory": "packages/cli"
+    },
+    "author": "zpratt",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/zpratt/lousy-agents/issues"
+    },
+    "homepage": "https://github.com/zpratt/lousy-agents#readme",
+    "keywords": [
+        "cli",
+        "scaffolding",
+        "ai",
+        "copilot",
+        "github-copilot",
+        "coding-assistant",
+        "vibe-coding"
+    ],
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
+    "files": [
+        "dist",
+        "api",
+        "cli",
+        "ui"
+    ],
+    "bin": {
+        "cli": "dist/index.js",
+        "lousy-agents": "dist/index.js"
+    },
+    "scripts": {
+        "build": "rspack build --config rspack.config.ts && chmod +x dist/index.js"
+    },
+    "dependencies": {
+        "c12": "3.3.3",
+        "citty": "0.2.1",
+        "consola": "3.4.2",
+        "eta": "4.5.1",
+        "zod": "4.3.6"
+    },
+    "devDependencies": {
+        "@lousy-agents/core": "*"
+    }
+}

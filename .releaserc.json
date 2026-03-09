@@ -1,0 +1,20 @@
+{
+    "branches": ["main"],
+    "plugins": [
+        "@semantic-release/commit-analyzer",
+        "@semantic-release/release-notes-generator",
+        [
+            "@semantic-release/npm",
+            {
+                "pkgRoot": "packages/cli"
+            }
+        ],
+        [
+            "@semantic-release/npm",
+            {
+                "pkgRoot": "packages/mcp"
+            }
+        ],
+        "@semantic-release/github"
+    ]
+}

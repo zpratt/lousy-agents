@@ -50,7 +50,7 @@ jobs:
         run: mise run build
 
       - name: Link CLI
-        run: npm link
+        run: npm link --workspace=packages/cli
 
       - name: Verify CLI is available
         run: lousy-agents --help
@@ -102,14 +102,14 @@ jobs:
         run: npm run test:integration
 
       - name: Test init command (as node)
-        run: node dist/index.js init
+        run: node packages/cli/dist/index.js init
 
       - name: Test init command (as standalone CLI)
-        run: ./dist/index.js init
+        run: ./packages/cli/dist/index.js init
 
       - name: Test npx compatibility (via npm link)
         run: |
-          npm link
+          npm link --workspace=packages/cli
           lousy-agents init
 
       - name: Smoke test - init --kind api

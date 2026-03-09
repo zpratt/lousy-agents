@@ -1,66 +1,30 @@
 {
-    "name": "@lousy-agents/cli",
+    "name": "lousy-agents",
     "version": "1.0.2",
-    "description": "CLI scaffolding tool that sets up projects with structure, instructions, and feedback loops for AI coding assistants",
+    "private": true,
     "type": "module",
+    "workspaces": [
+        "packages/core",
+        "packages/cli",
+        "packages/mcp",
+        "packages/action"
+    ],
     "repository": {
         "type": "git",
         "url": "git+https://github.com/zpratt/lousy-agents.git"
     },
     "author": "zpratt",
     "license": "MIT",
-    "bugs": {
-        "url": "https://github.com/zpratt/lousy-agents/issues"
-    },
-    "homepage": "https://github.com/zpratt/lousy-agents#readme",
-    "keywords": [
-        "cli",
-        "scaffolding",
-        "ai",
-        "copilot",
-        "github-copilot",
-        "coding-assistant",
-        "vibe-coding"
-    ],
-    "publishConfig": {
-        "access": "public",
-        "provenance": true
-    },
-    "files": [
-        "dist",
-        "ui",
-        "api",
-        "cli"
-    ],
-    "bin": {
-        "cli": "dist/index.js",
-        "lousy-agents": "dist/index.js",
-        "lousy-agents-mcp": "dist/mcp-server.js"
-    },
     "scripts": {
-        "dev": "tsx src/index.ts",
-        "build": "rspack build --config rspack.config.ts && chmod +x dist/index.js dist/mcp-server.js",
-        "start": "node dist/index.js",
+        "dev": "tsx packages/cli/src/index.ts",
+        "build": "npm run build --workspace=packages/cli --workspace=packages/mcp",
+        "start": "node packages/cli/dist/index.js",
         "test": "vitest run",
         "test:integration": "vitest run --config vitest.integration.config.ts",
         "lint": "biome check .",
         "lint:fix": "biome check --write .",
         "lint:workflows": "actionlint",
         "lint:yaml": "yamllint ."
-    },
-    "dependencies": {
-        "@github-actions-workflow-ts/lib": "2.4.0",
-        "@modelcontextprotocol/sdk": "1.27.1",
-        "@octokit/rest": "22.0.1",
-        "c12": "3.3.3",
-        "citty": "0.2.1",
-        "consola": "3.4.2",
-        "eta": "4.5.1",
-        "remark": "15.0.1",
-        "remark-parse": "11.0.0",
-        "unist-util-visit": "5.1.0",
-        "yaml": "2.8.2",
-        "zod": "4.3.6"
     },
     "devDependencies": {
         "@biomejs/biome": "2.4.6",

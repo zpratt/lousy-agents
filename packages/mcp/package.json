@@ -1,0 +1,46 @@
+{
+    "name": "@lousy-agents/mcp",
+    "version": "1.0.2",
+    "description": "MCP server for lousy-agents - provides AI coding assistant tools via the Model Context Protocol",
+    "type": "module",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/zpratt/lousy-agents.git",
+        "directory": "packages/mcp"
+    },
+    "author": "zpratt",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/zpratt/lousy-agents/issues"
+    },
+    "homepage": "https://github.com/zpratt/lousy-agents#readme",
+    "keywords": [
+        "mcp",
+        "model-context-protocol",
+        "ai",
+        "copilot",
+        "github-copilot",
+        "coding-assistant"
+    ],
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
+    "files": [
+        "dist"
+    ],
+    "bin": {
+        "lousy-agents-mcp": "dist/mcp-server.js"
+    },
+    "scripts": {
+        "build": "rspack build --config rspack.config.ts && chmod +x dist/mcp-server.js"
+    },
+    "dependencies": {
+        "@modelcontextprotocol/sdk": "1.27.1",
+        "yaml": "2.8.2",
+        "zod": "4.3.6"
+    },
+    "devDependencies": {
+        "@lousy-agents/core": "*"
+    }
+}

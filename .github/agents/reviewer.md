@@ -1,5 +1,5 @@
 ---
-name: Reviewer
+name: reviewer
 description: A hostile security and architecture reviewer that validates code against project standards and known attack vectors.
 tools: ["*"]
 ---
