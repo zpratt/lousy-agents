@@ -70,6 +70,8 @@ AI coding assistants work best when given clear constraints. Without structure, 
 
 - **[agent-shell](packages/agent-shell/README.md)** - A flight recorder for npm script execution. Records independent telemetry of what scripts ran, who initiated them, and whether they succeeded.
 
+![agent-shell demo](media/agent-shell.gif)
+
 ### Spec-Driven Development
 
 A methodology where you write clear specifications *first*, giving agents precise requirements to implement—rather than vague prompts. Each scaffolded project includes instruction files for writing specs and tests.
