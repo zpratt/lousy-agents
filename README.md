@@ -66,6 +66,10 @@ AI coding assistants work best when given clear constraints. Without structure, 
 
 - **[MCP Server](docs/mcp-server.md)** - Model Context Protocol server for AI assistant integration
 
+### Companion Tools
+
+- **[agent-shell](packages/agent-shell/README.md)** - A flight recorder for npm script execution. Records independent telemetry of what scripts ran, who initiated them, and whether they succeeded.
+
 ### Spec-Driven Development
 
 A methodology where you write clear specifications *first*, giving agents precise requirements to implement—rather than vague prompts. Each scaffolded project includes instruction files for writing specs and tests.
@@ -150,6 +154,7 @@ npx @lousy-agents/cli lint
 - **[`lint` Command](docs/lint.md)** - Skills, agents, and instruction quality validation
 - **[`copilot-setup` Command](docs/copilot-setup.md)** - Workflow generation
 - **[MCP Server](docs/mcp-server.md)** - AI assistant integration
+- **[agent-shell](packages/agent-shell/README.md)** - npm script execution telemetry
 
 ## Reference Examples
 
