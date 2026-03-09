@@ -5,7 +5,11 @@
     "type": "module",
     "exports": {
         ".": "./src/index.ts",
-        "./*": "./src/*"
+        "./entities/*": "./src/entities/*",
+        "./use-cases/*": "./src/use-cases/*",
+        "./gateways/*": "./src/gateways/*",
+        "./formatters/*": "./src/formatters/*",
+        "./lib/*": "./src/lib/*"
     },
     "dependencies": {
         "@github-actions-workflow-ts/lib": "2.4.0",

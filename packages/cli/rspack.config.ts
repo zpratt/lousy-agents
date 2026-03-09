@@ -35,6 +35,9 @@ const config: Configuration = {
         extensionAlias: {
             ".js": [".ts", ".js"],
         },
+        alias: {
+            "@lousy-agents/core": resolve(__dirname, "../core/src"),
+        },
     },
     module: {
         parser: {

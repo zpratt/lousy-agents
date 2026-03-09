@@ -69,7 +69,7 @@ run = "npm test"
 
 [tasks.clean]
 description = "Clean build artifacts for reproducible builds"
-run = "rm -rf dist"
+run = "rm -rf packages/cli/dist packages/mcp/dist"
 
 [tasks.build]
 description = "Build the project with rspack"

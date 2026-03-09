@@ -6,6 +6,8 @@
  */
 
 import { type ChildProcess, spawn } from "node:child_process";
+import { dirname, resolve as resolvePath } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /**
  * Time to wait for the MCP server process to start and be ready
@@ -37,10 +39,17 @@ export class McpTestClient {
      * Starts the MCP server process.
      */
     async start(): Promise<void> {
+        // Resolve the MCP server path before entering the Promise to avoid
+        // shadowing node:path's resolve with the Promise callback's resolve.
+        const mcpServerPath = resolvePath(
+            dirname(fileURLToPath(import.meta.url)),
+            "..",
+            "dist",
+            "mcp-server.js",
+        );
+
         return new Promise((resolve, reject) => {
-            // Start the MCP server using the built dist file
-            this.process = spawn("node", ["dist/mcp-server.js"], {
-                cwd: process.cwd(),
+            this.process = spawn("node", [mcpServerPath], {
                 stdio: ["pipe", "pipe", "pipe"],
             });
 

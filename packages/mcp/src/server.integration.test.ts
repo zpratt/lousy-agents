@@ -11,7 +11,8 @@
 import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import Chance from "chance";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { McpTestClient } from "./lib/mcp-test-client.js";
@@ -19,7 +20,8 @@ import { McpTestClient } from "./lib/mcp-test-client.js";
 const chance = new Chance();
 
 // Check if dist file exists - skip tests if not built
-const distExists = existsSync(join(process.cwd(), "dist", "mcp-server.js"));
+const mcpPackageDir = resolve(dirname(fileURLToPath(import.meta.url)));
+const distExists = existsSync(resolve(mcpPackageDir, "dist", "mcp-server.js"));
 
 describe.skipIf(!distExists)("MCP Server Integration Tests", () => {
     let client: McpTestClient;
