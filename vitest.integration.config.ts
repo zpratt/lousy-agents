@@ -1,5 +1,8 @@
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
     test: {
@@ -16,10 +19,7 @@ export default defineConfig({
     },
     resolve: {
         alias: {
-            "@lousy-agents/core": resolve(
-                import.meta.dirname,
-                "./packages/core/src",
-            ),
+            "@lousy-agents/core": resolve(__dirname, "./packages/core/src"),
         },
     },
 });
