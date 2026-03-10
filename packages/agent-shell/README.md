@@ -1,5 +1,7 @@
 # agent-shell
 
+![agent-shell demo](../../media/agent-shell.gif)
+
 A flight recorder for npm script execution.
 
 agent-shell is an npm `script-shell` shim that independently records what scripts ran, who initiated them, and whether they succeeded — producing structured JSONL telemetry. It sits below the agent at the npm script-shell level, providing an audit trail that doesn't depend on agent self-reports.
