@@ -1,6 +1,6 @@
 # agent-shell
 
-![agent-shell demo](../../media/agent-shell.gif)
+![agent-shell demo](https://raw.githubusercontent.com/lousy-agents/agents/HEAD/media/agent-shell.gif)
 
 A flight recorder for npm script execution.
 
