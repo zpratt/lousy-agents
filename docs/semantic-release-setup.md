@@ -1,6 +1,6 @@
 # Publishing to npm with Semantic Release
 
-This guide documents the setup required to automate npm package publishing for this project using [semantic-release](https://github.com/semantic-release/semantic-release).
+This guide documents the setup required to automate npm package publishing for this npm workspace monorepo using [semantic-release](https://github.com/semantic-release/semantic-release).
 
 ## Table of Contents
 
@@ -8,9 +8,9 @@ This guide documents the setup required to automate npm package publishing for t
 - [Package Naming](#package-naming)
 - [Prerequisites](#prerequisites)
 - [Setup Steps](#setup-steps)
-  - [1. Update package.json](#1-update-packagejson)
+  - [1. Configure workspace package manifests and release targets](#1-configure-workspace-package-manifests-and-release-targets)
   - [2. Create Release Workflow](#2-create-release-workflow)
-  - [3. Configure npm Trusted Publishing](#3-configure-npm-trusted-publishing)
+  - [3. Configure npm publishing credentials](#3-configure-npm-publishing-credentials)
   - [4. Tag Existing Version (If Applicable)](#4-tag-existing-version-if-applicable)
 - [Commit Message Convention](#commit-message-convention)
 - [How It Works](#how-it-works)
@@ -18,26 +18,34 @@ This guide documents the setup required to automate npm package publishing for t
 
 ## Overview
 
-Semantic-release automates the entire package release workflow:
+Semantic-release automates the release workflow for the publishable workspace packages:
 
 1. Analyzes commit messages to determine the next version
 2. Generates release notes automatically
 3. Updates the package version
-4. Publishes to npm
+4. Publishes the configured workspace packages to npm
 5. Creates a GitHub release with changelog
 
 ## Package Naming
 
-### Using a Scoped Package with npm Organization
+### Published Packages in This Monorepo
 
-**Package name:** `@lousy-agents/cli`
+The repository root package is private. Publishable packages live under `packages/*`:
+
+| Package | Workspace | Notes |
+|---------|-----------|-------|
+| `@lousy-agents/cli` | `packages/cli` | Main scaffolding CLI |
+| `@lousy-agents/mcp` | `packages/mcp` | MCP server package |
+| `@lousy-agents/agent-shell` | `packages/agent-shell` | npm script-shell telemetry |
+
+The current automated semantic-release configuration publishes `@lousy-agents/cli` and `@lousy-agents/mcp` from `.releaserc.json`.
 
 Using a scoped package name under an npm organization provides several benefits:
 
 | Benefit | Description |
 |---------|-------------|
 | **Namespace ownership** | The `@lousy-agents` scope is tied to an npm organization you control |
-| **Future packages** | Easily publish additional packages under the same scope (e.g., `@lousy-agents/core`, `@lousy-agents/mcp`) |
+| **Multiple packages** | Publish related packages such as `@lousy-agents/cli`, `@lousy-agents/mcp`, and `@lousy-agents/agent-shell` under one scope |
 | **No naming conflicts** | Avoid potential conflicts with existing or future unscoped packages |
 | **Team collaboration** | npm organizations allow adding team members with different access levels |
 | **Clear branding** | Users immediately recognize packages from your project |
@@ -86,46 +94,63 @@ Or configure in `package.json`:
 Before setting up semantic-release, ensure you have:
 
 1. **npm account** at [npmjs.com](https://www.npmjs.com/signup)
-2. **npm CLI version 11.5.1 or later** - Required for trusted publishing. Check with `npm --version`
+2. **npm CLI version 11 or later** - Recommended for modern npm provenance and workspace publishing support. Check with `npm --version`
 3. **Repository access** with write permissions
 4. **Conventional commits** - Start using the commit message convention (see below)
 
 ## Setup Steps
 
-### 1. Update package.json
+### 1. Configure workspace package manifests and release targets
 
-Make the following changes to `package.json`:
+The monorepo keeps the root `package.json` private and marks each publishable workspace package individually:
 
 ```diff
+// package.json (root)
 {
--   "name": "lousy-agents",
-+   "name": "@lousy-agents/cli",
-    "version": "0.1.0",
--   "private": true,
-    "type": "module",
-+   "repository": {
-+     "type": "git",
-+     "url": "git+https://github.com/zpratt/lousy-agents.git"
-+   },
-+   "publishConfig": {
-+     "access": "public"
-+   },
-+   "files": [
-+     "dist"
-+   ],
-    ...
+  "private": true,
+  "workspaces": [
+    "packages/core",
+    "packages/cli",
+    "packages/mcp",
+    "packages/action",
+    "packages/agent-shell"
+  ]
 }
 ```
 
-**Changes explained:**
+Each published workspace package needs its own `name`, `repository.directory`, `publishConfig`, `files`, and `bin` fields. For example:
 
-| Change | Reason |
-|--------|--------|
-| `name` → `@lousy-agents/cli` | Scoped package name for namespace ownership |
-| Remove `"private": true` | Required to allow npm publishing |
-| Add `repository` | Required for semantic-release to link GitHub and npm |
-| Add `publishConfig.access` | Makes the scoped package public |
-| Add `files` | Specifies which files to include in the npm package |
+```json
+{
+  "name": "@lousy-agents/mcp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zpratt/lousy-agents.git",
+    "directory": "packages/mcp"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "files": ["dist"],
+  "bin": {
+    "lousy-agents-mcp": "dist/mcp-server.js"
+  }
+}
+```
+
+The release targets live in `.releaserc.json`:
+
+```json
+{
+  "branches": ["main"],
+  "plugins": [
+    ["@semantic-release/npm", { "pkgRoot": "packages/cli" }],
+    ["@semantic-release/npm", { "pkgRoot": "packages/mcp" }],
+    "@semantic-release/github"
+  ]
+}
+```
 
 ### 2. Create Release Workflow
 
@@ -150,6 +175,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # Only run on main repository, not forks, and only if CI succeeded
     if: >
       github.repository == 'zpratt/lousy-agents' &&
@@ -158,24 +184,26 @@ jobs:
       contents: write # to create GitHub releases
       issues: write # to comment on released issues
       pull-requests: write # to comment on released PRs
-      id-token: write # for npm trusted publishing (OIDC)
+      id-token: write # for provenance and attestations
+      attestations: write # for build provenance attestation
 
     steps:
       - name: Checkout
-        # v4.2.2
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        # v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Setup mise
-        # v3.5.1
-        uses: jdx/mise-action@6d1e696aa24c1aa1bcc1adea0212707c71ab78a8
+        # v3.6.1
+        uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
         with:
           github_token: ${{ github.token }}
 
       - name: Cache npm dependencies
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2
+        # v5.0.3
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306
         with:
           path: ~/.npm
           key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
@@ -189,12 +217,18 @@ jobs:
         run: npm audit signatures
 
       - name: Build
-        run: npm run build
+        run: mise run build
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32  # v4.1.0
+        with:
+          subject-path: 'packages/*/dist/**/*'
 
       - name: Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release@24
+          GITHUB_TOKEN: ${{ github.token }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npx semantic-release@25.0.2
 ```
 
 **Key configuration notes:**
@@ -205,15 +239,15 @@ jobs:
 | `workflow_run.conclusion == 'success'` | Additional check to confirm CI passed |
 | `fetch-depth: 0` | Required - semantic-release needs full git history |
 | `persist-credentials: false` | Security best practice when using GITHUB_TOKEN |
-| `id-token: write` | Enables npm trusted publishing via OIDC |
-| `npx semantic-release@24` | Pins to major version for stability |
+| `mise run build` | Builds the publishable workspace packages from the repo root |
+| `attestations: write` and provenance step | Generates build provenance for published artifacts |
+| `NPM_TOKEN` | Authenticates npm publishing for the release job |
+| `npx semantic-release@25.0.2` | Pins the release tool to an exact version |
 | `if: github.repository == '...'` | Prevents running on forks |
 
-### 3. Configure npm Trusted Publishing
+### 3. Configure npm publishing credentials
 
-Trusted publishing eliminates the need for long-lived npm tokens by using GitHub's OIDC (OpenID Connect) identity. With trusted publishing, npm provenance attestations are automatically generated for your packages, providing cryptographic proof of where and how your package was built.
-
-**Note:** Trusted publishing requires npm CLI version 11.5.1 or later.
+The current workflow publishes with an npm automation token stored as `NPM_TOKEN` in GitHub Actions secrets.
 
 #### Step 3a: Initial Manual Publish (Required for New Packages)
 
@@ -221,44 +255,30 @@ For a brand new package, you must do an initial manual publish first:
 
 ```bash
 npm run build
-npm publish --access public
+npm publish --workspace=packages/mcp --access public
 ```
 
-#### Step 3b: Add Trusted Publisher on npm
+Publish from the individual workspace you are releasing, for example:
 
-1. Go to your package settings page on [npmjs.com](https://www.npmjs.com)
-2. Find the "**Trusted Publisher**" section
-3. Click **Add Trusted Publisher** and select **GitHub Actions**
-4. Configure with these values:
+```bash
+npm publish --workspace=packages/cli --access public
+```
 
-   | Field | Value |
-   |-------|-------|
-   | Organization or user | `zpratt` |
-   | Repository | `lousy-agents` |
-   | Workflow filename | `release.yml` |
-   | Environment name | (leave blank) |
+#### Step 3b: Add `NPM_TOKEN` to GitHub Actions
 
-**Note:** Use your GitHub username (`zpratt`) for the "Organization or user" field, not the npm organization name. This refers to the GitHub repository owner.
+1. Create an npm automation token with publish access to the `@lousy-agents` scope
+2. Add it to the repository as the `NPM_TOKEN` Actions secret
+3. Confirm the release workflow can read that secret on `main`
 
-**Important:** The workflow filename must be the file that triggers the release process (e.g., `release.yml`), not any downstream reusable workflows it may call.
-
-#### Step 3c: (Recommended) Restrict Token Access
-
-After verifying trusted publishing works, restrict traditional token-based publishing for enhanced security:
-
-1. Navigate to your package's **Settings** → **Publishing access** on npmjs.com
-2. Select **"Require two-factor authentication and disallow tokens"**
-3. Save your changes
-
-This ensures only trusted publishing from your CI/CD workflow can publish the package.
+> If you later switch to npm trusted publishing, update `.github/workflows/release.yml` and this guide together so the documented flow stays accurate.
 
 ### 4. Tag Existing Version (If Applicable)
 
 If you've previously released versions manually, ensure the current version is tagged in git:
 
 ```bash
-# Check current version in package.json
-cat package.json | grep '"version"'
+# Check the published workspace package version
+cat packages/cli/package.json | grep '"version"'
 
 # If version is 0.1.0 and not tagged, create the tag
 git tag v0.1.0
@@ -316,9 +336,9 @@ When you push to `main`:
    - `fix:` → patch bump
    - `feat:` → minor bump
    - `BREAKING CHANGE:` → major bump
-4. **Package.json updated** with new version
-5. **Package published** to npm via trusted publishing
-6. **Provenance generated** automatically (cryptographic proof of build origin)
+4. **Workspace package manifests updated** with new versions
+5. **Configured workspace packages published** to npm
+6. **Provenance generated** automatically for built artifacts
 7. **GitHub release created** with auto-generated release notes
 8. **Git tag created** (e.g., `v1.2.0`)
 
@@ -331,22 +351,22 @@ If no releasable commits are found, no release is created.
 | Issue | Solution |
 |-------|----------|
 | `ERELEASEBRANCHES` | Ensure you have a `main` or `master` branch |
-| `ENOPKG` | Package.json must not have `"private": true` |
-| `EINVALIDNPMTOKEN` | Configure trusted publishing or check NPM_TOKEN |
+| `ENOPKG` | Ensure each published workspace has its own `package.json` and that the published workspace package is not marked `"private": true` |
+| `EINVALIDNPMTOKEN` | Recreate the npm automation token or update the `NPM_TOKEN` secret |
 | No release created | Ensure commits follow conventional format |
-| "Unable to authenticate" | Verify workflow filename matches exactly (case-sensitive, including `.yml` extension) |
-| Self-hosted runner fails | Trusted publishing only supports GitHub-hosted runners |
+| "Unable to authenticate" | Verify the npm token is valid for the `@lousy-agents` scope and available to the workflow |
+| `ENOWORKSPACE` | Verify the package path in `.releaserc.json` matches the workspace directory |
 
-### Trusted Publishing Not Working?
+### Publishing Credentials Not Working?
 
-1. **Verify npm CLI version**: Run `npm --version` - must be 11.5.1 or later
-2. **Check workflow filename**: Must match exactly what's configured on npmjs.com (case-sensitive)
-3. **Verify `id-token: write` permission**: Required in your workflow for OIDC
-4. **Check runner type**: Self-hosted runners are not currently supported
+1. **Check the `NPM_TOKEN` secret**: Make sure it exists and still has publish access
+2. **Verify package access**: Confirm the token can publish under the `@lousy-agents` scope
+3. **Check `.releaserc.json`**: Each `pkgRoot` must point at the correct workspace
+4. **Check the build output**: `mise run build` must produce each workspace `dist/` directory before release
 
 ### Private Dependencies
 
-If you have private npm dependencies, trusted publishing only applies to `npm publish`. You'll still need a read-only token for installing private packages:
+If you have private npm dependencies, use a separate read-only token for dependency installation so your publish token is not reused for installs:
 
 ```yaml
 - name: Install dependencies

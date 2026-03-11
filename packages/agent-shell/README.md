@@ -1,12 +1,14 @@
 # agent-shell
 
-![agent-shell demo](https://raw.githubusercontent.com/lousy-agents/agents/HEAD/media/agent-shell.gif)
+![agent-shell demo](https://raw.githubusercontent.com/zpratt/lousy-agents/HEAD/media/agent-shell.gif)
 
 A flight recorder for npm script execution.
 
 agent-shell is an npm `script-shell` shim that independently records what scripts ran, who initiated them, and whether they succeeded — producing structured JSONL telemetry. It sits below the agent at the npm script-shell level, providing an audit trail that doesn't depend on agent self-reports.
 
 ## Quick Start
+
+### Use the published package in your project
 
 ```bash
 # Install as a dev dependency
@@ -24,6 +26,16 @@ npx agent-shell --version
 # Run any npm script — events are recorded automatically
 npm test
 ```
+
+### Work on agent-shell inside this monorepo
+
+```bash
+npm install
+npm run build
+npm test
+```
+
+The root install sets up all workspace packages. The root build includes `packages/agent-shell` alongside the other published packages.
 
 ## How It Works
 
