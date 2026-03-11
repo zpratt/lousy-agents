@@ -123,6 +123,10 @@ jobs:
           test -d .github
           test -f .github/instructions/test.instructions.md
           npm install
+          git init
+          npm test
+          npm run test:integration
+          npm run lint
           echo "API smoke test passed"
 
       - name: Smoke test - init --kind webapp

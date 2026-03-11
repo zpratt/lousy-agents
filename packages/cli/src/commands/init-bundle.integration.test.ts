@@ -193,5 +193,39 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
             expect(packageJson).toContain("fastify");
             expect(existsSync(join(outputDir, "tsconfig.json"))).toBe(true);
         });
+
+        it("should produce an API project that passes lint after install", async () => {
+            const projectName = `test-${chance.word({ length: 6 }).toLowerCase()}`;
+            const outputDir = join(packDir, `output-api-lint-${chance.guid()}`);
+            mkdirSync(outputDir, { recursive: true });
+
+            execFileSync(
+                "node",
+                [
+                    unpackedCliPath,
+                    "init",
+                    "--kind",
+                    "api",
+                    "--name",
+                    projectName,
+                ],
+                { cwd: outputDir, stdio: "pipe" },
+            );
+
+            execFileSync("git", ["init"], {
+                cwd: outputDir,
+                stdio: "pipe",
+            });
+
+            execFileSync("npm", ["install"], {
+                cwd: outputDir,
+                stdio: "pipe",
+            });
+
+            execFileSync("npx", ["biome", "check", "."], {
+                cwd: outputDir,
+                stdio: "pipe",
+            });
+        });
     });
 });
