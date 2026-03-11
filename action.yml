@@ -4,6 +4,7 @@ description: >-
   Lint instructions, agents, and skills via reviewdog. Produces inline
   check annotations (github-pr-check, default) or PR review comments
   (github-pr-review) depending on the reporter input.
+  Requires Node.js >= 20 on the runner (included on GitHub-hosted runners).
 author: 'zpratt'
 
 inputs:

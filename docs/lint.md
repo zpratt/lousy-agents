@@ -342,6 +342,10 @@ The `lint` command returns a non-zero exit code when errors are found, making it
 
 A composite GitHub Action is available for automated inline feedback via [reviewdog](https://github.com/reviewdog/reviewdog). The action runs lint checks using a bundled JavaScript entry point that calls the `@lousy-agents/core` APIs directly, then pipes the output to reviewdog. By default it produces GitHub Check annotations (`github-pr-check`); switch to `reporter: github-pr-review` for inline PR review comments.
 
+### Prerequisites
+
+The action requires **Node.js ≥ 20** to be available on the runner. GitHub-hosted runners (`ubuntu-latest`, `windows-latest`, `macos-latest`) include Node.js by default. For self-hosted runners or custom container jobs, ensure Node.js ≥ 20 is installed before using this action.
+
 ### Quick Start
 
 ```yaml
