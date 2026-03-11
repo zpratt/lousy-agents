@@ -46523,9 +46523,9 @@ const LevelSchema = schemas_enum(VALID_LEVELS);
     const reporter = validateReporter(env.INPUT_REPORTER ?? "github-pr-check");
     const filterMode = validateFilterMode(env.INPUT_FILTER_MODE ?? "added");
     const level = validateLevel(env.INPUT_LEVEL ?? "info");
-    const skills = env.INPUT_SKILLS === "true";
-    const agents = env.INPUT_AGENTS === "true";
-    const instructions = env.INPUT_INSTRUCTIONS === "true";
+    const skills = env.INPUT_SKILLS?.toLowerCase() === "true";
+    const agents = env.INPUT_AGENTS?.toLowerCase() === "true";
+    const instructions = env.INPUT_INSTRUCTIONS?.toLowerCase() === "true";
     return {
         directory,
         skills,
@@ -46554,8 +46554,14 @@ async function src_main() {
     }
 }
 src_main().catch((error)=>{
-    const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`Error: ${message}\n`);
+    if (error instanceof Error) {
+        process.stderr.write(`Error: ${error.message}\n`);
+        if (error.stack) {
+            process.stderr.write(`${error.stack}\n`);
+        }
+    } else {
+        process.stderr.write(`Error: ${String(error)}\n`);
+    }
     process.exitCode = 1;
 });
 

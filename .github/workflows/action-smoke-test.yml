@@ -116,7 +116,7 @@ jobs:
           INPUT_REPORTER="github-pr-check" \
           INPUT_FILTER_MODE="added" \
           INPUT_LEVEL="info" \
-          node packages/action/dist/index.js 2>/dev/null \
+          node packages/action/dist/index.js \
             | head -1 \
             | python3 -c \
               "import sys,json; json.loads(sys.stdin.read())"

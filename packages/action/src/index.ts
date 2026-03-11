@@ -21,7 +21,13 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`Error: ${message}\n`);
+    if (error instanceof Error) {
+        process.stderr.write(`Error: ${error.message}\n`);
+        if (error.stack) {
+            process.stderr.write(`${error.stack}\n`);
+        }
+    } else {
+        process.stderr.write(`Error: ${String(error)}\n`);
+    }
     process.exitCode = 1;
 });

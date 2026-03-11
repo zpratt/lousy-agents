@@ -142,9 +142,9 @@ export function readActionInputs(
     const filterMode = validateFilterMode(env.INPUT_FILTER_MODE ?? "added");
     const level = validateLevel(env.INPUT_LEVEL ?? "info");
 
-    const skills = env.INPUT_SKILLS === "true";
-    const agents = env.INPUT_AGENTS === "true";
-    const instructions = env.INPUT_INSTRUCTIONS === "true";
+    const skills = env.INPUT_SKILLS?.toLowerCase() === "true";
+    const agents = env.INPUT_AGENTS?.toLowerCase() === "true";
+    const instructions = env.INPUT_INSTRUCTIONS?.toLowerCase() === "true";
 
     return {
         directory,
