@@ -278,7 +278,7 @@ If you've previously released versions manually, ensure the current version is t
 
 ```bash
 # Check the published workspace package version
-cat packages/cli/package.json | grep '"version"'
+grep '"version"' packages/cli/package.json
 
 # If version is 0.1.0 and not tagged, create the tag
 git tag v0.1.0
