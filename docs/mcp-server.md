@@ -244,24 +244,6 @@ Use this when your project already depends on `@lousy-agents/mcp`:
 }
 ```
 
-### Option 3: Run the monorepo build directly
-
-Use this when contributing to `zpratt/lousy-agents` itself:
-
-```json
-{
-  "servers": {
-    "lousy-agents": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["./packages/mcp/dist/mcp-server.js"]
-    }
-  }
-}
-```
-
-> Run this from the repository root. Build the workspace first with `npm run build` so `packages/mcp/dist/mcp-server.js` exists.
-
 ## GitHub.com Hosted Copilot Coding Agent Configuration
 
 To use this MCP server with the hosted GitHub Copilot coding agent on github.com, add the server in your MCP server settings using this copy/paste configuration:

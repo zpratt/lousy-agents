@@ -95,14 +95,6 @@ The MCP (Model Context Protocol) server exposes workflow management tools to AI 
 - Configuration instructions
 - Integration examples
 
-## Contributing
-
-When adding new features or commands, please:
-
-1. Create a dedicated documentation file in this directory
-2. Update this README's table of contents
-3. Link to the new documentation from the main README
-
 ## Additional Resources
 
 - [Main README](../README.md) - Project overview and quick start
