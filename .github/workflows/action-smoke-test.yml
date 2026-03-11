@@ -101,17 +101,19 @@ jobs:
             > /tmp/action-smoke-rdjsonl/.github/skills/bad-skill/SKILL.md
           cd /tmp/action-smoke-rdjsonl
 
-          INPUT_DIRECTORY="." \
+          set +e
+          OUTPUT=$(INPUT_DIRECTORY="." \
           INPUT_SKILLS="true" \
           INPUT_AGENTS="false" \
           INPUT_INSTRUCTIONS="false" \
           INPUT_REPORTER="github-pr-check" \
           INPUT_FILTER_MODE="added" \
           INPUT_LEVEL="info" \
-          node "$SCRIPT" \
-            | head -1 \
-            | python3 -c \
-              "import sys,json; json.loads(sys.stdin.read())"
+          node "$SCRIPT")
+          set -e
+
+          echo "$OUTPUT" | head -1 | python3 -c \
+            "import sys,json; json.loads(sys.stdin.read())"
           echo "rdjsonl output smoke test passed"
 
       - name: Smoke test - action lints all targets when no flags set
