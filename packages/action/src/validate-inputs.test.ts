@@ -1,7 +1,10 @@
 // biome-ignore-all lint/style/useNamingConvention: env var names use UPPER_SNAKE_CASE
 
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import Chance from "chance";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
     readActionInputs,
     validateDirectory,
@@ -13,93 +16,131 @@ import {
 const chance = new Chance();
 
 describe("Action input validation", () => {
+    let tempDir: string;
+
+    beforeAll(async () => {
+        tempDir = await mkdtemp(join(tmpdir(), "action-test-"));
+    });
+
+    afterAll(async () => {
+        await rm(tempDir, { recursive: true, force: true });
+    });
+
     describe("directory validation", () => {
         describe("given a valid relative path", () => {
-            it("should accept the current directory marker", () => {
-                const result = validateDirectory(".");
+            it("should accept the current directory marker", async () => {
+                const result = await validateDirectory(".");
                 expect(result).toBeTruthy();
             });
 
-            it("should accept a simple directory name", () => {
-                const dirName = "my-project";
-                const result = validateDirectory(dirName);
-                expect(result).toContain(dirName);
+            it("should accept a simple directory name", async () => {
+                const result = await validateDirectory("packages");
+                expect(result).toContain("packages");
             });
 
-            it("should accept a nested relative path", () => {
-                const result = validateDirectory("src/lib/utils");
-                expect(result).toContain("src/lib/utils");
+            it("should accept a nested relative path", async () => {
+                const result = await validateDirectory("packages/action/src");
+                expect(result).toContain("packages/action/src");
             });
 
-            it("should accept a path with underscores and dots", () => {
-                const result = validateDirectory("my_project/.github");
-                expect(result).toContain("my_project/.github");
+            it("should accept a path with underscores and dots", async () => {
+                const result = await validateDirectory(".github");
+                expect(result).toContain(".github");
             });
         });
 
         describe("given an empty directory", () => {
-            it("should reject with an error", () => {
-                expect(() => validateDirectory("")).toThrow(
+            it("should reject with an error", async () => {
+                await expect(validateDirectory("")).rejects.toThrow(
                     "directory input must not be empty",
                 );
             });
 
-            it("should reject whitespace-only input", () => {
-                expect(() => validateDirectory("   ")).toThrow(
+            it("should reject whitespace-only input", async () => {
+                await expect(validateDirectory("   ")).rejects.toThrow(
                     "directory input must not be empty",
                 );
             });
         });
 
         describe("given a path traversal attempt", () => {
-            it("should reject paths containing double dots", () => {
-                expect(() => validateDirectory("../secret")).toThrow(
+            it("should reject paths containing double dots", async () => {
+                await expect(validateDirectory("../secret")).rejects.toThrow(
                     "directory input must be a relative path within the workspace",
                 );
             });
 
-            it("should reject nested traversal", () => {
-                expect(() => validateDirectory("foo/../../bar")).toThrow(
+            it("should reject nested traversal", async () => {
+                await expect(
+                    validateDirectory("foo/../../bar"),
+                ).rejects.toThrow(
                     "directory input must be a relative path within the workspace",
                 );
             });
         });
 
         describe("given an absolute path", () => {
-            it("should reject paths starting with /", () => {
-                expect(() => validateDirectory("/etc/passwd")).toThrow(
+            it("should reject paths starting with /", async () => {
+                await expect(validateDirectory("/etc/passwd")).rejects.toThrow(
                     "directory input must be a relative path within the workspace",
                 );
             });
         });
 
         describe("given a home-relative path", () => {
-            it("should reject paths starting with ~", () => {
-                expect(() => validateDirectory("~/Documents")).toThrow(
+            it("should reject paths starting with ~", async () => {
+                await expect(validateDirectory("~/Documents")).rejects.toThrow(
                     "directory input must be a relative path within the workspace",
                 );
             });
         });
 
         describe("given the special dash value", () => {
-            it("should reject the cd-previous marker", () => {
-                expect(() => validateDirectory("-")).toThrow(
+            it("should reject the cd-previous marker", async () => {
+                await expect(validateDirectory("-")).rejects.toThrow(
                     "directory input must be a relative path within the workspace",
                 );
             });
         });
 
         describe("given a path with disallowed characters", () => {
-            it("should reject paths with spaces", () => {
-                expect(() => validateDirectory("my project")).toThrow(
+            it("should reject paths with spaces", async () => {
+                await expect(validateDirectory("my project")).rejects.toThrow(
                     "directory input must be a relative path within the workspace",
                 );
             });
 
-            it("should reject paths with semicolons", () => {
-                expect(() => validateDirectory("dir; rm -rf /")).toThrow(
+            it("should reject paths with semicolons", async () => {
+                await expect(
+                    validateDirectory("dir; rm -rf /"),
+                ).rejects.toThrow(
                     "directory input must be a relative path within the workspace",
                 );
+            });
+        });
+
+        describe("given a non-existent directory", () => {
+            it("should reject with a clear error", async () => {
+                await expect(
+                    validateDirectory("does-not-exist-xyz"),
+                ).rejects.toThrow("directory input does not exist");
+            });
+        });
+
+        describe("given a path that is a file, not a directory", () => {
+            it("should reject with a clear error", async () => {
+                const filePath = join(tempDir, "not-a-dir.txt");
+                await writeFile(filePath, "hello");
+
+                const originalCwd = process.cwd();
+                process.chdir(tempDir);
+                try {
+                    await expect(
+                        validateDirectory("not-a-dir.txt"),
+                    ).rejects.toThrow("directory input is not a directory");
+                } finally {
+                    process.chdir(originalCwd);
+                }
             });
         });
     });
@@ -189,7 +230,7 @@ describe("Action input validation", () => {
 
     describe("reading action inputs from environment", () => {
         describe("given default environment values", () => {
-            it("should return inputs with defaults applied", () => {
+            it("should return inputs with defaults applied", async () => {
                 const env: Record<string, string | undefined> = {
                     INPUT_DIRECTORY: ".",
                     INPUT_SKILLS: "false",
@@ -200,7 +241,7 @@ describe("Action input validation", () => {
                     INPUT_LEVEL: "info",
                 };
 
-                const result = readActionInputs(env);
+                const result = await readActionInputs(env);
 
                 expect(result.skills).toBe(false);
                 expect(result.agents).toBe(false);
@@ -212,7 +253,7 @@ describe("Action input validation", () => {
         });
 
         describe("given skills flag enabled", () => {
-            it("should set skills to true", () => {
+            it("should set skills to true", async () => {
                 const env: Record<string, string | undefined> = {
                     INPUT_DIRECTORY: ".",
                     INPUT_SKILLS: "true",
@@ -223,17 +264,17 @@ describe("Action input validation", () => {
                     INPUT_LEVEL: "info",
                 };
 
-                const result = readActionInputs(env);
+                const result = await readActionInputs(env);
 
                 expect(result.skills).toBe(true);
             });
         });
 
         describe("given missing environment variables", () => {
-            it("should use defaults for missing values", () => {
+            it("should use defaults for missing values", async () => {
                 const env: Record<string, string | undefined> = {};
 
-                const result = readActionInputs(env);
+                const result = await readActionInputs(env);
 
                 expect(result.skills).toBe(false);
                 expect(result.agents).toBe(false);
@@ -245,26 +286,26 @@ describe("Action input validation", () => {
         });
 
         describe("given an invalid directory", () => {
-            it("should throw a validation error", () => {
+            it("should throw a validation error", async () => {
                 const env: Record<string, string | undefined> = {
                     INPUT_DIRECTORY: "../escape",
                 };
 
-                expect(() => readActionInputs(env)).toThrow(
+                await expect(readActionInputs(env)).rejects.toThrow(
                     "directory input must be a relative path within the workspace",
                 );
             });
         });
 
         describe("given an invalid reporter", () => {
-            it("should throw a validation error", () => {
+            it("should throw a validation error", async () => {
                 const invalidReporter = chance.word();
                 const env: Record<string, string | undefined> = {
                     INPUT_DIRECTORY: ".",
                     INPUT_REPORTER: invalidReporter,
                 };
 
-                expect(() => readActionInputs(env)).toThrow(
+                await expect(readActionInputs(env)).rejects.toThrow(
                     `invalid reporter: ${invalidReporter}`,
                 );
             });

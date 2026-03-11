@@ -7,7 +7,7 @@ import { runLint } from "./run-lint.js";
 import { readActionInputs } from "./validate-inputs.js";
 
 async function main(): Promise<void> {
-    const inputs = readActionInputs(process.env);
+    const inputs = await readActionInputs(process.env);
 
     const { output, hasErrors } = await runLint(inputs);
 

@@ -3,6 +3,7 @@
  * Validates environment-variable inputs before lint execution.
  */
 
+import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z } from "zod";
 
@@ -50,9 +51,10 @@ const SAFE_DIRECTORY_PATTERN = /^[a-zA-Z0-9_./-]+$/;
 
 /**
  * Validates and sanitizes the directory input.
- * Rejects empty strings, absolute paths, home-relative paths, path traversal, and special values.
+ * Rejects empty strings, absolute paths, home-relative paths, path traversal, special values,
+ * and paths that don't exist or aren't directories on disk.
  */
-export function validateDirectory(directory: string): string {
+export async function validateDirectory(directory: string): Promise<string> {
     if (!directory || directory.trim().length === 0) {
         throw new Error(
             "directory input must not be empty. Provide a relative path within the workspace.",
@@ -89,7 +91,24 @@ export function validateDirectory(directory: string): string {
         );
     }
 
-    return resolve(directory);
+    const resolved = resolve(directory);
+
+    try {
+        const stats = await stat(resolved);
+        if (!stats.isDirectory()) {
+            throw new Error(`directory input is not a directory: ${directory}`);
+        }
+    } catch (error) {
+        if (
+            error instanceof Error &&
+            error.message.startsWith("directory input")
+        ) {
+            throw error;
+        }
+        throw new Error(`directory input does not exist: ${directory}`);
+    }
+
+    return resolved;
 }
 
 /**
@@ -134,10 +153,10 @@ export function validateLevel(level: string): Level {
 /**
  * Reads and validates all action inputs from environment variables.
  */
-export function readActionInputs(
+export async function readActionInputs(
     env: Record<string, string | undefined>,
-): ActionInputs {
-    const directory = validateDirectory(env.INPUT_DIRECTORY ?? ".");
+): Promise<ActionInputs> {
+    const directory = await validateDirectory(env.INPUT_DIRECTORY ?? ".");
     const reporter = validateReporter(env.INPUT_REPORTER ?? "github-pr-check");
     const filterMode = validateFilterMode(env.INPUT_FILTER_MODE ?? "added");
     const level = validateLevel(env.INPUT_LEVEL ?? "info");

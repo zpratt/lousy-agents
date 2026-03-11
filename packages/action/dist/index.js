@@ -46455,6 +46455,7 @@ function hasFrontmatterDelimiters(content) {
  * Validates environment-variable inputs before lint execution.
  */ 
 
+
 /** Allowed values for the reviewdog reporter input */ const VALID_REPORTERS = [
     "github-pr-check",
     "github-pr-review",
@@ -46479,8 +46480,9 @@ const LevelSchema = schemas_enum(VALID_LEVELS);
  */ const SAFE_DIRECTORY_PATTERN = /^[a-zA-Z0-9_./-]+$/;
 /**
  * Validates and sanitizes the directory input.
- * Rejects empty strings, absolute paths, home-relative paths, path traversal, and special values.
- */ function validateDirectory(directory) {
+ * Rejects empty strings, absolute paths, home-relative paths, path traversal, special values,
+ * and paths that don't exist or aren't directories on disk.
+ */ async function validateDirectory(directory) {
     if (!directory || directory.trim().length === 0) {
         throw new Error("directory input must not be empty. Provide a relative path within the workspace.");
     }
@@ -46499,7 +46501,19 @@ const LevelSchema = schemas_enum(VALID_LEVELS);
     if (directory === "-") {
         throw new Error(`directory input must be a relative path within the workspace: ${directory}`);
     }
-    return (0,external_node_path_.resolve)(directory);
+    const resolved = (0,external_node_path_.resolve)(directory);
+    try {
+        const stats = await (0,promises_.stat)(resolved);
+        if (!stats.isDirectory()) {
+            throw new Error(`directory input is not a directory: ${directory}`);
+        }
+    } catch (error) {
+        if (error instanceof Error && error.message.startsWith("directory input")) {
+            throw error;
+        }
+        throw new Error(`directory input does not exist: ${directory}`);
+    }
+    return resolved;
 }
 /**
  * Validates the reporter input against the allowed values.
@@ -46530,8 +46544,8 @@ const LevelSchema = schemas_enum(VALID_LEVELS);
 }
 /**
  * Reads and validates all action inputs from environment variables.
- */ function readActionInputs(env) {
-    const directory = validateDirectory(env.INPUT_DIRECTORY ?? ".");
+ */ async function readActionInputs(env) {
+    const directory = await validateDirectory(env.INPUT_DIRECTORY ?? ".");
     const reporter = validateReporter(env.INPUT_REPORTER ?? "github-pr-check");
     const filterMode = validateFilterMode(env.INPUT_FILTER_MODE ?? "added");
     const level = validateLevel(env.INPUT_LEVEL ?? "info");
@@ -46556,7 +46570,7 @@ const LevelSchema = schemas_enum(VALID_LEVELS);
  */ 
 
 async function src_main() {
-    const inputs = readActionInputs(process.env);
+    const inputs = await readActionInputs(process.env);
     const { output, hasErrors } = await runLint(inputs);
     if (output) {
         process.stdout.write(`${output}\n`);
