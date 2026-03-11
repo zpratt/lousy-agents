@@ -45,7 +45,15 @@ jobs:
         run: |
           rm -rf /tmp/action-smoke-valid
           mkdir -p /tmp/action-smoke-valid/.github/skills/my-skill
-          printf '%s\n' '---' 'name: my-skill' 'description: A valid test skill' 'allowed-tools: tool1' '---' '' '# my-skill' > /tmp/action-smoke-valid/.github/skills/my-skill/SKILL.md
+          cat > /tmp/action-smoke-valid/.github/skills/my-skill/SKILL.md <<'EOF'
+          ---
+          name: my-skill
+          description: A valid test skill
+          allowed-tools: tool1
+          ---
+
+          # my-skill
+          EOF
 
           INPUT_DIRECTORY="/tmp/action-smoke-valid" \
           INPUT_SKILLS="true" \
@@ -62,7 +70,13 @@ jobs:
         run: |
           rm -rf /tmp/action-smoke-invalid
           mkdir -p /tmp/action-smoke-invalid/.github/skills/bad-skill
-          printf '%s\n' '---' 'description: Missing name field' '---' '' '# bad-skill' > /tmp/action-smoke-invalid/.github/skills/bad-skill/SKILL.md
+          cat > /tmp/action-smoke-invalid/.github/skills/bad-skill/SKILL.md <<'EOF'
+          ---
+          description: Missing name field
+          ---
+
+          # bad-skill
+          EOF
 
           set +e
           INPUT_DIRECTORY="/tmp/action-smoke-invalid" \
@@ -77,7 +91,7 @@ jobs:
           set -e
 
           if [ "$EXIT_CODE" -eq 0 ]; then
-            echo "Expected action to fail for invalid skill but it passed"
+            echo "Expected action to fail but it passed"
             exit 1
           fi
           echo "Invalid skill detection smoke test passed"
@@ -87,7 +101,13 @@ jobs:
         run: |
           rm -rf /tmp/action-smoke-rdjsonl
           mkdir -p /tmp/action-smoke-rdjsonl/.github/skills/bad-skill
-          printf '%s\n' '---' 'description: Missing name field' '---' '' '# bad-skill' > /tmp/action-smoke-rdjsonl/.github/skills/bad-skill/SKILL.md
+          cat > /tmp/action-smoke-rdjsonl/.github/skills/bad-skill/SKILL.md <<'EOF'
+          ---
+          description: Missing name field
+          ---
+
+          # bad-skill
+          EOF
 
           INPUT_DIRECTORY="/tmp/action-smoke-rdjsonl" \
           INPUT_SKILLS="true" \
@@ -96,7 +116,10 @@ jobs:
           INPUT_REPORTER="github-pr-check" \
           INPUT_FILTER_MODE="added" \
           INPUT_LEVEL="info" \
-          node packages/action/dist/index.js 2>/dev/null | head -1 | python3 -c "import sys, json; json.loads(sys.stdin.read()); print('Valid JSON')"
+          node packages/action/dist/index.js 2>/dev/null \
+            | head -1 \
+            | python3 -c \
+              "import sys,json; json.loads(sys.stdin.read())"
           echo "rdjsonl output smoke test passed"
 
       - name: Smoke test - action lints all targets when no flags set

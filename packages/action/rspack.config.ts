@@ -7,6 +7,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const config: Configuration = {
     mode: "production",
     target: "node",
+    devtool: false,
     entry: {
         index: "./src/index.ts",
     },

@@ -93,6 +93,7 @@ dist
 
 # Allow action dist (required for GitHub Actions consumption)
 !packages/action/dist/
+packages/action/dist/*.map
 
 # Gatsby files
 .cache/

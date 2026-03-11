@@ -197,13 +197,13 @@ sequenceDiagram
 - The rspack config shall bundle everything into a single `dist/index.js` without shebang
 
 **Verification**:
-- [ ] `npm run build --workspace=packages/action` succeeds
-- [ ] `packages/action/dist/index.js` is produced
-- [ ] TypeScript compilation has no errors
+- [x] `npm run build --workspace=packages/action` succeeds
+- [x] `packages/action/dist/index.js` is produced
+- [x] TypeScript compilation has no errors
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] Action source code follows patterns in `.github/copilot-instructions.md`
+- [x] All verification steps pass
+- [x] Action source code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -224,12 +224,12 @@ sequenceDiagram
 - Tests shall verify level validation accepts allowed values and rejects invalid ones
 
 **Verification**:
-- [ ] `npm test packages/action/src/validate-inputs.test.ts` passes
-- [ ] All validation paths are covered
+- [x] `npm test packages/action/src/validate-inputs.test.ts` passes
+- [x] All validation paths are covered
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] Tests follow patterns in `.github/instructions/test.instructions.md`
+- [x] All verification steps pass
+- [x] Tests follow patterns in `.github/instructions/test.instructions.md`
 
 ---
 
@@ -251,12 +251,12 @@ sequenceDiagram
 - The `.gitignore` shall exclude `dist` generally but allow `packages/action/dist/`
 
 **Verification**:
-- [ ] `action.yml` is valid YAML
-- [ ] `packages/action/dist/index.js` is not gitignored
+- [x] `action.yml` is valid YAML
+- [x] `packages/action/dist/index.js` is not gitignored
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] Action file matches acceptance criteria
+- [x] All verification steps pass
+- [x] Action file matches acceptance criteria
 
 ---
 
@@ -274,11 +274,11 @@ sequenceDiagram
 - Building the action shall succeed as part of the full build
 
 **Verification**:
-- [ ] `npm run build` succeeds and includes action build
-- [ ] `packages/action/dist/index.js` exists after build
+- [x] `npm run build` succeeds and includes action build
+- [x] `packages/action/dist/index.js` exists after build
 
 **Done when**:
-- [ ] All verification steps pass
+- [x] All verification steps pass
 
 ---
 
@@ -299,12 +299,12 @@ sequenceDiagram
 - All action references shall be pinned to commit SHA with version comment
 
 **Verification**:
-- [ ] `mise run actionlint` passes
-- [ ] `mise run yamllint` passes
+- [x] `mise run actionlint` passes
+- [x] `mise run yamllint` passes
 
 **Done when**:
-- [ ] All verification steps pass
-- [ ] Workflow follows patterns in `.github/instructions/pipeline.instructions.md`
+- [x] All verification steps pass
+- [x] Workflow follows patterns in `.github/instructions/pipeline.instructions.md`
 
 ---
 
@@ -315,13 +315,13 @@ sequenceDiagram
 **Depends on**: All previous tasks
 
 **Verification**:
-- [ ] `mise run ci` passes
-- [ ] `npm run build` passes
-- [ ] All existing tests pass
-- [ ] No new lint errors
+- [x] `mise run ci` passes
+- [x] `npm run build` passes
+- [x] All existing tests pass
+- [x] No new lint errors
 
 **Done when**:
-- [ ] All verification steps pass
+- [x] All verification steps pass
 
 ---
 

@@ -340,7 +340,7 @@ The `lint` command returns a non-zero exit code when errors are found, making it
 
 ## GitHub Action
 
-A composite GitHub Action is available for automated inline feedback via [reviewdog](https://github.com/reviewdog/reviewdog). The action installs the CLI, runs `lousy-agents lint --format rdjsonl`, and pipes the output to reviewdog. By default it produces GitHub Check annotations (`github-pr-check`); switch to `reporter: github-pr-review` for inline PR review comments.
+A composite GitHub Action is available for automated inline feedback via [reviewdog](https://github.com/reviewdog/reviewdog). The action runs lint checks using a bundled JavaScript entry point that calls the `@lousy-agents/core` APIs directly, then pipes the output to reviewdog. By default it produces GitHub Check annotations (`github-pr-check`); switch to `reporter: github-pr-review` for inline PR review comments.
 
 ### Quick Start
 
@@ -377,7 +377,6 @@ When no target inputs are set, the action lints all targets (skills, agents, and
 | `reporter` | No | `github-pr-check` | reviewdog reporter (`github-pr-check`, `github-pr-review`, `github-check`) |
 | `filter_mode` | No | `added` | reviewdog filter mode (`added`, `diff_context`, `file`, `nofilter`) |
 | `level` | No | `info` | Minimum severity level (`info`, `warning`, `error`) |
-| `version` | No | `latest` | `@lousy-agents/cli` version to install. Set to `local` to skip install. |
 
 ### Permissions
 
@@ -423,18 +422,16 @@ Lint only agents with PR review comments:
     reporter: 'github-pr-review'
 ```
 
-Use a locally-built CLI (e.g., in the lousy-agents repo itself):
+Use in the lousy-agents repo itself (builds the action from source):
 
 ```yaml
-- name: Build and link CLI
+- name: Build action
   run: |
     npm ci
-    npm run build
-    npm link
+    npm run build --workspace=packages/action
 
 - name: Lint with lousy-agents
   uses: ./
   with:
     github_token: ${{ github.token }}
-    version: 'local'
 ```

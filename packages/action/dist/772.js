@@ -1761,5 +1761,3 @@ function watch(paths, options = {}) {
 },
 
 };
-
-//# sourceMappingURL=772.js.map
