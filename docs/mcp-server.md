@@ -220,6 +220,7 @@ Use this in a regular project when you want VS Code to download and run the publ
 {
   "servers": {
     "lousy-agents": {
+      "type": "stdio",
       "command": "npx",
       "args": ["-y", "-p", "@lousy-agents/mcp", "lousy-agents-mcp"]
     }
@@ -235,6 +236,7 @@ Use this when your project already depends on `@lousy-agents/mcp`:
 {
   "servers": {
     "lousy-agents": {
+      "type": "stdio",
       "command": "node",
       "args": ["./node_modules/@lousy-agents/mcp/dist/mcp-server.js"]
     }
@@ -250,6 +252,7 @@ Use this when contributing to `zpratt/lousy-agents` itself:
 {
   "servers": {
     "lousy-agents": {
+      "type": "stdio",
       "command": "node",
       "args": ["./packages/mcp/dist/mcp-server.js"]
     }
