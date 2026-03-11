@@ -2,6 +2,7 @@
     "name": "lousy-agents",
     "version": "1.0.2",
     "private": true,
+    "description": "Workspace monorepo for Lousy Agents scaffolding, MCP integrations, and npm script telemetry",
     "type": "module",
     "workspaces": [
         "packages/core",
@@ -16,6 +17,18 @@
     },
     "author": "zpratt",
     "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/zpratt/lousy-agents/issues"
+    },
+    "homepage": "https://github.com/zpratt/lousy-agents#readme",
+    "keywords": [
+        "ai",
+        "cli",
+        "copilot",
+        "mcp",
+        "monorepo",
+        "scaffolding"
+    ],
     "scripts": {
         "dev": "tsx packages/cli/src/index.ts",
         "build": "npm run build --workspace=packages/cli --workspace=packages/mcp --workspace=packages/agent-shell",

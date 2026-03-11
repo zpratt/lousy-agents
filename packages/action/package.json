@@ -2,5 +2,16 @@
     "name": "@lousy-agents/action",
     "version": "1.0.2",
     "private": true,
-    "description": "GitHub Action for lousy-agents lint with reviewdog integration"
+    "description": "GitHub Action workspace package for lousy-agents lint and reviewdog integration",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/zpratt/lousy-agents.git",
+        "directory": "packages/action"
+    },
+    "author": "zpratt",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/zpratt/lousy-agents/issues"
+    },
+    "homepage": "https://github.com/zpratt/lousy-agents/tree/main/packages/action#readme"
 }

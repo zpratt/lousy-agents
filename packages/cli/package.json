@@ -13,7 +13,7 @@
     "bugs": {
         "url": "https://github.com/zpratt/lousy-agents/issues"
     },
-    "homepage": "https://github.com/zpratt/lousy-agents#readme",
+    "homepage": "https://github.com/zpratt/lousy-agents/tree/main/packages/cli#readme",
     "keywords": [
         "cli",
         "scaffolding",
