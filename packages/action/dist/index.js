@@ -46502,16 +46502,14 @@ const LevelSchema = schemas_enum(VALID_LEVELS);
         throw new Error(`directory input must be a relative path within the workspace: ${directory}`);
     }
     const resolved = (0,external_node_path_.resolve)(directory);
+    let stats;
     try {
-        const stats = await (0,promises_.stat)(resolved);
-        if (!stats.isDirectory()) {
-            throw new Error(`directory input is not a directory: ${directory}`);
-        }
-    } catch (error) {
-        if (error instanceof Error && error.message.startsWith("directory input")) {
-            throw error;
-        }
+        stats = await (0,promises_.stat)(resolved);
+    } catch  {
         throw new Error(`directory input does not exist: ${directory}`);
+    }
+    if (!stats.isDirectory()) {
+        throw new Error(`directory input is not a directory: ${directory}`);
     }
     return resolved;
 }

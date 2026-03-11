@@ -33,19 +33,46 @@ describe("Action input validation", () => {
                 expect(result).toBeTruthy();
             });
 
-            it("should accept a simple directory name", async () => {
-                const result = await validateDirectory("packages");
-                expect(result).toContain("packages");
+            it("should accept a simple directory name that exists", async () => {
+                const originalCwd = process.cwd();
+                process.chdir(tempDir);
+                const { mkdir } = await import("node:fs/promises");
+                await mkdir(join(tempDir, "test-subdir"), { recursive: true });
+                try {
+                    const result = await validateDirectory("test-subdir");
+                    expect(result).toContain("test-subdir");
+                } finally {
+                    process.chdir(originalCwd);
+                }
             });
 
-            it("should accept a nested relative path", async () => {
-                const result = await validateDirectory("packages/action/src");
-                expect(result).toContain("packages/action/src");
+            it("should accept a nested relative path that exists", async () => {
+                const originalCwd = process.cwd();
+                process.chdir(tempDir);
+                const { mkdir } = await import("node:fs/promises");
+                await mkdir(join(tempDir, "nested/child"), { recursive: true });
+                try {
+                    const result = await validateDirectory("nested/child");
+                    expect(result).toContain("nested/child");
+                } finally {
+                    process.chdir(originalCwd);
+                }
             });
 
-            it("should accept a path with underscores and dots", async () => {
-                const result = await validateDirectory(".github");
-                expect(result).toContain(".github");
+            it("should accept a path with underscores and dots that exists", async () => {
+                const originalCwd = process.cwd();
+                process.chdir(tempDir);
+                const { mkdir } = await import("node:fs/promises");
+                await mkdir(join(tempDir, "my_project/.config"), {
+                    recursive: true,
+                });
+                try {
+                    const result =
+                        await validateDirectory("my_project/.config");
+                    expect(result).toContain("my_project/.config");
+                } finally {
+                    process.chdir(originalCwd);
+                }
             });
         });
 

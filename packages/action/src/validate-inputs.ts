@@ -93,19 +93,15 @@ export async function validateDirectory(directory: string): Promise<string> {
 
     const resolved = resolve(directory);
 
+    let stats: Awaited<ReturnType<typeof stat>>;
     try {
-        const stats = await stat(resolved);
-        if (!stats.isDirectory()) {
-            throw new Error(`directory input is not a directory: ${directory}`);
-        }
-    } catch (error) {
-        if (
-            error instanceof Error &&
-            error.message.startsWith("directory input")
-        ) {
-            throw error;
-        }
+        stats = await stat(resolved);
+    } catch {
         throw new Error(`directory input does not exist: ${directory}`);
+    }
+
+    if (!stats.isDirectory()) {
+        throw new Error(`directory input is not a directory: ${directory}`);
     }
 
     return resolved;
