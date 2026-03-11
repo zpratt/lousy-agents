@@ -1,0 +1,116 @@
+---
+name: Action Smoke Test
+
+'on':
+  pull_request:
+    branches:
+      - main
+
+permissions: {}
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        # v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Setup mise
+        # v3.6.1
+        uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+        with:
+          github_token: ${{ github.token }}
+
+      - name: Cache npm dependencies
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306  # v5.0.3
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build action
+        run: npm run build --workspace=packages/action
+
+      - name: Smoke test - action runs against valid skill
+        shell: bash
+        run: |
+          rm -rf /tmp/action-smoke-valid
+          mkdir -p /tmp/action-smoke-valid/.github/skills/my-skill
+          printf '%s\n' '---' 'name: my-skill' 'description: A valid test skill' 'allowed-tools: tool1' '---' '' '# my-skill' > /tmp/action-smoke-valid/.github/skills/my-skill/SKILL.md
+
+          INPUT_DIRECTORY="/tmp/action-smoke-valid" \
+          INPUT_SKILLS="true" \
+          INPUT_AGENTS="false" \
+          INPUT_INSTRUCTIONS="false" \
+          INPUT_REPORTER="github-pr-check" \
+          INPUT_FILTER_MODE="added" \
+          INPUT_LEVEL="info" \
+          node packages/action/dist/index.js
+          echo "Valid skill smoke test passed"
+
+      - name: Smoke test - action detects invalid skill
+        shell: bash
+        run: |
+          rm -rf /tmp/action-smoke-invalid
+          mkdir -p /tmp/action-smoke-invalid/.github/skills/bad-skill
+          printf '%s\n' '---' 'description: Missing name field' '---' '' '# bad-skill' > /tmp/action-smoke-invalid/.github/skills/bad-skill/SKILL.md
+
+          set +e
+          INPUT_DIRECTORY="/tmp/action-smoke-invalid" \
+          INPUT_SKILLS="true" \
+          INPUT_AGENTS="false" \
+          INPUT_INSTRUCTIONS="false" \
+          INPUT_REPORTER="github-pr-check" \
+          INPUT_FILTER_MODE="added" \
+          INPUT_LEVEL="info" \
+          node packages/action/dist/index.js
+          EXIT_CODE=$?
+          set -e
+
+          if [ "$EXIT_CODE" -eq 0 ]; then
+            echo "Expected action to fail for invalid skill but it passed"
+            exit 1
+          fi
+          echo "Invalid skill detection smoke test passed"
+
+      - name: Smoke test - action produces rdjsonl output
+        shell: bash
+        run: |
+          rm -rf /tmp/action-smoke-rdjsonl
+          mkdir -p /tmp/action-smoke-rdjsonl/.github/skills/bad-skill
+          printf '%s\n' '---' 'description: Missing name field' '---' '' '# bad-skill' > /tmp/action-smoke-rdjsonl/.github/skills/bad-skill/SKILL.md
+
+          INPUT_DIRECTORY="/tmp/action-smoke-rdjsonl" \
+          INPUT_SKILLS="true" \
+          INPUT_AGENTS="false" \
+          INPUT_INSTRUCTIONS="false" \
+          INPUT_REPORTER="github-pr-check" \
+          INPUT_FILTER_MODE="added" \
+          INPUT_LEVEL="info" \
+          node packages/action/dist/index.js 2>/dev/null | head -1 | python3 -c "import sys, json; json.loads(sys.stdin.read()); print('Valid JSON')"
+          echo "rdjsonl output smoke test passed"
+
+      - name: Smoke test - action lints all targets when no flags set
+        shell: bash
+        run: |
+          rm -rf /tmp/action-smoke-all
+          mkdir -p /tmp/action-smoke-all
+
+          INPUT_DIRECTORY="/tmp/action-smoke-all" \
+          INPUT_SKILLS="false" \
+          INPUT_AGENTS="false" \
+          INPUT_INSTRUCTIONS="false" \
+          INPUT_REPORTER="github-pr-check" \
+          INPUT_FILTER_MODE="added" \
+          INPUT_LEVEL="info" \
+          node packages/action/dist/index.js
+          echo "All targets smoke test passed"

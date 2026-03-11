@@ -8,7 +8,11 @@
     },
     "files": {
         "ignoreUnknown": false,
-        "includes": ["**", "!packages/cli/cli/copilot-with-citty/src"]
+        "includes": [
+            "**",
+            "!packages/cli/cli/copilot-with-citty/src",
+            "!packages/action/dist"
+        ]
     },
     "formatter": {
         "enabled": true,
