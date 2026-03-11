@@ -8,34 +8,24 @@ agent-shell is an npm `script-shell` shim that independently records what script
 
 ## Quick Start
 
-### Use the published package in your project
-
 ```bash
-# Install as a dev dependency
-npm install -D @lousy-agents/agent-shell
+# Install globally
+npm install -g @lousy-agents/agent-shell
 
 # Configure npm to use agent-shell as the script shell
-echo 'script-shell=./node_modules/.bin/agent-shell' >> .npmrc
+echo 'script-shell=agent-shell' >> .npmrc
 
 # Add event storage to .gitignore
 echo '.agent-shell/' >> .gitignore
 
 # Verify it's working
-npx agent-shell --version
+agent-shell --version
 
 # Run any npm script — events are recorded automatically
 npm test
 ```
 
-### Work on agent-shell inside this monorepo
-
-```bash
-npm install
-npm run build
-npm test
-```
-
-The root install sets up all workspace packages. The root build includes `packages/agent-shell` alongside the other published packages.
+> **Why global?** agent-shell is configured as npm's `script-shell`, so it must be available _before_ `npm ci` or `npm install` runs. A local dev dependency creates a circular dependency: npm needs agent-shell to execute the install script, but agent-shell isn't available until the install completes. Installing globally keeps the shim on `PATH` independent of `node_modules`.
 
 ## How It Works
 
@@ -186,11 +176,11 @@ npm run lint && npm test && npm run build
 
 ### npm fails with "script-shell not found"
 
-Your `.npmrc` references `agent-shell` but it's not installed:
+Your `.npmrc` references `agent-shell` but it's not installed globally:
 
 ```bash
-# Fix: install the package
-npm install -D @lousy-agents/agent-shell
+# Fix: install the package globally
+npm install -g @lousy-agents/agent-shell
 
 # Or: bypass temporarily
 AGENTSHELL_PASSTHROUGH=1 npm test
@@ -210,7 +200,7 @@ Remove the `script-shell` line from `.npmrc`:
 
 ```bash
 # Edit .npmrc and delete this line:
-# script-shell=./node_modules/.bin/agent-shell
+# script-shell=agent-shell
 
 # Or remove it with sed:
 sed -i '' '/script-shell/d' .npmrc
@@ -219,7 +209,7 @@ sed -i '' '/script-shell/d' .npmrc
 Then optionally uninstall:
 
 ```bash
-npm uninstall @lousy-agents/agent-shell
+npm uninstall -g @lousy-agents/agent-shell
 ```
 
 ### Verify the shim is active

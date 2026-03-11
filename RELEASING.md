@@ -38,7 +38,7 @@ The repository root package is private. Publishable packages live under `package
 | `@lousy-agents/mcp` | `packages/mcp` | MCP server package |
 | `@lousy-agents/agent-shell` | `packages/agent-shell` | npm script-shell telemetry |
 
-The current automated semantic-release configuration publishes `@lousy-agents/cli` and `@lousy-agents/mcp` from `.releaserc.json`.
+The current automated semantic-release configuration publishes `@lousy-agents/cli`, `@lousy-agents/mcp`, and `@lousy-agents/agent-shell` from `.releaserc.json`.
 
 Using a scoped package name under an npm organization provides several benefits:
 
@@ -145,8 +145,11 @@ The release targets live in `.releaserc.json`:
 {
   "branches": ["main"],
   "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
     ["@semantic-release/npm", { "pkgRoot": "packages/cli" }],
     ["@semantic-release/npm", { "pkgRoot": "packages/mcp" }],
+    ["@semantic-release/npm", { "pkgRoot": "packages/agent-shell" }],
     "@semantic-release/github"
   ]
 }
