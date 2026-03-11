@@ -45937,6 +45937,84 @@ core_config(en());
     }
 }
 
+;// CONCATENATED MODULE: ../core/src/use-cases/apply-severity-filter.ts
+/**
+ * Shared severity filtering for lint outputs.
+ * Applies rule severity configuration to diagnostics, filtering out "off" rules,
+ * remapping "warn" → "warning", and recalculating summary counts.
+ */ /** Maps a lint target to its config key */ const TARGET_TO_CONFIG_KEY = {
+    skill: "skills",
+    agent: "agents",
+    instruction: "instructions"
+};
+/**
+ * Maps config severity to diagnostic severity.
+ * "warn" → "warning", "error" → "error", "off" → null (drop).
+ */ function apply_severity_filter_mapSeverity(configSeverity) {
+    if (configSeverity === "off") {
+        return null;
+    }
+    if (configSeverity === "warn") {
+        return "warning";
+    }
+    return configSeverity;
+}
+/**
+ * Filters instruction suggestions based on rule severity configuration.
+ * Drops suggestions whose corresponding rule is "off".
+ * Suggestions without a ruleId pass through unchanged.
+ */ function filterInstructionSuggestions(suggestions, rules) {
+    return suggestions.filter((suggestion)=>{
+        if (!suggestion.ruleId) {
+            return true;
+        }
+        return rules[suggestion.ruleId] !== "off";
+    });
+}
+/**
+ * Applies severity filtering to a LintOutput based on rule configuration.
+ * Drops diagnostics for "off" rules, remaps severity for "warn"/"error" rules.
+ * Diagnostics without a ruleId pass through unchanged.
+ * For instruction targets, also filters qualityResult.suggestions.
+ */ function applySeverityFilter(output, rulesConfig) {
+    const configKey = TARGET_TO_CONFIG_KEY[output.target];
+    const targetRules = rulesConfig[configKey];
+    const filteredDiagnostics = [];
+    for (const diagnostic of output.diagnostics){
+        const configuredSeverity = diagnostic.ruleId ? targetRules[diagnostic.ruleId] : undefined;
+        if (!configuredSeverity) {
+            filteredDiagnostics.push(diagnostic);
+            continue;
+        }
+        const mappedSeverity = apply_severity_filter_mapSeverity(configuredSeverity);
+        if (mappedSeverity === null) {
+            continue;
+        }
+        filteredDiagnostics.push({
+            ...diagnostic,
+            severity: mappedSeverity
+        });
+    }
+    const totalErrors = filteredDiagnostics.filter((d)=>d.severity === "error").length;
+    const totalWarnings = filteredDiagnostics.filter((d)=>d.severity === "warning").length;
+    const totalInfos = filteredDiagnostics.filter((d)=>d.severity === "info").length;
+    const filteredQualityResult = output.qualityResult && configKey === "instructions" ? {
+        ...output.qualityResult,
+        suggestions: filterInstructionSuggestions(output.qualityResult.suggestions, targetRules)
+    } : output.qualityResult;
+    return {
+        ...output,
+        diagnostics: filteredDiagnostics,
+        qualityResult: filteredQualityResult,
+        summary: {
+            ...output.summary,
+            totalErrors,
+            totalWarnings,
+            totalInfos
+        }
+    };
+}
+
 ;// CONCATENATED MODULE: ../core/src/use-cases/lint-agent-frontmatter.ts
 /**
  * Use case for linting GitHub Copilot custom agent frontmatter.
@@ -46234,73 +46312,7 @@ function hasFrontmatterDelimiters(content) {
 
 
 
-/** Maps a lint target to its config key */ const TARGET_TO_CONFIG_KEY = {
-    skill: "skills",
-    agent: "agents",
-    instruction: "instructions"
-};
-/**
- * Maps config severity to diagnostic severity.
- * "warn" → "warning", "error" → "error", "off" → null (drop).
- */ function run_lint_mapSeverity(configSeverity) {
-    if (configSeverity === "off") {
-        return null;
-    }
-    if (configSeverity === "warn") {
-        return "warning";
-    }
-    return configSeverity;
-}
-/**
- * Filters instruction suggestions based on rule severity configuration.
- */ function filterInstructionSuggestions(suggestions, rules) {
-    return suggestions.filter((suggestion)=>{
-        if (!suggestion.ruleId) {
-            return true;
-        }
-        return rules[suggestion.ruleId] !== "off";
-    });
-}
-/**
- * Applies severity filtering to a LintOutput based on rule configuration.
- */ function applySeverityFilter(output, rulesConfig) {
-    const configKey = TARGET_TO_CONFIG_KEY[output.target];
-    const targetRules = rulesConfig[configKey];
-    const filteredDiagnostics = [];
-    for (const diagnostic of output.diagnostics){
-        const configuredSeverity = diagnostic.ruleId ? targetRules[diagnostic.ruleId] : undefined;
-        if (!configuredSeverity) {
-            filteredDiagnostics.push(diagnostic);
-            continue;
-        }
-        const mappedSeverity = run_lint_mapSeverity(configuredSeverity);
-        if (mappedSeverity === null) {
-            continue;
-        }
-        filteredDiagnostics.push({
-            ...diagnostic,
-            severity: mappedSeverity
-        });
-    }
-    const totalErrors = filteredDiagnostics.filter((d)=>d.severity === "error").length;
-    const totalWarnings = filteredDiagnostics.filter((d)=>d.severity === "warning").length;
-    const totalInfos = filteredDiagnostics.filter((d)=>d.severity === "info").length;
-    const filteredQualityResult = output.qualityResult && configKey === "instructions" ? {
-        ...output.qualityResult,
-        suggestions: filterInstructionSuggestions(output.qualityResult.suggestions, targetRules)
-    } : output.qualityResult;
-    return {
-        ...output,
-        diagnostics: filteredDiagnostics,
-        qualityResult: filteredQualityResult,
-        summary: {
-            ...output.summary,
-            totalErrors,
-            totalWarnings,
-            totalInfos
-        }
-    };
-}
+
 /**
  * Converts skill lint output to unified LintOutput.
  */ function skillOutputToLintOutput(output) {

@@ -3,18 +3,10 @@
  * Calls core lint APIs and returns unified LintOutput arrays.
  */
 
-import type { InstructionSuggestion } from "@lousy-agents/core/entities/instruction-quality.js";
 import type {
     LintDiagnostic,
     LintOutput,
-    LintSeverity,
-    LintTarget,
 } from "@lousy-agents/core/entities/lint.js";
-import type {
-    LintRulesConfig,
-    RuleConfigMap,
-    RuleSeverityConfig,
-} from "@lousy-agents/core/entities/lint-rules.js";
 import { createFormatter } from "@lousy-agents/core/formatters/index.js";
 import { createAgentLintGateway } from "@lousy-agents/core/gateways/agent-lint-gateway.js";
 import { createInstructionFileDiscoveryGateway } from "@lousy-agents/core/gateways/instruction-file-discovery-gateway.js";
@@ -23,115 +15,12 @@ import { createFeedbackLoopCommandsGateway } from "@lousy-agents/core/gateways/s
 import { createSkillLintGateway } from "@lousy-agents/core/gateways/skill-lint-gateway.js";
 import { loadLintConfig } from "@lousy-agents/core/lib/lint-config.js";
 import { AnalyzeInstructionQualityUseCase } from "@lousy-agents/core/use-cases/analyze-instruction-quality.js";
+import { applySeverityFilter } from "@lousy-agents/core/use-cases/apply-severity-filter.js";
 import type { LintAgentFrontmatterOutput } from "@lousy-agents/core/use-cases/lint-agent-frontmatter.js";
 import { LintAgentFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-agent-frontmatter.js";
 import type { LintSkillFrontmatterOutput } from "@lousy-agents/core/use-cases/lint-skill-frontmatter.js";
 import { LintSkillFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-skill-frontmatter.js";
 import type { ActionInputs } from "./validate-inputs.js";
-
-/** Maps a lint target to its config key */
-const TARGET_TO_CONFIG_KEY: Record<LintTarget, keyof LintRulesConfig> = {
-    skill: "skills",
-    agent: "agents",
-    instruction: "instructions",
-};
-
-/**
- * Maps config severity to diagnostic severity.
- * "warn" → "warning", "error" → "error", "off" → null (drop).
- */
-function mapSeverity(configSeverity: RuleSeverityConfig): LintSeverity | null {
-    if (configSeverity === "off") {
-        return null;
-    }
-    if (configSeverity === "warn") {
-        return "warning";
-    }
-    return configSeverity;
-}
-
-/**
- * Filters instruction suggestions based on rule severity configuration.
- */
-function filterInstructionSuggestions(
-    suggestions: readonly InstructionSuggestion[],
-    rules: RuleConfigMap,
-): readonly InstructionSuggestion[] {
-    return suggestions.filter((suggestion) => {
-        if (!suggestion.ruleId) {
-            return true;
-        }
-        return rules[suggestion.ruleId] !== "off";
-    });
-}
-
-/**
- * Applies severity filtering to a LintOutput based on rule configuration.
- */
-function applySeverityFilter(
-    output: LintOutput,
-    rulesConfig: LintRulesConfig,
-): LintOutput {
-    const configKey = TARGET_TO_CONFIG_KEY[output.target];
-    const targetRules: RuleConfigMap = rulesConfig[configKey];
-
-    const filteredDiagnostics: LintDiagnostic[] = [];
-
-    for (const diagnostic of output.diagnostics) {
-        const configuredSeverity = diagnostic.ruleId
-            ? targetRules[diagnostic.ruleId]
-            : undefined;
-
-        if (!configuredSeverity) {
-            filteredDiagnostics.push(diagnostic);
-            continue;
-        }
-
-        const mappedSeverity = mapSeverity(configuredSeverity);
-
-        if (mappedSeverity === null) {
-            continue;
-        }
-
-        filteredDiagnostics.push({
-            ...diagnostic,
-            severity: mappedSeverity,
-        });
-    }
-
-    const totalErrors = filteredDiagnostics.filter(
-        (d) => d.severity === "error",
-    ).length;
-    const totalWarnings = filteredDiagnostics.filter(
-        (d) => d.severity === "warning",
-    ).length;
-    const totalInfos = filteredDiagnostics.filter(
-        (d) => d.severity === "info",
-    ).length;
-
-    const filteredQualityResult =
-        output.qualityResult && configKey === "instructions"
-            ? {
-                  ...output.qualityResult,
-                  suggestions: filterInstructionSuggestions(
-                      output.qualityResult.suggestions,
-                      targetRules,
-                  ),
-              }
-            : output.qualityResult;
-
-    return {
-        ...output,
-        diagnostics: filteredDiagnostics,
-        qualityResult: filteredQualityResult,
-        summary: {
-            ...output.summary,
-            totalErrors,
-            totalWarnings,
-            totalInfos,
-        },
-    };
-}
 
 /**
  * Converts skill lint output to unified LintOutput.
