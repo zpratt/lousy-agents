@@ -122,8 +122,8 @@ jobs:
           test -f tsconfig.json
           test -d .github
           test -f .github/instructions/test.instructions.md
-          npm install
           git init
+          npm install
           npm test
           npm run test:integration
           npm run lint

@@ -15,6 +15,7 @@ import Chance from "chance";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const chance = new Chance();
+const COMMAND_TIMEOUT_MS = 300_000;
 
 const cliPackageDir = resolve(
     dirname(fileURLToPath(import.meta.url)),
@@ -89,7 +90,11 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
                     "--name",
                     projectName,
                 ],
-                { cwd: outputDir, stdio: "pipe" },
+                {
+                    cwd: outputDir,
+                    stdio: "pipe",
+                    timeout: COMMAND_TIMEOUT_MS,
+                },
             );
 
             const packageJson = await readFile(
@@ -106,7 +111,7 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
             ).toBe(true);
         });
 
-        it("should produce a CLI project that passes lint after install", async () => {
+        it("should produce a CLI project that passes lint and tests after install", async () => {
             const projectName = `test-${chance.word({ length: 6 }).toLowerCase()}`;
             const outputDir = join(packDir, `output-cli-lint-${chance.guid()}`);
             mkdirSync(outputDir, { recursive: true });
@@ -121,22 +126,35 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
                     "--name",
                     projectName,
                 ],
-                { cwd: outputDir, stdio: "pipe" },
+                {
+                    cwd: outputDir,
+                    stdio: "pipe",
+                    timeout: COMMAND_TIMEOUT_MS,
+                },
             );
 
             execFileSync("git", ["init"], {
                 cwd: outputDir,
                 stdio: "pipe",
+                timeout: COMMAND_TIMEOUT_MS,
             });
 
             execFileSync("npm", ["install"], {
                 cwd: outputDir,
                 stdio: "pipe",
+                timeout: COMMAND_TIMEOUT_MS,
             });
 
-            execFileSync("npx", ["biome", "check", "."], {
+            execFileSync("npm", ["run", "lint"], {
                 cwd: outputDir,
                 stdio: "pipe",
+                timeout: COMMAND_TIMEOUT_MS,
+            });
+
+            execFileSync("npm", ["test"], {
+                cwd: outputDir,
+                stdio: "pipe",
+                timeout: COMMAND_TIMEOUT_MS,
             });
         });
 
@@ -155,7 +173,11 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
                     "--name",
                     projectName,
                 ],
-                { cwd: outputDir, stdio: "pipe" },
+                {
+                    cwd: outputDir,
+                    stdio: "pipe",
+                    timeout: COMMAND_TIMEOUT_MS,
+                },
             );
 
             const packageJson = await readFile(
@@ -182,7 +204,11 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
                     "--name",
                     projectName,
                 ],
-                { cwd: outputDir, stdio: "pipe" },
+                {
+                    cwd: outputDir,
+                    stdio: "pipe",
+                    timeout: COMMAND_TIMEOUT_MS,
+                },
             );
 
             const packageJson = await readFile(
@@ -194,7 +220,7 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
             expect(existsSync(join(outputDir, "tsconfig.json"))).toBe(true);
         });
 
-        it("should produce an API project that passes lint after install", async () => {
+        it("should produce an API project that passes lint and tests after install", async () => {
             const projectName = `test-${chance.word({ length: 6 }).toLowerCase()}`;
             const outputDir = join(packDir, `output-api-lint-${chance.guid()}`);
             mkdirSync(outputDir, { recursive: true });
@@ -209,22 +235,41 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
                     "--name",
                     projectName,
                 ],
-                { cwd: outputDir, stdio: "pipe" },
+                {
+                    cwd: outputDir,
+                    stdio: "pipe",
+                    timeout: COMMAND_TIMEOUT_MS,
+                },
             );
 
             execFileSync("git", ["init"], {
                 cwd: outputDir,
                 stdio: "pipe",
+                timeout: COMMAND_TIMEOUT_MS,
             });
 
             execFileSync("npm", ["install"], {
                 cwd: outputDir,
                 stdio: "pipe",
+                timeout: COMMAND_TIMEOUT_MS,
             });
 
-            execFileSync("npx", ["biome", "check", "."], {
+            execFileSync("npm", ["run", "lint"], {
                 cwd: outputDir,
                 stdio: "pipe",
+                timeout: COMMAND_TIMEOUT_MS,
+            });
+
+            execFileSync("npm", ["test"], {
+                cwd: outputDir,
+                stdio: "pipe",
+                timeout: COMMAND_TIMEOUT_MS,
+            });
+
+            execFileSync("npm", ["run", "test:integration"], {
+                cwd: outputDir,
+                stdio: "pipe",
+                timeout: COMMAND_TIMEOUT_MS,
             });
         });
     });
