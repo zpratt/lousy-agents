@@ -4,7 +4,6 @@
  */
 
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import type {
     DetectedEnvironment,
     PackageManagerFile,
@@ -19,31 +18,33 @@ import {
     getVersionFilenameToTypeMap,
     loadCopilotSetupConfig,
 } from "../lib/copilot-setup-config.js";
-import { fileExists } from "./file-system-utils.js";
+import {
+    assertFileSizeWithinLimit,
+    fileExists,
+    resolveSafePath,
+} from "./file-system-utils.js";
+
+const MAX_VERSION_FILE_BYTES = 16 * 1024;
 
 /**
- * Interface for environment detection gateway
- * Allows for different implementations (file system, mock, etc.)
+ * Interface for environment detection gateway.
  */
 export interface EnvironmentGateway {
-    /**
-     * Detects environment configuration in the specified directory
-     * @param targetDir The directory to scan for configuration files
-     * @returns Detected environment configuration
-     */
     detectEnvironment(targetDir: string): Promise<DetectedEnvironment>;
 }
 
-/**
- * Reads the content of a version file and trims whitespace
- */
 async function readVersionFileContent(filePath: string): Promise<string> {
+    await assertFileSizeWithinLimit(
+        filePath,
+        MAX_VERSION_FILE_BYTES,
+        `Version file '${filePath}'`,
+    );
     const content = await readFile(filePath, "utf-8");
     return content.trim();
 }
 
 /**
- * File system implementation of the environment gateway
+ * File system implementation of the environment gateway.
  */
 export class FileSystemEnvironmentGateway implements EnvironmentGateway {
     private config: CopilotSetupConfig | null = null;
@@ -73,7 +74,7 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
     }
 
     private async detectMise(targetDir: string): Promise<boolean> {
-        const miseTomlPath = join(targetDir, "mise.toml");
+        const miseTomlPath = await resolveSafePath(targetDir, "mise.toml");
         return fileExists(miseTomlPath);
     }
 
@@ -85,7 +86,10 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
         const versionFiles: VersionFile[] = [];
 
         for (const fileConfig of config.versionFiles) {
-            const filePath = join(targetDir, fileConfig.filename);
+            const filePath = await resolveSafePath(
+                targetDir,
+                fileConfig.filename,
+            );
             if (await fileExists(filePath)) {
                 const version = await readVersionFileContent(filePath);
                 versionFiles.push({
@@ -105,7 +109,6 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
     ): Promise<PackageManagerFile[]> {
         const packageManagers: PackageManagerFile[] = [];
 
-        // Helper to check if a package manager type is in a list
         const isPackageManagerType = (
             pm: CopilotSetupConfig["packageManagers"][0],
             types: readonly string[],
@@ -123,7 +126,6 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
                 !isPackageManagerType(pm, PYTHON_PACKAGE_MANAGERS),
         );
 
-        // Detect Node.js package manager (with prioritization)
         const nodePackageManager = await this.detectNodePackageManager(
             targetDir,
             nodePackageManagers,
@@ -132,7 +134,6 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
             packageManagers.push(nodePackageManager);
         }
 
-        // Detect Python package manager (with prioritization)
         const pythonPackageManager = await this.detectPythonPackageManager(
             targetDir,
             pythonPackageManagers,
@@ -141,7 +142,6 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
             packageManagers.push(pythonPackageManager);
         }
 
-        // Detect other package managers
         const otherDetectedManagers = await this.detectOtherPackageManagers(
             targetDir,
             otherPackageManagers,
@@ -155,12 +155,14 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
         targetDir: string,
         nodePackageManagers: CopilotSetupConfig["packageManagers"],
     ): Promise<PackageManagerFile | null> {
-        const packageJsonPath = join(targetDir, "package.json");
+        const packageJsonPath = await resolveSafePath(
+            targetDir,
+            "package.json",
+        );
         if (!(await fileExists(packageJsonPath))) {
             return null;
         }
 
-        // Priority order for Node.js package managers: npm > yarn > pnpm
         const lockfileOrder = ["npm", "yarn", "pnpm"];
 
         for (const pmType of lockfileOrder) {
@@ -171,7 +173,10 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
                 continue;
             }
 
-            const lockfilePath = join(targetDir, pmConfig.lockfile);
+            const lockfilePath = await resolveSafePath(
+                targetDir,
+                pmConfig.lockfile,
+            );
             if (await fileExists(lockfilePath)) {
                 return {
                     type: pmConfig.type,
@@ -181,7 +186,6 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
             }
         }
 
-        // Default to npm if no lockfile found
         const npmConfig = nodePackageManagers.find((pm) => pm.type === "npm");
         if (npmConfig) {
             return {
@@ -198,7 +202,6 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
         targetDir: string,
         pythonPackageManagers: CopilotSetupConfig["packageManagers"],
     ): Promise<PackageManagerFile | null> {
-        // Priority order for Python package managers: poetry > pipenv > pip
         for (const pmType of PYTHON_PACKAGE_MANAGERS) {
             const pmConfig = pythonPackageManagers.find(
                 (pm) => pm.type === pmType,
@@ -207,16 +210,18 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
                 continue;
             }
 
-            const manifestPath = join(targetDir, pmConfig.manifestFile);
+            const manifestPath = await resolveSafePath(
+                targetDir,
+                pmConfig.manifestFile,
+            );
             if (await fileExists(manifestPath)) {
                 const lockfilePath = pmConfig.lockfile
-                    ? join(targetDir, pmConfig.lockfile)
+                    ? await resolveSafePath(targetDir, pmConfig.lockfile)
                     : undefined;
                 const hasLockfile = lockfilePath
                     ? await fileExists(lockfilePath)
                     : false;
 
-                // Skip if lockfile is required but not present
                 if (pmConfig.requiresLockfile && !hasLockfile) {
                     continue;
                 }
@@ -239,16 +244,18 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
         const packageManagers: PackageManagerFile[] = [];
 
         for (const pmConfig of otherPackageManagers) {
-            const manifestPath = join(targetDir, pmConfig.manifestFile);
+            const manifestPath = await resolveSafePath(
+                targetDir,
+                pmConfig.manifestFile,
+            );
             if (await fileExists(manifestPath)) {
                 const lockfilePath = pmConfig.lockfile
-                    ? join(targetDir, pmConfig.lockfile)
+                    ? await resolveSafePath(targetDir, pmConfig.lockfile)
                     : undefined;
                 const hasLockfile = lockfilePath
                     ? await fileExists(lockfilePath)
                     : false;
 
-                // Skip if lockfile is required but not present
                 if (pmConfig.requiresLockfile && !hasLockfile) {
                     continue;
                 }
@@ -266,7 +273,7 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
 }
 
 /**
- * Creates and returns the default environment gateway
+ * Creates and returns the default environment gateway.
  */
 export function createEnvironmentGateway(): EnvironmentGateway {
     return new FileSystemEnvironmentGateway();

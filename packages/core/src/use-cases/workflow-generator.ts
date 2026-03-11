@@ -15,12 +15,20 @@ import type {
     ResolvedVersion,
     SetupStepCandidate,
 } from "../entities/copilot-setup.js";
-import type { ActionVersionGateway } from "../gateways/action-version-gateway.js";
-import { createActionVersionGateway } from "../gateways/action-version-gateway.js";
 import {
     findResolvedVersion,
     VERSION_PLACEHOLDER,
 } from "./action-resolution.js";
+import type { ActionVersionPort } from "./candidate-builder.js";
+import { createActionVersionPort } from "./candidate-builder.js";
+
+const DEFAULT_ACTION_VERSIONS: Record<string, string> = {
+    "actions/checkout": "v4",
+};
+
+const defaultActionVersionPort = createActionVersionPort(
+    DEFAULT_ACTION_VERSIONS,
+);
 
 /**
  * Extended step props type that supports YAML Scalar values for the 'uses' field.
@@ -200,7 +208,7 @@ function appendMissingStepsToJob(
  * Reduces duplication by centralizing the version resolution logic.
  */
 async function getCheckoutVersion(
-    versionGateway: ActionVersionGateway,
+    versionGateway: ActionVersionPort,
     options?: GenerateWorkflowOptions,
 ): Promise<string> {
     if (options?.resolvedVersions) {
@@ -229,7 +237,7 @@ async function getCheckoutVersion(
  */
 export async function generateWorkflowContent(
     candidates: SetupStepCandidate[],
-    versionGateway: ActionVersionGateway = createActionVersionGateway(),
+    versionGateway: ActionVersionPort = defaultActionVersionPort,
     options?: GenerateWorkflowOptions,
 ): Promise<string> {
     const stepOptions: CandidateToStepOptions = {
@@ -292,7 +300,7 @@ export async function generateWorkflowContent(
 export async function updateWorkflowWithMissingSteps(
     existingWorkflow: unknown,
     missingCandidates: SetupStepCandidate[],
-    versionGateway: ActionVersionGateway = createActionVersionGateway(),
+    versionGateway: ActionVersionPort = defaultActionVersionPort,
     options?: GenerateWorkflowOptions,
 ): Promise<string> {
     if (!existingWorkflow || typeof existingWorkflow !== "object") {

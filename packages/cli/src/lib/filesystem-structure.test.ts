@@ -1,4 +1,11 @@
-import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+    access,
+    mkdir,
+    readFile,
+    rm,
+    symlink,
+    writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
@@ -198,6 +205,47 @@ describe("Filesystem Structure", () => {
             await expect(access(filePath)).resolves.toBeUndefined();
             const content = await readFile(filePath, "utf-8");
             expect(content).toBe(fileContent);
+        });
+
+        it("should reject paths that escape the target directory", async () => {
+            // Arrange
+            const structure: FilesystemStructure = {
+                nodes: [
+                    {
+                        type: "file",
+                        path: "../escape.txt",
+                        content: chance.sentence(),
+                    },
+                ],
+            };
+
+            // Act & Assert
+            await expect(
+                createFilesystemStructure(structure, testDir),
+            ).rejects.toThrow("outside target directory");
+        });
+
+        it("should reject writing through symbolic links", async () => {
+            // Arrange
+            const externalDir = join(tmpdir(), `external-${chance.guid()}`);
+            await mkdir(externalDir, { recursive: true });
+            const linkedDir = join(testDir, "linked");
+            await symlink(externalDir, linkedDir);
+
+            const structure: FilesystemStructure = {
+                nodes: [
+                    {
+                        type: "file",
+                        path: "linked/evil.txt",
+                        content: chance.sentence(),
+                    },
+                ],
+            };
+
+            // Act & Assert
+            await expect(
+                createFilesystemStructure(structure, testDir),
+            ).rejects.toThrow("symbolic link");
         });
     });
 

@@ -1,6 +1,9 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileExists } from "@lousy-agents/core/gateways/index.js";
+import { dirname } from "node:path";
+import {
+    fileExists,
+    resolveSafePath,
+} from "@lousy-agents/core/gateways/index.js";
 import { consola } from "consola";
 import { Eta } from "eta";
 
@@ -74,7 +77,7 @@ export async function createFilesystemStructure(
     templateContext?: TemplateContext,
 ): Promise<void> {
     for (const node of structure.nodes) {
-        const fullPath = join(targetDir, node.path);
+        const fullPath = await resolveSafePath(targetDir, node.path);
 
         // Skip if already exists to preserve existing files/directories
         if (await fileExists(fullPath)) {

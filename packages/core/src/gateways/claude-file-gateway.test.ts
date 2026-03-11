@@ -2,7 +2,7 @@
  * Tests for Claude file gateway
  */
 
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
@@ -176,6 +176,24 @@ describe("ClaudeFileGateway", () => {
                     "utf-8",
                 );
                 expect(content.endsWith("\n")).toBe(true);
+            });
+        });
+
+        describe("when .claude directory is a symbolic link", () => {
+            it("should reject to prevent writing outside the target directory", async () => {
+                // Arrange
+                const externalDir = join(tmpdir(), `external-${chance.guid()}`);
+                await mkdir(externalDir, { recursive: true });
+                await symlink(externalDir, join(testDir, ".claude"));
+                const settings: ClaudeSettings = {
+                    // biome-ignore lint/style/useNamingConvention: SessionStart is the Claude Code API property name
+                    SessionStart: ["npm ci"],
+                };
+
+                // Act & Assert
+                await expect(
+                    gateway.writeSettings(testDir, settings),
+                ).rejects.toThrow("symbolic link");
             });
         });
     });
