@@ -3,6 +3,7 @@
     "version": "1.0.2",
     "private": true,
     "description": "GitHub Action workspace package for lousy-agents lint and reviewdog integration",
+    "type": "module",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/zpratt/lousy-agents.git",
@@ -13,5 +14,11 @@
     "bugs": {
         "url": "https://github.com/zpratt/lousy-agents/issues"
     },
-    "homepage": "https://github.com/zpratt/lousy-agents/tree/main/packages/action#readme"
+    "homepage": "https://github.com/zpratt/lousy-agents/tree/main/packages/action#readme",
+    "engines": {
+        "node": ">=20.0.0"
+    },
+    "scripts": {
+        "build": "rspack build --config rspack.config.ts"
+    }
 }
