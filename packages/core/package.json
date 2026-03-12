@@ -2,7 +2,19 @@
     "name": "@lousy-agents/core",
     "version": "1.0.2",
     "private": true,
+    "description": "Shared entities, use cases, gateways, and formatters for the Lousy Agents workspace",
     "type": "module",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/zpratt/lousy-agents.git",
+        "directory": "packages/core"
+    },
+    "author": "zpratt",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/zpratt/lousy-agents/issues"
+    },
+    "homepage": "https://github.com/zpratt/lousy-agents/tree/main/packages/core#readme",
     "exports": {
         ".": "./src/index.ts",
         "./entities/*": "./src/entities/*",

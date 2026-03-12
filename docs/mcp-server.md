@@ -1,6 +1,6 @@
 # MCP Server
 
-Lousy Agents includes an MCP (Model Context Protocol) server that exposes workflow management tools to AI assistants like GitHub Copilot. This allows you to manage Copilot Setup Steps workflows directly from your AI assistant conversations.
+Lousy Agents publishes an MCP (Model Context Protocol) server as `@lousy-agents/mcp`. It exposes workflow management tools to AI assistants like GitHub Copilot, which lets you manage Copilot Setup Steps workflows directly from your AI assistant conversations.
 
 ## Available Tools
 
@@ -210,27 +210,35 @@ The `create_claude_code_web_setup` tool automates configuration of Claude Code w
 
 ## VS Code Configuration
 
-Add the following to your VS Code `mcp.json` configuration file (typically at `.vscode/mcp.json` or in your user settings):
+Add the Lousy Agents MCP server to your VS Code `mcp.json` configuration file (typically at `.vscode/mcp.json` or in your user settings).
+
+### Option 1: Run the published package with `npx`
+
+Use this in a regular project when you want VS Code to download and run the published MCP server on demand:
 
 ```json
 {
   "servers": {
     "lousy-agents": {
+      "type": "stdio",
       "command": "npx",
-      "args": ["-y", "-p", "@lousy-agents/cli", "lousy-agents-mcp"]
+      "args": ["-y", "-p", "@lousy-agents/mcp", "lousy-agents-mcp"]
     }
   }
 }
 ```
 
-Or if you have `@lousy-agents/cli` installed locally in your project:
+### Option 2: Run a locally installed package
+
+Use this when your project already depends on `@lousy-agents/mcp`:
 
 ```json
 {
   "servers": {
     "lousy-agents": {
+      "type": "stdio",
       "command": "node",
-      "args": ["./node_modules/@lousy-agents/cli/dist/mcp-server.js"]
+      "args": ["./node_modules/@lousy-agents/mcp/dist/mcp-server.js"]
     }
   }
 }
@@ -246,14 +254,14 @@ To use this MCP server with the hosted GitHub Copilot coding agent on github.com
     "lousy-agents": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "-p", "@lousy-agents/cli@2.7.0", "lousy-agents-mcp"],
+      "args": ["-y", "-p", "@lousy-agents/mcp@1.0.2", "lousy-agents-mcp"],
       "tools": ["*"]
     }
   }
 }
 ```
 
-> Update the pinned `@lousy-agents/cli@2.7.0` version when you intentionally upgrade to a newer release.
+> Update the pinned `@lousy-agents/mcp@1.0.2` version when you intentionally upgrade to a newer release.
 
 ### Steps to update MCP server settings on github.com
 

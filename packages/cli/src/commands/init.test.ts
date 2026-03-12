@@ -852,7 +852,7 @@ describe("Init command", () => {
             expect(parsed.servers["lousy-agents"].args).toEqual([
                 "-y",
                 "-p",
-                "@lousy-agents/cli",
+                "@lousy-agents/mcp",
                 "lousy-agents-mcp",
             ]);
         });

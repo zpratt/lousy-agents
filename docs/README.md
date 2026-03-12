@@ -37,7 +37,15 @@ Welcome to the Lousy Agents documentation! This directory contains detailed docu
 
 ## Getting Started
 
-If you're new to Lousy Agents, start with the main [README](../README.md) for a project overview and quick start guide.
+If you're new to Lousy Agents, start with the main [README](../README.md) for the package overview and quick start.
+
+Recommended reading order for new users:
+
+1. [README](../README.md) — decide which published package you need
+2. [init](init.md) — scaffold your first project
+3. [copilot-setup](copilot-setup.md) — add GitHub Copilot environment setup to an existing repository
+4. [new](new.md) and [lint](lint.md) — extend and validate your project scaffolding
+5. [MCP Server](mcp-server.md) — add the separately published `@lousy-agents/mcp` package if you want MCP integration
 
 ## Command Reference
 
@@ -86,14 +94,6 @@ The MCP (Model Context Protocol) server exposes workflow management tools to AI 
 - Available tools and their capabilities
 - Configuration instructions
 - Integration examples
-
-## Contributing
-
-When adding new features or commands, please:
-
-1. Create a dedicated documentation file in this directory
-2. Update this README's table of contents
-3. Link to the new documentation from the main README
 
 ## Additional Resources
 

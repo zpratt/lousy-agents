@@ -1,5 +1,5 @@
 ---
-applyTo: "src/**/*.{test,spec}.{ts,tsx}"
+applyTo: "packages/**/*.{test,spec}.{ts,tsx}"
 ---
 
 # Testing Conventions

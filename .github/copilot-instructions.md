@@ -45,6 +45,8 @@ npm install              # Install deps (updates package-lock.json)
 
 **Note**: In GitHub Actions, `jdx/mise-action` automatically activates mise and makes all tools available in PATH. No additional setup needed in CI.
 
+This repository is an npm workspace monorepo. Run `npm install` once at the root to install all workspace dependencies. The root `npm run build` command builds the publishable packages: `packages/cli`, `packages/mcp`, and `packages/agent-shell`.
+
 ## Workflow: TDD Required
 
 Follow this exact sequence for ALL code changes. Work in small increments — make one change at a time and validate before proceeding.
@@ -75,9 +77,12 @@ Task is NOT complete until all validation passes.
 
 ```
 .github/           GitHub Actions workflows
-src/               Application source code
-  lib/             Utilities and helpers
-tests/             Test files (mirror src/ structure)
+packages/
+  core/            Shared domain entities, use cases, gateways, and formatters
+  cli/             Published CLI package and reference scaffold templates
+  mcp/             Published MCP server package
+  action/          Private GitHub Action package
+  agent-shell/     Published npm script-shell telemetry package
 scripts/           Build, deploy, and test scripts
 .nvmrc             Node.js version (latest LTS)
 ```
@@ -325,5 +330,5 @@ If the Reviewer agent is unavailable or errors after invocation, proceed with ma
 
 ### Context Awareness
 
-- Read `.github/instructions/software-architecture.instructions.md` before modifying code in `src/`.
+- Read `.github/instructions/software-architecture.instructions.md` before modifying code in `packages/*/src/`.
 - When handling user input (CLI args, file content, environment variables), validate with Zod and check for path traversal, command injection, and prototype pollution.

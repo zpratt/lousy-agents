@@ -1,5 +1,5 @@
 ---
-applyTo: "src/**/*.{ts,tsx}"
+applyTo: "packages/*/src/**/*.{ts,tsx}"
 ---
 
 # Clean Architecture Instructions
@@ -17,23 +17,28 @@ Dependencies point inward only. Outer layers depend on inner layers, never the r
 ## Directory Structure
 
 ```
-src/
-├── entities/                  # Layer 1: Business domain entities
-├── use-cases/                 # Layer 2: Application business rules
-├── gateways/                  # Layer 3: External system adapters (file system, APIs)
-├── commands/                  # Layer 3: CLI command handlers
-├── mcp/                       # Layer 3: MCP protocol adapters
-│   ├── tools/                 # Individual MCP tool handlers
-│   ├── server.ts              # MCP server setup and tool registration
-│   └── index.ts               # MCP module exports
-├── lib/                       # Layer 3: Configuration and utilities
-├── index.ts                   # Layer 4: Composition root (CLI)
-└── mcp-server.ts              # Layer 4: Composition root (MCP server)
+packages/
+├── core/src/
+│   ├── entities/              # Layer 1: Business domain entities
+│   ├── use-cases/             # Layer 2: Application business rules
+│   ├── gateways/              # Layer 3: External system adapters
+│   ├── lib/                   # Layer 3: Shared configuration and utilities
+│   └── formatters/            # Layer 3: Output adapters
+├── cli/src/
+│   ├── commands/              # Layer 3: CLI command handlers
+│   ├── lib/                   # Layer 3: CLI-specific helpers
+│   └── index.ts               # Layer 4: CLI composition root
+├── mcp/src/
+│   ├── tools/                 # Layer 3: MCP tool handlers
+│   ├── lib/                   # Layer 3: MCP-specific helpers
+│   ├── server.ts              # Layer 4: MCP server setup
+│   └── mcp-server.ts          # Layer 4: MCP process entry point
+└── agent-shell/src/           # Standalone published package with a simpler runtime structure
 ```
 
 ## Layer 1: Entities
 
-**Location:** `src/entities/`
+**Location:** `packages/core/src/entities/`
 
 - MUST NOT import from any other layer
 - MUST NOT depend on frameworks or infrastructure
@@ -43,7 +48,7 @@ src/
 - ID generation and timestamps should be passed as parameters or handled by use cases
 
 ```typescript
-// src/entities/version-file.ts
+// packages/core/src/entities/version-file.ts
 export type VersionFileType = "node" | "python" | "java" | "ruby" | "go";
 
 export interface VersionFile {
@@ -64,13 +69,13 @@ export function isValidVersionFileType(type: string): type is VersionFileType {
 
 **Violations:**
 - Importing Zod, Prisma, or any framework
-- Importing from `src/use-cases/`, `src/gateways/`, `src/commands/`, or `src/lib/`
+- Importing from `packages/core/src/use-cases/`, `packages/core/src/gateways/`, `packages/cli/src/commands/`, or `packages/core/src/lib/`
 - Database operations or HTTP calls
 - Using global APIs like `crypto.randomUUID()` or `Date.now()`
 
 ## Layer 2: Use Cases
 
-**Location:** `src/use-cases/`
+**Location:** `packages/core/src/use-cases/`
 
 - MUST only import from entities and ports (interfaces)
 - MUST define input/output DTOs
@@ -78,7 +83,7 @@ export function isValidVersionFileType(type: string): type is VersionFileType {
 - MUST NOT import concrete implementations
 
 ```typescript
-// src/use-cases/parse-workflows.ts
+// packages/core/src/use-cases/parse-workflows.ts
 import type { DetectedEnvironment, SetupStepCandidate } from '../entities/version-file';
 
 export interface ParseWorkflowsInput { targetDir: string; }
@@ -124,7 +129,7 @@ export class ParseWorkflowsUseCase {
 
 ## Layer 3: Adapters
 
-**Location:** `src/gateways/`, `src/commands/`, and `src/lib/`
+**Location:** `packages/core/src/gateways/`, `packages/core/src/lib/`, `packages/cli/src/commands/`, and `packages/mcp/src/tools/`
 
 - MUST implement ports defined by use cases
 - MAY import from entities and use cases
@@ -134,7 +139,7 @@ export class ParseWorkflowsUseCase {
 ### Class-Based Adapters with Constructor Injection
 
 ```typescript
-// src/gateways/file-system-workflow-gateway.ts
+// packages/core/src/gateways/file-system-workflow-gateway.ts
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
@@ -179,7 +184,7 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
 Factory functions are an alternative to class-based adapters. They're useful for simpler adapters or when you prefer functional composition.
 
 ```typescript
-// src/gateways/action-version-gateway.ts
+// packages/core/src/gateways/action-version-gateway.ts
 import type { ConsolaInstance } from 'consola';
 import { z } from 'zod';
 
@@ -215,7 +220,7 @@ export function createActionVersionGateway(
 ```
 
 ```typescript
-// src/commands/copilot-setup.ts
+// packages/cli/src/commands/copilot-setup.ts
 import { z } from 'zod';
 import type { ParseWorkflowsUseCase } from '../use-cases/parse-workflows';
 import { defineCommand } from 'citty';
@@ -253,14 +258,14 @@ export function createCopilotSetupCommand(parseWorkflows: ParseWorkflowsUseCase)
 
 ## Layer 4: Infrastructure
 
-**Location:** `src/index.ts` (composition root)
+**Location:** `packages/cli/src/index.ts` and `packages/mcp/src/mcp-server.ts` (composition roots)
 
 - Composition root wires dependencies
 - Framework configuration lives here
 - MAY import from all layers
 
 ```typescript
-// src/index.ts (composition root)
+// packages/cli/src/index.ts (composition root)
 import { defineCommand, runMain } from 'citty';
 import { createConsola } from 'consola';
 import { ParseWorkflowsUseCase } from './use-cases/parse-workflows';
