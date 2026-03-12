@@ -6,11 +6,11 @@
 
 ## TL;DR
 
-A CLI tool that scaffolds projects with the structure AI coding assistants need to be effective. Run `npx @lousy-agents/cli init` to create a new project with testing, linting, and GitHub Copilot configuration. Run `npx @lousy-agents/cli copilot-setup` in existing projects to generate a workflow that gives Copilot your environment context. Run `npx @lousy-agents/cli lint` to validate skills, agents, and instruction files.
+Lousy Agents is a set of published npm packages for agentic software development, with `@lousy-agents/cli` as the main entry point. Run `npx @lousy-agents/cli init` to create a new project with testing, linting, and GitHub Copilot configuration. Run `npx @lousy-agents/cli copilot-setup` in existing projects to generate a workflow that gives Copilot your environment context. Add `@lousy-agents/mcp` for MCP integrations and `@lousy-agents/agent-shell` for npm script telemetry when you need them.
 
 ---
 
-Lousy Agents is a CLI scaffolding tool that sets up your projects with the structure, instructions, and feedback loops that AI coding assistants need to be effective. One command gives you a production-ready development environment with testing, linting, and AI assistant configuration.
+Lousy Agents is an npm workspace monorepo that publishes focused packages for scaffolding, MCP integrations, and npm script telemetry. The CLI package gives you a production-ready development environment with testing, linting, and AI assistant configuration in one command.
 
 ## Quick Start
 
@@ -27,14 +27,34 @@ npx @lousy-agents/cli copilot-setup
 
 ## Table of Contents
 
+- [Start Here](#start-here)
 - [Who This Is For](#who-this-is-for)
 - [Why This Exists](#why-this-exists)
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
+- [Contributing](#contributing)
 - [Roadmap](#roadmap)
 - [Documentation](#documentation)
 - [Reference Examples](#reference-examples)
+
+## Start Here
+
+If you're adopting Lousy Agents for the first time, use this order:
+
+1. **Scaffold a project** with `npx @lousy-agents/cli init`
+2. **Add repository-specific setup** with `npx @lousy-agents/cli copilot-setup`
+3. **Add deeper integrations only if you need them**:
+   - `@lousy-agents/mcp` for MCP clients like VS Code and hosted Copilot
+   - `@lousy-agents/agent-shell` for npm script telemetry
+
+Lousy Agents is an npm workspace monorepo. Most users only need one published package at a time:
+
+| Package | Install / Run | Use it when |
+|---------|----------------|-------------|
+| `@lousy-agents/cli` | `npx @lousy-agents/cli init` | You want the scaffolding CLI for new or existing projects |
+| `@lousy-agents/mcp` | `npx -y -p @lousy-agents/mcp lousy-agents-mcp` | You want Lousy Agents tools available through an MCP client |
+| `@lousy-agents/agent-shell` | `npm install -g @lousy-agents/agent-shell` | You want an audit trail for npm script execution |
 
 ## Who This Is For
 
@@ -86,6 +106,10 @@ npx @lousy-agents/cli init --kind webapp  # No prompts, perfect for CI/CD
 
 ## Installation
 
+Most users do not need to clone this repository. Start with the published package that matches your use case.
+
+### `@lousy-agents/cli`
+
 No installation required! Use npx to run directly:
 
 ```bash
@@ -96,6 +120,22 @@ For frequent use, install globally:
 
 ```bash
 npm install -g @lousy-agents/cli
+```
+
+### `@lousy-agents/mcp`
+
+Run the MCP server without installing it permanently:
+
+```bash
+npx -y -p @lousy-agents/mcp lousy-agents-mcp
+```
+
+### `@lousy-agents/agent-shell`
+
+Install agent-shell globally (required — npm needs the shim on `PATH` before `npm install` runs):
+
+```bash
+npm install -g @lousy-agents/agent-shell
 ```
 
 ## Usage
@@ -134,6 +174,17 @@ npx @lousy-agents/cli copilot-setup
 npx @lousy-agents/cli lint
 ```
 
+## Contributing
+
+This repository is an npm workspace monorepo with packages for the CLI, MCP server, core logic, GitHub Action integration, and agent-shell.
+
+```bash
+npm install
+mise run ci && npm run build
+```
+
+Use the root install to work on all workspace packages together. The root `npm run build` command builds the publishable packages: `packages/cli`, `packages/mcp`, and `packages/agent-shell`.
+
 ## Roadmap
 
 | Feature | Status |
@@ -151,19 +202,19 @@ npx @lousy-agents/cli lint
 
 ## Documentation
 
-- **[`init` Command](docs/init.md)** - Project scaffolding
-- **[`new` Command](docs/new.md)** - Create new resources
-- **[`lint` Command](docs/lint.md)** - Skills, agents, and instruction quality validation
-- **[`copilot-setup` Command](docs/copilot-setup.md)** - Workflow generation
-- **[MCP Server](docs/mcp-server.md)** - AI assistant integration
-- **[agent-shell](packages/agent-shell/README.md)** - npm script execution telemetry
+- **[Start with `init`](docs/init.md)** - Scaffold a project with the CLI
+- **[Then `copilot-setup`](docs/copilot-setup.md)** - Generate workflow setup for existing repositories
+- **[`new` Command](docs/new.md)** - Create new resources after your scaffold is in place
+- **[`lint` Command](docs/lint.md)** - Validate skills, agents, and instruction files
+- **[MCP Server](docs/mcp-server.md)** - Configure the separately published `@lousy-agents/mcp` package
+- **[agent-shell](packages/agent-shell/README.md)** - Add npm script execution telemetry
 
 ## Reference Examples
 
-The repository includes fully working reference implementations demonstrating these patterns in action:
+The repository includes fully working reference implementations in the CLI workspace:
 
-- **[ui/copilot-with-react](ui/copilot-with-react)** - Next.js + TypeScript webapp with pre-configured testing (Vitest), linting (Biome), GitHub Copilot instructions, and Dev Container configuration.
-- **[api/copilot-with-fastify](api/copilot-with-fastify)** - Fastify + TypeScript REST API with Kysely, PostgreSQL, Testcontainers integration testing, and Dev Container configuration.
-- **[cli/copilot-with-citty](cli/copilot-with-citty)** - Citty + TypeScript CLI with pre-configured testing (Vitest), linting (Biome), GitHub Copilot instructions, and Dev Container configuration.
+- **[packages/cli/ui/copilot-with-react](packages/cli/ui/copilot-with-react)** - Next.js + TypeScript webapp with pre-configured testing (Vitest), linting (Biome), GitHub Copilot instructions, and Dev Container configuration.
+- **[packages/cli/api/copilot-with-fastify](packages/cli/api/copilot-with-fastify)** - Fastify + TypeScript REST API with Kysely, PostgreSQL, Testcontainers integration testing, and Dev Container configuration.
+- **[packages/cli/cli/copilot-with-citty](packages/cli/cli/copilot-with-citty)** - Citty + TypeScript CLI with pre-configured testing (Vitest), linting (Biome), GitHub Copilot instructions, and Dev Container configuration.
 
 Launch a GitHub Codespace to instantly spin up any of these environments and experiment with spec-driven development.

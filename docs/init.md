@@ -94,6 +94,14 @@ Run the init command and select your project type from the menu:
 npx @lousy-agents/cli init
 ```
 
+The `init` command scaffolds files into the **current working directory**. If you're starting a brand new project, create and enter a fresh directory first:
+
+```bash
+mkdir my-webapp
+cd my-webapp
+npx @lousy-agents/cli init --kind webapp --name my-webapp
+```
+
 You'll be prompted to choose from:
 
 - webapp
@@ -124,6 +132,10 @@ npx @lousy-agents/cli init --help
 ### Create a New Webapp
 
 ```bash
+# Create a fresh project directory first
+mkdir my-webapp
+cd my-webapp
+
 # Interactive mode - select from menu
 npx @lousy-agents/cli init
 

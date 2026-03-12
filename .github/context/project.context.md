@@ -19,4 +19,5 @@
 
 ## Getting Started
 
-1. `node dist/index.js init` to create a new project with lousy agents scaffolding
+1. `npx @lousy-agents/cli init` to create a new project with Lousy Agents scaffolding
+2. `npx @lousy-agents/cli copilot-setup` to add workflow setup to an existing repository
