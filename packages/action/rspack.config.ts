@@ -1,10 +1,15 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Configuration } from "@rspack/core";
+import rspack, { type Configuration } from "@rspack/core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const config: Configuration = {
+    plugins: [
+        new rspack.optimize.LimitChunkCountPlugin({
+            maxChunks: 1,
+        }),
+    ],
     mode: "production",
     target: "node",
     devtool: false,
@@ -51,13 +56,16 @@ const config: Configuration = {
                         },
                         target: "es2022",
                     },
+                    minify: true,
                 },
                 type: "javascript/auto",
             },
         ],
     },
     optimization: {
-        minimize: false,
+        minimize: true,
+        usedExports: true,
+        sideEffects: true,
         splitChunks: false,
     },
     externalsType: "module",
