@@ -13,6 +13,9 @@ export default defineConfig({
             "**/node_modules/**",
             "**/dist/**",
             "**/*.integration.test.ts",
+            "**/packages/cli/api/**",
+            "**/packages/cli/ui/**",
+            "**/packages/cli/cli/copilot-with-citty/**",
         ],
     },
     resolve: {

@@ -8,26 +8,27 @@ See @.github/context/project.context.md for full project context.
 
 ## Commands
 
-Mise manages all tools and Node versions. Use file-scoped commands for faster feedback during development. Run the full validation suite before commits.
+Mise manages all tools and Node versions. Use file-scoped commands for faster feedback during development.
 
 ```bash
 # Core commands
 mise run test            # Run tests (vitest)
+mise run lint            # Run ALL linting tools in parallel (Biome, actionlint, yamllint, markdownlint, shellcheck, issue-form schemas, Trivy)
+mise run format-check    # Biome only — code formatting + static analysis
+mise run format-fix      # Auto-fix Biome lint/format issues
 npm run build            # Production build
-mise run format-check    # Lint check
-mise run format-fix      # Auto-fix lint/format
+
+# Workspace-scoped commands
+npm run build --workspace=packages/cli     # Build CLI only
+npm run build --workspace=packages/mcp     # Build MCP server only
+npm test --workspace=packages/cli          # Test a specific package
 
 # File-scoped (faster feedback)
 npx biome check path/to/file.ts
 npm test path/to/file.test.ts
 
 # Validation suite (run before commits)
-mise run ci && npm run build
-
-# Linting tasks
-mise run actionlint      # Validate GitHub Actions
-mise run yamllint        # Validate YAML
-mise run lint            # Run all linting tools in parallel
+mise run ci              # Runs: lint -> test -> smoke-test (smoke-test builds then exercises the CLI)
 
 # Other
 npm audit                # Security check
@@ -47,10 +48,11 @@ Follow this sequence for ALL code changes. Work in small increments — one chan
 3. **Verify failure**: Run `mise run test` — confirm clear failure message
 4. **Implement minimal code**: Write just enough to pass
 5. **Verify pass**: Run `mise run test` — confirm pass
-6. **Refactor**: Clean up, remove duplication, keep tests green
-7. **Validate**: `mise run ci && npm run build`
+6. **Refactor**: Clean up, remove duplication
+7. **Verify refactor**: Run `mise run test && mise run lint` — confirm tests still green and all linting passes
+8. **Validate**: Run `mise run ci` — runs `mise run lint`, `mise run test`, and `mise run smoke-test` (which builds then exercises the CLI)
 
-Task is NOT complete until all validation passes.
+Task is NOT complete until step 8 validation passes. Never skip `mise run lint` — it runs Biome, actionlint, yamllint, markdownlint, shellcheck, issue-form schema validation, and Trivy.
 
 ---
 
@@ -70,20 +72,32 @@ Task is NOT complete until all validation passes.
 
 ## Project Structure
 
+This is a monorepo using npm workspaces. The root `package.json` defines five
+workspace packages under `packages/`:
+
 ```
-.github/           GitHub Actions workflows, Copilot instructions, specs
-src/
-  entities/        Layer 1: Business domain entities
-  use-cases/       Layer 2: Application business rules
-  gateways/        Layer 3: External system adapters
-  commands/        Layer 3: CLI command handlers
-  mcp/             Layer 3: MCP protocol adapters
-  lib/             Layer 3: Configuration and utilities
-  index.ts         Layer 4: Composition root (CLI)
-  mcp-server.ts    Layer 4: Composition root (MCP server)
-tests/             Test files (mirror src/ structure)
-scripts/           Build, deploy, and test scripts
+.github/             GitHub Actions workflows, Copilot instructions, specs
+packages/
+  core/              @lousy-agents/core — shared entities, use cases, gateways
+  cli/               @lousy-agents/cli — CLI entry point and commands
+    src/
+      entities/      Layer 1: Business domain entities
+      use-cases/     Layer 2: Application business rules
+      gateways/      Layer 3: External system adapters
+      commands/      Layer 3: CLI command handlers
+      lib/           Layer 3: Configuration and utilities
+      index.ts       Layer 4: Composition root (CLI)
+    api/             REST API scaffold templates
+    ui/              Webapp scaffold templates
+  mcp/               @lousy-agents/mcp — MCP server
+    src/
+      tools/         MCP tool handlers
+      server.ts      MCP server setup
+  action/            @lousy-agents/action — GitHub Action
+  agent-shell/       @lousy-agents/agent-shell — npm script flight recorder
 ```
+
+Tests are co-located with source files within each package (no separate `tests/` root directory).
 
 ---
 
@@ -98,7 +112,7 @@ scripts/           Build, deploy, and test scripts
 - Remove all unused imports and variables
 - Validate external data at runtime with Zod — never use type assertions (`as Type`) on API responses
 - Always check `response.ok` when using fetch
-- Run lint and tests after EVERY change
+- Run `mise run test && mise run lint` after every change
 
 ---
 
@@ -150,10 +164,16 @@ See @.github/instructions/pipeline.instructions.md for workflow structure requir
 
 ## Boundaries
 
+**Definition of Done — a task is complete only when all three conditions are met:**
+1. `mise run ci` exits 0 (runs `mise run lint` → `mise run test` → `mise run smoke-test`)
+2. All acceptance criteria from the task or issue are satisfied
+3. No warnings or errors were ignored or suppressed to reach exit 0
+
+Do not signal task completion, propose a commit, or open a PR until these conditions are met.
+
 **Always do:**
 - Write tests before implementation (TDD)
-- Run lint and tests after every change
-- Run full validation before commits
+- Run `mise run test && mise run lint` after every change
 - Use existing patterns from codebase
 - Work in small increments
 
@@ -164,6 +184,7 @@ See @.github/instructions/pipeline.instructions.md for workflow structure requir
 
 **Never do:**
 - Skip the TDD workflow
+- Claim a task is complete without `mise run ci` exiting 0
 - Store secrets in code (use environment variables)
 - Use Jest (use Vitest)
 - Mock fetch directly (use MSW)

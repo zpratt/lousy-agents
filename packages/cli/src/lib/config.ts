@@ -375,6 +375,37 @@ function buildRestApiStructure(): FilesystemStructure {
                 content: readRestApiTemplateFile("vitest.setup.ts"),
             },
             ...buildCommonNodes(readRestApiTemplateFile),
+            // Source code
+            {
+                type: "file",
+                path: "src/app.ts",
+                content: readRestApiTemplateFile("src/app.ts"),
+            },
+            {
+                type: "file",
+                path: "src/app.test.ts",
+                content: readRestApiTemplateFile("src/app.test.ts"),
+            },
+            {
+                type: "file",
+                path: "src/app.integration.ts",
+                content: readRestApiTemplateFile("src/app.integration.ts"),
+            },
+            {
+                type: "file",
+                path: "src/parse-port.ts",
+                content: readRestApiTemplateFile("src/parse-port.ts"),
+            },
+            {
+                type: "file",
+                path: "src/parse-port.test.ts",
+                content: readRestApiTemplateFile("src/parse-port.test.ts"),
+            },
+            {
+                type: "file",
+                path: "src/index.ts",
+                content: readRestApiTemplateFile("src/index.ts"),
+            },
         ],
     };
 
