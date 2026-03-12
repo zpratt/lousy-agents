@@ -12,9 +12,8 @@ export function parsePort(value: string | undefined): number {
         parsed < minUnprivilegedPort ||
         parsed > maxPort
     ) {
-        process.stderr.write(
-            `Invalid PORT "${value}", using default ${defaultPort}\n`,
-        );
+        // biome-ignore lint/suspicious/noConsole: user-facing warning for invalid PORT
+        console.warn(`Invalid PORT "${value}", using default ${defaultPort}`);
         return defaultPort;
     }
     return parsed;
