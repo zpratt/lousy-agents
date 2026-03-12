@@ -127,3 +127,4 @@ packages/action/dist/*.map
 .pnp.*
 
 # End of https://mrkandreev.name/snippets/gitignore-generator/#Node
+.claude/settings.local.json

@@ -115,7 +115,11 @@ jobs:
           test -f tsconfig.json
           test -d .github
           test -f .github/instructions/test.instructions.md
+          git init
           npm install
+          npm test
+          npm run test:integration
+          npm run lint
           echo "API smoke test passed"
 
       - name: Smoke test - init --kind webapp
