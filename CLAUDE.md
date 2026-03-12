@@ -17,6 +17,11 @@ npm run build            # Production build
 mise run format-check    # Lint check
 mise run format-fix      # Auto-fix lint/format
 
+# Workspace-scoped commands
+npm run build --workspace=packages/cli     # Build CLI only
+npm run build --workspace=packages/mcp     # Build MCP server only
+npm test --workspace=packages/cli          # Test a specific package
+
 # File-scoped (faster feedback)
 npx biome check path/to/file.ts
 npm test path/to/file.test.ts
@@ -70,20 +75,32 @@ Task is NOT complete until all validation passes.
 
 ## Project Structure
 
+This is a monorepo using npm workspaces. The root `package.json` defines five
+workspace packages under `packages/`:
+
 ```
-.github/           GitHub Actions workflows, Copilot instructions, specs
-src/
-  entities/        Layer 1: Business domain entities
-  use-cases/       Layer 2: Application business rules
-  gateways/        Layer 3: External system adapters
-  commands/        Layer 3: CLI command handlers
-  mcp/             Layer 3: MCP protocol adapters
-  lib/             Layer 3: Configuration and utilities
-  index.ts         Layer 4: Composition root (CLI)
-  mcp-server.ts    Layer 4: Composition root (MCP server)
-tests/             Test files (mirror src/ structure)
-scripts/           Build, deploy, and test scripts
+.github/             GitHub Actions workflows, Copilot instructions, specs
+packages/
+  core/              @lousy-agents/core — shared entities, use cases, gateways
+  cli/               @lousy-agents/cli — CLI entry point and commands
+    src/
+      entities/      Layer 1: Business domain entities
+      use-cases/     Layer 2: Application business rules
+      gateways/      Layer 3: External system adapters
+      commands/      Layer 3: CLI command handlers
+      lib/           Layer 3: Configuration and utilities
+      index.ts       Layer 4: Composition root (CLI)
+    api/             REST API scaffold templates
+    ui/              Webapp scaffold templates
+  mcp/               @lousy-agents/mcp — MCP server
+    src/
+      tools/         MCP tool handlers
+      server.ts      MCP server setup
+  action/            @lousy-agents/action — GitHub Action
+  agent-shell/       @lousy-agents/agent-shell — npm script flight recorder
 ```
+
+Tests are co-located with source files within each package (no separate `tests/` root directory).
 
 ---
 
