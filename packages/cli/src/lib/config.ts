@@ -393,6 +393,16 @@ function buildRestApiStructure(): FilesystemStructure {
             },
             {
                 type: "file",
+                path: "src/parse-port.ts",
+                content: readRestApiTemplateFile("src/parse-port.ts"),
+            },
+            {
+                type: "file",
+                path: "src/parse-port.test.ts",
+                content: readRestApiTemplateFile("src/parse-port.test.ts"),
+            },
+            {
+                type: "file",
                 path: "src/index.ts",
                 content: readRestApiTemplateFile("src/index.ts"),
             },
