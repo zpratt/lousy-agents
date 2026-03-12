@@ -58,6 +58,7 @@ jobs:
           INPUT_REPORTER="github-pr-check" \
           INPUT_FILTER_MODE="added" \
           INPUT_LEVEL="info" \
+          DOTENV_CONFIG_QUIET="true" \
           node "$SCRIPT"
           echo "Valid skill smoke test passed"
 
@@ -80,6 +81,7 @@ jobs:
           INPUT_REPORTER="github-pr-check" \
           INPUT_FILTER_MODE="added" \
           INPUT_LEVEL="info" \
+          DOTENV_CONFIG_QUIET="true" \
           node "$SCRIPT"
           EXIT_CODE=$?
           set -e
@@ -109,6 +111,7 @@ jobs:
           INPUT_REPORTER="github-pr-check" \
           INPUT_FILTER_MODE="added" \
           INPUT_LEVEL="info" \
+          DOTENV_CONFIG_QUIET="true" \
           node "$SCRIPT")
           set -e
 
@@ -131,5 +134,6 @@ jobs:
           INPUT_REPORTER="github-pr-check" \
           INPUT_FILTER_MODE="added" \
           INPUT_LEVEL="info" \
+          DOTENV_CONFIG_QUIET="true" \
           node "$SCRIPT"
           echo "All targets smoke test passed"

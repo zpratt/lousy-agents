@@ -63,6 +63,7 @@ runs:
         INPUT_SKILLS: ${{ inputs.skills }}
         INPUT_AGENTS: ${{ inputs.agents }}
         INPUT_INSTRUCTIONS: ${{ inputs.instructions }}
+        DOTENV_CONFIG_QUIET: 'true'
       run: |
         set -euo pipefail
 
