@@ -1,4 +1,4 @@
-# agent-shell
+# @lousy-agents/agent-shell
 
 ![agent-shell demo](https://raw.githubusercontent.com/zpratt/lousy-agents/main/media/agent-shell.gif)
 

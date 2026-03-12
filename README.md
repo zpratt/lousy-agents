@@ -54,7 +54,7 @@ Lousy Agents is an npm workspace monorepo. Most users only need one published pa
 |---------|----------------|-------------|
 | `@lousy-agents/cli` | `npx @lousy-agents/cli init` | You want the scaffolding CLI for new or existing projects |
 | `@lousy-agents/mcp` | `npx -y -p @lousy-agents/mcp lousy-agents-mcp` | You want Lousy Agents tools available through an MCP client |
-| `@lousy-agents/agent-shell` | `npm install -D @lousy-agents/agent-shell` | You want an audit trail for npm script execution |
+| `@lousy-agents/agent-shell` | `npm install -g @lousy-agents/agent-shell` | You want an audit trail for npm script execution |
 
 ## Who This Is For
 
@@ -132,10 +132,10 @@ npx -y -p @lousy-agents/mcp lousy-agents-mcp
 
 ### `@lousy-agents/agent-shell`
 
-Install agent-shell in the project where you want npm script telemetry:
+Install agent-shell globally (required — npm needs the shim on `PATH` before `npm install` runs):
 
 ```bash
-npm install -D @lousy-agents/agent-shell
+npm install -g @lousy-agents/agent-shell
 ```
 
 ## Usage
