@@ -12,7 +12,9 @@ export function parsePort(value: string | undefined): number {
         parsed < minUnprivilegedPort ||
         parsed > maxPort
     ) {
-        console.warn(`Invalid PORT "${value}", using default ${defaultPort}`);
+        process.stderr.write(
+            `Invalid PORT "${value}", using default ${defaultPort}\n`,
+        );
         return defaultPort;
     }
     return parsed;
