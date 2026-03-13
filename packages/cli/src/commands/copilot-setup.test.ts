@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RulesetRule } from "@lousy-agents/core/entities/copilot-setup.js";
 import Chance from "chance";
+import { consola } from "consola";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parse as parseYaml } from "yaml";
 import { copilotSetupCommand } from "./copilot-setup.js";
@@ -52,6 +53,20 @@ function createMockRulesetGateway(
         listRulesets: overrides.listRulesets ?? (() => Promise.resolve([])),
         createRuleset:
             overrides.createRuleset ?? (() => Promise.resolve(undefined)),
+    };
+}
+
+interface MockNpmrcGateway {
+    readNpmrc(targetDir: string): Promise<string | null>;
+    writeNpmrc(targetDir: string, content: string): Promise<void>;
+}
+
+function createMockNpmrcGateway(
+    overrides: Partial<MockNpmrcGateway> = {},
+): MockNpmrcGateway {
+    return {
+        readNpmrc: overrides.readNpmrc ?? (() => Promise.resolve(null)),
+        writeNpmrc: overrides.writeNpmrc ?? (() => Promise.resolve(undefined)),
     };
 }
 
@@ -704,21 +719,6 @@ jobs:
     });
 
     describe("when managing agent-shell setup", () => {
-        interface MockNpmrcGateway {
-            readNpmrc(targetDir: string): Promise<string | null>;
-            writeNpmrc(targetDir: string, content: string): Promise<void>;
-        }
-
-        function createMockNpmrcGateway(
-            overrides: Partial<MockNpmrcGateway> = {},
-        ): MockNpmrcGateway {
-            return {
-                readNpmrc: overrides.readNpmrc ?? (() => Promise.resolve(null)),
-                writeNpmrc:
-                    overrides.writeNpmrc ?? (() => Promise.resolve(undefined)),
-            };
-        }
-
         it("should prompt to add agent-shell when npm is detected", async () => {
             // Arrange
             await writeFile(join(testDir, "package.json"), '{"name":"test"}');
@@ -772,6 +772,7 @@ jobs:
             expect(writeNpmrc).toHaveBeenCalledWith(
                 testDir,
                 expect.stringContaining("script-shell=agent-shell"),
+                false,
             );
         });
 
@@ -886,7 +887,166 @@ jobs:
             expect(writeNpmrc).toHaveBeenCalledWith(
                 testDir,
                 expect.stringContaining("script-shell=agent-shell"),
+                false,
             );
+        });
+    });
+
+    describe("when dry-run mode is enabled", () => {
+        it("should not write files when creating a new workflow", async () => {
+            // Arrange
+            await writeFile(join(testDir, ".nvmrc"), "20.0.0");
+
+            // Act
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [], "dry-run": true },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                },
+            });
+
+            // Assert
+            const workflowPath = join(workflowsDir, "copilot-setup-steps.yml");
+            const workflowExists = await readFile(workflowPath, "utf-8").catch(
+                () => null,
+            );
+            expect(workflowExists).toBeNull();
+        });
+
+        it("should not write files when updating an existing workflow", async () => {
+            // Arrange
+            const existingWorkflow = `name: CI
+on: push
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+`;
+            await writeFile(
+                join(workflowsDir, "copilot-setup-steps.yml"),
+                existingWorkflow,
+            );
+            await writeFile(join(testDir, ".nvmrc"), "20.0.0");
+            const originalContent = await readFile(
+                join(workflowsDir, "copilot-setup-steps.yml"),
+                "utf-8",
+            );
+
+            // Act
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [], "dry-run": true },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                },
+            });
+
+            // Assert
+            const updatedContent = await readFile(
+                join(workflowsDir, "copilot-setup-steps.yml"),
+                "utf-8",
+            );
+            expect(updatedContent).toBe(originalContent);
+        });
+
+        it("should not write .npmrc when adding agent-shell", async () => {
+            // Arrange
+            await writeFile(join(testDir, "package.json"), '{"name":"test"}');
+            await writeFile(join(testDir, "package-lock.json"), "{}");
+            const writeNpmrc = vi.fn().mockResolvedValue(undefined);
+            const mockNpmrcGateway = createMockNpmrcGateway({
+                readNpmrc: () => Promise.resolve(null),
+                writeNpmrc,
+            });
+            const mockPrompt = vi.fn().mockResolvedValue(true);
+
+            // Act
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [], "dry-run": true },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                    npmrcGateway: mockNpmrcGateway,
+                    prompt: mockPrompt,
+                },
+            });
+
+            // Assert - writeNpmrc is called but with dryRun=true
+            expect(writeNpmrc).toHaveBeenCalledWith(
+                testDir,
+                expect.stringContaining("script-shell=agent-shell"),
+                true,
+            );
+        });
+
+        it("should log intended changes instead of making them", async () => {
+            // Arrange
+            await writeFile(join(testDir, ".nvmrc"), "20.0.0");
+            const consolaInfoSpy = vi.spyOn(consola, "info");
+
+            // Act
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [], "dry-run": true },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                },
+            });
+
+            // Assert - verify dry-run mode is indicated in output
+            const logOutput = consolaInfoSpy.mock.calls
+                .flat()
+                .join(" ")
+                .toLowerCase();
+            expect(logOutput).toContain("dry-run");
+
+            consolaInfoSpy.mockRestore();
+        });
+
+        it("should not create GitHub rulesets when prompting for ruleset creation", async () => {
+            // Arrange
+            await writeFile(join(testDir, ".nvmrc"), "20.0.0");
+            await mkdir(join(testDir, ".git"), { recursive: true });
+            await writeFile(
+                join(testDir, ".git", "config"),
+                '[remote "origin"]\n\turl = https://github.com/test/repo.git\n',
+            );
+
+            const createRuleset = vi.fn().mockResolvedValue(undefined);
+            const mockGateway = createMockRulesetGateway({
+                isAuthenticated: () => Promise.resolve(true),
+                getRepoInfo: () =>
+                    Promise.resolve({ owner: "test", repo: "repo" }),
+                listRulesets: () => Promise.resolve([]),
+                hasAdvancedSecurity: () => Promise.resolve(false),
+                createRuleset,
+            });
+            const mockPrompt = vi.fn().mockResolvedValue(true);
+
+            // Act
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [], "dry-run": true },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: mockGateway,
+                    prompt: mockPrompt,
+                },
+            });
+
+            // Assert - createRuleset should not be called in dry-run mode
+            expect(createRuleset).not.toHaveBeenCalled();
         });
     });
 });

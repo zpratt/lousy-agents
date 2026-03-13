@@ -43,7 +43,14 @@ type PromptFunction = (
     options: { type: string; default?: boolean },
 ) => Promise<boolean>;
 
-const copilotSetupArgs = {};
+const copilotSetupArgs = {
+    "dry-run": {
+        type: "boolean" as const,
+        description:
+            "Preview changes without modifying any files (no writes performed)",
+        default: false,
+    },
+};
 
 type CopilotSetupArgs = typeof copilotSetupArgs;
 
@@ -59,6 +66,12 @@ export const copilotSetupCommand = defineCommand({
             typeof context.data?.targetDir === "string"
                 ? context.data.targetDir
                 : process.cwd();
+
+        const dryRun = context.args["dry-run"] ?? false;
+
+        if (dryRun) {
+            consola.info("[DRY-RUN MODE] No files will be modified");
+        }
 
         const environmentGateway = createEnvironmentGateway();
         const workflowGateway = createWorkflowGateway();
@@ -137,7 +150,13 @@ export const copilotSetupCommand = defineCommand({
 
         // Ensure workflows directory exists
         if (!workflowsDirExists) {
-            await mkdir(workflowsDir, { recursive: true });
+            if (dryRun) {
+                consola.info(
+                    `[DRY-RUN] Would create directory: ${workflowsDir}`,
+                );
+            } else {
+                await mkdir(workflowsDir, { recursive: true });
+            }
         }
 
         if (workflowExists) {
@@ -167,6 +186,7 @@ export const copilotSetupCommand = defineCommand({
                     targetDir,
                     prompt,
                     environment,
+                    dryRun,
                 );
                 return;
             }
@@ -184,22 +204,39 @@ export const copilotSetupCommand = defineCommand({
             await workflowGateway.writeCopilotSetupWorkflow(
                 targetDir,
                 updatedContent,
+                dryRun,
             );
 
-            consola.success(
-                `Updated copilot-setup-steps.yml with ${missingCandidates.length} new step(s)`,
-            );
+            if (dryRun) {
+                consola.info(
+                    `[DRY-RUN] Would update copilot-setup-steps.yml with ${missingCandidates.length} new step(s)`,
+                );
+            } else {
+                consola.success(
+                    `Updated copilot-setup-steps.yml with ${missingCandidates.length} new step(s)`,
+                );
+            }
         } else {
             // Create new workflow
             consola.info("Creating new copilot-setup-steps.yml workflow...");
 
             const content = await generateWorkflowContent(allCandidates);
-            await workflowGateway.writeCopilotSetupWorkflow(targetDir, content);
+            await workflowGateway.writeCopilotSetupWorkflow(
+                targetDir,
+                content,
+                dryRun,
+            );
 
             const stepCount = allCandidates.length + 1; // +1 for checkout
-            consola.success(
-                `Created copilot-setup-steps.yml with ${stepCount} step(s)`,
-            );
+            if (dryRun) {
+                consola.info(
+                    `[DRY-RUN] Would create copilot-setup-steps.yml with ${stepCount} step(s)`,
+                );
+            } else {
+                consola.success(
+                    `Created copilot-setup-steps.yml with ${stepCount} step(s)`,
+                );
+            }
 
             if (allCandidates.length > 0) {
                 const actionNames = allCandidates
@@ -216,6 +253,7 @@ export const copilotSetupCommand = defineCommand({
             targetDir,
             prompt,
             environment,
+            dryRun,
         );
     },
 });
@@ -224,6 +262,7 @@ async function checkAndPromptRuleset(
     rulesetGateway: CopilotSetupRulesetGateway,
     targetDir: string,
     prompt: PromptFunction,
+    dryRun: boolean,
 ): Promise<void> {
     consola.info("Checking Copilot PR review ruleset...");
 
@@ -282,6 +321,14 @@ async function checkAndPromptRuleset(
         const payload = buildCopilotReviewRulesetPayload({
             advancedSecurityEnabled,
         });
+
+        if (dryRun) {
+            consola.info(
+                `[DRY-RUN] Would create Copilot PR review ruleset: "${payload.name}"`,
+            );
+            return;
+        }
+
         await rulesetGateway.createRuleset(
             repoInfo.owner,
             repoInfo.repo,
@@ -303,13 +350,15 @@ async function runPostWorkflowSteps(
     targetDir: string,
     prompt: PromptFunction,
     environment: DetectedEnvironment,
+    dryRun: boolean,
 ): Promise<void> {
-    await checkAndPromptRuleset(rulesetGateway, targetDir, prompt);
+    await checkAndPromptRuleset(rulesetGateway, targetDir, prompt, dryRun);
     await checkAndPromptAgentShell(
         npmrcGateway,
         targetDir,
         prompt,
         environment,
+        dryRun,
     );
 }
 
@@ -318,6 +367,7 @@ async function checkAndPromptAgentShell(
     targetDir: string,
     prompt: PromptFunction,
     environment: DetectedEnvironment,
+    dryRun: boolean,
 ): Promise<void> {
     const npmPackageManager = environment.packageManagers.find(
         (pm) => pm.type === "npm",
@@ -338,7 +388,7 @@ async function checkAndPromptAgentShell(
     }
 
     const result = await addAgentShell(
-        { targetDir, packageManager: npmPackageManager },
+        { targetDir, packageManager: npmPackageManager, dryRun },
         npmrcGateway,
     );
 

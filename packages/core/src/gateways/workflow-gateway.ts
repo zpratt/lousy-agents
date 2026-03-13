@@ -44,10 +44,12 @@ export interface WorkflowGateway {
      * Writes the Copilot Setup Steps workflow to the repository
      * @param targetDir The repository root directory
      * @param content The workflow YAML content
+     * @param dryRun If true, logs the operation instead of writing the file
      */
     writeCopilotSetupWorkflow(
         targetDir: string,
         content: string,
+        dryRun?: boolean,
     ): Promise<void>;
 }
 

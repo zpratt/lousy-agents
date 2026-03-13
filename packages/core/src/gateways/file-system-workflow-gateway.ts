@@ -3,6 +3,7 @@
  */
 
 import { readdir, readFile, writeFile } from "node:fs/promises";
+import { consola } from "consola";
 import { parse as parseYaml } from "yaml";
 import type { SetupStepCandidate } from "../entities/copilot-setup.js";
 import {
@@ -136,6 +137,7 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
     async writeCopilotSetupWorkflow(
         targetDir: string,
         content: string,
+        dryRun = false,
     ): Promise<void> {
         const existingPath = await this.findCopilotSetupWorkflowPath(targetDir);
         const workflowPath =
@@ -144,6 +146,13 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
                 targetDir,
                 ".github/workflows/copilot-setup-steps.yml",
             ));
+
+        if (dryRun) {
+            consola.info(
+                `[DRY-RUN] Would write to: ${workflowPath}\n${content}`,
+            );
+            return;
+        }
 
         await writeFile(workflowPath, content, "utf-8");
     }

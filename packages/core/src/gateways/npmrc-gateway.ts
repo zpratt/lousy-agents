@@ -3,6 +3,7 @@
  */
 
 import { readFile, writeFile } from "node:fs/promises";
+import { consola } from "consola";
 import {
     assertFileSizeWithinLimit,
     fileExists,
@@ -24,8 +25,13 @@ export interface NpmrcGateway {
     /**
      * Writes content to the `.npmrc` file in the target directory.
      * Creates the file if it does not exist.
+     * @param dryRun If true, logs the operation instead of writing the file
      */
-    writeNpmrc(targetDir: string, content: string): Promise<void>;
+    writeNpmrc(
+        targetDir: string,
+        content: string,
+        dryRun?: boolean,
+    ): Promise<void>;
 }
 
 /**
@@ -48,8 +54,18 @@ export class FileSystemNpmrcGateway implements NpmrcGateway {
         return readFile(npmrcPath, "utf-8");
     }
 
-    async writeNpmrc(targetDir: string, content: string): Promise<void> {
+    async writeNpmrc(
+        targetDir: string,
+        content: string,
+        dryRun = false,
+    ): Promise<void> {
         const npmrcPath = await resolveSafePath(targetDir, ".npmrc");
+
+        if (dryRun) {
+            consola.info(`[DRY-RUN] Would write to: ${npmrcPath}\n${content}`);
+            return;
+        }
+
         await writeFile(npmrcPath, content, "utf-8");
     }
 }
