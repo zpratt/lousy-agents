@@ -1,12 +1,16 @@
 import { mkdir } from "node:fs/promises";
+import type { DetectedEnvironment } from "@lousy-agents/core/entities/copilot-setup.js";
 import {
     createEnvironmentGateway,
     createGitHubRulesetGateway,
+    createNpmrcGateway,
     createWorkflowGateway,
     fileExists,
     resolveSafePath,
 } from "@lousy-agents/core/gateways/index.js";
+import type { NpmrcGateway } from "@lousy-agents/core/gateways/npmrc-gateway.js";
 import { loadCopilotSetupConfig } from "@lousy-agents/core/lib/copilot-setup-config.js";
+import { addAgentShell } from "@lousy-agents/core/use-cases/add-agent-shell.js";
 import {
     buildCopilotReviewRulesetPayload,
     checkCopilotReviewRuleset,
@@ -36,7 +40,7 @@ interface CopilotSetupRulesetGateway extends RulesetGateway {
 
 type PromptFunction = (
     message: string,
-    options: { type: string },
+    options: { type: string; default?: boolean },
 ) => Promise<boolean>;
 
 const copilotSetupArgs = {};
@@ -63,6 +67,9 @@ export const copilotSetupCommand = defineCommand({
             (context.data
                 ?.rulesetGateway as CopilotSetupRulesetGateway | null) ??
             (await createGitHubRulesetGateway());
+        const npmrcGateway: NpmrcGateway =
+            (context.data?.npmrcGateway as NpmrcGateway | null) ??
+            createNpmrcGateway();
         const prompt =
             (context.data?.prompt as PromptFunction | null) ??
             ((message, options) =>
@@ -154,7 +161,13 @@ export const copilotSetupCommand = defineCommand({
                     "Copilot Setup Steps workflow already contains all detected setup steps. No changes needed.",
                 );
 
-                await checkAndPromptRuleset(rulesetGateway, targetDir, prompt);
+                await runPostWorkflowSteps(
+                    rulesetGateway,
+                    npmrcGateway,
+                    targetDir,
+                    prompt,
+                    environment,
+                );
                 return;
             }
 
@@ -196,8 +209,14 @@ export const copilotSetupCommand = defineCommand({
             }
         }
 
-        // Step 6: Check for Copilot PR review rulesets
-        await checkAndPromptRuleset(rulesetGateway, targetDir, prompt);
+        // Step 6: Run post-workflow steps (ruleset + agent-shell)
+        await runPostWorkflowSteps(
+            rulesetGateway,
+            npmrcGateway,
+            targetDir,
+            prompt,
+            environment,
+        );
     },
 });
 
@@ -276,4 +295,59 @@ async function checkAndPromptRuleset(
             `Failed to create ruleset: ${message}. You may need admin access to the repository.`,
         );
     }
+}
+
+async function runPostWorkflowSteps(
+    rulesetGateway: CopilotSetupRulesetGateway,
+    npmrcGateway: NpmrcGateway,
+    targetDir: string,
+    prompt: PromptFunction,
+    environment: DetectedEnvironment,
+): Promise<void> {
+    await checkAndPromptRuleset(rulesetGateway, targetDir, prompt);
+    await checkAndPromptAgentShell(
+        npmrcGateway,
+        targetDir,
+        prompt,
+        environment,
+    );
+}
+
+async function checkAndPromptAgentShell(
+    npmrcGateway: NpmrcGateway,
+    targetDir: string,
+    prompt: PromptFunction,
+    environment: DetectedEnvironment,
+): Promise<void> {
+    const npmPackageManager = environment.packageManagers.find(
+        (pm) => pm.type === "npm",
+    );
+
+    if (!npmPackageManager) {
+        return;
+    }
+
+    const shouldAdd = await prompt(
+        "Would you like to add agent-shell to observe npm script execution?",
+        { type: "confirm", default: true },
+    );
+
+    if (!shouldAdd) {
+        consola.info("Skipping agent-shell setup.");
+        return;
+    }
+
+    const result = await addAgentShell(
+        { targetDir, packageManager: npmPackageManager },
+        npmrcGateway,
+    );
+
+    if (result.alreadyConfigured) {
+        consola.success("agent-shell is already configured in .npmrc.");
+        return;
+    }
+
+    consola.success(
+        "Added agent-shell to .npmrc. Run `npm install -g @lousy-agents/agent-shell` to complete setup.",
+    );
 }

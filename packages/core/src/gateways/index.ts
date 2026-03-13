@@ -39,6 +39,11 @@ export {
     type InstructionAnalysisGateway,
 } from "./instruction-analysis-gateway.js";
 export {
+    createNpmrcGateway,
+    FileSystemNpmrcGateway,
+    type NpmrcGateway,
+} from "./npmrc-gateway.js";
+export {
     createScriptDiscoveryGateway,
     FileSystemScriptDiscoveryGateway,
     type ScriptDiscoveryGateway,

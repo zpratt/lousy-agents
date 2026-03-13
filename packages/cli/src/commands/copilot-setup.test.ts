@@ -702,4 +702,191 @@ jobs:
             expect(content).toContain("Copilot Setup Steps");
         });
     });
+
+    describe("when managing agent-shell setup", () => {
+        interface MockNpmrcGateway {
+            readNpmrc(targetDir: string): Promise<string | null>;
+            writeNpmrc(targetDir: string, content: string): Promise<void>;
+        }
+
+        function createMockNpmrcGateway(
+            overrides: Partial<MockNpmrcGateway> = {},
+        ): MockNpmrcGateway {
+            return {
+                readNpmrc: overrides.readNpmrc ?? (() => Promise.resolve(null)),
+                writeNpmrc:
+                    overrides.writeNpmrc ?? (() => Promise.resolve(undefined)),
+            };
+        }
+
+        it("should prompt to add agent-shell when npm is detected", async () => {
+            // Arrange
+            await writeFile(join(testDir, "package.json"), '{"name":"test"}');
+            await writeFile(join(testDir, "package-lock.json"), "{}");
+            const writeNpmrc = vi.fn().mockResolvedValue(undefined);
+            const mockNpmrcGateway = createMockNpmrcGateway({ writeNpmrc });
+            const mockPrompt = vi.fn().mockResolvedValue(true);
+
+            // Act
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                    npmrcGateway: mockNpmrcGateway,
+                    prompt: mockPrompt,
+                },
+            });
+
+            // Assert
+            expect(mockPrompt).toHaveBeenCalledWith(
+                "Would you like to add agent-shell to observe npm script execution?",
+                { type: "confirm", default: true },
+            );
+        });
+
+        it("should update .npmrc when user accepts agent-shell prompt", async () => {
+            // Arrange
+            await writeFile(join(testDir, "package.json"), '{"name":"test"}');
+            await writeFile(join(testDir, "package-lock.json"), "{}");
+            const writeNpmrc = vi.fn().mockResolvedValue(undefined);
+            const mockNpmrcGateway = createMockNpmrcGateway({ writeNpmrc });
+            const mockPrompt = vi.fn().mockResolvedValue(true);
+
+            // Act
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                    npmrcGateway: mockNpmrcGateway,
+                    prompt: mockPrompt,
+                },
+            });
+
+            // Assert
+            expect(writeNpmrc).toHaveBeenCalledWith(
+                testDir,
+                expect.stringContaining("script-shell=agent-shell"),
+            );
+        });
+
+        it("should not update .npmrc when user declines agent-shell prompt", async () => {
+            // Arrange
+            await writeFile(join(testDir, "package.json"), '{"name":"test"}');
+            await writeFile(join(testDir, "package-lock.json"), "{}");
+            const writeNpmrc = vi.fn().mockResolvedValue(undefined);
+            const mockNpmrcGateway = createMockNpmrcGateway({ writeNpmrc });
+            const mockPrompt = vi.fn().mockResolvedValue(false);
+
+            // Act
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                    npmrcGateway: mockNpmrcGateway,
+                    prompt: mockPrompt,
+                },
+            });
+
+            // Assert
+            expect(writeNpmrc).not.toHaveBeenCalled();
+        });
+
+        it("should not prompt for agent-shell when project is not npm", async () => {
+            // Arrange - no package.json, so npm is not detected
+            await writeFile(join(testDir, ".nvmrc"), "20.0.0");
+            const writeNpmrc = vi.fn().mockResolvedValue(undefined);
+            const mockNpmrcGateway = createMockNpmrcGateway({ writeNpmrc });
+            const mockPrompt = vi.fn().mockResolvedValue(true);
+
+            // Act
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                    npmrcGateway: mockNpmrcGateway,
+                    prompt: mockPrompt,
+                },
+            });
+
+            // Assert
+            expect(mockPrompt).not.toHaveBeenCalledWith(
+                "Would you like to add agent-shell to observe npm script execution?",
+                expect.anything(),
+            );
+            expect(writeNpmrc).not.toHaveBeenCalled();
+        });
+
+        it("should not modify .npmrc when agent-shell is already configured", async () => {
+            // Arrange
+            await writeFile(join(testDir, "package.json"), '{"name":"test"}');
+            await writeFile(join(testDir, "package-lock.json"), "{}");
+            const existingContent = "script-shell=agent-shell\n";
+            const writeNpmrc = vi.fn().mockResolvedValue(undefined);
+            const mockNpmrcGateway = createMockNpmrcGateway({
+                readNpmrc: () => Promise.resolve(existingContent),
+                writeNpmrc,
+            });
+            const mockPrompt = vi.fn().mockResolvedValue(true);
+
+            // Act
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                    npmrcGateway: mockNpmrcGateway,
+                    prompt: mockPrompt,
+                },
+            });
+
+            // Assert
+            expect(writeNpmrc).not.toHaveBeenCalled();
+        });
+
+        it("should add agent-shell when .npmrc only contains a commented script-shell entry", async () => {
+            // Arrange
+            await writeFile(join(testDir, "package.json"), '{"name":"test"}');
+            await writeFile(join(testDir, "package-lock.json"), "{}");
+            const existingContent = "# script-shell=agent-shell\n";
+            const writeNpmrc = vi.fn().mockResolvedValue(undefined);
+            const mockNpmrcGateway = createMockNpmrcGateway({
+                readNpmrc: () => Promise.resolve(existingContent),
+                writeNpmrc,
+            });
+            const mockPrompt = vi.fn().mockResolvedValue(true);
+
+            // Act
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                    npmrcGateway: mockNpmrcGateway,
+                    prompt: mockPrompt,
+                },
+            });
+
+            // Assert
+            expect(writeNpmrc).toHaveBeenCalledWith(
+                testDir,
+                expect.stringContaining("script-shell=agent-shell"),
+            );
+        });
+    });
 });
