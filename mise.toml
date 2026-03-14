@@ -11,7 +11,7 @@ _.file = '.env'
 enter = "mise i -q && npm i"
 
 [tools]
-actionlint = "1.7.9"
+actionlint = "1.7.11"
 jq = "1.8.1"
 markdownlint-cli2 = "0.17.2"
 pipx = "latest"
