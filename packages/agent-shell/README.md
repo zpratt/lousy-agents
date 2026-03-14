@@ -97,7 +97,9 @@ agent-shell classifies who initiated each script execution:
 | 2 | `GITHUB_ACTIONS=true` | `ci` |
 | 3 | `CLAUDE_CODE` is set | `claude-code` |
 | 4 | `COPILOT_AGENT` is set | `copilot` |
-| 5 | No match | `human` |
+| 5 | `COPILOT_CLI` is set | `copilot` |
+| 6 | `COPILOT_CLI_BINARY_VERSION` is set | `copilot` |
+| 7 | No match | `human` |
 
 ## Querying Events
 

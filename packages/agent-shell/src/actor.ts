@@ -1,6 +1,8 @@
 // Best-effort agent detection env vars (Phase 1):
 // - CLAUDE_CODE: Set by Claude Code (`CLAUDE_CODE=1`) in its shell sessions
 // - COPILOT_AGENT: Set by GitHub Copilot coding agent in its shell sessions
+// - COPILOT_CLI: Set by GitHub Copilot CLI (`COPILOT_CLI=1`) in its shell sessions
+// - COPILOT_CLI_BINARY_VERSION: Set by GitHub Copilot CLI (e.g. `COPILOT_CLI_BINARY_VERSION=1.0.4`)
 // If these prove incorrect, the detection rule should be removed entirely.
 
 /**
@@ -27,6 +29,14 @@ export function detectActor(env: Record<string, string | undefined>): string {
     }
 
     if (env.COPILOT_AGENT !== undefined && env.COPILOT_AGENT !== "") {
+        return "copilot";
+    }
+
+    if (
+        (env.COPILOT_CLI !== undefined && env.COPILOT_CLI !== "") ||
+        (env.COPILOT_CLI_BINARY_VERSION !== undefined &&
+            env.COPILOT_CLI_BINARY_VERSION !== "")
+    ) {
         return "copilot";
     }
 
