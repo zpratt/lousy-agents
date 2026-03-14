@@ -31,7 +31,10 @@ so that I can **enforce repository-level constraints on what agents are allowed 
 - When the tool input contains a command that matches a deny rule in the agent-shell policy, the system shall write a JSON response to stdout rejecting the tool use with a descriptive message.
 - When the tool input contains a command that does not match any deny rule, the system shall write a JSON response to stdout approving the tool use.
 - If the policy configuration file does not exist, then the system shall approve all tool uses by default.
-- If the policy configuration file contains invalid JSON, then the system shall reject the tool use and write an error message to stderr.
+- If the policy configuration file contains invalid JSON, then the system shall write a deny JSON response to stdout with an error description and write the error details to stderr.
+- If the stdin JSON is valid but does not contain the expected `tool_input.command` field, then the system shall write an allow JSON response to stdout (fail-open for unrecognized input shapes).
+- If the `tool_name` in the stdin JSON is not `run_terminal_command`, then the system shall write an allow JSON response to stdout (policy evaluation applies only to terminal commands).
+- If the `tool_input.command` field is not a string, then the system shall write a deny JSON response to stdout with a descriptive error message.
 - While agent-shell is running in `policy-check` mode, the system shall emit a telemetry event recording the policy decision (allowed or denied) for auditability.
 - The system shall support exact-match and glob-pattern deny rules for command strings.
 
@@ -52,7 +55,7 @@ so that I can **have agent-shell enforce command policies before the agent execu
 
 - When the user creates a `.github/hooks/` directory with a properly configured hook referencing agent-shell, the system shall be invocable by the Copilot coding agent's hook mechanism.
 - The agent-shell `policy-check` mode shall be compatible with the Copilot coding agent's `preToolUse` hook contract (JSON stdin/stdout).
-- When agent-shell is referenced in the hook configuration, the system shall execute without requiring additional dependencies beyond the globally installed agent-shell binary.
+- When agent-shell is referenced in the hook configuration, the system shall execute without requiring additional dependencies beyond the globally installed agent-shell binary and a POSIX-compatible shell (`/bin/sh`).
 
 #### Notes
 
@@ -247,8 +250,8 @@ sequenceDiagram
 
 #### `.github/hooks/agent-shell-policy.sh`
 
-```bash
-#!/usr/bin/env bash
+```sh
+#!/usr/bin/env sh
 exec agent-shell policy-check
 ```
 
@@ -406,6 +409,10 @@ exec agent-shell policy-check
 - When the command is denied by policy, the system shall write `{"decision":"deny","message":"..."}` to stdout and exit with code 0
 - When the command is allowed, the system shall write `{"decision":"allow"}` to stdout and exit with code 0
 - When stdin contains invalid JSON, the system shall write a deny response to stdout and write an error to stderr
+- When stdin JSON is valid but missing `tool_input.command`, the system shall write an allow response to stdout (fail-open)
+- When `tool_name` is not `run_terminal_command`, the system shall write an allow response to stdout
+- When `tool_input.command` is not a string, the system shall write a deny response to stdout with a descriptive error
+- When the policy file contains invalid JSON, the system shall write a deny response to stdout and write the error to stderr
 - The system shall emit a policy decision telemetry event for every evaluation
 - The system shall exit with code 0 in all cases (the hook contract uses the JSON response, not the exit code, for the decision)
 
