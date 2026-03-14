@@ -48,7 +48,7 @@ runs:
   steps:
     - name: Install reviewdog
       # v1.5.0
-      uses: reviewdog/action-setup@d8a7baabd7f3e8544ee4dbde3ee41d0011c3a93f
+      uses: reviewdog/action-setup@0dd4b8fe6186a79b3e27819169b1b570895086f0
       with:
         reviewdog_version: 'v0.21.0'
 
