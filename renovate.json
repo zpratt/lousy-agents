@@ -17,7 +17,9 @@
     "packageRules": [
         {
             "description": "Pin all npm dependencies to exact versions",
-            "matchManagers": ["npm"],
+            "matchManagers": [
+                "npm"
+            ],
             "rangeStrategy": "pin"
         }
     ],
@@ -25,16 +27,24 @@
         {
             "description": "Track actionlint version in mise.toml",
             "customType": "regex",
-            "fileMatch": ["(^|/)mise\\.toml$"],
-            "matchStrings": ["actionlint\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+            "managerFilePatterns": [
+                "/(^|/)mise\\.toml$/"
+            ],
+            "matchStrings": [
+                "actionlint\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+            ],
             "depNameTemplate": "rhysd/actionlint",
             "datasourceTemplate": "github-releases"
         },
         {
             "description": "Track jq version in mise.toml",
             "customType": "regex",
-            "fileMatch": ["(^|/)mise\\.toml$"],
-            "matchStrings": ["(?:^|\\n)jq\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+            "managerFilePatterns": [
+                "/(^|/)mise\\.toml$/"
+            ],
+            "matchStrings": [
+                "(?:^|\\n)jq\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+            ],
             "depNameTemplate": "jqlang/jq",
             "datasourceTemplate": "github-releases",
             "extractVersionTemplate": "^jq-(?<version>.*)$"
@@ -42,7 +52,9 @@
         {
             "description": "Track markdownlint-cli2 version in mise.toml",
             "customType": "regex",
-            "fileMatch": ["(^|/)mise\\.toml$"],
+            "managerFilePatterns": [
+                "/(^|/)mise\\.toml$/"
+            ],
             "matchStrings": [
                 "markdownlint-cli2\\s*=\\s*\"(?<currentValue>[^\"]+)\""
             ],
@@ -52,7 +64,9 @@
         {
             "description": "Track check-jsonschema version in mise.toml",
             "customType": "regex",
-            "fileMatch": ["(^|/)mise\\.toml$"],
+            "managerFilePatterns": [
+                "/(^|/)mise\\.toml$/"
+            ],
             "matchStrings": [
                 "\"pipx:check-jsonschema\"\\s*=\\s*\"(?<currentValue>[^\"]+)\""
             ],
@@ -62,23 +76,33 @@
         {
             "description": "Track shellcheck version in mise.toml",
             "customType": "regex",
-            "fileMatch": ["(^|/)mise\\.toml$"],
-            "matchStrings": ["shellcheck\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+            "managerFilePatterns": [
+                "/(^|/)mise\\.toml$/"
+            ],
+            "matchStrings": [
+                "shellcheck\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+            ],
             "depNameTemplate": "koalaman/shellcheck",
             "datasourceTemplate": "github-releases"
         },
         {
             "description": "Track trivy version in mise.toml",
             "customType": "regex",
-            "fileMatch": ["(^|/)mise\\.toml$"],
-            "matchStrings": ["trivy\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+            "managerFilePatterns": [
+                "/(^|/)mise\\.toml$/"
+            ],
+            "matchStrings": [
+                "trivy\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+            ],
             "depNameTemplate": "aquasecurity/trivy",
             "datasourceTemplate": "github-releases"
         },
         {
             "description": "Track vhs version in mise.toml",
             "customType": "regex",
-            "fileMatch": ["(^|/)mise\\.toml$"],
+            "managerFilePatterns": [
+                "/(^|/)mise\\.toml$/"
+            ],
             "matchStrings": [
                 "(?:^|\\n)vhs\\s*=\\s*\"(?<currentValue>[^\"]+)\""
             ],
@@ -88,23 +112,33 @@
         {
             "description": "Track yamllint version in mise.toml",
             "customType": "regex",
-            "fileMatch": ["(^|/)mise\\.toml$"],
-            "matchStrings": ["yamllint\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+            "managerFilePatterns": [
+                "/(^|/)mise\\.toml$/"
+            ],
+            "matchStrings": [
+                "yamllint\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+            ],
             "depNameTemplate": "yamllint",
             "datasourceTemplate": "pypi"
         },
         {
             "description": "Track mise minimum version requirement",
             "customType": "regex",
-            "fileMatch": ["(^|/)mise\\.toml$"],
-            "matchStrings": ["min_version\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+            "managerFilePatterns": [
+                "/(^|/)mise\\.toml$/"
+            ],
+            "matchStrings": [
+                "min_version\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+            ],
             "depNameTemplate": "jdx/mise",
             "datasourceTemplate": "github-releases"
         },
         {
             "description": "Track GitHub CLI version in devcontainer github-cli feature",
             "customType": "regex",
-            "fileMatch": ["(^|/)devcontainer\\.json$"],
+            "managerFilePatterns": [
+                "/(^|/)devcontainer\\.json$/"
+            ],
             "matchStrings": [
                 "\"ghcr\\.io/devcontainers/features/github-cli:[^\"]+\":\\s*\\{[^{}]*?\"version\":\\s*\"(?<currentValue>[^\"]+)\""
             ],
@@ -114,7 +148,9 @@
         {
             "description": "Track Docker version in devcontainer docker-outside-of-docker feature",
             "customType": "regex",
-            "fileMatch": ["(^|/)devcontainer\\.json$"],
+            "managerFilePatterns": [
+                "/(^|/)devcontainer\\.json$/"
+            ],
             "matchStrings": [
                 "\"ghcr\\.io/devcontainers/features/docker-outside-of-docker:[^\"]+\":\\s*\\{[^{}]*?\"version\":\\s*\"(?<currentValue>[^\"]+)\""
             ],
@@ -124,7 +160,9 @@
         {
             "description": "Track actionlint version in devcontainer actionlint feature",
             "customType": "regex",
-            "fileMatch": ["(^|/)devcontainer\\.json$"],
+            "managerFilePatterns": [
+                "/(^|/)devcontainer\\.json$/"
+            ],
             "matchStrings": [
                 "\"ghcr\\.io/devcontainers-extra/features/actionlint:[^\"]+\":\\s*\\{[^{}]*?\"version\":\\s*\"(?<currentValue>[^\"]+)\""
             ],
@@ -134,8 +172,12 @@
         {
             "description": "Track reviewdog CLI version in action.yml",
             "customType": "regex",
-            "fileMatch": ["(^|/)action\\.ya?ml$"],
-            "matchStrings": ["reviewdog_version:\\s*'(?<currentValue>[^']+)'"],
+            "managerFilePatterns": [
+                "/(^|/)action\\.ya?ml$/"
+            ],
+            "matchStrings": [
+                "reviewdog_version:\\s*'(?<currentValue>[^']+)'"
+            ],
             "depNameTemplate": "reviewdog/reviewdog",
             "datasourceTemplate": "github-releases"
         }
