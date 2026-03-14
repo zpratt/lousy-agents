@@ -1,6 +1,12 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "extends": ["config:recommended"],
+    "extends": [
+        "config:recommended",
+        "helpers:pinGitHubActionDigestsToSemver",
+        "security:openssf-scorecard"
+    ],
+    "automerge": true,
+    "platformAutomerge": true,
     "semanticCommitType": "fix",
     "semanticCommitScope": "deps",
     "pinDigests": true,
