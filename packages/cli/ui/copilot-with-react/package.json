@@ -17,8 +17,8 @@
         "@mui/material": "^7.3.6",
         "@mui/material-nextjs": "^7.3.6",
         "next": "15.5.9",
-        "react": "19.1.0",
-        "react-dom": "19.1.0"
+        "react": "19.2.4",
+        "react-dom": "19.2.4"
     },
     "devDependencies": {
         "@biomejs/biome": "2.4.2",
@@ -26,8 +26,8 @@
         "@testing-library/jest-dom": "6.9.1",
         "@testing-library/react": "16.3.0",
         "@types/node": "^20",
-        "@types/react": "^19",
-        "@types/react-dom": "^19",
+        "@types/react": "19.2.14",
+        "@types/react-dom": "19.2.3",
         "@vitejs/plugin-react": "5.1.2",
         "@vitest/ui": "4.0.15",
         "eslint": "^9",
