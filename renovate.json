@@ -23,57 +23,13 @@
     ],
     "customManagers": [
         {
-            "description": "Track actionlint version in mise.toml",
-            "customType": "regex",
-            "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
-            "matchStrings": ["actionlint\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
-            "depNameTemplate": "rhysd/actionlint",
-            "datasourceTemplate": "github-releases"
-        },
-        {
-            "description": "Track jq version in mise.toml",
+            "description": "Track jq version in mise.toml (needs extractVersionTemplate because tags use jq-x.y.z format)",
             "customType": "regex",
             "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
             "matchStrings": ["(?:^|\\n)jq\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
             "depNameTemplate": "jqlang/jq",
             "datasourceTemplate": "github-releases",
             "extractVersionTemplate": "^jq-(?<version>.*)$"
-        },
-        {
-            "description": "Track markdownlint-cli2 version in mise.toml",
-            "customType": "regex",
-            "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
-            "matchStrings": [
-                "markdownlint-cli2\\s*=\\s*\"(?<currentValue>[^\"]+)\""
-            ],
-            "depNameTemplate": "markdownlint-cli2",
-            "datasourceTemplate": "npm"
-        },
-        {
-            "description": "Track check-jsonschema version in mise.toml",
-            "customType": "regex",
-            "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
-            "matchStrings": [
-                "\"pipx:check-jsonschema\"\\s*=\\s*\"(?<currentValue>[^\"]+)\""
-            ],
-            "depNameTemplate": "check-jsonschema",
-            "datasourceTemplate": "pypi"
-        },
-        {
-            "description": "Track shellcheck version in mise.toml",
-            "customType": "regex",
-            "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
-            "matchStrings": ["shellcheck\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
-            "depNameTemplate": "koalaman/shellcheck",
-            "datasourceTemplate": "github-releases"
-        },
-        {
-            "description": "Track trivy version in mise.toml",
-            "customType": "regex",
-            "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
-            "matchStrings": ["trivy\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
-            "depNameTemplate": "aquasecurity/trivy",
-            "datasourceTemplate": "github-releases"
         },
         {
             "description": "Track vhs version in mise.toml",
@@ -84,14 +40,6 @@
             ],
             "depNameTemplate": "charmbracelet/vhs",
             "datasourceTemplate": "github-releases"
-        },
-        {
-            "description": "Track yamllint version in mise.toml",
-            "customType": "regex",
-            "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
-            "matchStrings": ["yamllint\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
-            "depNameTemplate": "yamllint",
-            "datasourceTemplate": "pypi"
         },
         {
             "description": "Track mise minimum version requirement",
