@@ -44,7 +44,7 @@ jobs:
 
       - name: Cache npm dependencies
         # v5.0.3
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306
+        uses: actions/cache@565629816435f6c0b50676926c9b05c254113c0c
         with:
           path: ~/.npm
           key: ${{ runner.os }}-npm-${{ hashFiles('**/package-lock.json') }}
