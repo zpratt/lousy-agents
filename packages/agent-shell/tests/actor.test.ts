@@ -100,6 +100,42 @@ describe("Actor detection", () => {
             // Assert
             expect(result).toBe("copilot");
         });
+
+        it("returns copilot when COPILOT_CLI is set", () => {
+            // Arrange
+            const env = { COPILOT_CLI: "1" };
+
+            // Act
+            const result = detectActor(env);
+
+            // Assert
+            expect(result).toBe("copilot");
+        });
+
+        it("returns copilot when COPILOT_CLI_BINARY_VERSION is set", () => {
+            // Arrange
+            const env = { COPILOT_CLI_BINARY_VERSION: "1.0.4" };
+
+            // Act
+            const result = detectActor(env);
+
+            // Assert
+            expect(result).toBe("copilot");
+        });
+
+        it("returns copilot when both COPILOT_CLI and COPILOT_CLI_BINARY_VERSION are set", () => {
+            // Arrange
+            const env = {
+                COPILOT_CLI: "1",
+                COPILOT_CLI_BINARY_VERSION: "1.0.4",
+            };
+
+            // Act
+            const result = detectActor(env);
+
+            // Assert
+            expect(result).toBe("copilot");
+        });
     });
 
     describe("given no indicators", () => {
