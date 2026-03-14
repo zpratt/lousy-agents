@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RulesetRule } from "@lousy-agents/core/entities/copilot-setup.js";
 import Chance from "chance";
-import { consola } from "consola";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parse as parseYaml } from "yaml";
 import { copilotSetupCommand } from "./copilot-setup.js";
@@ -92,7 +91,7 @@ describe("Copilot Setup command", () => {
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -113,7 +112,7 @@ describe("Copilot Setup command", () => {
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -136,7 +135,7 @@ describe("Copilot Setup command", () => {
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -163,7 +162,7 @@ describe("Copilot Setup command", () => {
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -191,7 +190,7 @@ describe("Copilot Setup command", () => {
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -237,7 +236,7 @@ jobs:
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -280,7 +279,7 @@ jobs:
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -323,7 +322,7 @@ jobs:
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -364,7 +363,7 @@ jobs:
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -393,7 +392,7 @@ jobs:
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -422,7 +421,7 @@ jobs:
                 // Act
                 await copilotSetupCommand.run({
                     rawArgs: [],
-                    args: { _: [] },
+                    args: { _: [], "dry-run": false },
                     cmd: copilotSetupCommand,
                     data: {
                         targetDir: emptyDir,
@@ -455,7 +454,7 @@ jobs:
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -493,7 +492,7 @@ jobs:
             // Act & Assert - should complete without prompting
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -522,7 +521,7 @@ jobs:
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -560,7 +559,7 @@ jobs:
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -604,7 +603,7 @@ jobs:
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -641,7 +640,7 @@ jobs:
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -670,7 +669,7 @@ jobs:
             // Act & Assert - should complete without throwing
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -703,7 +702,7 @@ jobs:
             // Act & Assert - should complete without throwing
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -730,7 +729,7 @@ jobs:
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -758,7 +757,7 @@ jobs:
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -772,7 +771,6 @@ jobs:
             expect(writeNpmrc).toHaveBeenCalledWith(
                 testDir,
                 expect.stringContaining("script-shell=agent-shell"),
-                false,
             );
         });
 
@@ -787,7 +785,7 @@ jobs:
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -811,7 +809,7 @@ jobs:
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -844,7 +842,7 @@ jobs:
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -873,7 +871,7 @@ jobs:
             // Act
             await copilotSetupCommand.run({
                 rawArgs: [],
-                args: { _: [] },
+                args: { _: [], "dry-run": false },
                 cmd: copilotSetupCommand,
                 data: {
                     targetDir: testDir,
@@ -887,7 +885,6 @@ jobs:
             expect(writeNpmrc).toHaveBeenCalledWith(
                 testDir,
                 expect.stringContaining("script-shell=agent-shell"),
-                false,
             );
         });
     });
@@ -979,38 +976,11 @@ jobs:
                 },
             });
 
-            // Assert - writeNpmrc is called but with dryRun=true
+            // Assert - writeNpmrc is called with agent-shell content
             expect(writeNpmrc).toHaveBeenCalledWith(
                 testDir,
                 expect.stringContaining("script-shell=agent-shell"),
-                true,
             );
-        });
-
-        it("should log intended changes instead of making them", async () => {
-            // Arrange
-            await writeFile(join(testDir, ".nvmrc"), "20.0.0");
-            const consolaInfoSpy = vi.spyOn(consola, "info");
-
-            // Act
-            await copilotSetupCommand.run({
-                rawArgs: [],
-                args: { _: [], "dry-run": true },
-                cmd: copilotSetupCommand,
-                data: {
-                    targetDir: testDir,
-                    rulesetGateway: createMockRulesetGateway(),
-                },
-            });
-
-            // Assert - verify dry-run mode is indicated in output
-            const logOutput = consolaInfoSpy.mock.calls
-                .flat()
-                .join(" ")
-                .toLowerCase();
-            expect(logOutput).toContain("dry-run");
-
-            consolaInfoSpy.mockRestore();
         });
 
         it("should not create GitHub rulesets when prompting for ruleset creation", async () => {

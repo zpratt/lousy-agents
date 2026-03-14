@@ -3,7 +3,7 @@
  */
 
 import { readFile, writeFile } from "node:fs/promises";
-import { consola } from "consola";
+import { type ConsolaInstance, consola } from "consola";
 import {
     assertFileSizeWithinLimit,
     fileExists,
@@ -25,19 +25,19 @@ export interface NpmrcGateway {
     /**
      * Writes content to the `.npmrc` file in the target directory.
      * Creates the file if it does not exist.
-     * @param dryRun If true, logs the operation instead of writing the file
      */
-    writeNpmrc(
-        targetDir: string,
-        content: string,
-        dryRun?: boolean,
-    ): Promise<void>;
+    writeNpmrc(targetDir: string, content: string): Promise<void>;
 }
 
 /**
  * File system implementation of the NpmrcGateway.
  */
 export class FileSystemNpmrcGateway implements NpmrcGateway {
+    constructor(
+        private readonly logger: ConsolaInstance,
+        private readonly dryRun: boolean = false,
+    ) {}
+
     async readNpmrc(targetDir: string): Promise<string | null> {
         const npmrcPath = await resolveSafePath(targetDir, ".npmrc");
 
@@ -54,15 +54,13 @@ export class FileSystemNpmrcGateway implements NpmrcGateway {
         return readFile(npmrcPath, "utf-8");
     }
 
-    async writeNpmrc(
-        targetDir: string,
-        content: string,
-        dryRun = false,
-    ): Promise<void> {
+    async writeNpmrc(targetDir: string, content: string): Promise<void> {
         const npmrcPath = await resolveSafePath(targetDir, ".npmrc");
 
-        if (dryRun) {
-            consola.info(`[DRY-RUN] Would write to: ${npmrcPath}\n${content}`);
+        if (this.dryRun) {
+            this.logger.info(
+                `[DRY-RUN] Would write to: ${npmrcPath}\n${content}`,
+            );
             return;
         }
 
@@ -73,6 +71,9 @@ export class FileSystemNpmrcGateway implements NpmrcGateway {
 /**
  * Creates and returns the default NpmrcGateway.
  */
-export function createNpmrcGateway(): NpmrcGateway {
-    return new FileSystemNpmrcGateway();
+export function createNpmrcGateway(
+    logger: ConsolaInstance = consola,
+    dryRun = false,
+): NpmrcGateway {
+    return new FileSystemNpmrcGateway(logger, dryRun);
 }

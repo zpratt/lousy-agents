@@ -18,7 +18,6 @@ export const AGENT_SHELL_NPMRC_ENTRY = "script-shell=agent-shell";
 export interface AddAgentShellInput {
     targetDir: string;
     packageManager: PackageManagerFile;
-    dryRun?: boolean;
 }
 
 /**
@@ -68,11 +67,7 @@ export async function addAgentShell(
         updatedContent = newEntry;
     }
 
-    await npmrcGateway.writeNpmrc(
-        input.targetDir,
-        updatedContent,
-        input.dryRun,
-    );
+    await npmrcGateway.writeNpmrc(input.targetDir, updatedContent);
 
     return { wasAdded: true, alreadyConfigured: false };
 }

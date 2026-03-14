@@ -3,7 +3,7 @@
  */
 
 import { readdir, readFile, writeFile } from "node:fs/promises";
-import { consola } from "consola";
+import { type ConsolaInstance, consola } from "consola";
 import { parse as parseYaml } from "yaml";
 import type { SetupStepCandidate } from "../entities/copilot-setup.js";
 import {
@@ -30,6 +30,11 @@ const MAX_WORKFLOW_FILE_BYTES = 1024 * 1024;
 
 export class FileSystemWorkflowGateway implements WorkflowGateway {
     private config: CopilotSetupConfig | null = null;
+
+    constructor(
+        private readonly logger: ConsolaInstance,
+        private readonly dryRun: boolean = false,
+    ) {}
 
     private async getConfig(): Promise<CopilotSetupConfig> {
         if (!this.config) {
@@ -137,7 +142,6 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
     async writeCopilotSetupWorkflow(
         targetDir: string,
         content: string,
-        dryRun = false,
     ): Promise<void> {
         const existingPath = await this.findCopilotSetupWorkflowPath(targetDir);
         const workflowPath =
@@ -147,8 +151,8 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
                 ".github/workflows/copilot-setup-steps.yml",
             ));
 
-        if (dryRun) {
-            consola.info(
+        if (this.dryRun) {
+            this.logger.info(
                 `[DRY-RUN] Would write to: ${workflowPath}\n${content}`,
             );
             return;
@@ -158,6 +162,9 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
     }
 }
 
-export function createWorkflowGateway(): WorkflowGateway {
-    return new FileSystemWorkflowGateway();
+export function createWorkflowGateway(
+    logger: ConsolaInstance = consola,
+    dryRun = false,
+): WorkflowGateway {
+    return new FileSystemWorkflowGateway(logger, dryRun);
 }

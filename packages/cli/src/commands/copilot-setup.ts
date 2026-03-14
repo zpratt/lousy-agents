@@ -74,7 +74,7 @@ export const copilotSetupCommand = defineCommand({
         }
 
         const environmentGateway = createEnvironmentGateway();
-        const workflowGateway = createWorkflowGateway();
+        const workflowGateway = createWorkflowGateway(consola, dryRun);
         const copilotSetupConfig = await loadCopilotSetupConfig();
         const rulesetGateway: CopilotSetupRulesetGateway =
             (context.data
@@ -82,7 +82,7 @@ export const copilotSetupCommand = defineCommand({
             (await createGitHubRulesetGateway());
         const npmrcGateway: NpmrcGateway =
             (context.data?.npmrcGateway as NpmrcGateway | null) ??
-            createNpmrcGateway();
+            createNpmrcGateway(consola, dryRun);
         const prompt =
             (context.data?.prompt as PromptFunction | null) ??
             ((message, options) =>
@@ -204,7 +204,6 @@ export const copilotSetupCommand = defineCommand({
             await workflowGateway.writeCopilotSetupWorkflow(
                 targetDir,
                 updatedContent,
-                dryRun,
             );
 
             if (dryRun) {
@@ -218,14 +217,14 @@ export const copilotSetupCommand = defineCommand({
             }
         } else {
             // Create new workflow
-            consola.info("Creating new copilot-setup-steps.yml workflow...");
+            if (!dryRun) {
+                consola.info(
+                    "Creating new copilot-setup-steps.yml workflow...",
+                );
+            }
 
             const content = await generateWorkflowContent(allCandidates);
-            await workflowGateway.writeCopilotSetupWorkflow(
-                targetDir,
-                content,
-                dryRun,
-            );
+            await workflowGateway.writeCopilotSetupWorkflow(targetDir, content);
 
             const stepCount = allCandidates.length + 1; // +1 for checkout
             if (dryRun) {
@@ -358,7 +357,6 @@ async function runPostWorkflowSteps(
         targetDir,
         prompt,
         environment,
-        dryRun,
     );
 }
 
@@ -367,7 +365,6 @@ async function checkAndPromptAgentShell(
     targetDir: string,
     prompt: PromptFunction,
     environment: DetectedEnvironment,
-    dryRun: boolean,
 ): Promise<void> {
     const npmPackageManager = environment.packageManagers.find(
         (pm) => pm.type === "npm",
@@ -388,7 +385,7 @@ async function checkAndPromptAgentShell(
     }
 
     const result = await addAgentShell(
-        { targetDir, packageManager: npmPackageManager, dryRun },
+        { targetDir, packageManager: npmPackageManager },
         npmrcGateway,
     );
 

@@ -51,7 +51,6 @@ describe("addAgentShell", () => {
             expect(writeNpmrc).toHaveBeenCalledWith(
                 targetDir,
                 `${AGENT_SHELL_NPMRC_ENTRY}\n`,
-                undefined,
             );
         });
     });
@@ -81,7 +80,6 @@ describe("addAgentShell", () => {
             expect(writeNpmrc).toHaveBeenCalledWith(
                 targetDir,
                 `${existingContent}${AGENT_SHELL_NPMRC_ENTRY}\n`,
-                undefined,
             );
         });
     });
@@ -189,7 +187,6 @@ describe("addAgentShell", () => {
             expect(writeNpmrc).toHaveBeenCalledWith(
                 targetDir,
                 `${existingContent}${AGENT_SHELL_NPMRC_ENTRY}\n`,
-                undefined,
             );
         });
     });
@@ -251,7 +248,6 @@ describe("addAgentShell", () => {
             expect(writeNpmrc).toHaveBeenCalledWith(
                 targetDir,
                 `${existingContent}\n${AGENT_SHELL_NPMRC_ENTRY}\n`,
-                undefined,
             );
         });
     });
