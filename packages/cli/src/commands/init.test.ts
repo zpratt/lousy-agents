@@ -1,8 +1,9 @@
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { parse as parseYaml } from "yaml";
 import { initCommand, SUPPORTED_PROJECT_TYPES } from "./init.js";
 
 const chance = new Chance();
@@ -663,6 +664,115 @@ describe("Init command", () => {
             // Assert
             await expect(access(vitestConfigFile)).resolves.toBeUndefined();
             await expect(access(vitestSetupFile)).resolves.toBeUndefined();
+        });
+
+        it.each([
+            "webapp",
+            "api",
+            "cli",
+        ] as const)("should create .github/workflows/copilot-setup-steps.yml for %s project type", async (projectType) => {
+            // Arrange
+            const projectName = chance.word().toLowerCase();
+            mockPrompt = createMockPrompt(projectType, projectName);
+            const copilotSetupFile = join(
+                testDir,
+                ".github",
+                "workflows",
+                "copilot-setup-steps.yml",
+            );
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            await expect(access(copilotSetupFile)).resolves.toBeUndefined();
+            const content = await readFile(copilotSetupFile, "utf-8");
+            expect(content).toContain("name: Copilot Setup Steps");
+            expect(content).toContain("Checkout code");
+
+            // Parse YAML and verify workflow structure
+            const workflow = parseYaml(content);
+            expect(workflow).toBeDefined();
+            expect(workflow).not.toBeNull();
+            expect(typeof workflow).toBe("object");
+            expect(workflow).toHaveProperty("jobs.copilot-setup-steps");
+
+            // Verify least-privilege permissions
+            const workflowObj = workflow as Record<string, unknown>;
+            expect(typeof workflowObj.jobs).toBe("object");
+            expect(workflowObj.jobs).not.toBeNull();
+            const jobs = workflowObj.jobs as Record<string, unknown>;
+            expect(typeof jobs["copilot-setup-steps"]).toBe("object");
+            expect(jobs["copilot-setup-steps"]).not.toBeNull();
+            const job = jobs["copilot-setup-steps"] as Record<string, unknown>;
+            expect(job.permissions).toEqual({
+                contents: "read",
+            });
+
+            // Verify steps include checkout and node setup
+            expect(Array.isArray(job.steps)).toBe(true);
+            const steps = job.steps as Array<Record<string, unknown>>;
+            expect(steps).toHaveLength(3); // checkout + setup-node + npm ci
+
+            // Verify checkout action is SHA-pinned
+            expect(steps[0].name).toBe("Checkout code");
+            expect(steps[0].uses).toMatch(/^actions\/checkout@[0-9a-f]{40}$/);
+
+            // Verify Node.js setup is included and SHA-pinned
+            expect(steps[1].name).toBe("Setup node");
+            expect(steps[1].uses).toMatch(/^actions\/setup-node@[0-9a-f]{40}$/);
+            expect(steps[1].with).toHaveProperty("node-version-file", ".nvmrc");
+
+            // Verify npm install step
+            expect(steps[2].name).toBe("Install Node.js dependencies");
+            expect(steps[2].run).toBe("npm ci");
+        });
+
+        it("should preserve existing copilot-setup-steps.yml workflow file", async () => {
+            // Arrange
+            const projectType = "webapp";
+            const projectName = chance.word().toLowerCase();
+            mockPrompt = createMockPrompt(projectType, projectName);
+
+            const workflowDir = join(testDir, ".github", "workflows");
+            const copilotSetupFile = join(
+                workflowDir,
+                "copilot-setup-steps.yml",
+            );
+
+            // Create a pre-existing workflow with custom content
+            const existingWorkflowContent = `---
+name: Custom Copilot Setup
+on: [push]
+jobs:
+  custom-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Custom step
+        run: echo "This is a custom workflow"
+`;
+            await mkdir(workflowDir, { recursive: true });
+            await writeFile(copilotSetupFile, existingWorkflowContent, "utf-8");
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert - verify the pre-existing workflow was NOT overwritten
+            const actualContent = await readFile(copilotSetupFile, "utf-8");
+            expect(actualContent).toBe(existingWorkflowContent);
+            expect(actualContent).toContain("Custom Copilot Setup");
+            expect(actualContent).toContain("custom-job");
+            expect(actualContent).not.toContain("Copilot Setup Steps"); // Not the generated one
         });
 
         it.each([
@@ -1434,6 +1544,60 @@ describe("Init command", () => {
             const packageJsonFile = join(testDir, "package.json");
             const content = await readFile(packageJsonFile, "utf-8");
             expect(content).toContain(`"name": "${projectName}"`);
+        });
+    });
+
+    describe("when targetDir contains path traversal sequences", () => {
+        let testDir: string;
+        let mockPrompt: ReturnType<typeof vi.fn>;
+
+        beforeEach(async () => {
+            testDir = await setupTestDir();
+        });
+
+        afterEach(async () => {
+            await rm(testDir, { recursive: true, force: true });
+        });
+
+        it("should normalize a targetDir with redundant .. segments and scaffold at the resolved path", async () => {
+            // Arrange — nested/../nested is equivalent to testDir/nested
+            const nestedDir = join(testDir, "nested");
+            await mkdir(nestedDir, { recursive: true });
+            const traversalDir = join(testDir, "nested", "..", "nested");
+            const projectName = chance.word().toLowerCase();
+            mockPrompt = createMockPrompt("webapp", projectName);
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: traversalDir },
+            });
+
+            // Assert — files are scaffolded at the RESOLVED path, not an unexpected location
+            const resolvedTarget = resolve(traversalDir);
+            const packageJsonFile = join(resolvedTarget, "package.json");
+            await expect(access(packageJsonFile)).resolves.toBeUndefined();
+        });
+
+        it("should throw when targetDir resolves to a path that cannot be written (file where directory expected)", async () => {
+            // Arrange — a path through a regular file is impossible to scaffold
+            const filePath = join(testDir, "i-am-a-file");
+            await writeFile(filePath, "content", "utf-8");
+            const impossibleDir = join(filePath, "cannot", "create", "here");
+            const projectName = chance.word().toLowerCase();
+            mockPrompt = createMockPrompt("webapp", projectName);
+
+            // Act & Assert — scaffolding must throw, not silently succeed or corrupt
+            await expect(
+                initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: impossibleDir },
+                }),
+            ).rejects.toThrow();
         });
     });
 });

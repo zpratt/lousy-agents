@@ -63,6 +63,8 @@ export interface GenerateWorkflowOptions {
     usePlaceholders?: boolean;
     /** Resolved versions to use for SHA-pinning */
     resolvedVersions?: ResolvedVersion[];
+    /** Opt-in to include id-token: write permission (OIDC). Defaults to false (least-privilege). */
+    includeIdTokenPermission?: boolean;
 }
 
 /**
@@ -263,10 +265,14 @@ export async function generateWorkflowContent(
     const job = new NormalJob("copilot-setup-steps", {
         "runs-on": "ubuntu-latest",
         "timeout-minutes": 30,
-        permissions: {
-            "id-token": "write",
-            contents: "read",
-        },
+        permissions: options?.includeIdTokenPermission
+            ? {
+                  "id-token": "write",
+                  contents: "read",
+              }
+            : {
+                  contents: "read",
+              },
     }).addSteps(steps);
 
     const workflow = new Workflow("copilot-setup-steps.yml", {

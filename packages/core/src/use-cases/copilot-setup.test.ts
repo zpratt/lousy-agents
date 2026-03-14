@@ -748,7 +748,7 @@ describe("Workflow Generator", () => {
             expect(parsed.on.pull_request).toBeDefined();
         });
 
-        it("should include proper permissions", async () => {
+        it("should default to least-privilege permissions (contents: read only)", async () => {
             // Arrange
             const candidates: SetupStepCandidate[] = [];
 
@@ -758,8 +758,29 @@ describe("Workflow Generator", () => {
 
             // Assert
             const job = parsed.jobs["copilot-setup-steps"];
-            expect(job.permissions["id-token"]).toBe("write");
-            expect(job.permissions.contents).toBe("read");
+            expect(job.permissions).toEqual({ contents: "read" });
+        });
+
+        it("should include id-token: write when includeIdTokenPermission is true", async () => {
+            // Arrange
+            const candidates: SetupStepCandidate[] = [];
+
+            // Act
+            const content = await generateWorkflowContent(
+                candidates,
+                undefined,
+                {
+                    includeIdTokenPermission: true,
+                },
+            );
+            const parsed = parseYaml(content);
+
+            // Assert
+            const job = parsed.jobs["copilot-setup-steps"];
+            expect(job.permissions).toEqual({
+                "id-token": "write",
+                contents: "read",
+            });
         });
 
         it("should preserve config in with block", async () => {
