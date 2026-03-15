@@ -57,7 +57,11 @@ function createMockRulesetGateway(
 
 interface MockNpmrcGateway {
     readNpmrc(targetDir: string): Promise<string | null>;
-    writeNpmrc(targetDir: string, content: string): Promise<void>;
+    writeNpmrc(
+        targetDir: string,
+        content: string,
+        dryRun?: boolean,
+    ): Promise<void>;
 }
 
 function createMockNpmrcGateway(
@@ -976,11 +980,8 @@ jobs:
                 },
             });
 
-            // Assert - writeNpmrc is called with agent-shell content
-            expect(writeNpmrc).toHaveBeenCalledWith(
-                testDir,
-                expect.stringContaining("script-shell=agent-shell"),
-            );
+            // Assert - writeNpmrc should NOT be called in dry-run mode
+            expect(writeNpmrc).not.toHaveBeenCalled();
         });
 
         it("should not create GitHub rulesets when prompting for ruleset creation", async () => {

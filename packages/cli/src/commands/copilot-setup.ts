@@ -205,37 +205,36 @@ export const copilotSetupCommand = defineCommand({
                 missingCandidates,
             );
 
-            await workflowGateway.writeCopilotSetupWorkflow(
-                targetDir,
-                updatedContent,
-            );
-
             if (dryRun) {
                 consola.info(
                     `[DRY-RUN] Would update copilot-setup-steps.yml with ${missingCandidates.length} new step(s)`,
                 );
             } else {
+                await workflowGateway.writeCopilotSetupWorkflow(
+                    targetDir,
+                    updatedContent,
+                );
                 consola.success(
                     `Updated copilot-setup-steps.yml with ${missingCandidates.length} new step(s)`,
                 );
             }
         } else {
             // Create new workflow
-            if (!dryRun) {
-                consola.info(
-                    "Creating new copilot-setup-steps.yml workflow...",
-                );
-            }
-
             const content = await generateWorkflowContent(allCandidates);
-            await workflowGateway.writeCopilotSetupWorkflow(targetDir, content);
-
             const stepCount = allCandidates.length + 1; // +1 for checkout
+
             if (dryRun) {
                 consola.info(
                     `[DRY-RUN] Would create copilot-setup-steps.yml with ${stepCount} step(s)`,
                 );
             } else {
+                consola.info(
+                    "Creating new copilot-setup-steps.yml workflow...",
+                );
+                await workflowGateway.writeCopilotSetupWorkflow(
+                    targetDir,
+                    content,
+                );
                 consola.success(
                     `Created copilot-setup-steps.yml with ${stepCount} step(s)`,
                 );
@@ -361,6 +360,7 @@ async function runPostWorkflowSteps(
         targetDir,
         prompt,
         environment,
+        dryRun,
     );
 }
 
@@ -369,12 +369,23 @@ async function checkAndPromptAgentShell(
     targetDir: string,
     prompt: PromptFunction,
     environment: DetectedEnvironment,
+    dryRun: boolean,
 ): Promise<void> {
     const npmPackageManager = environment.packageManagers.find(
         (pm) => pm.type === "npm",
     );
 
     if (!npmPackageManager) {
+        return;
+    }
+
+    // Check if already configured before prompting
+    const existingContent = await npmrcGateway.readNpmrc(targetDir);
+    if (
+        existingContent !== null &&
+        /^\s*script-shell\s*=/m.test(existingContent)
+    ) {
+        consola.success("agent-shell is already configured in .npmrc.");
         return;
     }
 
@@ -388,17 +399,21 @@ async function checkAndPromptAgentShell(
         return;
     }
 
+    if (dryRun) {
+        consola.info(
+            "[DRY-RUN] Would add agent-shell to .npmrc. Run `npm install -g @lousy-agents/agent-shell` to complete setup.",
+        );
+        return;
+    }
+
     const result = await addAgentShell(
         { targetDir, packageManager: npmPackageManager },
         npmrcGateway,
     );
 
-    if (result.alreadyConfigured) {
-        consola.success("agent-shell is already configured in .npmrc.");
-        return;
+    if (result.wasAdded) {
+        consola.success(
+            "Added agent-shell to .npmrc. Run `npm install -g @lousy-agents/agent-shell` to complete setup.",
+        );
     }
-
-    consola.success(
-        "Added agent-shell to .npmrc. Run `npm install -g @lousy-agents/agent-shell` to complete setup.",
-    );
 }
