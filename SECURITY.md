@@ -13,4 +13,4 @@ I only provide security patches for the most recently released major version lin
 
 ## Reporting a Vulnerability
 
-Please report security vulnerabilities via the GitHub Security Advisories "Report a vulnerability" feature for this repository, or by contacting me directly in a private channel. Do not file public GitHub issues for security vulnerabilities.
+Please report security vulnerabilities via the GitHub Security Advisories "Report a vulnerability" feature for this repository. Do not file public GitHub issues for security vulnerabilities.
