@@ -17,7 +17,9 @@
     "packageRules": [
         {
             "description": "Pin all npm dependencies to exact versions",
-            "matchManagers": ["npm"],
+            "matchManagers": [
+                "npm"
+            ],
             "rangeStrategy": "pin"
         }
     ],
@@ -25,8 +27,12 @@
         {
             "description": "Track jq version in mise.toml (needs extractVersionTemplate because tags use jq-x.y.z format)",
             "customType": "regex",
-            "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
-            "matchStrings": ["(?:^|\\n)jq\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+            "managerFilePatterns": [
+                "/(^|/)mise\\.toml$/"
+            ],
+            "matchStrings": [
+                "(?:^|\\n)jq\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+            ],
             "depNameTemplate": "jqlang/jq",
             "datasourceTemplate": "github-releases",
             "extractVersionTemplate": "^jq-(?<version>.*)$"
@@ -34,7 +40,9 @@
         {
             "description": "Track vhs version in mise.toml",
             "customType": "regex",
-            "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
+            "managerFilePatterns": [
+                "/(^|/)mise\\.toml$/"
+            ],
             "matchStrings": [
                 "(?:^|\\n)vhs\\s*=\\s*\"(?<currentValue>[^\"]+)\""
             ],
@@ -44,15 +52,34 @@
         {
             "description": "Track mise minimum version requirement",
             "customType": "regex",
-            "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
-            "matchStrings": ["min_version\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
+            "managerFilePatterns": [
+                "/(^|/)mise\\.toml$/"
+            ],
+            "matchStrings": [
+                "min_version\\s*=\\s*\"(?<currentValue>[^\"]+)\""
+            ],
             "depNameTemplate": "jdx/mise",
             "datasourceTemplate": "github-releases"
         },
         {
+            "description": "Track Node.js version in devcontainer node feature",
+            "customType": "regex",
+            "managerFilePatterns": [
+                "/(^|/)devcontainer\\.json$/"
+            ],
+            "matchStrings": [
+                "\"ghcr\\.io/devcontainers/features/node:[^\"]+\":\\s*\\{[^{}]*?\"version\":\\s*\"(?<currentValue>[^\"]+)\""
+            ],
+            "depNameTemplate": "nodejs/node",
+            "datasourceTemplate": "github-tags",
+            "extractVersionTemplate": "^v(?<version>.*)$"
+        },
+        {
             "description": "Track GitHub CLI version in devcontainer github-cli feature",
             "customType": "regex",
-            "managerFilePatterns": ["/(^|/)devcontainer\\.json$/"],
+            "managerFilePatterns": [
+                "/(^|/)devcontainer\\.json$/"
+            ],
             "matchStrings": [
                 "\"ghcr\\.io/devcontainers/features/github-cli:[^\"]+\":\\s*\\{[^{}]*?\"version\":\\s*\"(?<currentValue>[^\"]+)\""
             ],
@@ -60,30 +87,26 @@
             "datasourceTemplate": "github-releases"
         },
         {
-            "description": "Track Docker version in devcontainer docker-outside-of-docker feature",
+            "description": "Track Claude Code version in devcontainer claude-code feature",
             "customType": "regex",
-            "managerFilePatterns": ["/(^|/)devcontainer\\.json$/"],
-            "matchStrings": [
-                "\"ghcr\\.io/devcontainers/features/docker-outside-of-docker:[^\"]+\":\\s*\\{[^{}]*?\"version\":\\s*\"(?<currentValue>[^\"]+)\""
+            "managerFilePatterns": [
+                "/(^|/)devcontainer\\.json$/"
             ],
-            "depNameTemplate": "docker/cli",
-            "datasourceTemplate": "github-releases"
-        },
-        {
-            "description": "Track actionlint version in devcontainer actionlint feature",
-            "customType": "regex",
-            "managerFilePatterns": ["/(^|/)devcontainer\\.json$/"],
             "matchStrings": [
-                "\"ghcr\\.io/devcontainers-extra/features/actionlint:[^\"]+\":\\s*\\{[^{}]*?\"version\":\\s*\"(?<currentValue>[^\"]+)\""
+                "\"ghcr\\.io/anthropics/devcontainer-features/claude-code:[^\"]+\":\\s*\\{[^{}]*?\"version\":\\s*\"(?<currentValue>[^\"]+)\""
             ],
-            "depNameTemplate": "rhysd/actionlint",
+            "depNameTemplate": "anthropics/claude-code",
             "datasourceTemplate": "github-releases"
         },
         {
             "description": "Track reviewdog CLI version in action.yml",
             "customType": "regex",
-            "managerFilePatterns": ["/(^|/)action\\.ya?ml$/"],
-            "matchStrings": ["reviewdog_version:\\s*'(?<currentValue>[^']+)'"],
+            "managerFilePatterns": [
+                "/(^|/)action\\.ya?ml$/"
+            ],
+            "matchStrings": [
+                "reviewdog_version:\\s*'(?<currentValue>[^']+)'"
+            ],
             "depNameTemplate": "reviewdog/reviewdog",
             "datasourceTemplate": "github-releases"
         }

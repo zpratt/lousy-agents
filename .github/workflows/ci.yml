@@ -9,7 +9,7 @@ name: CI
     branches:
       - main
 
-permissions: {}
+permissions: read-all
 
 jobs:
   # Separate job from ci because it requires checks: write for reviewdog annotations.
@@ -81,6 +81,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Check package signatures
+        run: npm audit signatures
 
       - name: Run linting
         run: mise run lint
