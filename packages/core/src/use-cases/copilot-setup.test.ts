@@ -660,6 +660,32 @@ describe("Workflow Generator", () => {
                 "actions/setup-python",
             );
         });
+
+        it("should not collapse run-step candidates with different package manager types", () => {
+            // Arrange
+            const candidates: SetupStepCandidate[] = [
+                {
+                    action: "run:npm",
+                    source: "version-file",
+                    name: "Install Node.js dependencies",
+                    run: "npm ci",
+                },
+                {
+                    action: "run:pip",
+                    source: "version-file",
+                    name: "Install Python dependencies",
+                    run: "pip install -r requirements.txt",
+                },
+            ];
+
+            // Act
+            const result = mergeCandidates(candidates);
+
+            // Assert
+            expect(result).toHaveLength(2);
+            expect(result.map((c) => c.action)).toContain("run:npm");
+            expect(result.map((c) => c.action)).toContain("run:pip");
+        });
     });
 
     describe("generateWorkflowContent", () => {
@@ -748,7 +774,7 @@ describe("Workflow Generator", () => {
             expect(parsed.on.pull_request).toBeDefined();
         });
 
-        it("should include proper permissions", async () => {
+        it("should default to least-privilege permissions (contents: read only)", async () => {
             // Arrange
             const candidates: SetupStepCandidate[] = [];
 
@@ -758,8 +784,29 @@ describe("Workflow Generator", () => {
 
             // Assert
             const job = parsed.jobs["copilot-setup-steps"];
-            expect(job.permissions["id-token"]).toBe("write");
-            expect(job.permissions.contents).toBe("read");
+            expect(job.permissions).toEqual({ contents: "read" });
+        });
+
+        it("should include id-token: write when includeIdTokenPermission is true", async () => {
+            // Arrange
+            const candidates: SetupStepCandidate[] = [];
+
+            // Act
+            const content = await generateWorkflowContent(
+                candidates,
+                undefined,
+                {
+                    includeIdTokenPermission: true,
+                },
+            );
+            const parsed = parseYaml(content);
+
+            // Assert
+            const job = parsed.jobs["copilot-setup-steps"];
+            expect(job.permissions).toEqual({
+                "id-token": "write",
+                contents: "read",
+            });
         });
 
         it("should preserve config in with block", async () => {
@@ -794,7 +841,7 @@ describe("Workflow Generator", () => {
                     source: "version-file",
                 },
                 {
-                    action: "",
+                    action: "run:npm",
                     run: "npm ci",
                     name: "Install Node.js dependencies",
                     source: "version-file",

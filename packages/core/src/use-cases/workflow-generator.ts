@@ -63,6 +63,8 @@ export interface GenerateWorkflowOptions {
     usePlaceholders?: boolean;
     /** Resolved versions to use for SHA-pinning */
     resolvedVersions?: ResolvedVersion[];
+    /** Opt-in to include id-token: write permission (OIDC). Defaults to false (least-privilege). */
+    includeIdTokenPermission?: boolean;
 }
 
 /**
@@ -141,8 +143,8 @@ function buildStepFromCandidate(
     options?: CandidateToStepOptions,
 ): Step {
     // Handle run steps (install commands)
-    // Run steps have a 'run' field and no action (or empty action string)
-    if (candidate.run && !candidate.action) {
+    // Run steps have a 'run' field and use the 'run:' action prefix (e.g., 'run:npm')
+    if (candidate.run && candidate.action.startsWith("run:")) {
         const stepProps = {
             name: candidate.name || "Run command",
             run: candidate.run,
@@ -263,10 +265,14 @@ export async function generateWorkflowContent(
     const job = new NormalJob("copilot-setup-steps", {
         "runs-on": "ubuntu-latest",
         "timeout-minutes": 30,
-        permissions: {
-            "id-token": "write",
-            contents: "read",
-        },
+        permissions: options?.includeIdTokenPermission
+            ? {
+                  "id-token": "write",
+                  contents: "read",
+              }
+            : {
+                  contents: "read",
+              },
     }).addSteps(steps);
 
     const workflow = new Workflow("copilot-setup-steps.yml", {

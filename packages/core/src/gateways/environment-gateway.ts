@@ -4,6 +4,7 @@
  */
 
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import type {
     DetectedEnvironment,
     PackageManagerFile,
@@ -49,9 +50,13 @@ async function readVersionFileContent(filePath: string): Promise<string> {
 export class FileSystemEnvironmentGateway implements EnvironmentGateway {
     private config: CopilotSetupConfig | null = null;
 
+    constructor(private readonly cwd?: string) {}
+
     private async getConfig(): Promise<CopilotSetupConfig> {
         if (!this.config) {
-            this.config = await loadCopilotSetupConfig();
+            this.config = await loadCopilotSetupConfig(
+                this.cwd !== undefined ? resolve(this.cwd) : undefined,
+            );
         }
         return this.config;
     }
@@ -274,7 +279,8 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
 
 /**
  * Creates and returns the default environment gateway.
+ * @param cwd Optional working directory for config loading (defaults to process.cwd())
  */
-export function createEnvironmentGateway(): EnvironmentGateway {
-    return new FileSystemEnvironmentGateway();
+export function createEnvironmentGateway(cwd?: string): EnvironmentGateway {
+    return new FileSystemEnvironmentGateway(cwd);
 }

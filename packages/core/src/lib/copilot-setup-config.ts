@@ -155,10 +155,14 @@ export function validateCopilotSetupConfig(
 /**
  * Loads the copilot-setup configuration using c12.
  * Falls back to defaults if no configuration is found.
+ * @param cwd Optional working directory to load config from (defaults to process.cwd())
  */
-export async function loadCopilotSetupConfig(): Promise<CopilotSetupConfig> {
+export async function loadCopilotSetupConfig(
+    cwd?: string,
+): Promise<CopilotSetupConfig> {
     const { config } = await loadConfig<CopilotSetupConfig>({
         name: "lousy-agents",
+        cwd,
         defaults: DEFAULT_COPILOT_SETUP_CONFIG,
         packageJson: "copilotSetup",
     });
