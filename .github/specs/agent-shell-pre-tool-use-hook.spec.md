@@ -27,13 +27,15 @@ so that I can **enforce repository-level constraints on what agents are allowed 
 
 #### Acceptance Criteria
 
+> **⚠️ ASSUMPTION**: The field names below (`tool_name`, `tool_input.command`) are based on the anticipated Copilot agent hook contract. These must be verified against official documentation before implementation begins (see Task 0). If Task 0 reveals a different contract, these criteria shall be updated accordingly.
+
 - When agent-shell is invoked in `policy-check` mode, the system shall read the tool input from stdin as JSON.
 - When the tool input contains a command that matches a deny rule in the agent-shell policy, the system shall write a JSON response to stdout rejecting the tool use with a descriptive message.
 - When the tool input contains a command that does not match any deny rule, the system shall write a JSON response to stdout approving the tool use.
 - If the policy configuration file does not exist, then the system shall approve all tool uses by default.
 - If the policy configuration file contains invalid JSON, then the system shall write a deny JSON response to stdout with an error description and write the error details to stderr.
-- If the stdin JSON is valid but does not contain the expected `tool_input.command` field, then the system shall write an allow JSON response to stdout (fail-open for unrecognized input shapes).
-- If the `tool_name` in the stdin JSON is not `run_terminal_command`, then the system shall write an allow JSON response to stdout (policy evaluation applies only to terminal commands).
+- If the stdin JSON contains `tool_name` of `run_terminal_command` but does not contain the expected `tool_input.command` field, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with unevaluable input).
+- If the `tool_name` in the stdin JSON is not `run_terminal_command`, then the system shall write an allow JSON response to stdout (fail-open for non-terminal tools or unrecognized input shapes).
 - If the `tool_input.command` field is not a string, then the system shall write a deny JSON response to stdout with a descriptive error message.
 - While agent-shell is running in `policy-check` mode, the system shall emit a telemetry event recording the policy decision (allowed or denied) for auditability.
 - If telemetry emission fails (e.g., events directory not writable), then the system shall log the error to stderr but shall not change the allow/deny decision or prevent writing the decision JSON to stdout.
@@ -277,7 +279,7 @@ exec agent-shell policy-check
 
 ### Task 0: Verify Copilot preToolUse hook contract
 
-- [ ] **Objective**: Verify the exact JSON stdin/stdout contract for GitHub Copilot coding agent `preToolUse` hooks before implementing schemas or tests.
+**Objective**: Verify the exact JSON stdin/stdout contract for GitHub Copilot coding agent `preToolUse` hooks before implementing schemas or tests.
 
 **Context**: The spec's Data Model section documents an assumed JSON shape for hook input and output. This assumption must be verified against official Copilot documentation to avoid implementing the wrong interface. This task is a prerequisite for all other tasks.
 
@@ -303,7 +305,7 @@ exec agent-shell policy-check
 
 ### Task 1: Define policy configuration schema and types
 
-- [ ] **Objective**: Define the Zod schema for the policy configuration file and the policy decision telemetry event type.
+**Objective**: Define the Zod schema for the policy configuration file and the policy decision telemetry event type.
 
 **Context**: This task establishes the data types that all other tasks depend on. The policy config schema validates `.agent-shell/policy.json` and the event schema extends the existing telemetry types.
 
@@ -330,7 +332,7 @@ exec agent-shell policy-check
 
 ### Task 2: Implement policy loading and evaluation
 
-- [ ] **Objective**: Create the `policy.ts` module that loads the policy configuration file and evaluates a command against the deny rules.
+**Objective**: Create the `policy.ts` module that loads the policy configuration file and evaluates a command against the deny rules.
 
 **Depends on**: Task 1
 
@@ -369,7 +371,7 @@ exec agent-shell policy-check
 
 ### Task 3: Add `policy-check` mode to CLI argument parser
 
-- [ ] **Objective**: Extend `resolveMode` to recognize the `policy-check` subcommand and return a new mode variant.
+**Objective**: Extend `resolveMode` to recognize the `policy-check` subcommand and return a new mode variant.
 
 **Depends on**: Task 1
 
@@ -398,7 +400,7 @@ exec agent-shell policy-check
 
 ### Task 4: Add policy decision telemetry emission
 
-- [ ] **Objective**: Add an `emitPolicyDecisionEvent` function to the telemetry module that records policy evaluation outcomes.
+**Objective**: Add an `emitPolicyDecisionEvent` function to the telemetry module that records policy evaluation outcomes.
 
 **Depends on**: Task 1
 
@@ -428,7 +430,7 @@ exec agent-shell policy-check
 
 ### Task 5: Implement `policy-check` mode in main entry point
 
-- [ ] **Objective**: Wire the `policy-check` mode into the main `index.ts` switch to read stdin, evaluate the policy, emit telemetry, and write the decision to stdout.
+**Objective**: Wire the `policy-check` mode into the main `index.ts` switch to read stdin, evaluate the policy, emit telemetry, and write the decision to stdout.
 
 **Depends on**: Task 2, Task 3, Task 4
 
@@ -444,14 +446,14 @@ exec agent-shell policy-check
 - When the command is denied by policy, the system shall write `{"decision":"deny","message":"..."}` to stdout and exit with code 0
 - When the command is allowed, the system shall write `{"decision":"allow"}` to stdout and exit with code 0
 - When stdin contains invalid JSON, the system shall write a deny response to stdout and write an error to stderr
-- When stdin JSON is valid but missing `tool_input.command`, the system shall write an allow response to stdout (fail-open)
+- When stdin JSON contains `tool_name` of `run_terminal_command` but is missing `tool_input.command`, the system shall write a deny response to stdout with a descriptive error (fail-closed for terminal commands with unevaluable input)
 - When `tool_name` is not `run_terminal_command`, the system shall write an allow response to stdout
 - When `tool_input.command` is not a string, the system shall write a deny response to stdout with a descriptive error
 - When the policy file contains invalid JSON, the system shall write a deny response to stdout and write the error to stderr
 - If telemetry emission fails (e.g., events directory not writable), the system shall log the error to stderr but shall still write the decision JSON to stdout and exit with code 0
 - If any unexpected runtime error occurs (stdin read failure, policy load crash, unhandled exception), the system shall catch the error, write a deny JSON response to stdout with a generic error message, write error details to stderr, and exit with code 0
 - The system shall emit a policy decision telemetry event for every evaluation (best-effort; failures do not block the decision)
-- The system shall exit with code 0 in all cases (the hook contract uses the JSON response, not the exit code, for the decision)
+- The system shall exit with code 0 in all cases (⚠️ ASSUMPTION per Task 0: the hook contract uses the JSON response, not the exit code, for the decision; if Task 0 reveals otherwise, this requirement shall be updated)
 
 **Verification**:
 - [ ] `npm test -- packages/agent-shell/tests/integration/policy-check.test.ts` passes
@@ -468,7 +470,7 @@ exec agent-shell policy-check
 
 ### Task 6: Integrate policy decision events into log query and display
 
-- [ ] **Objective**: Update the log query and format modules to include policy decision events in output.
+**Objective**: Update the log query and format modules to include policy decision events in output.
 
 **Depends on**: Task 4
 
@@ -501,7 +503,7 @@ exec agent-shell policy-check
 
 ### Task 7: Update README and USAGE documentation
 
-- [ ] **Objective**: Document the `policy-check` mode, policy configuration format, and hook setup in the agent-shell README.
+**Objective**: Document the `policy-check` mode, policy configuration format, and hook setup in the agent-shell README.
 
 **Depends on**: Task 5
 
