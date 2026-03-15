@@ -73,9 +73,13 @@ export const copilotSetupCommand = defineCommand({
             consola.info("[DRY-RUN MODE] No files will be modified");
         }
 
-        const environmentGateway = createEnvironmentGateway();
-        const workflowGateway = createWorkflowGateway(consola, dryRun);
-        const copilotSetupConfig = await loadCopilotSetupConfig();
+        const environmentGateway = createEnvironmentGateway(targetDir);
+        const workflowGateway = createWorkflowGateway(
+            consola,
+            dryRun,
+            targetDir,
+        );
+        const copilotSetupConfig = await loadCopilotSetupConfig(targetDir);
         const rulesetGateway: CopilotSetupRulesetGateway =
             (context.data
                 ?.rulesetGateway as CopilotSetupRulesetGateway | null) ??

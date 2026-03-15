@@ -3,6 +3,7 @@
  */
 
 import { readdir, readFile, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { type ConsolaInstance, consola } from "consola";
 import { parse as parseYaml } from "yaml";
 import type { SetupStepCandidate } from "../entities/copilot-setup.js";
@@ -34,11 +35,14 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
     constructor(
         private readonly logger: ConsolaInstance,
         private readonly dryRun: boolean = false,
+        private readonly cwd?: string,
     ) {}
 
     private async getConfig(): Promise<CopilotSetupConfig> {
         if (!this.config) {
-            this.config = await loadCopilotSetupConfig();
+            this.config = await loadCopilotSetupConfig(
+                this.cwd !== undefined ? resolve(this.cwd) : undefined,
+            );
         }
         return this.config;
     }
@@ -165,6 +169,7 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
 export function createWorkflowGateway(
     logger: ConsolaInstance = consola,
     dryRun = false,
+    cwd?: string,
 ): WorkflowGateway {
-    return new FileSystemWorkflowGateway(logger, dryRun);
+    return new FileSystemWorkflowGateway(logger, dryRun, cwd);
 }

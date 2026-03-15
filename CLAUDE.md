@@ -191,3 +191,31 @@ Do not signal task completion, propose a commit, or open a PR until these condit
 - Modify tests to pass without fixing root cause
 - Add dependencies without explicit version numbers
 - Use type assertions (`as Type`) on external/API data
+
+## Environment Setup
+
+This project uses [mise](https://mise.jdx.dev/) for runtime management.
+
+### Detected Runtimes
+
+- **node**: .nvmrc (v24.14.0)
+
+### Package Managers
+
+- **npm**: package.json with package-lock.json
+
+### SessionStart Hooks
+
+The following commands run automatically when a Claude Code session starts:
+
+```bash
+mise install
+```
+
+*Install runtimes from mise.toml*
+
+```bash
+npm ci
+```
+
+*Install Node.js dependencies with package-lock.json*
