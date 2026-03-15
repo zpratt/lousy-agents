@@ -784,7 +784,7 @@ jobs:
             expect(actualContent).toBe(existingWorkflowContent);
             expect(actualContent).toContain("Custom Copilot Setup");
             expect(actualContent).toContain("custom-job");
-            expect(actualContent).not.toContain("Copilot Setup Steps"); // Not the generated one
+            expect(actualContent).not.toContain("Copilot Setup Steps");
         });
 
         it.each([

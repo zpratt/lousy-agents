@@ -660,6 +660,32 @@ describe("Workflow Generator", () => {
                 "actions/setup-python",
             );
         });
+
+        it("should not collapse run-step candidates with different package manager types", () => {
+            // Arrange
+            const candidates: SetupStepCandidate[] = [
+                {
+                    action: "run:npm",
+                    source: "version-file",
+                    name: "Install Node.js dependencies",
+                    run: "npm ci",
+                },
+                {
+                    action: "run:pip",
+                    source: "version-file",
+                    name: "Install Python dependencies",
+                    run: "pip install -r requirements.txt",
+                },
+            ];
+
+            // Act
+            const result = mergeCandidates(candidates);
+
+            // Assert
+            expect(result).toHaveLength(2);
+            expect(result.map((c) => c.action)).toContain("run:npm");
+            expect(result.map((c) => c.action)).toContain("run:pip");
+        });
     });
 
     describe("generateWorkflowContent", () => {
@@ -815,7 +841,7 @@ describe("Workflow Generator", () => {
                     source: "version-file",
                 },
                 {
-                    action: "",
+                    action: "run:npm",
                     run: "npm ci",
                     name: "Install Node.js dependencies",
                     source: "version-file",

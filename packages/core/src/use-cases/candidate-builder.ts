@@ -151,7 +151,7 @@ function buildInstallCandidatesFromPackageManagers(
         const stepName = getInstallStepName(pm.type);
 
         candidates.push({
-            action: "",
+            action: `run:${pm.type}`,
             source: "version-file",
             name: stepName,
             run: pmConfig.installCommand,

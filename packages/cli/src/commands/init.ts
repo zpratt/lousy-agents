@@ -133,9 +133,10 @@ function isSupportedProjectType(
 
 /**
  * SHA-pinned action versions for new projects.
- * Actions shared with the repository's copilot-setup-steps.yml (checkout, setup-node,
- * setup-python) use the same SHAs for consistency. Additional entries (setup-java,
- * setup-go, mise-action) are defaults for newly scaffolded projects that may need them.
+ * Actions shared with the repository's copilot-setup-steps.yml (checkout, setup-python,
+ * mise-action) use the same SHAs for consistency. Additional entries (setup-node,
+ * setup-java, setup-go) are defaults for newly scaffolded projects that may need them
+ * and are aligned with the scaffold template workflows.
  */
 const INIT_RESOLVED_VERSIONS: ResolvedVersion[] = [
     {
@@ -145,8 +146,8 @@ const INIT_RESOLVED_VERSIONS: ResolvedVersion[] = [
     },
     {
         action: "actions/setup-node",
-        sha: "49933ea5288caeca8642d1e84afbd3f7d6820020",
-        versionTag: "v6.1.0",
+        sha: "53b83947a5a98c8d113130e565377fae1a50d02f",
+        versionTag: "v6.3.0",
     },
     {
         action: "actions/setup-python",
@@ -171,7 +172,7 @@ const INIT_RESOLVED_VERSIONS: ResolvedVersion[] = [
 ];
 
 async function generateCopilotSetupWorkflow(targetDir: string): Promise<void> {
-    // Normalize path to prevent traversal (e.g., ../../malicious) before
+    // Normalize path (e.g., resolve ../../relative segments) before
     // passing to config loading or gateway construction.
     const resolvedTargetDir = resolve(targetDir);
 
@@ -256,7 +257,6 @@ export const initCommand = defineCommand({
         const templateContext: TemplateContext = { projectName };
         await scaffoldProject(projectType, targetDir, templateContext);
 
-        // Generate copilot-setup-steps.yml workflow based on detected environment
         await generateCopilotSetupWorkflow(targetDir);
 
         consola.info(

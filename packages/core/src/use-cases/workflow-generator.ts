@@ -143,8 +143,8 @@ function buildStepFromCandidate(
     options?: CandidateToStepOptions,
 ): Step {
     // Handle run steps (install commands)
-    // Run steps have a 'run' field and no action (or empty action string)
-    if (candidate.run && !candidate.action) {
+    // Run steps have a 'run' field and use the 'run:' action prefix (e.g., 'run:npm')
+    if (candidate.run && candidate.action.startsWith("run:")) {
         const stepProps = {
             name: candidate.name || "Run command",
             run: candidate.run,
