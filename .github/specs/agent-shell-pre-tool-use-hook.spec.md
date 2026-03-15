@@ -36,7 +36,9 @@ so that I can **enforce repository-level constraints on what agents are allowed 
 - If the `tool_name` in the stdin JSON is not `run_terminal_command`, then the system shall write an allow JSON response to stdout (policy evaluation applies only to terminal commands).
 - If the `tool_input.command` field is not a string, then the system shall write a deny JSON response to stdout with a descriptive error message.
 - While agent-shell is running in `policy-check` mode, the system shall emit a telemetry event recording the policy decision (allowed or denied) for auditability.
+- If telemetry emission fails (e.g., events directory not writable), then the system shall log the error to stderr but shall not change the allow/deny decision or prevent writing the decision JSON to stdout.
 - The system shall support exact-match and glob-pattern deny rules for command strings.
+- Glob pattern matching shall use the following semantics: `*` matches any sequence of characters (including spaces and empty strings), matching is case-sensitive, and patterns are anchored to the full command string (the entire command must match the pattern, not a substring).
 
 #### Notes
 
@@ -121,6 +123,8 @@ so that I can **understand what the agent attempted and verify that policies are
 
 #### preToolUse Hook Input (stdin)
 
+> **⚠️ ASSUMPTION**: The following JSON shape is based on anticipated Copilot agent hook contract. This must be verified against official documentation before implementation begins (see Task 0).
+
 ```json
 {
   "tool_name": "run_terminal_command",
@@ -131,6 +135,8 @@ so that I can **understand what the agent attempted and verify that policies are
 ```
 
 #### preToolUse Hook Output (stdout)
+
+> **⚠️ ASSUMPTION**: The following response format is based on anticipated Copilot agent hook contract. This must be verified against official documentation before implementation begins (see Task 0).
 
 Approved:
 
@@ -269,6 +275,32 @@ exec agent-shell policy-check
 > Each task should be completable in a single coding agent session.
 > Tasks are sequenced by dependency. Complete in order unless noted.
 
+### Task 0: Verify Copilot preToolUse hook contract
+
+- [ ] **Objective**: Verify the exact JSON stdin/stdout contract for GitHub Copilot coding agent `preToolUse` hooks before implementing schemas or tests.
+
+**Context**: The spec's Data Model section documents an assumed JSON shape for hook input and output. This assumption must be verified against official Copilot documentation to avoid implementing the wrong interface. This task is a prerequisite for all other tasks.
+
+**Affected files**:
+- `.github/specs/agent-shell-pre-tool-use-hook.spec.md` (updated — confirm or correct the assumed JSON shapes)
+
+**Requirements**:
+- Locate and review official GitHub Copilot documentation for `preToolUse` hook contracts
+- Verify the stdin JSON shape (`tool_name`, `tool_input.command`, etc.) matches the documented contract
+- Verify the stdout JSON shape (`decision`, `message`, etc.) matches the documented contract
+- If the documented contract differs from assumptions, update the Data Model section and all dependent tasks
+- If documentation is not yet publicly available, document this as a known risk and proceed with assumptions
+
+**Verification**:
+- [ ] Data Model section accurately reflects the documented (or best-known) hook contract
+- [ ] Assumptions are explicitly labeled in the spec if verification is incomplete
+
+**Done when**:
+- [ ] Hook contract is verified against documentation, OR
+- [ ] Spec explicitly documents that assumptions are unverified and why
+
+---
+
 ### Task 1: Define policy configuration schema and types
 
 - [ ] **Objective**: Define the Zod schema for the policy configuration file and the policy decision telemetry event type.
@@ -316,7 +348,9 @@ exec agent-shell policy-check
 - When a command matches a deny rule with a `*` wildcard, `evaluatePolicy` shall return `{ decision: "deny", matchedRule: "<rule>" }`
 - When a command does not match any deny rule, `evaluatePolicy` shall return `{ decision: "allow" }`
 - When the policy is `null` (no file), `evaluatePolicy` shall return `{ decision: "allow" }`
-- All file paths shall be validated using `isWithinProjectRoot` to prevent path traversal
+- Before reading the policy file, the system shall resolve the path using `realpath` to follow any symlinks, then validate the resolved path is within the project root using `isWithinProjectRoot`
+- If the policy file path (after `realpath` resolution) is outside the project root, `loadPolicy` shall throw a descriptive error and refuse to read the file
+- If the policy file is a symlink pointing outside the project root, `loadPolicy` shall throw a descriptive error (symlink escape prevention)
 
 **Verification**:
 - [ ] `npm test -- packages/agent-shell/tests/policy.test.ts` passes
@@ -328,6 +362,7 @@ exec agent-shell policy-check
 - [ ] Missing policy file is handled gracefully
 - [ ] Invalid policy file produces a descriptive error
 - [ ] Path traversal is prevented
+- [ ] Symlink escapes are prevented (realpath + isWithinProjectRoot)
 - [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
@@ -413,7 +448,9 @@ exec agent-shell policy-check
 - When `tool_name` is not `run_terminal_command`, the system shall write an allow response to stdout
 - When `tool_input.command` is not a string, the system shall write a deny response to stdout with a descriptive error
 - When the policy file contains invalid JSON, the system shall write a deny response to stdout and write the error to stderr
-- The system shall emit a policy decision telemetry event for every evaluation
+- If telemetry emission fails (e.g., events directory not writable), the system shall log the error to stderr but shall still write the decision JSON to stdout and exit with code 0
+- If any unexpected runtime error occurs (stdin read failure, policy load crash, unhandled exception), the system shall catch the error, write a deny JSON response to stdout with a generic error message, write error details to stderr, and exit with code 0
+- The system shall emit a policy decision telemetry event for every evaluation (best-effort; failures do not block the decision)
 - The system shall exit with code 0 in all cases (the hook contract uses the JSON response, not the exit code, for the decision)
 
 **Verification**:
