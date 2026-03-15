@@ -3,7 +3,7 @@
     "image": "mcr.microsoft.com/devcontainers/javascript-node:24-bookworm",
     "features": {
         "ghcr.io/devcontainers/features/github-cli:1": {
-            "version": "2.83.2"
+            "version": "2.88.1"
         },
         "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
             "packages": "yamllint, shellcheck",
