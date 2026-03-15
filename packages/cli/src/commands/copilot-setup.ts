@@ -60,8 +60,8 @@ export const copilotSetupCommand = defineCommand({
                 ? context.data.targetDir
                 : process.cwd();
 
-        const environmentGateway = createEnvironmentGateway();
-        const workflowGateway = createWorkflowGateway();
+        const environmentGateway = createEnvironmentGateway(targetDir);
+        const workflowGateway = createWorkflowGateway(targetDir);
         const copilotSetupConfig = await loadCopilotSetupConfig(targetDir);
         const rulesetGateway: CopilotSetupRulesetGateway =
             (context.data

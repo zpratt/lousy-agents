@@ -6,5 +6,6 @@
         "context7@claude-plugins-official": true,
         "claude-md-management@claude-plugins-official": true,
         "claude-code-setup@claude-plugins-official": true
-    }
+    },
+    "SessionStart": ["mise install", "npm ci"]
 }

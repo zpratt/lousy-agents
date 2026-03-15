@@ -133,7 +133,9 @@ function isSupportedProjectType(
 
 /**
  * SHA-pinned action versions for new projects.
- * These versions match the repository's own copilot-setup-steps.yml workflow.
+ * Actions shared with the repository's copilot-setup-steps.yml (checkout, setup-node,
+ * setup-python) use the same SHAs for consistency. Additional entries (setup-java,
+ * setup-go, mise-action) are defaults for newly scaffolded projects that may need them.
  */
 const INIT_RESOLVED_VERSIONS: ResolvedVersion[] = [
     {

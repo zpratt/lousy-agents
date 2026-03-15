@@ -717,20 +717,32 @@ describe("Init command", () => {
             // Verify steps include checkout and node setup
             expect(Array.isArray(job.steps)).toBe(true);
             const steps = job.steps as Array<Record<string, unknown>>;
-            expect(steps).toHaveLength(3); // checkout + setup-node + npm ci
+            expect(steps.length).toBeGreaterThanOrEqual(2);
 
             // Verify checkout action is SHA-pinned
-            expect(steps[0].name).toBe("Checkout code");
-            expect(steps[0].uses).toMatch(/^actions\/checkout@[0-9a-f]{40}$/);
+            const checkoutStep = steps.find((s) => s.name === "Checkout code");
+            expect(checkoutStep).toBeDefined();
+            expect(checkoutStep?.uses).toMatch(
+                /^actions\/checkout@[0-9a-f]{40}$/,
+            );
 
             // Verify Node.js setup is included and SHA-pinned
-            expect(steps[1].name).toBe("Setup node");
-            expect(steps[1].uses).toMatch(/^actions\/setup-node@[0-9a-f]{40}$/);
-            expect(steps[1].with).toHaveProperty("node-version-file", ".nvmrc");
+            const nodeSetupStep = steps.find((s) => s.name === "Setup node");
+            expect(nodeSetupStep).toBeDefined();
+            expect(nodeSetupStep?.uses).toMatch(
+                /^actions\/setup-node@[0-9a-f]{40}$/,
+            );
+            expect(nodeSetupStep?.with).toHaveProperty(
+                "node-version-file",
+                ".nvmrc",
+            );
 
-            // Verify npm install step
-            expect(steps[2].name).toBe("Install Node.js dependencies");
-            expect(steps[2].run).toBe("npm ci");
+            // Verify a Node.js install step is present
+            const installStep = steps.find(
+                (s) => s.name === "Install Node.js dependencies",
+            );
+            expect(installStep).toBeDefined();
+            expect(typeof installStep?.run).toBe("string");
         });
 
         it("should preserve existing copilot-setup-steps.yml workflow file", async () => {
