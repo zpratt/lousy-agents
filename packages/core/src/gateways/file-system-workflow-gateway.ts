@@ -4,7 +4,6 @@
 
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { type ConsolaInstance, consola } from "consola";
 import { parse as parseYaml } from "yaml";
 import type { SetupStepCandidate } from "../entities/copilot-setup.js";
 import {
@@ -32,11 +31,7 @@ const MAX_WORKFLOW_FILE_BYTES = 1024 * 1024;
 export class FileSystemWorkflowGateway implements WorkflowGateway {
     private config: CopilotSetupConfig | null = null;
 
-    constructor(
-        private readonly _logger: ConsolaInstance,
-        private readonly _dryRun: boolean = false,
-        private readonly cwd?: string,
-    ) {}
+    constructor(private readonly cwd?: string) {}
 
     private async getConfig(): Promise<CopilotSetupConfig> {
         if (!this.config) {
@@ -159,10 +154,6 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
     }
 }
 
-export function createWorkflowGateway(
-    logger: ConsolaInstance = consola,
-    dryRun = false,
-    cwd?: string,
-): WorkflowGateway {
-    return new FileSystemWorkflowGateway(logger, dryRun, cwd);
+export function createWorkflowGateway(cwd?: string): WorkflowGateway {
+    return new FileSystemWorkflowGateway(cwd);
 }

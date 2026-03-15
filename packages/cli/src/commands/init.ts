@@ -176,11 +176,7 @@ async function generateCopilotSetupWorkflow(targetDir: string): Promise<void> {
     // passing to config loading or gateway construction.
     const resolvedTargetDir = resolve(targetDir);
 
-    const workflowGateway = createWorkflowGateway(
-        consola,
-        false,
-        resolvedTargetDir,
-    );
+    const workflowGateway = createWorkflowGateway(resolvedTargetDir);
     const environmentGateway = createEnvironmentGateway(resolvedTargetDir);
     const copilotSetupConfig = await loadCopilotSetupConfig(resolvedTargetDir);
 
