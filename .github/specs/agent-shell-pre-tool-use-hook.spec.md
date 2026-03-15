@@ -57,7 +57,7 @@ so that I can **have agent-shell enforce command policies before the agent execu
 
 - When the user creates a `.github/hooks/` directory with a properly configured hook referencing agent-shell, the system shall be invocable by the Copilot coding agent's hook mechanism.
 - The agent-shell `policy-check` mode shall be compatible with the Copilot coding agent's `preToolUse` hook contract (JSON stdin/stdout).
-- When agent-shell is referenced in the hook configuration, the system shall execute without requiring additional dependencies beyond the globally installed agent-shell binary and a POSIX-compatible shell (`/bin/sh`).
+- When agent-shell is referenced in the hook configuration, the system shall execute without requiring additional dependencies beyond the globally installed agent-shell binary and a POSIX-compatible shell (`sh`).
 
 #### Notes
 
