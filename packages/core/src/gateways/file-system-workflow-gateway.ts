@@ -33,8 +33,8 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
     private config: CopilotSetupConfig | null = null;
 
     constructor(
-        private readonly logger: ConsolaInstance,
-        private readonly dryRun: boolean = false,
+        private readonly _logger: ConsolaInstance,
+        private readonly _dryRun: boolean = false,
         private readonly cwd?: string,
     ) {}
 
@@ -154,13 +154,6 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
                 targetDir,
                 ".github/workflows/copilot-setup-steps.yml",
             ));
-
-        if (this.dryRun) {
-            this.logger.info(
-                `[DRY-RUN] Would write to: ${workflowPath}\n${content}`,
-            );
-            return;
-        }
 
         await writeFile(workflowPath, content, "utf-8");
     }

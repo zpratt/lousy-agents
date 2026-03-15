@@ -34,7 +34,7 @@ export interface NpmrcGateway {
  */
 export class FileSystemNpmrcGateway implements NpmrcGateway {
     constructor(
-        private readonly logger: ConsolaInstance,
+        private readonly logger: ConsolaInstance = consola,
         private readonly dryRun: boolean = false,
     ) {}
 

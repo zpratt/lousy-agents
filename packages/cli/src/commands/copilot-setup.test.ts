@@ -57,11 +57,7 @@ function createMockRulesetGateway(
 
 interface MockNpmrcGateway {
     readNpmrc(targetDir: string): Promise<string | null>;
-    writeNpmrc(
-        targetDir: string,
-        content: string,
-        dryRun?: boolean,
-    ): Promise<void>;
+    writeNpmrc(targetDir: string, content: string): Promise<void>;
 }
 
 function createMockNpmrcGateway(
