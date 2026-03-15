@@ -10,7 +10,10 @@ import {
 } from "@lousy-agents/core/gateways/index.js";
 import type { NpmrcGateway } from "@lousy-agents/core/gateways/npmrc-gateway.js";
 import { loadCopilotSetupConfig } from "@lousy-agents/core/lib/copilot-setup-config.js";
-import { addAgentShell } from "@lousy-agents/core/use-cases/add-agent-shell.js";
+import {
+    addAgentShell,
+    hasScriptShellEntry,
+} from "@lousy-agents/core/use-cases/add-agent-shell.js";
 import {
     buildCopilotReviewRulesetPayload,
     checkCopilotReviewRuleset,
@@ -377,10 +380,7 @@ async function checkAndPromptAgentShell(
 
     // Check if already configured before prompting
     const existingContent = await npmrcGateway.readNpmrc(targetDir);
-    if (
-        existingContent !== null &&
-        /^\s*script-shell\s*=/m.test(existingContent)
-    ) {
+    if (existingContent !== null && hasScriptShellEntry(existingContent)) {
         consola.success("agent-shell is already configured in .npmrc.");
         return;
     }
