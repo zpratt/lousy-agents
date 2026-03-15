@@ -3,6 +3,7 @@
  */
 
 import { readFile, writeFile } from "node:fs/promises";
+import { type ConsolaInstance, consola } from "consola";
 import {
     assertFileSizeWithinLimit,
     fileExists,
@@ -32,6 +33,11 @@ export interface NpmrcGateway {
  * File system implementation of the NpmrcGateway.
  */
 export class FileSystemNpmrcGateway implements NpmrcGateway {
+    constructor(
+        private readonly logger: ConsolaInstance = consola,
+        private readonly dryRun: boolean = false,
+    ) {}
+
     async readNpmrc(targetDir: string): Promise<string | null> {
         const npmrcPath = await resolveSafePath(targetDir, ".npmrc");
 
@@ -50,6 +56,14 @@ export class FileSystemNpmrcGateway implements NpmrcGateway {
 
     async writeNpmrc(targetDir: string, content: string): Promise<void> {
         const npmrcPath = await resolveSafePath(targetDir, ".npmrc");
+
+        if (this.dryRun) {
+            this.logger.info(
+                `[DRY-RUN] Would write to: ${npmrcPath}\n${content}`,
+            );
+            return;
+        }
+
         await writeFile(npmrcPath, content, "utf-8");
     }
 }
@@ -57,6 +71,9 @@ export class FileSystemNpmrcGateway implements NpmrcGateway {
 /**
  * Creates and returns the default NpmrcGateway.
  */
-export function createNpmrcGateway(): NpmrcGateway {
-    return new FileSystemNpmrcGateway();
+export function createNpmrcGateway(
+    logger: ConsolaInstance = consola,
+    dryRun = false,
+): NpmrcGateway {
+    return new FileSystemNpmrcGateway(logger, dryRun);
 }

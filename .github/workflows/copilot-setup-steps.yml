@@ -14,6 +14,9 @@ on:
     paths:
       - .github/workflows/copilot-setup-steps.yml
 
+# Restrict default permissions for all jobs (principle of least privilege)
+permissions: {}
+
 jobs:
   copilot-setup-steps:
     runs-on: ubuntu-latest
