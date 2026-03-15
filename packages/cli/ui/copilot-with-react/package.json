@@ -21,7 +21,7 @@
         "react-dom": "19.2.4"
     },
     "devDependencies": {
-        "@biomejs/biome": "2.4.2",
+        "@biomejs/biome": "2.4.7",
         "@eslint/eslintrc": "^3",
         "@testing-library/jest-dom": "6.9.1",
         "@testing-library/react": "16.3.2",

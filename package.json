@@ -41,7 +41,7 @@
         "lint:yaml": "yamllint ."
     },
     "devDependencies": {
-        "@biomejs/biome": "2.4.6",
+        "@biomejs/biome": "2.4.7",
         "@rspack/cli": "1.7.8",
         "@rspack/core": "1.7.8",
         "@types/chance": "1.1.7",
