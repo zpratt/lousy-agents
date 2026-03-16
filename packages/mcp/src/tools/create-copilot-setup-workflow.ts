@@ -179,34 +179,42 @@ async function createNewWorkflow(
 export const createCopilotSetupWorkflowHandler: CreateWorkflowHandler = async (
     args: CreateWorkflowArgs,
 ) => {
-    const dir = args.targetDir || process.cwd();
+    try {
+        const dir = args.targetDir || process.cwd();
 
-    if (!(await fileExists(dir))) {
-        return errorResponse(`Target directory does not exist: ${dir}`);
+        if (!(await fileExists(dir))) {
+            return errorResponse(`Target directory does not exist: ${dir}`);
+        }
+
+        const workflowGateway = createWorkflowGateway();
+        const workflowsDir = await resolveSafePath(dir, ".github/workflows");
+        const workflowsDirExists = await fileExists(workflowsDir);
+
+        const allCandidates = await gatherCandidates(dir, workflowsDirExists);
+
+        if (!workflowsDirExists) {
+            await mkdir(workflowsDir, { recursive: true });
+        }
+
+        const workflowPath =
+            await workflowGateway.getCopilotSetupWorkflowPath(dir);
+
+        const workflowExists =
+            await workflowGateway.copilotSetupWorkflowExists(dir);
+
+        if (workflowExists) {
+            return updateExistingWorkflow(
+                dir,
+                workflowPath,
+                allCandidates,
+                args,
+            );
+        }
+
+        return createNewWorkflow(dir, workflowPath, allCandidates, args);
+    } catch (error) {
+        const message =
+            error instanceof Error ? error.message : "Unknown error occurred";
+        return errorResponse(`Failed to create/update workflow: ${message}`);
     }
-
-    const workflowGateway = createWorkflowGateway();
-    const workflowsDir = await resolveSafePath(dir, ".github/workflows");
-    const workflowsDirExists = await fileExists(workflowsDir);
-
-    // Gather all candidates
-    const allCandidates = await gatherCandidates(dir, workflowsDirExists);
-
-    // Ensure workflows directory exists
-    if (!workflowsDirExists) {
-        await mkdir(workflowsDir, { recursive: true });
-    }
-
-    // Get the correct workflow path (supports both .yml and .yaml extensions)
-    const workflowPath = await workflowGateway.getCopilotSetupWorkflowPath(dir);
-
-    // Check if workflow exists and create/update accordingly
-    const workflowExists =
-        await workflowGateway.copilotSetupWorkflowExists(dir);
-
-    if (workflowExists) {
-        return updateExistingWorkflow(dir, workflowPath, allCandidates, args);
-    }
-
-    return createNewWorkflow(dir, workflowPath, allCandidates, args);
 };

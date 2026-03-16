@@ -34,91 +34,90 @@ import {
 export const createClaudeCodeWebSetupHandler: ToolHandler = async (
     args: ToolArgs,
 ) => {
-    const dir = args.targetDir || process.cwd();
+    try {
+        const dir = args.targetDir || process.cwd();
 
-    if (!(await fileExists(dir))) {
-        return errorResponse(`Target directory does not exist: ${dir}`);
+        if (!(await fileExists(dir))) {
+            return errorResponse(`Target directory does not exist: ${dir}`);
+        }
+
+        const environmentGateway = createEnvironmentGateway();
+        const claudeGateway = createClaudeFileGateway();
+
+        const environment = await environmentGateway.detectEnvironment(dir);
+        const copilotSetupConfig = await loadCopilotSetupConfig();
+
+        const hooks = await buildSessionStartHooks(
+            environment,
+            copilotSetupConfig,
+        );
+
+        const existingSettings = await claudeGateway.readSettings(dir);
+
+        const mergedSettings = mergeClaudeSettings(existingSettings, hooks);
+
+        const settingsChanged =
+            JSON.stringify(existingSettings, null, 2) !==
+            JSON.stringify(mergedSettings, null, 2);
+
+        const existingDocs = await claudeGateway.readDocumentation(dir);
+
+        const setupSection = generateEnvironmentSetupSection(
+            environment,
+            hooks,
+        );
+
+        const mergedDocs = mergeClaudeDocumentation(existingDocs, setupSection);
+
+        const normalizeDoc = (doc: string | null) =>
+            doc ? `${doc.trimEnd()}\n` : null;
+        const docsChanged =
+            normalizeDoc(existingDocs) !== normalizeDoc(mergedDocs);
+
+        let action: ClaudeSetupAction;
+        if (!settingsChanged && !docsChanged) {
+            action = "no_changes_needed";
+        } else if (!existingSettings && !existingDocs) {
+            action = "created";
+        } else {
+            action = "updated";
+        }
+
+        if (settingsChanged) {
+            await claudeGateway.writeSettings(dir, mergedSettings);
+        }
+
+        if (docsChanged) {
+            await claudeGateway.writeDocumentation(dir, mergedDocs);
+        }
+
+        const settingsPath = join(dir, ".claude", "settings.json");
+        const documentationPath = join(dir, "CLAUDE.md");
+
+        const result: ClaudeSetupResult = {
+            hooks,
+            environment,
+            settingsPath,
+            documentationPath,
+            action,
+            recommendations: buildRecommendations(environment),
+        };
+
+        const message = buildResultMessage(result);
+
+        return successResponse({
+            ...result,
+            message,
+            hooks: hooks.map((h) => ({
+                command: h.command,
+                description: h.description,
+            })),
+        });
+    } catch (error) {
+        const message =
+            error instanceof Error ? error.message : "Unknown error occurred";
+        return errorResponse(`Failed to create Claude Code setup: ${message}`);
     }
-
-    const environmentGateway = createEnvironmentGateway();
-    const claudeGateway = createClaudeFileGateway();
-
-    // Detect environment configuration
-    const environment = await environmentGateway.detectEnvironment(dir);
-    const copilotSetupConfig = await loadCopilotSetupConfig();
-
-    // Build SessionStart hooks from environment
-    const hooks = await buildSessionStartHooks(environment, copilotSetupConfig);
-
-    // Read existing settings
-    const existingSettings = await claudeGateway.readSettings(dir);
-
-    // Merge settings
-    const mergedSettings = mergeClaudeSettings(existingSettings, hooks);
-
-    // Check if settings changed (normalize JSON for comparison)
-    const settingsChanged =
-        JSON.stringify(existingSettings, null, 2) !==
-        JSON.stringify(mergedSettings, null, 2);
-
-    // Read existing documentation
-    const existingDocs = await claudeGateway.readDocumentation(dir);
-
-    // Generate environment setup section
-    const setupSection = generateEnvironmentSetupSection(environment, hooks);
-
-    // Merge documentation
-    const mergedDocs = mergeClaudeDocumentation(existingDocs, setupSection);
-
-    // Check if documentation changed (normalize for comparison - trim and ensure trailing newline)
-    const normalizeDoc = (doc: string | null) =>
-        doc ? `${doc.trimEnd()}\n` : null;
-    const docsChanged = normalizeDoc(existingDocs) !== normalizeDoc(mergedDocs);
-
-    // Determine action before writing
-    let action: ClaudeSetupAction;
-    if (!settingsChanged && !docsChanged) {
-        action = "no_changes_needed";
-    } else if (!existingSettings && !existingDocs) {
-        action = "created";
-    } else {
-        action = "updated";
-    }
-
-    // Only write if there are changes
-    if (settingsChanged) {
-        await claudeGateway.writeSettings(dir, mergedSettings);
-    }
-
-    if (docsChanged) {
-        await claudeGateway.writeDocumentation(dir, mergedDocs);
-    }
-
-    const settingsPath = join(dir, ".claude", "settings.json");
-    const documentationPath = join(dir, "CLAUDE.md");
-
-    // Build result
-    const result: ClaudeSetupResult = {
-        hooks,
-        environment,
-        settingsPath,
-        documentationPath,
-        action,
-        recommendations: buildRecommendations(environment),
-    };
-
-    // Format message
-    const message = buildResultMessage(result);
-
-    return successResponse({
-        ...result,
-        message,
-        // Make hooks serializable for JSON response
-        hooks: hooks.map((h) => ({
-            command: h.command,
-            description: h.description,
-        })),
-    });
 };
 
 /**

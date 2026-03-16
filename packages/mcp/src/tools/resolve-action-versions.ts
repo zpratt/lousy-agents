@@ -11,6 +11,7 @@ import {
     VERSION_RESOLUTION_INSTRUCTIONS,
 } from "@lousy-agents/core/use-cases/action-resolution.js";
 import {
+    errorResponse,
     type ResolveActionsArgs,
     type ResolveActionsHandler,
     successResponse,
@@ -23,19 +24,54 @@ import {
 export const resolveActionVersionsHandler: ResolveActionsHandler = async (
     args: ResolveActionsArgs,
 ): Promise<ToolResult> => {
-    // If specific actions are provided, use them directly
-    if (args.actions && args.actions.length > 0) {
-        const actionsToResolve = args.actions
-            .filter((action) => {
-                // Filter out already-resolved actions
-                if (args.resolvedVersions) {
-                    return !args.resolvedVersions.some(
-                        (r) => r.action === action,
-                    );
-                }
-                return true;
-            })
-            .map(buildActionToResolve);
+    try {
+        if (args.actions && args.actions.length > 0) {
+            const actionsToResolve = args.actions
+                .filter((action) => {
+                    if (args.resolvedVersions) {
+                        return !args.resolvedVersions.some(
+                            (r) => r.action === action,
+                        );
+                    }
+                    return true;
+                })
+                .map(buildActionToResolve);
+
+            return successResponse({
+                actionsToResolve,
+                instructions:
+                    actionsToResolve.length > 0
+                        ? VERSION_RESOLUTION_INSTRUCTIONS
+                        : undefined,
+                message:
+                    actionsToResolve.length > 0
+                        ? `Found ${actionsToResolve.length} action(s) needing version resolution`
+                        : "All actions have been resolved",
+            });
+        }
+
+        const config = await loadCopilotSetupConfig();
+
+        const defaultActions: SetupStepCandidate[] = [
+            ...config.setupActions.map((actionConfig) => ({
+                action: actionConfig.action,
+                source: "version-file" as const,
+            })),
+            ...config.setupActionPatterns
+                .filter(
+                    (pattern) =>
+                        !config.setupActions.some((a) => a.action === pattern),
+                )
+                .map((action) => ({
+                    action,
+                    source: "version-file" as const,
+                })),
+        ];
+
+        const actionsToResolve = buildActionsToResolve(
+            defaultActions,
+            args.resolvedVersions,
+        );
 
         return successResponse({
             actionsToResolve,
@@ -48,44 +84,9 @@ export const resolveActionVersionsHandler: ResolveActionsHandler = async (
                     ? `Found ${actionsToResolve.length} action(s) needing version resolution`
                     : "All actions have been resolved",
         });
+    } catch (error) {
+        const message =
+            error instanceof Error ? error.message : "Unknown error occurred";
+        return errorResponse(`Failed to resolve action versions: ${message}`);
     }
-
-    // Load configuration to get supported setup actions
-    const config = await loadCopilotSetupConfig();
-
-    // Build candidates from configured setup actions and patterns
-    const defaultActions: SetupStepCandidate[] = [
-        // Add actions from setupActions config
-        ...config.setupActions.map((actionConfig) => ({
-            action: actionConfig.action,
-            source: "version-file" as const,
-        })),
-        // Add mise-action if it's in the patterns but not in setupActions
-        ...config.setupActionPatterns
-            .filter(
-                (pattern) =>
-                    !config.setupActions.some((a) => a.action === pattern),
-            )
-            .map((action) => ({
-                action,
-                source: "version-file" as const,
-            })),
-    ];
-
-    const actionsToResolve = buildActionsToResolve(
-        defaultActions,
-        args.resolvedVersions,
-    );
-
-    return successResponse({
-        actionsToResolve,
-        instructions:
-            actionsToResolve.length > 0
-                ? VERSION_RESOLUTION_INSTRUCTIONS
-                : undefined,
-        message:
-            actionsToResolve.length > 0
-                ? `Found ${actionsToResolve.length} action(s) needing version resolution`
-                : "All actions have been resolved",
-    });
 };
