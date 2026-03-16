@@ -23,57 +23,13 @@
     ],
     "customManagers": [
         {
-            "description": "Track actionlint version in mise.toml",
-            "customType": "regex",
-            "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
-            "matchStrings": ["actionlint\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
-            "depNameTemplate": "rhysd/actionlint",
-            "datasourceTemplate": "github-releases"
-        },
-        {
-            "description": "Track jq version in mise.toml",
+            "description": "Track jq version in mise.toml (needs extractVersionTemplate because tags use jq-x.y.z format)",
             "customType": "regex",
             "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
             "matchStrings": ["(?:^|\\n)jq\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
             "depNameTemplate": "jqlang/jq",
             "datasourceTemplate": "github-releases",
             "extractVersionTemplate": "^jq-(?<version>.*)$"
-        },
-        {
-            "description": "Track markdownlint-cli2 version in mise.toml",
-            "customType": "regex",
-            "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
-            "matchStrings": [
-                "markdownlint-cli2\\s*=\\s*\"(?<currentValue>[^\"]+)\""
-            ],
-            "depNameTemplate": "markdownlint-cli2",
-            "datasourceTemplate": "npm"
-        },
-        {
-            "description": "Track check-jsonschema version in mise.toml",
-            "customType": "regex",
-            "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
-            "matchStrings": [
-                "\"pipx:check-jsonschema\"\\s*=\\s*\"(?<currentValue>[^\"]+)\""
-            ],
-            "depNameTemplate": "check-jsonschema",
-            "datasourceTemplate": "pypi"
-        },
-        {
-            "description": "Track shellcheck version in mise.toml",
-            "customType": "regex",
-            "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
-            "matchStrings": ["shellcheck\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
-            "depNameTemplate": "koalaman/shellcheck",
-            "datasourceTemplate": "github-releases"
-        },
-        {
-            "description": "Track trivy version in mise.toml",
-            "customType": "regex",
-            "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
-            "matchStrings": ["trivy\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
-            "depNameTemplate": "aquasecurity/trivy",
-            "datasourceTemplate": "github-releases"
         },
         {
             "description": "Track vhs version in mise.toml",
@@ -86,20 +42,23 @@
             "datasourceTemplate": "github-releases"
         },
         {
-            "description": "Track yamllint version in mise.toml",
-            "customType": "regex",
-            "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
-            "matchStrings": ["yamllint\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
-            "depNameTemplate": "yamllint",
-            "datasourceTemplate": "pypi"
-        },
-        {
             "description": "Track mise minimum version requirement",
             "customType": "regex",
             "managerFilePatterns": ["/(^|/)mise\\.toml$/"],
             "matchStrings": ["min_version\\s*=\\s*\"(?<currentValue>[^\"]+)\""],
             "depNameTemplate": "jdx/mise",
             "datasourceTemplate": "github-releases"
+        },
+        {
+            "description": "Track Node.js version in devcontainer node feature",
+            "customType": "regex",
+            "managerFilePatterns": ["/(^|/)devcontainer\\.json$/"],
+            "matchStrings": [
+                "\"ghcr\\.io/devcontainers/features/node:[^\"]+\":\\s*\\{[^{}]*?\"version\":\\s*\"(?<currentValue>[^\"]+)\""
+            ],
+            "depNameTemplate": "nodejs/node",
+            "datasourceTemplate": "github-tags",
+            "versioningTemplate": "node"
         },
         {
             "description": "Track GitHub CLI version in devcontainer github-cli feature",
@@ -112,13 +71,21 @@
             "datasourceTemplate": "github-releases"
         },
         {
-            "description": "Track Docker version in devcontainer docker-outside-of-docker feature",
+            "description": "Track Claude Code version in devcontainer claude-code feature",
             "customType": "regex",
             "managerFilePatterns": ["/(^|/)devcontainer\\.json$/"],
             "matchStrings": [
-                "\"ghcr\\.io/devcontainers/features/docker-outside-of-docker:[^\"]+\":\\s*\\{[^{}]*?\"version\":\\s*\"(?<currentValue>[^\"]+)\""
+                "\"ghcr\\.io/anthropics/devcontainer-features/claude-code:[^\"]+\":\\s*\\{[^{}]*?\"version\":\\s*\"(?<currentValue>[^\"]+)\""
             ],
-            "depNameTemplate": "docker/cli",
+            "depNameTemplate": "anthropics/claude-code",
+            "datasourceTemplate": "github-releases"
+        },
+        {
+            "description": "Track reviewdog CLI version in action.yml",
+            "customType": "regex",
+            "managerFilePatterns": ["/(^|/)action\\.ya?ml$/"],
+            "matchStrings": ["reviewdog_version:\\s*'(?<currentValue>[^']+)'"],
+            "depNameTemplate": "reviewdog/reviewdog",
             "datasourceTemplate": "github-releases"
         },
         {
@@ -132,12 +99,15 @@
             "datasourceTemplate": "github-releases"
         },
         {
-            "description": "Track reviewdog CLI version in action.yml",
+            "description": "Track Docker-in-Docker feature version (feature manages its own Docker version)",
             "customType": "regex",
-            "managerFilePatterns": ["/(^|/)action\\.ya?ml$/"],
-            "matchStrings": ["reviewdog_version:\\s*'(?<currentValue>[^']+)'"],
-            "depNameTemplate": "reviewdog/reviewdog",
-            "datasourceTemplate": "github-releases"
+            "managerFilePatterns": ["/(^|/)devcontainer\\.json$/"],
+            "matchStrings": [
+                "\"ghcr\\.io/devcontainers/features/docker-in-docker:(?<currentValue>[^\"]+)\""
+            ],
+            "depNameTemplate": "devcontainers/features",
+            "datasourceTemplate": "github-releases",
+            "extractVersionTemplate": "^docker-in-docker_v(?<version>.*)$"
         }
     ]
 }

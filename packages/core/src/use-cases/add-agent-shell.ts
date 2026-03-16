@@ -32,7 +32,7 @@ export interface AddAgentShellOutput {
  * Checks whether `.npmrc` content already has an active (non-comment) script-shell entry.
  * Lines starting with `#` or `;` are treated as comments and ignored.
  */
-function hasScriptShellEntry(content: string): boolean {
+export function hasScriptShellEntry(content: string): boolean {
     return /^\s*script-shell\s*=/m.test(content);
 }
 

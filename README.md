@@ -1,5 +1,7 @@
 # Lousy Agents
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/zpratt/lousy-agents/badge)](https://scorecard.dev/viewer/?uri=github.com/zpratt/lousy-agents)
+
 **Turn "lousy" AI outputs into production-grade code.**
 
 ![Demo](media/demo.gif)

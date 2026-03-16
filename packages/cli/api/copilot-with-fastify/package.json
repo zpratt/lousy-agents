@@ -16,22 +16,25 @@
         "db:migrate": "tsx src/db/migrate.ts"
     },
     "dependencies": {
-        "@fastify/cors": "11.0.1",
-        "@fastify/sensible": "6.0.3",
-        "fastify": "5.8.1",
-        "kysely": "0.28.2",
-        "pino": "9.6.0",
-        "postgres": "3.4.7",
-        "zod": "3.25.56"
+        "@fastify/cors": "11.2.0",
+        "@fastify/sensible": "6.0.4",
+        "fastify": "5.8.2",
+        "kysely": "0.28.12",
+        "pino": "10.3.1",
+        "postgres": "3.4.8",
+        "zod": "4.3.6"
     },
     "devDependencies": {
         "@biomejs/biome": "2.4.2",
+        "@lousy-agents/mcp": "5.3.3",
+        "@modelcontextprotocol/server-sequential-thinking": "2025.12.18",
         "@testcontainers/postgresql": "11.12.0",
         "@types/node": "24.12.0",
+        "@upstash/context7-mcp": "2.1.4",
         "chance": "1.1.13",
         "testcontainers": "11.12.0",
-        "tsx": "4.20.3",
-        "typescript": "5.8.3",
-        "vitest": "4.0.15"
+        "tsx": "4.21.0",
+        "typescript": "5.9.3",
+        "vitest": "4.1.0"
     }
 }

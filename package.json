@@ -42,16 +42,18 @@
     },
     "devDependencies": {
         "@biomejs/biome": "2.4.6",
+        "@modelcontextprotocol/server-sequential-thinking": "2025.12.18",
         "@rspack/cli": "1.7.8",
         "@rspack/core": "1.7.8",
         "@types/chance": "1.1.7",
         "@types/mdast": "4.0.4",
-        "@types/node": "25.4.0",
+        "@types/node": "25.5.0",
+        "@upstash/context7-mcp": "2.1.4",
         "chance": "1.1.13",
         "testcontainers": "11.12.0",
         "tsx": "4.21.0",
         "typescript": "5.9.3",
-        "vitest": "4.0.18",
+        "vitest": "4.1.0",
         "whatwg-fetch": "3.6.20"
     }
 }

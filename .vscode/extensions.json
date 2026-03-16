@@ -1,14 +1,12 @@
 {
     "recommendations": [
         "biomejs.biome",
-        "dbaeumer.vscode-eslint",
+        "anthropic.claude-code",
         "editorconfig.editorconfig",
         "vitest.explorer",
         "ms-vscode-remote.remote-containers",
         "GitHub.codespaces",
-        "ms-vscode.makefile-tools",
-        "GitHub.Copilot",
-        "GitHub.Copilot-Chat",
+        "GitHub.copilot-chat",
         "GitHub.github-vscode-theme",
         "redhat.vscode-yaml"
     ]

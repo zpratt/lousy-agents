@@ -2,6 +2,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
+import { consola } from "consola";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createNpmrcGateway, FileSystemNpmrcGateway } from "./npmrc-gateway.js";
 
@@ -75,6 +76,36 @@ describe("NpmrcGateway", () => {
                 // Assert
                 const result = await gateway.readNpmrc(testDir);
                 expect(result).toBe(updatedContent);
+            });
+        });
+
+        describe("when dryRun is true", () => {
+            it("should not create or modify the .npmrc file", async () => {
+                // Arrange
+                const dryRunGateway = new FileSystemNpmrcGateway(consola, true);
+                const content = `script-shell=agent-shell\n`;
+
+                // Act
+                await dryRunGateway.writeNpmrc(testDir, content);
+
+                // Assert - file should not exist
+                const result = await dryRunGateway.readNpmrc(testDir);
+                expect(result).toBeNull();
+            });
+
+            it("should not overwrite existing .npmrc file", async () => {
+                // Arrange
+                const originalContent = `audit=true\n`;
+                await writeFile(join(testDir, ".npmrc"), originalContent);
+                const dryRunGateway = new FileSystemNpmrcGateway(consola, true);
+                const updatedContent = `audit=true\nscript-shell=agent-shell\n`;
+
+                // Act
+                await dryRunGateway.writeNpmrc(testDir, updatedContent);
+
+                // Assert - file should remain unchanged
+                const result = await dryRunGateway.readNpmrc(testDir);
+                expect(result).toBe(originalContent);
             });
         });
     });

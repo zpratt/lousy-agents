@@ -1,13 +1,48 @@
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { parse as parseYaml } from "yaml";
 import { initCommand, SUPPORTED_PROJECT_TYPES } from "./init.js";
 
 const chance = new Chance();
 
 type SupportedProjectType = "webapp" | "api" | "cli";
+
+// Shared test helpers for devcontainer validation
+const EXPECTED_GITHUB_CLI_FEATURE_KEY =
+    "ghcr.io/devcontainers/features/github-cli:1.1.0";
+
+interface DevcontainerJson {
+    name?: string;
+    features?: Record<string, unknown>;
+    [key: string]: unknown;
+}
+
+async function readDevcontainerJson(
+    testDir: string,
+): Promise<DevcontainerJson> {
+    const devcontainerFile = join(
+        testDir,
+        ".devcontainer",
+        "devcontainer.json",
+    );
+    const content = await readFile(devcontainerFile, "utf-8");
+    return JSON.parse(content) as DevcontainerJson;
+}
+
+function assertHasGitHubCliFeature(devcontainer: DevcontainerJson): void {
+    expect(devcontainer.features).toBeDefined();
+    expect(devcontainer.features).toHaveProperty(
+        EXPECTED_GITHUB_CLI_FEATURE_KEY,
+    );
+    const featureConfig = devcontainer.features?.[
+        EXPECTED_GITHUB_CLI_FEATURE_KEY
+    ] as Record<string, unknown> | undefined;
+    expect(featureConfig).toBeDefined();
+    expect(featureConfig?.version).toBe("latest");
+}
 
 async function setupTestDir(): Promise<string> {
     const testDir = join(tmpdir(), `test-${chance.guid()}`);
@@ -257,13 +292,9 @@ describe("Init command", () => {
             });
 
             // Assert
-            const devcontainerFile = join(
-                testDir,
-                ".devcontainer",
-                "devcontainer.json",
-            );
-            const content = await readFile(devcontainerFile, "utf-8");
-            expect(content).toContain(`"name": "${cliProjectName}"`);
+            const devcontainer = await readDevcontainerJson(testDir);
+            expect(devcontainer.name).toBe(cliProjectName);
+            assertHasGitHubCliFeature(devcontainer);
         });
     });
 
@@ -594,13 +625,9 @@ describe("Init command", () => {
             });
 
             // Assert
-            const devcontainerFile = join(
-                testDir,
-                ".devcontainer",
-                "devcontainer.json",
-            );
-            const content = await readFile(devcontainerFile, "utf-8");
-            expect(content).toContain(`"name": "${apiProjectName}"`);
+            const devcontainer = await readDevcontainerJson(testDir);
+            expect(devcontainer.name).toBe(apiProjectName);
+            assertHasGitHubCliFeature(devcontainer);
         });
     });
 
@@ -663,6 +690,127 @@ describe("Init command", () => {
             // Assert
             await expect(access(vitestConfigFile)).resolves.toBeUndefined();
             await expect(access(vitestSetupFile)).resolves.toBeUndefined();
+        });
+
+        it.each([
+            "webapp",
+            "api",
+            "cli",
+        ] as const)("should create .github/workflows/copilot-setup-steps.yml for %s project type", async (projectType) => {
+            // Arrange
+            const projectName = chance.word().toLowerCase();
+            mockPrompt = createMockPrompt(projectType, projectName);
+            const copilotSetupFile = join(
+                testDir,
+                ".github",
+                "workflows",
+                "copilot-setup-steps.yml",
+            );
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert
+            await expect(access(copilotSetupFile)).resolves.toBeUndefined();
+            const content = await readFile(copilotSetupFile, "utf-8");
+            expect(content).toContain("name: Copilot Setup Steps");
+            expect(content).toContain("Checkout code");
+
+            // Parse YAML and verify workflow structure
+            const workflow = parseYaml(content);
+            expect(workflow).toBeDefined();
+            expect(workflow).not.toBeNull();
+            expect(typeof workflow).toBe("object");
+            expect(workflow).toHaveProperty("jobs.copilot-setup-steps");
+
+            // Verify least-privilege permissions
+            const workflowObj = workflow as Record<string, unknown>;
+            expect(typeof workflowObj.jobs).toBe("object");
+            expect(workflowObj.jobs).not.toBeNull();
+            const jobs = workflowObj.jobs as Record<string, unknown>;
+            expect(typeof jobs["copilot-setup-steps"]).toBe("object");
+            expect(jobs["copilot-setup-steps"]).not.toBeNull();
+            const job = jobs["copilot-setup-steps"] as Record<string, unknown>;
+            expect(job.permissions).toEqual({
+                contents: "read",
+            });
+
+            // Verify steps include checkout and node setup
+            expect(Array.isArray(job.steps)).toBe(true);
+            const steps = job.steps as Array<Record<string, unknown>>;
+            expect(steps.length).toBeGreaterThanOrEqual(2);
+
+            // Verify checkout action is SHA-pinned
+            const checkoutStep = steps.find((s) => s.name === "Checkout code");
+            expect(checkoutStep).toBeDefined();
+            expect(checkoutStep?.uses).toMatch(
+                /^actions\/checkout@[0-9a-f]{40}$/,
+            );
+
+            // Verify Node.js setup is included and SHA-pinned
+            const nodeSetupStep = steps.find((s) => s.name === "Setup node");
+            expect(nodeSetupStep).toBeDefined();
+            expect(nodeSetupStep?.uses).toMatch(
+                /^actions\/setup-node@[0-9a-f]{40}$/,
+            );
+            expect(nodeSetupStep?.with).toHaveProperty(
+                "node-version-file",
+                ".nvmrc",
+            );
+
+            // Verify a Node.js install step is present
+            const installStep = steps.find(
+                (s) => s.name === "Install Node.js dependencies",
+            );
+            expect(installStep).toBeDefined();
+            expect(typeof installStep?.run).toBe("string");
+        });
+
+        it("should preserve existing copilot-setup-steps.yml workflow file", async () => {
+            // Arrange
+            const projectType = "webapp";
+            const projectName = chance.word().toLowerCase();
+            mockPrompt = createMockPrompt(projectType, projectName);
+
+            const workflowDir = join(testDir, ".github", "workflows");
+            const copilotSetupFile = join(
+                workflowDir,
+                "copilot-setup-steps.yml",
+            );
+
+            // Create a pre-existing workflow with custom content
+            const existingWorkflowContent = `---
+name: Custom Copilot Setup
+on: [push]
+jobs:
+  custom-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Custom step
+        run: echo "This is a custom workflow"
+`;
+            await mkdir(workflowDir, { recursive: true });
+            await writeFile(copilotSetupFile, existingWorkflowContent, "utf-8");
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: testDir },
+            });
+
+            // Assert - verify the pre-existing workflow was NOT overwritten
+            const actualContent = await readFile(copilotSetupFile, "utf-8");
+            expect(actualContent).toBe(existingWorkflowContent);
+            expect(actualContent).toContain("Custom Copilot Setup");
+            expect(actualContent).toContain("custom-job");
+            expect(actualContent).not.toContain("Copilot Setup Steps");
         });
 
         it.each([
@@ -850,7 +998,6 @@ describe("Init command", () => {
                 };
             };
             expect(parsed.servers["lousy-agents"].args).toEqual([
-                "-y",
                 "-p",
                 "@lousy-agents/mcp",
                 "lousy-agents-mcp",
@@ -1256,13 +1403,9 @@ describe("Init command", () => {
             });
 
             // Assert
-            const devcontainerFile = join(
-                testDir,
-                ".devcontainer",
-                "devcontainer.json",
-            );
-            const content = await readFile(devcontainerFile, "utf-8");
-            expect(content).toContain(`"name": "${projectName}"`);
+            const devcontainer = await readDevcontainerJson(testDir);
+            expect(devcontainer.name).toBe(projectName);
+            assertHasGitHubCliFeature(devcontainer);
         });
 
         it("should reject empty project name", async () => {
@@ -1434,6 +1577,60 @@ describe("Init command", () => {
             const packageJsonFile = join(testDir, "package.json");
             const content = await readFile(packageJsonFile, "utf-8");
             expect(content).toContain(`"name": "${projectName}"`);
+        });
+    });
+
+    describe("when targetDir contains path traversal sequences", () => {
+        let testDir: string;
+        let mockPrompt: ReturnType<typeof vi.fn>;
+
+        beforeEach(async () => {
+            testDir = await setupTestDir();
+        });
+
+        afterEach(async () => {
+            await rm(testDir, { recursive: true, force: true });
+        });
+
+        it("should normalize a targetDir with redundant .. segments and scaffold at the resolved path", async () => {
+            // Arrange — nested/../nested is equivalent to testDir/nested
+            const nestedDir = join(testDir, "nested");
+            await mkdir(nestedDir, { recursive: true });
+            const traversalDir = join(testDir, "nested", "..", "nested");
+            const projectName = chance.word().toLowerCase();
+            mockPrompt = createMockPrompt("webapp", projectName);
+
+            // Act
+            await initCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: initCommand,
+                data: { prompt: mockPrompt, targetDir: traversalDir },
+            });
+
+            // Assert — files are scaffolded at the RESOLVED path, not an unexpected location
+            const resolvedTarget = resolve(traversalDir);
+            const packageJsonFile = join(resolvedTarget, "package.json");
+            await expect(access(packageJsonFile)).resolves.toBeUndefined();
+        });
+
+        it("should throw when targetDir resolves to a path that cannot be written (file where directory expected)", async () => {
+            // Arrange — a path through a regular file is impossible to scaffold
+            const filePath = join(testDir, "i-am-a-file");
+            await writeFile(filePath, "content", "utf-8");
+            const impossibleDir = join(filePath, "cannot", "create", "here");
+            const projectName = chance.word().toLowerCase();
+            mockPrompt = createMockPrompt("webapp", projectName);
+
+            // Act & Assert — scaffolding must throw, not silently succeed or corrupt
+            await expect(
+                initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: impossibleDir },
+                }),
+            ).rejects.toThrow();
         });
     });
 });
