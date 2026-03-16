@@ -38,7 +38,7 @@ jobs:
 
       - name: Setup mise
         # v3.6.1
-        uses: jdx/mise-action@c1ecc8f748cd28cdeabf76dab3cccde4ce692fe4
+        uses: jdx/mise-action@71c0f0ac17abbafcd73c2c637b6f7a5c2c8162c1
         with:
           github_token: ${{ github.token }}
 
