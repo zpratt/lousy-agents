@@ -36,8 +36,8 @@ so that I can **enforce repository-level constraints on what agents are allowed 
 - If the policy configuration file contains invalid JSON, then the system shall write a deny JSON response to stdout with an error description and write the error details to stderr.
 - If stdin contains data that is not valid JSON, then the system shall write a deny JSON response to stdout with a descriptive error message and write the parse error details to stderr (fail-closed: JSON parsing must succeed before any other evaluation).
 - If the stdin JSON contains `tool_name` of `run_terminal_command` but does not contain the expected `tool_input.command` field, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with unevaluable input).
+- If the stdin JSON contains `tool_name` of `run_terminal_command` but `tool_input.command` is not a string, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with invalid command type).
 - If the stdin contains valid JSON but the `tool_name` field is not `run_terminal_command`, then the system shall write an allow JSON response to stdout (fail-open applies only to successfully parsed JSON with a non-terminal tool name).
-- If the `tool_input.command` field is not a string, then the system shall write a deny JSON response to stdout with a descriptive error message.
 - While agent-shell is running in `policy-check` mode, the system shall emit a telemetry event recording the policy decision (allowed or denied) for auditability.
 - If telemetry emission fails (e.g., events directory not writable), then the system shall log the error to stderr but shall not change the allow/deny decision or prevent writing the decision JSON to stdout.
 - The system shall support exact-match and glob-pattern deny rules for command strings.
@@ -48,7 +48,7 @@ so that I can **enforce repository-level constraints on what agents are allowed 
 - The `preToolUse` hook is a GitHub Copilot coding agent feature that runs a configured script before tool execution
 - The hook receives JSON on stdin describing the tool and its input, and reads JSON from stdout for the decision
 - agent-shell must be available on PATH (globally installed) to function as a hook script
-- The policy configuration file location defaults to `.agent-shell/policy.json` relative to the repository root
+- The policy configuration file location defaults to `.agent-shell/policy.json` relative to `process.cwd()` (which the Copilot hook sets to the repository root)
 
 ### Story 2: Configure preToolUse hook to use agent-shell
 
@@ -247,6 +247,8 @@ sequenceDiagram
 
 #### `.github/hooks/hook.json`
 
+> **⚠️ ASSUMPTION**: The `tools` array value `["run_terminal_command"]` is based on anticipated Copilot agent hook contract field names. This must be verified against official documentation in Task 0. If Task 0 reveals different tool identifiers, this example shall be updated accordingly.
+
 ```json
 [
   {
@@ -353,6 +355,7 @@ exec agent-shell policy-check
 - When the policy is `null` (no file), `evaluatePolicy` shall return `{ decision: "allow" }`
 - Before reading the policy file, the system shall attempt to resolve the path using `realpath` to follow any symlinks; if `realpath` returns `ENOENT` (file does not exist), `loadPolicy` shall return `null` (no policy)
 - After successful `realpath` resolution, the system shall validate the resolved path is within the project root using `isWithinProjectRoot`
+- **"Project root" is defined as `process.cwd()`**, consistent with agent-shell's existing telemetry and log directory resolution. The Copilot hook execution environment runs with cwd set to the repository root.
 - If the policy file path (after `realpath` resolution) is outside the project root, `loadPolicy` shall throw a descriptive error and refuse to read the file
 - If the policy file is a symlink pointing outside the project root, `loadPolicy` shall throw a descriptive error (symlink escape prevention)
 
@@ -384,9 +387,10 @@ exec agent-shell policy-check
 - `packages/agent-shell/tests/shim.test.ts` (updated — add mode resolution tests for `policy-check`)
 
 **Requirements**:
-- When the first argument is `policy-check`, `resolveMode` shall return `{ type: "policy-check" }`
+- When the first argument is `policy-check`, `resolveMode` shall return `{ type: "policy-check" }` **regardless of the `AGENTSHELL_PASSTHROUGH` environment variable** — passthrough mode must not bypass the policy enforcement check
 - The `Mode` union type shall include the new `{ type: "policy-check" }` variant
-- Existing mode resolution behavior shall not change
+- The `policy-check` mode check shall occur **before** the `AGENTSHELL_PASSTHROUGH` check in `resolveMode` to ensure it cannot be bypassed
+- Existing mode resolution behavior shall not change for non-`policy-check` commands
 
 **Verification**:
 - [ ] `npm test -- packages/agent-shell/tests/shim.test.ts` passes
