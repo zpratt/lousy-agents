@@ -20,6 +20,9 @@
         "ghcr.io/devcontainers-extra/features/mise:1.0.0": {}
     },
     "forwardPorts": [3000],
+    "mounts": [
+        "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly"
+    ],
     "runArgs": ["--privileged"],
     "portsAttributes": {
         "3000": {
