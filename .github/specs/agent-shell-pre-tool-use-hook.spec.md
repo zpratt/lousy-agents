@@ -34,13 +34,14 @@ so that I can **enforce repository-level constraints on what agents are allowed 
 - When the tool input contains a command that does not match any deny rule, the system shall write a JSON response to stdout approving the tool use.
 - If the policy configuration file does not exist, then the system shall approve all tool uses by default.
 - If the policy configuration file contains invalid JSON, then the system shall write a deny JSON response to stdout with an error description and write the error details to stderr.
+- If stdin contains data that is not valid JSON, then the system shall write a deny JSON response to stdout with a descriptive error message and write the parse error details to stderr.
 - If the stdin JSON contains `tool_name` of `run_terminal_command` but does not contain the expected `tool_input.command` field, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with unevaluable input).
 - If the `tool_name` in the stdin JSON is not `run_terminal_command`, then the system shall write an allow JSON response to stdout (fail-open for non-terminal tools or unrecognized input shapes).
 - If the `tool_input.command` field is not a string, then the system shall write a deny JSON response to stdout with a descriptive error message.
 - While agent-shell is running in `policy-check` mode, the system shall emit a telemetry event recording the policy decision (allowed or denied) for auditability.
 - If telemetry emission fails (e.g., events directory not writable), then the system shall log the error to stderr but shall not change the allow/deny decision or prevent writing the decision JSON to stdout.
 - The system shall support exact-match and glob-pattern deny rules for command strings.
-- Glob pattern matching shall use the following semantics: `*` matches any sequence of characters (including spaces and empty strings), matching is case-sensitive, and patterns are anchored to the full command string (the entire command must match the pattern, not a substring).
+- When evaluating glob patterns, the system shall use the following matching semantics: `*` matches any sequence of characters (including spaces and empty strings), matching is case-sensitive, and patterns are anchored to the full command string (the entire command must match the pattern, not a substring).
 
 #### Notes
 
@@ -57,7 +58,7 @@ so that I can **have agent-shell enforce command policies before the agent execu
 
 #### Acceptance Criteria
 
-- When the user creates a `.github/hooks/` directory with a properly configured hook referencing agent-shell, the system shall be invocable by the Copilot coding agent's hook mechanism.
+- When the user creates a `.github/hooks/hook.json` file with an entry specifying `"event": "preToolUse"` and a `"script"` path pointing to a shell script that executes `agent-shell policy-check`, the system shall be invocable by the Copilot coding agent's hook mechanism.
 - The agent-shell `policy-check` mode shall be compatible with the Copilot coding agent's `preToolUse` hook contract (JSON stdin/stdout).
 - When agent-shell is referenced in the hook configuration, the system shall execute without requiring additional dependencies beyond the globally installed agent-shell binary and a POSIX-compatible shell (`sh`).
 
@@ -75,7 +76,7 @@ so that I can **understand what the agent attempted and verify that policies are
 
 #### Acceptance Criteria
 
-- When a command is blocked by policy, the system shall emit a `policy_decision` telemetry event to the `.agent-shell/events/` directory.
+- When a command is blocked by policy, the system shall emit a `policy_decision` telemetry event to the events directory (defaults to `.agent-shell/events/` unless `AGENTSHELL_LOG_DIR` is set).
 - The `policy_decision` event shall include the command that was evaluated, the policy rule that matched, the decision (allow or deny), and the actor.
 - When the user runs `agent-shell log`, the system shall display policy decision events alongside script execution events.
 - When the user runs `agent-shell log --failures`, the system shall include denied policy decisions in the results.
