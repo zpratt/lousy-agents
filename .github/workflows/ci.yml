@@ -82,6 +82,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check package signatures
+        run: npm audit signatures
+
       - name: Run linting
         run: mise run lint
 

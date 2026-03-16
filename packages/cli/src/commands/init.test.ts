@@ -10,6 +10,40 @@ const chance = new Chance();
 
 type SupportedProjectType = "webapp" | "api" | "cli";
 
+// Shared test helpers for devcontainer validation
+const EXPECTED_GITHUB_CLI_FEATURE_KEY =
+    "ghcr.io/devcontainers/features/github-cli:1.1.0";
+
+interface DevcontainerJson {
+    name?: string;
+    features?: Record<string, unknown>;
+    [key: string]: unknown;
+}
+
+async function readDevcontainerJson(
+    testDir: string,
+): Promise<DevcontainerJson> {
+    const devcontainerFile = join(
+        testDir,
+        ".devcontainer",
+        "devcontainer.json",
+    );
+    const content = await readFile(devcontainerFile, "utf-8");
+    return JSON.parse(content) as DevcontainerJson;
+}
+
+function assertHasGitHubCliFeature(devcontainer: DevcontainerJson): void {
+    expect(devcontainer.features).toBeDefined();
+    expect(devcontainer.features).toHaveProperty(
+        EXPECTED_GITHUB_CLI_FEATURE_KEY,
+    );
+    const featureConfig = devcontainer.features?.[
+        EXPECTED_GITHUB_CLI_FEATURE_KEY
+    ] as Record<string, unknown> | undefined;
+    expect(featureConfig).toBeDefined();
+    expect(featureConfig?.version).toBe("latest");
+}
+
 async function setupTestDir(): Promise<string> {
     const testDir = join(tmpdir(), `test-${chance.guid()}`);
     await mkdir(testDir, { recursive: true });
@@ -258,13 +292,9 @@ describe("Init command", () => {
             });
 
             // Assert
-            const devcontainerFile = join(
-                testDir,
-                ".devcontainer",
-                "devcontainer.json",
-            );
-            const content = await readFile(devcontainerFile, "utf-8");
-            expect(content).toContain(`"name": "${cliProjectName}"`);
+            const devcontainer = await readDevcontainerJson(testDir);
+            expect(devcontainer.name).toBe(cliProjectName);
+            assertHasGitHubCliFeature(devcontainer);
         });
     });
 
@@ -595,13 +625,9 @@ describe("Init command", () => {
             });
 
             // Assert
-            const devcontainerFile = join(
-                testDir,
-                ".devcontainer",
-                "devcontainer.json",
-            );
-            const content = await readFile(devcontainerFile, "utf-8");
-            expect(content).toContain(`"name": "${apiProjectName}"`);
+            const devcontainer = await readDevcontainerJson(testDir);
+            expect(devcontainer.name).toBe(apiProjectName);
+            assertHasGitHubCliFeature(devcontainer);
         });
     });
 
@@ -972,7 +998,6 @@ jobs:
                 };
             };
             expect(parsed.servers["lousy-agents"].args).toEqual([
-                "-y",
                 "-p",
                 "@lousy-agents/mcp",
                 "lousy-agents-mcp",
@@ -1378,13 +1403,9 @@ jobs:
             });
 
             // Assert
-            const devcontainerFile = join(
-                testDir,
-                ".devcontainer",
-                "devcontainer.json",
-            );
-            const content = await readFile(devcontainerFile, "utf-8");
-            expect(content).toContain(`"name": "${projectName}"`);
+            const devcontainer = await readDevcontainerJson(testDir);
+            expect(devcontainer.name).toBe(projectName);
+            assertHasGitHubCliFeature(devcontainer);
         });
 
         it("should reject empty project name", async () => {

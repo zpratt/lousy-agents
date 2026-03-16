@@ -1,32 +1,39 @@
 {
     "name": "<%= it.projectName %>",
-    "image": "mcr.microsoft.com/devcontainers/javascript-node:24-bookworm",
+    "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04@sha256:4bcb1b466771b1ba1ea110e2a27daea2f6093f9527fb75ee59703ec89b5561cb",
     "features": {
-        "ghcr.io/devcontainers/features/github-cli:1": {
-            "version": "2.88.1"
+        "ghcr.io/devcontainers/features/node:1.7.1": {
+            "version": "24.14.0"
         },
-        "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
+        "ghcr.io/devcontainers/features/github-cli:1.1.0": {
+            "version": "latest"
+        },
+        "ghcr.io/devcontainers/features/copilot-cli:1.0.0": {},
+        "ghcr.io/anthropics/devcontainer-features/claude-code:1": {
+            "version": "1.0.5"
+        },
+        "ghcr.io/rocker-org/devcontainer-features/apt-packages:1.0.2": {
             "packages": "yamllint, shellcheck",
-            "upgradePackages": true
+            "upgradePackages": false
         },
-        "ghcr.io/devcontainers-extra/features/actionlint:1": {
+        "ghcr.io/devcontainers-extra/features/actionlint:1.1.1": {
             "version": "1.7.11"
         }
     },
     "forwardPorts": [],
-    "postCreateCommand": "npm cache add @upstash/context7-mcp @modelcontextprotocol/server-sequential-thinking",
+    "postCreateCommand": "npm i",
     "waitFor": "postCreateCommand",
-    "remoteUser": "node",
+    "remoteUser": "vscode",
     "customizations": {
         "vscode": {
             "extensions": [
                 "biomejs.biome",
+                "anthropic.claude-code",
                 "editorconfig.editorconfig",
                 "vitest.explorer",
                 "ms-vscode-remote.remote-containers",
                 "GitHub.codespaces",
-                "GitHub.Copilot",
-                "GitHub.Copilot-Chat",
+                "GitHub.copilot-chat",
                 "GitHub.github-vscode-theme",
                 "redhat.vscode-yaml"
             ],
@@ -48,24 +55,24 @@
                 },
                 "vitest.enable": true,
                 "vitest.commandLine": "vitest",
-                "github.copilot.chat.agent.model": "claude-sonnet-4.5",
-                "github.copilot.chat.ask.model": "claude-sonnet-4.5",
+                "github.copilot.chat.agent.model": "claude-sonnet-4.6",
+                "github.copilot.chat.ask.model": "claude-sonnet-4.6",
                 "yaml.schemas": {
                     "https://json.schemastore.org/github-workflow.json": ".github/workflows/*.yml"
                 },
-                "github.copilot.chat.mcp.enabled": true
+                "github.copilot.chat.mcp.enabled": true,
+                "terminal.integrated.defaultProfile.linux": "bash"
             },
             "mcp": {
                 "servers": {
                     "context7": {
                         "type": "stdio",
                         "command": "npx",
-                        "args": ["-y", "@upstash/context7-mcp"]
+                        "args": ["@upstash/context7-mcp"]
                     },
                     "sequential-thinking": {
                         "command": "npx",
                         "args": [
-                            "-y",
                             "@modelcontextprotocol/server-sequential-thinking"
                         ]
                     }

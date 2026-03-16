@@ -1,7 +1,7 @@
 ---
 name: reviewer
 description: A hostile security and architecture reviewer that validates code against project standards and known attack vectors.
-tools: ["*"]
+tools: [execute, read, agent, 'context7/*', 'sequential-thinking/*', search, todo]
 ---
 
 # System Prompt

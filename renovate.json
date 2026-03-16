@@ -50,6 +50,17 @@
             "datasourceTemplate": "github-releases"
         },
         {
+            "description": "Track Node.js version in devcontainer node feature",
+            "customType": "regex",
+            "managerFilePatterns": ["/(^|/)devcontainer\\.json$/"],
+            "matchStrings": [
+                "\"ghcr\\.io/devcontainers/features/node:[^\"]+\":\\s*\\{[^{}]*?\"version\":\\s*\"(?<currentValue>[^\"]+)\""
+            ],
+            "depNameTemplate": "nodejs/node",
+            "datasourceTemplate": "github-tags",
+            "versioningTemplate": "node"
+        },
+        {
             "description": "Track GitHub CLI version in devcontainer github-cli feature",
             "customType": "regex",
             "managerFilePatterns": ["/(^|/)devcontainer\\.json$/"],
@@ -60,13 +71,21 @@
             "datasourceTemplate": "github-releases"
         },
         {
-            "description": "Track Docker version in devcontainer docker-outside-of-docker feature",
+            "description": "Track Claude Code version in devcontainer claude-code feature",
             "customType": "regex",
             "managerFilePatterns": ["/(^|/)devcontainer\\.json$/"],
             "matchStrings": [
-                "\"ghcr\\.io/devcontainers/features/docker-outside-of-docker:[^\"]+\":\\s*\\{[^{}]*?\"version\":\\s*\"(?<currentValue>[^\"]+)\""
+                "\"ghcr\\.io/anthropics/devcontainer-features/claude-code:[^\"]+\":\\s*\\{[^{}]*?\"version\":\\s*\"(?<currentValue>[^\"]+)\""
             ],
-            "depNameTemplate": "docker/cli",
+            "depNameTemplate": "anthropics/claude-code",
+            "datasourceTemplate": "github-releases"
+        },
+        {
+            "description": "Track reviewdog CLI version in action.yml",
+            "customType": "regex",
+            "managerFilePatterns": ["/(^|/)action\\.ya?ml$/"],
+            "matchStrings": ["reviewdog_version:\\s*'(?<currentValue>[^']+)'"],
+            "depNameTemplate": "reviewdog/reviewdog",
             "datasourceTemplate": "github-releases"
         },
         {
@@ -80,12 +99,15 @@
             "datasourceTemplate": "github-releases"
         },
         {
-            "description": "Track reviewdog CLI version in action.yml",
+            "description": "Track Docker-in-Docker feature version (feature manages its own Docker version)",
             "customType": "regex",
-            "managerFilePatterns": ["/(^|/)action\\.ya?ml$/"],
-            "matchStrings": ["reviewdog_version:\\s*'(?<currentValue>[^']+)'"],
-            "depNameTemplate": "reviewdog/reviewdog",
-            "datasourceTemplate": "github-releases"
+            "managerFilePatterns": ["/(^|/)devcontainer\\.json$/"],
+            "matchStrings": [
+                "\"ghcr\\.io/devcontainers/features/docker-in-docker:(?<currentValue>[^\"]+)\""
+            ],
+            "depNameTemplate": "devcontainers/features",
+            "datasourceTemplate": "github-releases",
+            "extractVersionTemplate": "^docker-in-docker_v(?<version>.*)$"
         }
     ]
 }

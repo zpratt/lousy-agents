@@ -1,43 +1,45 @@
 {
     "name": "webapp-workshop",
-    "image": "mcr.microsoft.com/devcontainers/javascript-node:24-bookworm",
+    "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04@sha256:4bcb1b466771b1ba1ea110e2a27daea2f6093f9527fb75ee59703ec89b5561cb",
     "features": {
-        "ghcr.io/devcontainers/features/github-cli:1": {
-            "version": "2.88.1"
+        "ghcr.io/devcontainers/features/node:1.7.1": {
+            "version": "24.14.0"
         },
-        "ghcr.io/rocker-org/devcontainer-features/apt-packages:1": {
-            "packages": "libnss3, libnspr4, libatk1.0-0, libatk-bridge2.0-0, libcups2, libdrm2, libdbus-1-3, libatspi2.0-0, libxcomposite1, libxdamage1, libxfixes3, libxrandr2, libgbm1, libxkbcommon0, libasound2, yamllint, shellcheck",
-            "upgradePackages": true
+        "ghcr.io/devcontainers/features/github-cli:1.1.0": {
+            "version": "latest"
         },
-        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
-            "version": "27.5.1"
+        "ghcr.io/devcontainers/features/copilot-cli:1.0.0": {},
+        "ghcr.io/anthropics/devcontainer-features/claude-code:1": {
+            "version": "1.0.5"
         },
-        "ghcr.io/devcontainers-extra/features/actionlint:1": {
-            "version": "1.7.11"
-        }
+        "ghcr.io/rocker-org/devcontainer-features/apt-packages:1.0.2": {
+            "packages": "libnss3, libnspr4, libatk1.0-0t64, libatk-bridge2.0-0t64, libcups2t64, libdrm2, libdbus-1-3, libatspi2.0-0t64, libxcomposite1, libxdamage1, libxfixes3, libxrandr2, libgbm1, libxkbcommon0, libasound2t64, python3-venv, python3-pip",
+            "upgradePackages": false
+        },
+        "ghcr.io/devcontainers/features/docker-in-docker:2.16.1": {},
+        "ghcr.io/devcontainers-extra/features/mise:1.0.0": {}
     },
     "forwardPorts": [3000],
+    "runArgs": ["--privileged"],
     "portsAttributes": {
         "3000": {
             "label": "Application",
             "onAutoForward": "notify"
         }
     },
-    "postCreateCommand": "npm cache add @upstash/context7-mcp @modelcontextprotocol/server-sequential-thinking",
+    "postCreateCommand": "mise trust -a && mise install && npm ci",
     "waitFor": "postCreateCommand",
-    "remoteUser": "node",
+    "remoteUser": "vscode",
     "customizations": {
         "vscode": {
             "extensions": [
                 "biomejs.biome",
-                "dbaeumer.vscode-eslint",
+                "anthropic.claude-code",
                 "editorconfig.editorconfig",
                 "vitest.explorer",
                 "ms-vscode-remote.remote-containers",
                 "GitHub.codespaces",
-                "ms-vscode.makefile-tools",
-                "GitHub.Copilot",
-                "GitHub.Copilot-Chat",
+                "GitHub.copilot-chat",
                 "GitHub.github-vscode-theme",
                 "redhat.vscode-yaml"
             ],
@@ -57,29 +59,26 @@
                     "editor.defaultFormatter": "redhat.vscode-yaml",
                     "editor.tabSize": 2
                 },
-                "editor.codeActionsOnSave": {
-                    "source.fixAll.eslint": "explicit"
-                },
                 "vitest.enable": true,
                 "vitest.commandLine": "vitest",
-                "github.copilot.chat.agent.model": "claude-sonnet-4.5",
-                "github.copilot.chat.ask.model": "claude-sonnet-4.5",
+                "github.copilot.chat.agent.model": "claude-sonnet-4.6",
+                "github.copilot.chat.ask.model": "claude-sonnet-4.6",
                 "yaml.schemas": {
                     "https://json.schemastore.org/github-workflow.json": ".github/workflows/*.yml"
                 },
-                "github.copilot.chat.mcp.enabled": true
+                "github.copilot.chat.mcp.enabled": true,
+                "terminal.integrated.defaultProfile.linux": "bash"
             },
             "mcp": {
                 "servers": {
                     "context7": {
                         "type": "stdio",
                         "command": "npx",
-                        "args": ["-y", "@upstash/context7-mcp"]
+                        "args": ["@upstash/context7-mcp"]
                     },
                     "sequential-thinking": {
                         "command": "npx",
                         "args": [
-                            "-y",
                             "@modelcontextprotocol/server-sequential-thinking"
                         ]
                     }
