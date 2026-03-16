@@ -33,7 +33,7 @@
             "onAutoForward": "silent"
         }
     },
-    "postCreateCommand": "npm ci",
+    "postCreateCommand": "npm i",
     "waitFor": "postCreateCommand",
     "remoteUser": "vscode",
     "customizations": {

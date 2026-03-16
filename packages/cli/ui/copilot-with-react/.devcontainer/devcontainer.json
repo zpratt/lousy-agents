@@ -27,7 +27,7 @@
             "onAutoForward": "notify"
         }
     },
-    "postCreateCommand": "npm ci",
+    "postCreateCommand": "npm i",
     "waitFor": "postCreateCommand",
     "remoteUser": "vscode",
     "customizations": {
