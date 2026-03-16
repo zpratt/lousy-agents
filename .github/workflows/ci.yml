@@ -9,7 +9,7 @@ name: CI
     branches:
       - main
 
-permissions: read-all
+permissions: {}
 
 jobs:
   # Separate job from ci because it requires checks: write for reviewdog annotations.

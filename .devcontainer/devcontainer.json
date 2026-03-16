@@ -6,10 +6,10 @@
             "version": "24.14.0"
         },
         "ghcr.io/devcontainers/features/github-cli:1.1.0": {
-            "version": "2.88.1"
+            "version": "latest"
         },
         "ghcr.io/devcontainers/features/copilot-cli:1.0.0": {},
-        "ghcr.io/anthropics/devcontainer-features/claude-code:1.0.5": {
+        "ghcr.io/anthropics/devcontainer-features/claude-code:1": {
             "version": "1.0.5"
         },
         "ghcr.io/rocker-org/devcontainer-features/apt-packages:1.0.2": {
@@ -20,9 +20,6 @@
         "ghcr.io/devcontainers-extra/features/mise:1.0.0": {}
     },
     "forwardPorts": [3000],
-    "mounts": [
-        "source=${localEnv:HOME}/.ssh,target=/home/vscode/.ssh,type=bind,readonly"
-    ],
     "runArgs": ["--privileged"],
     "portsAttributes": {
         "3000": {
@@ -42,7 +39,7 @@
                 "vitest.explorer",
                 "ms-vscode-remote.remote-containers",
                 "GitHub.codespaces",
-                "GitHub.copilot-chat",
+                "GitHub.copilot",
                 "GitHub.github-vscode-theme",
                 "redhat.vscode-yaml"
             ],

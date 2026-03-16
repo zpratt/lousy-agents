@@ -6,7 +6,7 @@
             "version": "24.14.0"
         },
         "ghcr.io/devcontainers/features/github-cli:1.1.0": {
-            "version": "2.88.1"
+            "version": "latest"
         },
         "ghcr.io/devcontainers/features/copilot-cli:1.0.0": {},
         "ghcr.io/anthropics/devcontainer-features/claude-code:1.0.5": {
@@ -17,7 +17,7 @@
             "upgradePackages": false
         },
         "ghcr.io/devcontainers-extra/features/actionlint:1.1.1": {
-            "version": "1.7.7"
+            "version": "1.7.11"
         }
     },
     "forwardPorts": [],

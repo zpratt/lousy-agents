@@ -87,6 +87,26 @@
             "matchStrings": ["reviewdog_version:\\s*'(?<currentValue>[^']+)'"],
             "depNameTemplate": "reviewdog/reviewdog",
             "datasourceTemplate": "github-releases"
+        },
+        {
+            "description": "Track actionlint version in devcontainer actionlint feature",
+            "customType": "regex",
+            "managerFilePatterns": ["/(^|/)devcontainer\\.json$/"],
+            "matchStrings": [
+                "\"ghcr\\.io/devcontainers-extra/features/actionlint:[^\"]+\":\\s*\\{[^{}]*?\"version\":\\s*\"(?<currentValue>[^\"]+)\""
+            ],
+            "depNameTemplate": "rhysd/actionlint",
+            "datasourceTemplate": "github-releases"
+        },
+        {
+            "description": "Track Docker version in devcontainer docker-in-docker feature",
+            "customType": "regex",
+            "managerFilePatterns": ["/(^|/)devcontainer\\.json$/"],
+            "matchStrings": [
+                "\"ghcr\\.io/devcontainers/features/docker-in-docker:[^\"]+\":\\s*\\{[^{}]*?\"version\":\\s*\"(?<currentValue>[^\"]+)\""
+            ],
+            "depNameTemplate": "moby/moby",
+            "datasourceTemplate": "github-releases"
         }
     ]
 }

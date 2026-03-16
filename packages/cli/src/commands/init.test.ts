@@ -248,6 +248,7 @@ describe("Init command", () => {
             // Arrange
             const cliProjectName = chance.word().toLowerCase();
             const cliMockPrompt = vi.fn();
+            const expectedGitHubCliFeatureBlock = `"ghcr.io/devcontainers/features/github-cli:1.1.0": {\n            "version": "latest"\n        }`;
 
             // Act
             await initCommand.run({
@@ -265,6 +266,7 @@ describe("Init command", () => {
             );
             const content = await readFile(devcontainerFile, "utf-8");
             expect(content).toContain(`"name": "${cliProjectName}"`);
+            expect(content).toContain(expectedGitHubCliFeatureBlock);
         });
     });
 
@@ -585,6 +587,7 @@ describe("Init command", () => {
             // Arrange
             const apiProjectName = chance.word().toLowerCase();
             const apiMockPrompt = vi.fn();
+            const expectedGitHubCliFeatureBlock = `"ghcr.io/devcontainers/features/github-cli:1.1.0": {\n            "version": "latest"\n        }`;
 
             // Act
             await initCommand.run({
@@ -602,6 +605,7 @@ describe("Init command", () => {
             );
             const content = await readFile(devcontainerFile, "utf-8");
             expect(content).toContain(`"name": "${apiProjectName}"`);
+            expect(content).toContain(expectedGitHubCliFeatureBlock);
         });
     });
 
@@ -972,7 +976,6 @@ jobs:
                 };
             };
             expect(parsed.servers["lousy-agents"].args).toEqual([
-                "-y",
                 "-p",
                 "@lousy-agents/mcp",
                 "lousy-agents-mcp",
@@ -1368,6 +1371,7 @@ jobs:
             // Arrange
             const projectName = chance.word().toLowerCase();
             const mockPrompt = vi.fn();
+            const expectedGitHubCliFeatureBlock = `"ghcr.io/devcontainers/features/github-cli:1.1.0": {\n            "version": "latest"\n        }`;
 
             // Act
             await initCommand.run({
@@ -1385,6 +1389,7 @@ jobs:
             );
             const content = await readFile(devcontainerFile, "utf-8");
             expect(content).toContain(`"name": "${projectName}"`);
+            expect(content).toContain(expectedGitHubCliFeatureBlock);
         });
 
         it("should reject empty project name", async () => {
