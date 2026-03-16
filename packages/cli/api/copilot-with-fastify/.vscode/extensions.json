@@ -5,7 +5,7 @@
         "vitest.explorer",
         "ms-vscode-remote.remote-containers",
         "GitHub.codespaces",
-        "GitHub.Copilot",
+        "GitHub.copilot-chat",
         "GitHub.github-vscode-theme",
         "redhat.vscode-yaml",
         "ms-azuretools.vscode-docker"
