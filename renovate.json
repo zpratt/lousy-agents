@@ -58,7 +58,7 @@
             ],
             "depNameTemplate": "nodejs/node",
             "datasourceTemplate": "github-tags",
-            "extractVersionTemplate": "^v(?<version>.*)$"
+            "versioningTemplate": "node"
         },
         {
             "description": "Track GitHub CLI version in devcontainer github-cli feature",
@@ -99,14 +99,15 @@
             "datasourceTemplate": "github-releases"
         },
         {
-            "description": "Track Docker version in devcontainer docker-in-docker feature",
+            "description": "Track Docker-in-Docker feature version (feature manages its own Docker version)",
             "customType": "regex",
             "managerFilePatterns": ["/(^|/)devcontainer\\.json$/"],
             "matchStrings": [
-                "\"ghcr\\.io/devcontainers/features/docker-in-docker:[^\"]+\":\\s*\\{[^{}]*?\"version\":\\s*\"(?<currentValue>[^\"]+)\""
+                "\"ghcr\\.io/devcontainers/features/docker-in-docker:(?<currentValue>[^\"]+)\""
             ],
-            "depNameTemplate": "moby/moby",
-            "datasourceTemplate": "github-releases"
+            "depNameTemplate": "devcontainers/features",
+            "datasourceTemplate": "github-releases",
+            "extractVersionTemplate": "^docker-in-docker_v(?<version>.*)$"
         }
     ]
 }
