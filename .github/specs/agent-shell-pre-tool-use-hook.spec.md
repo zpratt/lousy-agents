@@ -34,9 +34,9 @@ so that I can **enforce repository-level constraints on what agents are allowed 
 - When the tool input contains a command that does not match any deny rule, the system shall write a JSON response to stdout approving the tool use.
 - If the policy configuration file does not exist, then the system shall approve all tool uses by default.
 - If the policy configuration file contains invalid JSON, then the system shall write a deny JSON response to stdout with an error description and write the error details to stderr.
-- If stdin contains data that is not valid JSON, then the system shall write a deny JSON response to stdout with a descriptive error message and write the parse error details to stderr.
+- If stdin contains data that is not valid JSON, then the system shall write a deny JSON response to stdout with a descriptive error message and write the parse error details to stderr (fail-closed: JSON parsing must succeed before any other evaluation).
 - If the stdin JSON contains `tool_name` of `run_terminal_command` but does not contain the expected `tool_input.command` field, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with unevaluable input).
-- If the `tool_name` in the stdin JSON is not `run_terminal_command`, then the system shall write an allow JSON response to stdout (fail-open for non-terminal tools or unrecognized input shapes).
+- If the stdin contains valid JSON but the `tool_name` field is not `run_terminal_command`, then the system shall write an allow JSON response to stdout (fail-open applies only to successfully parsed JSON with a non-terminal tool name).
 - If the `tool_input.command` field is not a string, then the system shall write a deny JSON response to stdout with a descriptive error message.
 - While agent-shell is running in `policy-check` mode, the system shall emit a telemetry event recording the policy decision (allowed or denied) for auditability.
 - If telemetry emission fails (e.g., events directory not writable), then the system shall log the error to stderr but shall not change the allow/deny decision or prevent writing the decision JSON to stdout.
@@ -76,7 +76,7 @@ so that I can **understand what the agent attempted and verify that policies are
 
 #### Acceptance Criteria
 
-- When a command is blocked by policy, the system shall emit a `policy_decision` telemetry event to the events directory (defaults to `.agent-shell/events/` unless `AGENTSHELL_LOG_DIR` is set).
+- When a command is blocked by policy, the system shall emit a `policy_decision` telemetry event to the events directory (defaults to `.agent-shell/events` unless `AGENTSHELL_LOG_DIR` is set).
 - The `policy_decision` event shall include the command that was evaluated, the policy rule that matched, the decision (allow or deny), and the actor.
 - When the user runs `agent-shell log`, the system shall display policy decision events alongside script execution events.
 - When the user runs `agent-shell log --failures`, the system shall include denied policy decisions in the results.
@@ -351,7 +351,8 @@ exec agent-shell policy-check
 - When a command matches a deny rule with a `*` wildcard, `evaluatePolicy` shall return `{ decision: "deny", matchedRule: "<rule>" }`
 - When a command does not match any deny rule, `evaluatePolicy` shall return `{ decision: "allow" }`
 - When the policy is `null` (no file), `evaluatePolicy` shall return `{ decision: "allow" }`
-- Before reading the policy file, the system shall resolve the path using `realpath` to follow any symlinks, then validate the resolved path is within the project root using `isWithinProjectRoot`
+- Before reading the policy file, the system shall attempt to resolve the path using `realpath` to follow any symlinks; if `realpath` returns `ENOENT` (file does not exist), `loadPolicy` shall return `null` (no policy)
+- After successful `realpath` resolution, the system shall validate the resolved path is within the project root using `isWithinProjectRoot`
 - If the policy file path (after `realpath` resolution) is outside the project root, `loadPolicy` shall throw a descriptive error and refuse to read the file
 - If the policy file is a symlink pointing outside the project root, `loadPolicy` shall throw a descriptive error (symlink escape prevention)
 
