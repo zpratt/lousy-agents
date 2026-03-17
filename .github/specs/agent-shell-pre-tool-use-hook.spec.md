@@ -2,7 +2,7 @@
 
 ## Problem Statement
 
-When AI coding agents (such as GitHub Copilot coding agent) execute npm scripts via agent-shell, there is no mechanism to prevent specific commands from running before they start. Agent-shell currently records telemetry _after_ execution completes, but cannot intercept and block commands that violate repository-level policies. Repository maintainers need a way to define which commands are allowed or denied, and have those policies enforced at the `preToolUse` hook point — before the agent invokes a tool — so that disallowed commands are blocked rather than observed after the fact.
+When AI coding agents (such as GitHub Copilot coding agent) execute terminal commands (npm scripts, terraform, shell commands, etc.) via agent-shell, there is no mechanism to prevent specific commands from running before they start. Agent-shell currently records telemetry _after_ execution completes, but cannot intercept and block commands that violate repository-level policies. Repository maintainers need a way to define which commands are allowed or denied, and have those policies enforced at the `preToolUse` hook point — before the agent invokes a tool — so that disallowed commands are blocked rather than observed after the fact.
 
 ## Personas
 
@@ -27,28 +27,31 @@ so that I can **enforce repository-level constraints on what agents are allowed 
 
 #### Acceptance Criteria
 
-> **⚠️ ASSUMPTION**: The field names below (`tool_name`, `tool_input.command`) are based on the anticipated Copilot agent hook contract. These must be verified against official documentation before implementation begins (see Task 0). If Task 0 reveals a different contract, these criteria shall be updated accordingly.
+Based on the [official GitHub Copilot hooks documentation](https://docs.github.com/en/copilot/reference/hooks-configuration#pre-tool-use-hook), the hook receives JSON on stdin with `toolName` and `toolArgs` fields, and returns JSON on stdout with `permissionDecision` and optional `permissionDecisionReason` fields.
 
-- When agent-shell is invoked in `policy-check` mode, the system shall evaluate input in the following order: (1) parse stdin as JSON (fail-closed if invalid), (2) check if `tool_name` is `run_terminal_command` (fail-open to allow if not), (3) validate `tool_input.command` exists and is a string (fail-closed if not), (4) load policy file (fail-closed if invalid JSON, allow-all if missing), (5) evaluate deny rules against command.
-- When the tool input contains a command that matches any deny rule in the agent-shell policy, the system shall write a JSON response to stdout rejecting the tool use with a descriptive message.
-- When the tool input contains a command that does not match any deny rule, the system shall write a JSON response to stdout approving the tool use.
+- When agent-shell is invoked in `policy-check` mode, the system shall evaluate input in the following order: (1) parse stdin as JSON (fail-closed if invalid), (2) extract `toolName` and parse `toolArgs` JSON string (fail-closed if `toolArgs` is not valid JSON), (3) check if `toolName` is `bash` or a terminal tool (fail-open to allow if not), (4) validate `command` exists in parsed `toolArgs` and is a string (fail-closed if not), (5) load policy file (fail-closed if invalid JSON, allow-all if missing), (6) evaluate deny rules then allow rules against command.
+- When the tool input contains a command that matches any deny rule in the agent-shell policy, the system shall write a JSON response to stdout with `{"permissionDecision":"deny","permissionDecisionReason":"..."}`.
+- When the tool input contains a command that does not match any deny rule (and matches an allow rule if allow list exists), the system shall write a JSON response to stdout with `{"permissionDecision":"allow"}`.
 - If the policy configuration file does not exist, then the system shall approve all tool uses by default.
 - If the policy configuration file exists but contains invalid JSON, then the system shall write a deny JSON response to stdout with an error description and write the error details to stderr (fail-closed: policy errors block execution).
 - If stdin contains data that is not valid JSON, then the system shall write a deny JSON response to stdout with a descriptive error message and write the parse error details to stderr (fail-closed: JSON parsing must succeed before any other evaluation).
-- If the stdin JSON contains `tool_name` of `run_terminal_command` but does not contain the expected `tool_input.command` field, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with unevaluable input).
-- If the stdin JSON contains `tool_name` of `run_terminal_command` but `tool_input.command` is not a string, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with invalid command type).
-- If the stdin contains valid JSON but the `tool_name` field is not `run_terminal_command`, then the system shall write an allow JSON response to stdout (fail-open applies only to successfully parsed JSON with a non-terminal tool name, evaluated before policy loading).
+- If the stdin JSON contains `toolName` of `bash` but the parsed `toolArgs` does not contain a `command` field, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with unevaluable input).
+- If the stdin JSON contains `toolName` of `bash` but the `command` in `toolArgs` is not a string, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with invalid command type).
+- If the stdin contains valid JSON but the `toolName` field is not a terminal tool type (e.g., `bash`), then the system shall write an allow JSON response to stdout (fail-open applies only to successfully parsed JSON with a non-terminal tool name).
 - While agent-shell is running in `policy-check` mode, the system shall emit a telemetry event recording the policy decision (allowed or denied) for auditability.
 - If telemetry emission fails (e.g., events directory not writable), then the system shall log the error to stderr but shall not change the allow/deny decision or prevent writing the decision JSON to stdout.
-- The system shall support exact-match and glob-pattern deny rules for command strings.
+- The system shall support exact-match and glob-pattern rules for command strings in both allow and deny lists.
 - When evaluating glob patterns, the system shall use the following matching semantics: `*` matches any sequence of characters (including spaces and empty strings), matching is case-sensitive, patterns are anchored to the full command string (the entire command must match the pattern, not a substring), and only `*` is a special character (all other characters including `.`, `?`, `[`, `]`, etc. shall match literally).
+- The system shall discover the repository root using `git rev-parse --show-toplevel` rather than relying on `process.cwd()`.
 
 #### Notes
 
 - The `preToolUse` hook is a GitHub Copilot coding agent feature that runs a configured script before tool execution
 - The hook receives JSON on stdin describing the tool and its input, and reads JSON from stdout for the decision
 - agent-shell must be available on PATH (globally installed) to function as a hook script
-- The policy configuration file location defaults to `.agent-shell/policy.json` relative to `process.cwd()` (which the Copilot hook sets to the repository root)
+- The policy configuration file location defaults to `.github/hooks/agent-shell/policy.json` relative to the repository root (discovered via `git rev-parse --show-toplevel`), but can be overridden via the `AGENTSHELL_POLICY_PATH` environment variable
+- Deny rules take precedence over allow rules
+- If an allow list is present and the command does not match any allow rule, the command is denied
 
 ### Story 2: Configure preToolUse hook to use agent-shell
 
@@ -58,15 +61,16 @@ so that I can **have agent-shell enforce command policies before the agent execu
 
 #### Acceptance Criteria
 
-- When the user creates a `.github/hooks/hook.json` file with an entry specifying `"event": "preToolUse"` and a `"script"` path pointing to a shell script that executes `agent-shell policy-check`, the system shall be invocable by the Copilot coding agent's hook mechanism.
-- The agent-shell `policy-check` mode shall be compatible with the Copilot coding agent's `preToolUse` hook contract (JSON stdin/stdout).
+- When the user creates a `.github/hooks/hooks.json` file with a `preToolUse` array containing a command entry that executes `agent-shell policy-check`, the system shall be invocable by the Copilot coding agent's hook mechanism.
+- The agent-shell `policy-check` mode shall be compatible with the Copilot coding agent's `preToolUse` hook contract (JSON stdin with `toolName`/`toolArgs`, JSON stdout with `permissionDecision`/`permissionDecisionReason`).
 - When agent-shell is referenced in the hook configuration, the system shall execute without requiring additional dependencies beyond the globally installed agent-shell binary and a POSIX-compatible shell (`sh`).
+- The `copilot-setup` CLI command shall provide an option to scaffold `.github/hooks/` with agent-shell preToolUse integration, including the hooks.json configuration and policy check scripts.
 
 #### Notes
 
-- The hook configuration file is `.github/hooks/hook.json`
-- The hook script at `.github/hooks/agent-shell-policy.sh` invokes `agent-shell policy-check`
-- This story focuses on the integration contract, not the scaffolding of these files (scaffolding is a future consideration)
+- The hook configuration file is `.github/hooks/hooks.json` (per official GitHub documentation)
+- The hook script at `.github/hooks/agent-shell/policy-check.sh` invokes `agent-shell policy-check`
+- The `copilot-setup` command shall offer a sub-choice for adding agent-shell preToolUse hook support
 
 ### Story 3: Audit blocked commands via telemetry
 
@@ -109,43 +113,62 @@ so that I can **understand what the agent attempted and verify that policies are
 
 ### Data Model Changes
 
-#### Policy Configuration Schema (`.agent-shell/policy.json`)
+#### Policy Configuration Schema
+
+The policy file defaults to `.github/hooks/agent-shell/policy.json` (relative to repository root) but can be overridden via the `AGENTSHELL_POLICY_PATH` environment variable set in the hook configuration.
 
 ```json
 {
+  "allow": [
+    "npm test",
+    "npm run lint*"
+  ],
   "deny": [
-    "npm run foo",
-    "npm run deploy*"
+    "npm run deploy*",
+    "terraform destroy*",
+    "rm -rf *"
   ]
 }
 ```
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `deny` | `string[]` | Array of command patterns to block. Supports exact match and glob-style `*` wildcards. |
+| `allow` | `string[]` | (Optional) Array of command patterns to explicitly allow. If specified, commands must match an allow rule to proceed. |
+| `deny` | `string[]` | Array of command patterns to block. Deny rules take precedence over allow rules. |
+
+**Evaluation order**: (1) If the command matches any deny rule, deny. (2) If an allow list exists and the command does not match any allow rule, deny. (3) Otherwise, allow.
 
 #### preToolUse Hook Input (stdin)
 
-> **⚠️ ASSUMPTION**: The following JSON shape is based on anticipated Copilot agent hook contract. This must be verified against official documentation before implementation begins (see Task 0).
+Based on the [official GitHub Copilot hooks documentation](https://docs.github.com/en/copilot/reference/hooks-configuration#pre-tool-use-hook):
 
 ```json
 {
-  "tool_name": "run_terminal_command",
-  "tool_input": {
-    "command": "npm run foo"
-  }
+  "timestamp": 1704614600000,
+  "cwd": "/path/to/project",
+  "toolName": "bash",
+  "toolArgs": "{\"command\":\"npm run foo\",\"description\":\"Run foo script\"}"
 }
 ```
 
+| Field | Type | Description |
+|-------|------|-------------|
+| `timestamp` | `number` | Unix timestamp in milliseconds |
+| `cwd` | `string` | Current working directory of the hook execution |
+| `toolName` | `string` | Name of the tool being invoked (e.g., `bash`) |
+| `toolArgs` | `string` | JSON-encoded string containing tool arguments (must be parsed) |
+
+**Note**: The `toolArgs` field is a JSON-encoded string that must be parsed to extract the `command` field for policy evaluation.
+
 #### preToolUse Hook Output (stdout)
 
-> **⚠️ ASSUMPTION**: The following response format is based on anticipated Copilot agent hook contract. This must be verified against official documentation before implementation begins (see Task 0).
+Based on the [official GitHub Copilot hooks documentation](https://docs.github.com/en/copilot/reference/hooks-configuration#pre-tool-use-hook):
 
 Approved:
 
 ```json
 {
-  "decision": "allow"
+  "permissionDecision": "allow"
 }
 ```
 
@@ -153,10 +176,15 @@ Denied:
 
 ```json
 {
-  "decision": "deny",
-  "message": "Command 'npm run foo' is blocked by agent-shell policy (matched rule: 'npm run foo')"
+  "permissionDecision": "deny",
+  "permissionDecisionReason": "Command 'npm run foo' is blocked by agent-shell policy (matched rule: 'npm run deploy*')"
 }
 ```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `permissionDecision` | `"allow" \| "deny"` | The decision for the tool invocation |
+| `permissionDecisionReason` | `string` | (Required when denying) Human-readable reason for the denial |
 
 #### Policy Decision Telemetry Event
 
@@ -186,26 +214,28 @@ flowchart TB
     end
     subgraph AgentShell["agent-shell (policy-check mode)"]
         MODE["resolveMode()"]
-        STDIN["Read stdin\n(tool input JSON)"]
-        POLICY["loadPolicy()\n(.agent-shell/policy.json)"]
-        EVAL["evaluatePolicy()\n(match command against rules)"]
-        STDOUT["Write stdout\n(decision JSON)"]
+        GIT["getRepositoryRoot()\n(git rev-parse --show-toplevel)"]
+        STDIN["Read stdin\n(toolName, toolArgs JSON)"]
+        POLICY["loadPolicy()\n(.github/hooks/agent-shell/policy.json)"]
+        EVAL["evaluatePolicy()\n(match command against allow/deny rules)"]
+        STDOUT["Write stdout\n(permissionDecision JSON)"]
         TEL["emitPolicyDecisionEvent()"]
     end
     subgraph FS["File System"]
-        PFILE[".agent-shell/policy.json"]
+        PFILE[".github/hooks/agent-shell/policy.json"]
         EVENTS[".agent-shell/events/*.jsonl"]
     end
 
-    HOOK -->|"JSON stdin\n(tool_name, tool_input)"| MODE
-    MODE --> STDIN
+    HOOK -->|"JSON stdin\n(toolName, toolArgs)"| MODE
+    MODE --> GIT
+    GIT --> STDIN
     STDIN --> EVAL
     POLICY -->|"reads"| PFILE
     POLICY --> EVAL
     EVAL --> STDOUT
     EVAL --> TEL
     TEL -->|"appends"| EVENTS
-    STDOUT -->|"JSON stdout\n(decision)"| HOOK
+    STDOUT -->|"JSON stdout\n(permissionDecision)"| HOOK
 ```
 
 #### Sequence Diagram
@@ -215,17 +245,21 @@ sequenceDiagram
     participant Agent as Copilot Coding Agent
     participant Hook as preToolUse Hook Script
     participant AS as agent-shell (policy-check)
-    participant Policy as .agent-shell/policy.json
+    participant Git as git rev-parse
+    participant Policy as .github/hooks/agent-shell/policy.json
     participant Events as .agent-shell/events/
 
     Agent->>Hook: preToolUse trigger (JSON stdin)
     Hook->>AS: agent-shell policy-check (piped stdin)
     AS->>AS: resolveMode("policy-check")
+    AS->>Git: git rev-parse --show-toplevel
+    Git-->>AS: /path/to/repo
     AS->>AS: Read JSON from stdin
+    AS->>AS: Parse toolArgs JSON string
     AS->>Policy: loadPolicy()
 
     alt policy.json exists
-        Policy-->>AS: Policy rules (deny list)
+        Policy-->>AS: Policy rules (allow/deny lists)
     else policy.json not found
         Policy-->>AS: null (no policy)
     end
@@ -234,44 +268,107 @@ sequenceDiagram
 
     alt command matches deny rule
         AS->>Events: emitPolicyDecisionEvent(deny)
-        AS-->>Hook: {"decision": "deny", "message": "..."}
+        AS-->>Hook: {"permissionDecision": "deny", "permissionDecisionReason": "..."}
         Hook-->>Agent: Tool use blocked
     else command allowed
         AS->>Events: emitPolicyDecisionEvent(allow)
-        AS-->>Hook: {"decision": "allow"}
+        AS-->>Hook: {"permissionDecision": "allow"}
         Hook-->>Agent: Tool use approved
     end
 ```
 
 ### Hook Configuration
 
-#### `.github/hooks/hook.json`
+Based on the [official GitHub Copilot hooks documentation](https://docs.github.com/en/copilot/reference/hooks-configuration#pre-tool-use-hook):
 
-> **⚠️ ASSUMPTION**: The `tools` array value `["run_terminal_command"]` is based on anticipated Copilot agent hook contract field names. This must be verified against official documentation in Task 0. If Task 0 reveals different tool identifiers, this example shall be updated accordingly.
+#### `.github/hooks/hooks.json`
 
 ```json
-[
-  {
-    "event": "preToolUse",
-    "tools": ["run_terminal_command"],
-    "script": ".github/hooks/agent-shell-policy.sh"
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "./.github/hooks/agent-shell/policy-check.sh",
+        "powershell": "./.github/hooks/agent-shell/policy-check.ps1",
+        "cwd": ".",
+        "timeoutSec": 5,
+        "env": {
+          "AGENTSHELL_POLICY_PATH": ".github/hooks/agent-shell/policy.json"
+        }
+      }
+    ]
   }
-]
+}
 ```
 
-#### `.github/hooks/agent-shell-policy.sh`
+| Field | Type | Description |
+|-------|------|-------------|
+| `version` | `number` | Hook schema version (currently `1`) |
+| `hooks.preToolUse` | `array` | Array of hooks to run before tool invocation |
+| `type` | `"command"` | Hook type |
+| `bash` | `string` | Path to shell script (Unix/macOS) |
+| `powershell` | `string` | Path to PowerShell script (Windows) |
+| `cwd` | `string` | Working directory for script execution |
+| `timeoutSec` | `number` | Maximum execution time in seconds (recommended: ≤5 seconds per hook) |
+| `env` | `object` | Environment variables to pass to the hook script |
+
+> **Performance Note**: Hooks run synchronously and block agent execution. Keep execution time under 5 seconds when possible.
+
+#### `.github/hooks/agent-shell/policy-check.sh`
 
 ```sh
 #!/usr/bin/env sh
 exec agent-shell policy-check
 ```
 
-### Open Questions
+#### `.github/hooks/agent-shell/policy-check.ps1`
 
-- [ ] What is the exact JSON contract for GitHub Copilot coding agent `preToolUse` hooks? The stdin/stdout format should be verified against the Copilot agent documentation once publicly available.
-- [ ] Should the policy support an `allow` list in addition to `deny`? (Starting with deny-only keeps the initial scope small; allow-list could be a follow-on.)
-- [ ] Should the policy file location be configurable via an environment variable (e.g., `AGENTSHELL_POLICY_PATH`)? (Deferred to future consideration.)
-- [ ] Should `policy-check` mode also support non-npm tool types (e.g., file writes, API calls)? (Out of scope for this iteration; focus is on terminal commands.)
+```powershell
+& agent-shell policy-check
+```
+
+#### Hook Configuration Zod Schema
+
+A Zod schema shall be defined for validating hook configurations, enabling future hook configuration linting:
+
+```typescript
+const HookCommandSchema = z.object({
+  type: z.literal("command"),
+  bash: z.string().optional(),
+  powershell: z.string().optional(),
+  cwd: z.string().optional(),
+  timeoutSec: z.number().positive().optional(),
+  env: z.record(z.string()).optional(),
+});
+
+const HooksConfigSchema = z.object({
+  version: z.literal(1),
+  hooks: z.object({
+    sessionStart: z.array(HookCommandSchema).optional(),
+    userPromptSubmitted: z.array(HookCommandSchema).optional(),
+    preToolUse: z.array(HookCommandSchema).optional(),
+    postToolUse: z.array(HookCommandSchema).optional(),
+    sessionEnd: z.array(HookCommandSchema).optional(),
+  }),
+});
+```
+
+### Open Questions (Resolved)
+
+The following questions have been resolved based on user decisions:
+
+- [x] ~~What is the exact JSON contract for GitHub Copilot coding agent `preToolUse` hooks?~~ **Resolved**: See [official documentation](https://docs.github.com/en/copilot/reference/hooks-configuration#pre-tool-use-hook). Input uses `timestamp`, `cwd`, `toolName`, `toolArgs`; output uses `permissionDecision`, `permissionDecisionReason`.
+- [x] ~~Should the policy support an `allow` list in addition to `deny`?~~ **Resolved**: Yes, support both allow and deny lists. Deny rules take precedence.
+- [x] ~~Should the policy file location be configurable via an environment variable?~~ **Resolved**: Yes, use `AGENTSHELL_POLICY_PATH` environment variable (set via hook config `env` field). Default location is `.github/hooks/agent-shell/policy.json`.
+- [x] ~~Should `policy-check` mode also support non-npm tool types?~~ **Resolved**: Yes, support all terminal/bash command types (e.g., terraform, npm, shell commands).
+
+### Additional Design Decisions
+
+- **Repository root discovery**: Use `git rev-parse --show-toplevel` as the source of truth for repository root, rather than relying on `process.cwd()`.
+- **Hook configuration schema**: Define a Zod schema for validating hook configurations to enable future linting capabilities.
+- **`copilot-setup` integration**: Add hook provisioning to the `copilot-setup` CLI command, starting with agent-shell for preToolUse.
 
 ---
 
@@ -282,42 +379,42 @@ exec agent-shell policy-check
 
 ### Task 0: Verify Copilot preToolUse hook contract
 
-**Objective**: Verify the exact JSON stdin/stdout contract for GitHub Copilot coding agent `preToolUse` hooks before implementing schemas or tests.
+**Objective**: ~~Verify the exact JSON stdin/stdout contract for GitHub Copilot coding agent `preToolUse` hooks before implementing schemas or tests.~~ **COMPLETED** — Contract verified via official documentation.
 
-**Context**: The spec's Data Model section documents an assumed JSON shape for hook input and output. This assumption must be verified against official Copilot documentation to avoid implementing the wrong interface. This task is a prerequisite for all other tasks.
+**Context**: ~~The spec's Data Model section documents an assumed JSON shape for hook input and output. This assumption must be verified against official Copilot documentation to avoid implementing the wrong interface. This task is a prerequisite for all other tasks.~~ The hook contract has been verified using the [official GitHub Copilot hooks documentation](https://docs.github.com/en/copilot/reference/hooks-configuration#pre-tool-use-hook).
 
 **Affected files**:
-- `.github/specs/agent-shell-pre-tool-use-hook.spec.md` (updated — confirm or correct the assumed JSON shapes)
+- `.github/specs/agent-shell-pre-tool-use-hook.spec.md` (updated — ~~confirm or correct the assumed JSON shapes~~ **DONE**)
 
 **Requirements**:
-- Locate and review official GitHub Copilot documentation for `preToolUse` hook contracts
-- Verify the stdin JSON shape (`tool_name`, `tool_input.command`, etc.) matches the documented contract
-- Verify the stdout JSON shape (`decision`, `message`, etc.) matches the documented contract
-- If the documented contract differs from assumptions, update the Data Model section and all dependent tasks
-- If documentation is not yet publicly available, document this as a known risk and proceed with assumptions
+- ~~Locate and review official GitHub Copilot documentation for `preToolUse` hook contracts~~ **DONE**
+- ~~Verify the stdin JSON shape (`tool_name`, `tool_input.command`, etc.) matches the documented contract~~ **DONE** — Uses `timestamp`, `cwd`, `toolName`, `toolArgs`
+- ~~Verify the stdout JSON shape (`decision`, `message`, etc.) matches the documented contract~~ **DONE** — Uses `permissionDecision`, `permissionDecisionReason`
+- ~~If the documented contract differs from assumptions, update the Data Model section and all dependent tasks~~ **DONE**
+- ~~If documentation is not yet publicly available, document this as a known risk and proceed with assumptions~~ N/A — Documentation is available
 
 **Verification**:
-- [ ] Data Model section accurately reflects the documented (or best-known) hook contract
-- [ ] Assumptions are explicitly labeled in the spec if verification is incomplete
+- [x] Data Model section accurately reflects the documented hook contract
+- [x] No assumptions remain — official documentation is referenced
 
 **Done when**:
-- [ ] Hook contract is verified against documentation, OR
-- [ ] Spec explicitly documents that assumptions are unverified and why
+- [x] Hook contract is verified against documentation
 
 ---
 
 ### Task 1: Define policy configuration schema and types
 
-**Objective**: Define the Zod schema for the policy configuration file and the policy decision telemetry event type.
+**Objective**: Define the Zod schemas for the policy configuration file, hook configuration file, and the policy decision telemetry event type.
 
-**Context**: This task establishes the data types that all other tasks depend on. The policy config schema validates `.agent-shell/policy.json` and the event schema extends the existing telemetry types.
+**Context**: This task establishes the data types that all other tasks depend on. The policy config schema validates `.github/hooks/agent-shell/policy.json`, the hook config schema validates `.github/hooks/hooks.json`, and the event schema extends the existing telemetry types.
 
 **Affected files**:
-- `packages/agent-shell/src/types.ts` (updated — add `PolicyConfigSchema`, `PolicyDecisionEventSchema`)
+- `packages/agent-shell/src/types.ts` (updated — add `PolicyConfigSchema`, `PolicyDecisionEventSchema`, `HooksConfigSchema`)
 - `packages/agent-shell/tests/types.test.ts` (updated — add validation tests for new schemas)
 
 **Requirements**:
-- The `PolicyConfigSchema` shall validate a JSON object with a `deny` array of strings
+- The `PolicyConfigSchema` shall validate a JSON object with optional `allow` and required `deny` arrays of strings
+- The `HooksConfigSchema` shall validate the GitHub Copilot hooks configuration format with version and hooks object
 - The `PolicyDecisionEventSchema` shall extend the existing base fields with `decision` (allow/deny) and `matched_rule` (string, optional)
 - The `ScriptEventSchema` discriminated union shall include the new `PolicyDecisionEvent` variant
 - When invalid data is provided, Zod shall reject it with descriptive errors
@@ -328,18 +425,47 @@ exec agent-shell policy-check
 
 **Done when**:
 - [ ] All verification steps pass
-- [ ] `PolicyConfigSchema` and `PolicyDecisionEventSchema` are exported and tested
+- [ ] `PolicyConfigSchema`, `HooksConfigSchema`, and `PolicyDecisionEventSchema` are exported and tested
 - [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
-### Task 2: Implement policy loading and evaluation
+### Task 2: Implement repository root discovery
 
-**Objective**: Create the `policy.ts` module that loads the policy configuration file and evaluates a command against the deny rules.
+**Objective**: Create a utility function to discover the repository root using `git rev-parse --show-toplevel`.
 
-**Depends on**: Task 1
+**Depends on**: None
 
-**Context**: This is the core business logic for policy evaluation. It reads the policy file, validates it with Zod, and matches commands against deny patterns using exact and glob matching.
+**Context**: Policy file paths should be resolved relative to the repository root, not the current working directory. This ensures consistent behavior regardless of where the hook is invoked from.
+
+**Affected files**:
+- `packages/agent-shell/src/git-utils.ts` (new)
+- `packages/agent-shell/tests/git-utils.test.ts` (new)
+
+**Requirements**:
+- `getRepositoryRoot()` shall execute `git rev-parse --show-toplevel` and return the trimmed output
+- If `git` command fails (e.g., not in a git repository), the function shall throw a descriptive error
+- The function shall cache the result to avoid repeated subprocess calls within the same process
+
+**Verification**:
+- [ ] `npm test packages/agent-shell/tests/git-utils.test.ts` passes
+- [ ] `npx biome check packages/agent-shell/src/git-utils.ts` passes
+
+**Done when**:
+- [ ] All verification steps pass
+- [ ] Repository root is discovered correctly in git repositories
+- [ ] Non-git directories produce a clear error
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
+
+---
+
+### Task 3: Implement policy loading and evaluation
+
+**Objective**: Create the `policy.ts` module that loads the policy configuration file and evaluates a command against the allow and deny rules.
+
+**Depends on**: Task 1, Task 2
+
+**Context**: This is the core business logic for policy evaluation. It reads the policy file, validates it with Zod, and matches commands against patterns using exact and glob matching. Deny rules take precedence over allow rules.
 
 **Affected files**:
 - `packages/agent-shell/src/policy.ts` (new)
@@ -349,15 +475,16 @@ exec agent-shell policy-check
 - When a policy file exists and is valid JSON, `loadPolicy` shall return the parsed and validated policy
 - When a policy file does not exist, `loadPolicy` shall return `null`
 - When a policy file contains invalid JSON, `loadPolicy` shall throw an error with a descriptive message
-- When a command exactly matches a deny rule, `evaluatePolicy` shall return `{ decision: "deny", matchedRule: "<rule>" }`
+- When a command matches any deny rule, `evaluatePolicy` shall return `{ decision: "deny", matchedRule: "<rule>" }`
 - When a command matches a deny rule with a `*` wildcard, `evaluatePolicy` shall return `{ decision: "deny", matchedRule: "<rule>" }`
-- When a command does not match any deny rule, `evaluatePolicy` shall return `{ decision: "allow" }`
+- When an allow list exists and the command does not match any allow rule, `evaluatePolicy` shall return `{ decision: "deny", matchedRule: null }`
+- When a command does not match any deny rule (and matches an allow rule if present), `evaluatePolicy` shall return `{ decision: "allow" }`
 - When the policy is `null` (no file), `evaluatePolicy` shall return `{ decision: "allow" }`
 - Before reading the policy file, the system shall attempt to resolve the path using `realpath` to follow any symlinks; if `realpath` returns `ENOENT` (file does not exist), `loadPolicy` shall return `null` (no policy)
-- After successful `realpath` resolution, the system shall validate the resolved path is within the project root using `isWithinProjectRoot`
-- **"Project root" is defined as `process.cwd()`**, consistent with agent-shell's existing telemetry and log directory resolution. The Copilot hook execution environment runs with cwd set to the repository root.
-- If the policy file path (after `realpath` resolution) is outside the project root, `loadPolicy` shall throw a descriptive error and refuse to read the file
-- If the policy file is a symlink pointing outside the project root, `loadPolicy` shall throw a descriptive error (symlink escape prevention)
+- After successful `realpath` resolution, the system shall validate the resolved path is within the repository root (discovered via `git rev-parse --show-toplevel`) using `isWithinProjectRoot`
+- The default policy file path is `.github/hooks/agent-shell/policy.json` relative to the repository root, but can be overridden via the `AGENTSHELL_POLICY_PATH` environment variable
+- If the policy file path (after `realpath` resolution) is outside the repository root, `loadPolicy` shall throw a descriptive error and refuse to read the file
+- If the policy file is a symlink pointing outside the repository root, `loadPolicy` shall throw a descriptive error (symlink escape prevention)
 
 **Verification**:
 - [ ] `npm test packages/agent-shell/tests/policy.test.ts` passes
@@ -365,16 +492,17 @@ exec agent-shell policy-check
 
 **Done when**:
 - [ ] All verification steps pass
-- [ ] Exact-match and glob-match deny rules are tested
+- [ ] Exact-match and glob-match rules are tested for both allow and deny
 - [ ] Missing policy file is handled gracefully
 - [ ] Invalid policy file produces a descriptive error
+- [ ] `AGENTSHELL_POLICY_PATH` override is supported
 - [ ] Path traversal is prevented
 - [ ] Symlink escapes are prevented (realpath + isWithinProjectRoot)
 - [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
-### Task 3: Add `policy-check` mode to CLI argument parser
+### Task 4: Add `policy-check` mode to CLI argument parser
 
 **Objective**: Extend `resolveMode` to recognize the `policy-check` subcommand and return a new mode variant.
 
@@ -404,7 +532,7 @@ exec agent-shell policy-check
 
 ---
 
-### Task 4: Add policy decision telemetry emission
+### Task 5: Add policy decision telemetry emission
 
 **Objective**: Add an `emitPolicyDecisionEvent` function to the telemetry module that records policy evaluation outcomes.
 
@@ -434,11 +562,11 @@ exec agent-shell policy-check
 
 ---
 
-### Task 5: Implement `policy-check` mode in main entry point
+### Task 6: Implement `policy-check` mode in main entry point
 
 **Objective**: Wire the `policy-check` mode into the main `index.ts` switch to read stdin, evaluate the policy, emit telemetry, and write the decision to stdout.
 
-**Depends on**: Task 2, Task 3, Task 4
+**Depends on**: Task 2, Task 3, Task 4, Task 5
 
 **Context**: This is the integration point that connects all the pieces. The main function reads JSON from stdin, loads the policy, evaluates it, emits a telemetry event, and writes the decision to stdout.
 
@@ -448,23 +576,25 @@ exec agent-shell policy-check
 
 **Requirements**:
 - When invoked as `agent-shell policy-check`, the system shall read JSON from stdin
+- The system shall parse stdin JSON and extract `toolName` and `toolArgs` fields per the [official hook contract](https://docs.github.com/en/copilot/reference/hooks-configuration#pre-tool-use-hook)
+- The system shall parse `toolArgs` (which is a JSON-encoded string) to extract the `command` field
 - When stdin contains valid tool input with a command, the system shall load the policy and evaluate the command
-- When the command is denied by policy, the system shall write `{"decision":"deny","message":"..."}` to stdout and exit with code 0
-- When the command is allowed, the system shall write `{"decision":"allow"}` to stdout and exit with code 0
+- When the command is denied by policy, the system shall write `{"permissionDecision":"deny","permissionDecisionReason":"..."}` to stdout and exit with code 0
+- When the command is allowed, the system shall write `{"permissionDecision":"allow"}` to stdout and exit with code 0
 - When stdin contains invalid JSON, the system shall write a deny response to stdout and write an error to stderr
-- When stdin JSON contains `tool_name` of `run_terminal_command` but is missing `tool_input.command`, the system shall write a deny response to stdout with a descriptive error (fail-closed for terminal commands with unevaluable input)
-- When `tool_name` is not `run_terminal_command`, the system shall write an allow response to stdout
-- When `tool_input.command` is not a string, the system shall write a deny response to stdout with a descriptive error
+- When stdin JSON contains `toolName` of `bash` but `toolArgs` does not contain a `command` field, the system shall write a deny response to stdout with a descriptive error (fail-closed for terminal commands with unevaluable input)
+- When `toolName` is not a terminal tool type (e.g., `bash`), the system shall write an allow response to stdout
+- When `command` in `toolArgs` is not a string, the system shall write a deny response to stdout with a descriptive error
 - When the policy file contains invalid JSON, the system shall write a deny response to stdout and write the error to stderr
 - If telemetry emission fails (e.g., events directory not writable), the system shall log the error to stderr but shall still write the decision JSON to stdout and exit with code 0
 - If any unexpected runtime error occurs (stdin read failure, policy load crash, unhandled exception), the system shall catch the error, write a deny JSON response to stdout with a generic error message, write error details to stderr, and exit with code 0
 - The system shall emit a policy decision telemetry event for every evaluation (best-effort; failures do not block the decision)
-- The system shall exit with code 0 in all cases (⚠️ ASSUMPTION per Task 0: the hook contract uses the JSON response, not the exit code, for the decision; if Task 0 reveals otherwise, this requirement shall be updated)
+- The system shall exit with code 0 in all cases (the hook contract uses the JSON response, not the exit code, for the decision)
 
 **Verification**:
 - [ ] `npm test packages/agent-shell/tests/integration/policy-check.test.ts` passes
 - [ ] `npx biome check packages/agent-shell/src/index.ts` passes
-- [ ] Manual test: `echo '{"tool_name":"run_terminal_command","tool_input":{"command":"npm run foo"}}' | agent-shell policy-check` outputs correct JSON
+- [ ] Manual test: `echo '{"timestamp":1704614600000,"cwd":"/path","toolName":"bash","toolArgs":"{\"command\":\"npm run foo\"}"}' | agent-shell policy-check` outputs correct JSON
 
 **Done when**:
 - [ ] All verification steps pass
@@ -474,11 +604,11 @@ exec agent-shell policy-check
 
 ---
 
-### Task 6: Integrate policy decision events into log query and display
+### Task 7: Integrate policy decision events into log query and display
 
 **Objective**: Update the log query and format modules to include policy decision events in output.
 
-**Depends on**: Task 4
+**Depends on**: Task 5
 
 **Context**: Users need to see policy decisions when querying the event log. This task ensures `agent-shell log` displays policy decisions alongside existing event types, and that `--failures` includes denied decisions.
 
@@ -507,11 +637,11 @@ exec agent-shell policy-check
 
 ---
 
-### Task 7: Update README and USAGE documentation
+### Task 8: Update README and USAGE documentation
 
 **Objective**: Document the `policy-check` mode, policy configuration format, and hook setup in the agent-shell README.
 
-**Depends on**: Task 5
+**Depends on**: Task 6
 
 **Context**: Users need to know how to configure agent-shell as a preToolUse hook and how to write policy rules.
 
@@ -521,10 +651,11 @@ exec agent-shell policy-check
 
 **Requirements**:
 - The README shall document the `policy-check` subcommand and its purpose
-- The README shall include an example `.agent-shell/policy.json` with deny rules
-- The README shall include example `.github/hooks/hook.json` and hook script configuration
+- The README shall include an example `.github/hooks/agent-shell/policy.json` with both allow and deny rules
+- The README shall include example `.github/hooks/hooks.json` and hook script configuration per the [official documentation](https://docs.github.com/en/copilot/reference/hooks-configuration#pre-tool-use-hook)
 - The USAGE string in `index.ts` shall list `agent-shell policy-check` as a valid subcommand
 - The README shall document the telemetry event format for policy decisions
+- The README shall document the `AGENTSHELL_POLICY_PATH` environment variable override
 
 **Verification**:
 - [ ] `npx biome check packages/agent-shell/src/index.ts` passes
@@ -537,21 +668,49 @@ exec agent-shell policy-check
 
 ---
 
+### Task 9: Add `copilot-setup` hook provisioning
+
+**Objective**: Add an option to the `copilot-setup` CLI command to scaffold `.github/hooks/` with agent-shell preToolUse integration.
+
+**Depends on**: Task 8
+
+**Context**: Users should be able to easily configure agent-shell hooks via the existing `copilot-setup` command, rather than manually creating all configuration files.
+
+**Affected files**:
+- `packages/cli/src/commands/copilot-setup.ts` (updated — add hook provisioning option)
+- `packages/cli/tests/commands/copilot-setup.test.ts` (updated)
+
+**Requirements**:
+- The `copilot-setup` command shall offer a sub-choice for adding agent-shell preToolUse hook support
+- When selected, the command shall create `.github/hooks/hooks.json` with a preToolUse entry for agent-shell
+- When selected, the command shall create `.github/hooks/agent-shell/policy-check.sh` (and `.ps1` for Windows)
+- When selected, the command shall create a default `.github/hooks/agent-shell/policy.json` with example rules
+- The command shall not overwrite existing hook files without confirmation
+- Dry-run mode shall preview what would be created without writing files
+
+**Verification**:
+- [ ] `npm test packages/cli/tests/commands/copilot-setup.test.ts` passes
+- [ ] `npx biome check packages/cli/src/commands/copilot-setup.ts` passes
+
+**Done when**:
+- [ ] All verification steps pass
+- [ ] Hook provisioning creates all required files
+- [ ] Dry-run mode works correctly
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
+
+---
+
 ## Out of Scope
 
-- Scaffolding `.github/hooks/` files via a CLI command (potential follow-on for `copilot-setup`)
-- `allow`-list policy rules (starting with deny-only for simplicity)
-- Policy evaluation for non-terminal tools (e.g., file writes, API calls)
-- Configurable policy file location via environment variable
-- Remote/shared policy configurations
-- Policy rule priorities or ordering logic beyond array order (any matching rule causes denial)
+- Policy evaluation for non-terminal tools (e.g., file writes, API calls) — only terminal/bash commands are evaluated
+- Remote/shared policy configurations (e.g., fetching policies from URLs)
+- Policy inheritance from organization-level configurations
 
 ## Future Considerations
 
-- Add an `allow` list to the policy schema for more nuanced control (deny takes precedence)
-- Add a `copilot-setup` CLI step that scaffolds `.github/hooks/` with agent-shell integration
-- Support policy evaluation for additional Copilot tool types beyond `run_terminal_command`
+- Support policy evaluation for additional Copilot tool types beyond terminal commands
 - Enable shared/inherited policies (e.g., organization-level policy files)
 - Add `agent-shell policy-check --dry-run` for testing policies without emitting telemetry
-- Add `AGENTSHELL_POLICY_PATH` environment variable to override the default policy file location
+- Add hook configuration validation/linting via the Zod schema
+- Support for more complex glob patterns (e.g., `**`, `?`, `[abc]`)
 - Surface policy decisions in the MCP server for richer agent feedback
