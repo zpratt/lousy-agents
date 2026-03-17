@@ -27,9 +27,9 @@ so that I can **enforce repository-level constraints on what agents are allowed 
 
 #### Acceptance Criteria
 
-Based on the [official GitHub Copilot hooks documentation](https://docs.github.com/en/copilot/reference/hooks-configuration#pre-tool-use-hook), the hook receives JSON on stdin with `toolName` and `toolArgs` fields, and returns JSON on stdout with `permissionDecision` and `permissionDecisionReason` (required when denying) fields.
+- When the hook receives JSON on stdin with `toolName` and `toolArgs` fields, the system shall return JSON on stdout with `permissionDecision` and `permissionDecisionReason` (required when denying) fields, per the [official GitHub Copilot hooks documentation](https://docs.github.com/en/copilot/reference/hooks-configuration#pre-tool-use-hook).
 
-- When agent-shell is invoked in `policy-check` mode, the system shall evaluate input in the following order: (1) parse stdin as JSON (fail-closed if invalid), (2) extract `toolName` and parse `toolArgs` JSON string (fail-closed if `toolArgs` is not valid JSON), (3) check if `toolName` is `bash` or a terminal tool (fail-open to allow if not), (4) validate `command` exists in parsed `toolArgs` and is a string (fail-closed if not), (5) load policy file (fail-closed if invalid JSON, allow-all if missing), (6) evaluate deny rules first (deny if match), then evaluate allow rules if allow list exists (deny if no match), otherwise allow.
+- When agent-shell is invoked in `policy-check` mode, the system shall evaluate input in the following order: (1) parse stdin as JSON (fail-closed if invalid), (2) extract `toolName` and parse `toolArgs` JSON string (fail-closed if `toolArgs` is not valid JSON), (3) load and validate policy file (fail-closed if invalid JSON; allow-all if missing), (4) check if `toolName` is `bash` or a terminal tool (fail-open to allow if not a terminal tool and policy is valid), (5) validate `command` exists in parsed `toolArgs` and is a string (fail-closed if not), (6) evaluate deny rules first (deny if match), then evaluate allow rules if allow list exists (deny if no match), otherwise allow.
 - When the tool input contains a command that matches any deny rule in the agent-shell policy, the system shall write a JSON response to stdout with `{"permissionDecision":"deny","permissionDecisionReason":"..."}`.
 - When the tool input contains a command that does not match any deny rule (and matches an allow rule if allow list exists), the system shall write a JSON response to stdout with `{"permissionDecision":"allow"}`.
 - If the policy configuration file does not exist, then the system shall approve all tool uses by default.
@@ -80,8 +80,8 @@ so that I can **understand what the agent attempted and verify that policies are
 
 #### Acceptance Criteria
 
-- When a command is blocked by policy, the system shall emit a `policy_decision` telemetry event to the events directory (defaults to `.agent-shell/events` unless `AGENTSHELL_LOG_DIR` is set).
-- The `policy_decision` event shall include the command that was evaluated, the policy rule that matched, the decision (allow or deny), and the actor.
+- When a policy decision is made (allow or deny), the system shall emit a `policy_decision` telemetry event to the events directory (defaults to `.agent-shell/events` unless `AGENTSHELL_LOG_DIR` is set).
+- The `policy_decision` event shall include the command that was evaluated, the policy rule that matched (if any), the decision (allow or deny), and the actor.
 - When the user runs `agent-shell log`, the system shall display policy decision events alongside script execution events.
 - When the user runs `agent-shell log --failures`, the system shall include denied policy decisions in the results.
 
@@ -177,7 +177,7 @@ Denied:
 ```json
 {
   "permissionDecision": "deny",
-  "permissionDecisionReason": "Command 'npm run foo' is blocked by agent-shell policy (matched rule: 'npm run deploy*')"
+  "permissionDecisionReason": "Command 'npm run foo' is blocked by agent-shell policy (matched rule: 'npm run foo')"
 }
 ```
 
@@ -481,7 +481,7 @@ The following questions have been resolved based on user decisions:
 - When a command does not match any deny rule (and matches an allow rule if present), `evaluatePolicy` shall return `{ decision: "allow" }`
 - When the policy is `null` (no file), `evaluatePolicy` shall return `{ decision: "allow" }`
 - Before reading the policy file, the system shall attempt to resolve the path using `realpath` to follow any symlinks; if `realpath` returns `ENOENT` (file does not exist), `loadPolicy` shall return `null` (no policy)
-- After successful `realpath` resolution, the system shall validate the resolved path is within the repository root (discovered via `git rev-parse --show-toplevel`) using `isWithinRepositoryRoot`
+- After successful `realpath` resolution, the system shall validate the resolved path is within the repository root (discovered via `git rev-parse --show-toplevel`) using the existing `isWithinProjectRoot` helper (passing the discovered repo root as the "projectRoot" parameter)
 - The default policy file path is `.github/hooks/agent-shell/policy.json` relative to the repository root, but can be overridden via the `AGENTSHELL_POLICY_PATH` environment variable
 - If the policy file path (after `realpath` resolution) is outside the repository root, `loadPolicy` shall throw a descriptive error and refuse to read the file
 - If the policy file is a symlink pointing outside the repository root, `loadPolicy` shall throw a descriptive error (symlink escape prevention)
