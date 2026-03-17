@@ -29,19 +29,19 @@ so that I can **enforce repository-level constraints on what agents are allowed 
 
 > **⚠️ ASSUMPTION**: The field names below (`tool_name`, `tool_input.command`) are based on the anticipated Copilot agent hook contract. These must be verified against official documentation before implementation begins (see Task 0). If Task 0 reveals a different contract, these criteria shall be updated accordingly.
 
-- When agent-shell is invoked in `policy-check` mode, the system shall read the tool input from stdin as JSON.
-- When the tool input contains a command that matches a deny rule in the agent-shell policy, the system shall write a JSON response to stdout rejecting the tool use with a descriptive message.
+- When agent-shell is invoked in `policy-check` mode, the system shall evaluate input in the following order: (1) parse stdin as JSON (fail-closed if invalid), (2) check if `tool_name` is `run_terminal_command` (fail-open to allow if not), (3) validate `tool_input.command` exists and is a string (fail-closed if not), (4) load policy file (fail-closed if invalid JSON, allow-all if missing), (5) evaluate deny rules against command.
+- When the tool input contains a command that matches any deny rule in the agent-shell policy, the system shall write a JSON response to stdout rejecting the tool use with a descriptive message.
 - When the tool input contains a command that does not match any deny rule, the system shall write a JSON response to stdout approving the tool use.
 - If the policy configuration file does not exist, then the system shall approve all tool uses by default.
-- If the policy configuration file contains invalid JSON, then the system shall write a deny JSON response to stdout with an error description and write the error details to stderr.
+- If the policy configuration file exists but contains invalid JSON, then the system shall write a deny JSON response to stdout with an error description and write the error details to stderr (fail-closed: policy errors block execution).
 - If stdin contains data that is not valid JSON, then the system shall write a deny JSON response to stdout with a descriptive error message and write the parse error details to stderr (fail-closed: JSON parsing must succeed before any other evaluation).
 - If the stdin JSON contains `tool_name` of `run_terminal_command` but does not contain the expected `tool_input.command` field, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with unevaluable input).
 - If the stdin JSON contains `tool_name` of `run_terminal_command` but `tool_input.command` is not a string, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with invalid command type).
-- If the stdin contains valid JSON but the `tool_name` field is not `run_terminal_command`, then the system shall write an allow JSON response to stdout (fail-open applies only to successfully parsed JSON with a non-terminal tool name).
+- If the stdin contains valid JSON but the `tool_name` field is not `run_terminal_command`, then the system shall write an allow JSON response to stdout (fail-open applies only to successfully parsed JSON with a non-terminal tool name, evaluated before policy loading).
 - While agent-shell is running in `policy-check` mode, the system shall emit a telemetry event recording the policy decision (allowed or denied) for auditability.
 - If telemetry emission fails (e.g., events directory not writable), then the system shall log the error to stderr but shall not change the allow/deny decision or prevent writing the decision JSON to stdout.
 - The system shall support exact-match and glob-pattern deny rules for command strings.
-- When evaluating glob patterns, the system shall use the following matching semantics: `*` matches any sequence of characters (including spaces and empty strings), matching is case-sensitive, and patterns are anchored to the full command string (the entire command must match the pattern, not a substring).
+- When evaluating glob patterns, the system shall use the following matching semantics: `*` matches any sequence of characters (including spaces and empty strings), matching is case-sensitive, patterns are anchored to the full command string (the entire command must match the pattern, not a substring), and only `*` is a special character (all other characters including `.`, `?`, `[`, `]`, etc. shall match literally).
 
 #### Notes
 
@@ -323,7 +323,7 @@ exec agent-shell policy-check
 - When invalid data is provided, Zod shall reject it with descriptive errors
 
 **Verification**:
-- [ ] `npm test -- packages/agent-shell/tests/types.test.ts` passes
+- [ ] `npm test packages/agent-shell/tests/types.test.ts` passes
 - [ ] `npx biome check packages/agent-shell/src/types.ts` passes
 
 **Done when**:
@@ -360,7 +360,7 @@ exec agent-shell policy-check
 - If the policy file is a symlink pointing outside the project root, `loadPolicy` shall throw a descriptive error (symlink escape prevention)
 
 **Verification**:
-- [ ] `npm test -- packages/agent-shell/tests/policy.test.ts` passes
+- [ ] `npm test packages/agent-shell/tests/policy.test.ts` passes
 - [ ] `npx biome check packages/agent-shell/src/policy.ts` passes
 
 **Done when**:
@@ -393,7 +393,7 @@ exec agent-shell policy-check
 - Existing mode resolution behavior shall not change for non-`policy-check` commands
 
 **Verification**:
-- [ ] `npm test -- packages/agent-shell/tests/shim.test.ts` passes
+- [ ] `npm test packages/agent-shell/tests/shim.test.ts` passes
 - [ ] `npx biome check packages/agent-shell/src/mode.ts` passes
 
 **Done when**:
@@ -423,7 +423,7 @@ exec agent-shell policy-check
 - The function shall follow the existing dependency injection pattern (`TelemetryDeps`)
 
 **Verification**:
-- [ ] `npm test -- packages/agent-shell/tests/telemetry.test.ts` passes
+- [ ] `npm test packages/agent-shell/tests/telemetry.test.ts` passes
 - [ ] `npx biome check packages/agent-shell/src/telemetry.ts` passes
 
 **Done when**:
@@ -462,7 +462,7 @@ exec agent-shell policy-check
 - The system shall exit with code 0 in all cases (⚠️ ASSUMPTION per Task 0: the hook contract uses the JSON response, not the exit code, for the decision; if Task 0 reveals otherwise, this requirement shall be updated)
 
 **Verification**:
-- [ ] `npm test -- packages/agent-shell/tests/integration/policy-check.test.ts` passes
+- [ ] `npm test packages/agent-shell/tests/integration/policy-check.test.ts` passes
 - [ ] `npx biome check packages/agent-shell/src/index.ts` passes
 - [ ] Manual test: `echo '{"tool_name":"run_terminal_command","tool_input":{"command":"npm run foo"}}' | agent-shell policy-check` outputs correct JSON
 
@@ -495,8 +495,8 @@ exec agent-shell policy-check
 - When formatting events as JSON, policy decision events shall be included as-is
 
 **Verification**:
-- [ ] `npm test -- packages/agent-shell/tests/log/format.test.ts` passes
-- [ ] `npm test -- packages/agent-shell/tests/log/query.test.ts` passes
+- [ ] `npm test packages/agent-shell/tests/log/format.test.ts` passes
+- [ ] `npm test packages/agent-shell/tests/log/query.test.ts` passes
 - [ ] `npx biome check packages/agent-shell/src/log/format.ts packages/agent-shell/src/log/query.ts` passes
 
 **Done when**:
@@ -544,7 +544,7 @@ exec agent-shell policy-check
 - Policy evaluation for non-terminal tools (e.g., file writes, API calls)
 - Configurable policy file location via environment variable
 - Remote/shared policy configurations
-- Policy rule priorities or ordering logic (first match wins with deny-only)
+- Policy rule priorities or ordering logic beyond array order (any matching rule causes denial)
 
 ## Future Considerations
 
