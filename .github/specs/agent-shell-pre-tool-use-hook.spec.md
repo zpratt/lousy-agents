@@ -27,9 +27,9 @@ so that I can **enforce repository-level constraints on what agents are allowed 
 
 #### Acceptance Criteria
 
-Based on the [official GitHub Copilot hooks documentation](https://docs.github.com/en/copilot/reference/hooks-configuration#pre-tool-use-hook), the hook receives JSON on stdin with `toolName` and `toolArgs` fields, and returns JSON on stdout with `permissionDecision` and optional `permissionDecisionReason` fields.
+Based on the [official GitHub Copilot hooks documentation](https://docs.github.com/en/copilot/reference/hooks-configuration#pre-tool-use-hook), the hook receives JSON on stdin with `toolName` and `toolArgs` fields, and returns JSON on stdout with `permissionDecision` and `permissionDecisionReason` (required when denying) fields.
 
-- When agent-shell is invoked in `policy-check` mode, the system shall evaluate input in the following order: (1) parse stdin as JSON (fail-closed if invalid), (2) extract `toolName` and parse `toolArgs` JSON string (fail-closed if `toolArgs` is not valid JSON), (3) check if `toolName` is `bash` or a terminal tool (fail-open to allow if not), (4) validate `command` exists in parsed `toolArgs` and is a string (fail-closed if not), (5) load policy file (fail-closed if invalid JSON, allow-all if missing), (6) evaluate deny rules then allow rules against command.
+- When agent-shell is invoked in `policy-check` mode, the system shall evaluate input in the following order: (1) parse stdin as JSON (fail-closed if invalid), (2) extract `toolName` and parse `toolArgs` JSON string (fail-closed if `toolArgs` is not valid JSON), (3) check if `toolName` is `bash` or a terminal tool (fail-open to allow if not), (4) validate `command` exists in parsed `toolArgs` and is a string (fail-closed if not), (5) load policy file (fail-closed if invalid JSON, allow-all if missing), (6) evaluate deny rules first (deny if match), then evaluate allow rules if allow list exists (deny if no match), otherwise allow.
 - When the tool input contains a command that matches any deny rule in the agent-shell policy, the system shall write a JSON response to stdout with `{"permissionDecision":"deny","permissionDecisionReason":"..."}`.
 - When the tool input contains a command that does not match any deny rule (and matches an allow rule if allow list exists), the system shall write a JSON response to stdout with `{"permissionDecision":"allow"}`.
 - If the policy configuration file does not exist, then the system shall approve all tool uses by default.
@@ -445,7 +445,7 @@ The following questions have been resolved based on user decisions:
 **Requirements**:
 - `getRepositoryRoot()` shall execute `git rev-parse --show-toplevel` and return the trimmed output
 - If `git` command fails (e.g., not in a git repository), the function shall throw a descriptive error
-- The function shall cache the result to avoid repeated subprocess calls within the same process
+- The function shall cache the result to avoid repeated subprocess calls; the cache shall be scoped to the process lifetime and shall not be persisted between invocations
 
 **Verification**:
 - [ ] `npm test packages/agent-shell/tests/git-utils.test.ts` passes
@@ -481,7 +481,7 @@ The following questions have been resolved based on user decisions:
 - When a command does not match any deny rule (and matches an allow rule if present), `evaluatePolicy` shall return `{ decision: "allow" }`
 - When the policy is `null` (no file), `evaluatePolicy` shall return `{ decision: "allow" }`
 - Before reading the policy file, the system shall attempt to resolve the path using `realpath` to follow any symlinks; if `realpath` returns `ENOENT` (file does not exist), `loadPolicy` shall return `null` (no policy)
-- After successful `realpath` resolution, the system shall validate the resolved path is within the repository root (discovered via `git rev-parse --show-toplevel`) using `isWithinProjectRoot`
+- After successful `realpath` resolution, the system shall validate the resolved path is within the repository root (discovered via `git rev-parse --show-toplevel`) using `isWithinRepositoryRoot`
 - The default policy file path is `.github/hooks/agent-shell/policy.json` relative to the repository root, but can be overridden via the `AGENTSHELL_POLICY_PATH` environment variable
 - If the policy file path (after `realpath` resolution) is outside the repository root, `loadPolicy` shall throw a descriptive error and refuse to read the file
 - If the policy file is a symlink pointing outside the repository root, `loadPolicy` shall throw a descriptive error (symlink escape prevention)
@@ -683,7 +683,7 @@ The following questions have been resolved based on user decisions:
 **Requirements**:
 - The `copilot-setup` command shall offer a sub-choice for adding agent-shell preToolUse hook support
 - When selected, the command shall create `.github/hooks/hooks.json` with a preToolUse entry for agent-shell
-- When selected, the command shall create `.github/hooks/agent-shell/policy-check.sh` (and `.ps1` for Windows)
+- When selected, the command shall create both `.github/hooks/agent-shell/policy-check.sh` and `.github/hooks/agent-shell/policy-check.ps1` for cross-platform compatibility
 - When selected, the command shall create a default `.github/hooks/agent-shell/policy.json` with example rules
 - The command shall not overwrite existing hook files without confirmation
 - Dry-run mode shall preview what would be created without writing files
