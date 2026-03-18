@@ -45,7 +45,7 @@ export const createClaudeCodeWebSetupHandler: ToolHandler = async (
         const claudeGateway = createClaudeFileGateway();
 
         const environment = await environmentGateway.detectEnvironment(dir);
-        const copilotSetupConfig = await loadCopilotSetupConfig();
+        const copilotSetupConfig = await loadCopilotSetupConfig(dir);
 
         const hooks = await buildSessionStartHooks(
             environment,

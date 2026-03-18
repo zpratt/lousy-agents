@@ -50,7 +50,7 @@ export const resolveActionVersionsHandler: ResolveActionsHandler = async (
             });
         }
 
-        const config = await loadCopilotSetupConfig();
+        const config = await loadCopilotSetupConfig(args.targetDir);
 
         const defaultActions: SetupStepCandidate[] = [
             ...config.setupActions.map((actionConfig) => ({
