@@ -133,8 +133,8 @@ The policy file defaults to `.github/hooks/agent-shell/policy.json` (relative to
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `allow` | `string[]` | (Optional) Array of command patterns to explicitly allow. If specified, commands must match an allow rule to proceed. |
-| `deny` | `string[]` | Array of command patterns to block. Deny rules take precedence over allow rules. |
+| `allow` | `string[]` | (Optional) Array of command patterns to explicitly allow. If specified, commands must match an allow rule to proceed. If omitted, no allow-list filtering is applied. |
+| `deny` | `string[]` | (Optional) Array of command patterns to block. Defaults to `[]` if omitted. Deny rules take precedence over allow rules. |
 
 **Evaluation order**: (1) If the command matches any deny rule, deny. (2) If an allow list exists and the command does not match any allow rule, deny. (3) Otherwise, allow.
 
@@ -416,7 +416,7 @@ The following questions have been resolved based on user decisions:
 - `packages/agent-shell/tests/types.test.ts` (updated — add validation tests for new schemas)
 
 **Requirements**:
-- The `PolicyConfigSchema` shall validate a JSON object with optional `allow` and optional `deny` arrays of strings (both default to empty arrays when not provided)
+- The `PolicyConfigSchema` shall validate a JSON object with optional `allow` (absent/undefined when not provided) and optional `deny` arrays of strings (`deny` defaults to empty array when not provided; `allow` remains absent to distinguish "no allow-list" from "empty allow-list")
 - The `HooksConfigSchema` shall validate the GitHub Copilot hooks configuration format with version and hooks object
 - The `PolicyDecisionEventSchema` shall extend the existing base fields with `decision` (allow/deny) and `matched_rule` (string, optional)
 - The `ScriptEventSchema` discriminated union shall include the new `PolicyDecisionEvent` variant
