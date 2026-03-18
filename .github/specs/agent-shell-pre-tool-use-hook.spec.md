@@ -49,7 +49,7 @@ so that I can **enforce repository-level constraints on what agents are allowed 
 - The `preToolUse` hook is a GitHub Copilot coding agent feature that runs a configured script before tool execution
 - The hook receives JSON on stdin describing the tool and its input, and reads JSON from stdout for the decision
 - agent-shell must be available on PATH (globally installed) to function as a hook script
-- The policy configuration file location defaults to `.github/hooks/agent-shell/policy.json` relative to the repository root (discovered via `git rev-parse --show-toplevel`), but can be overridden via the `AGENTSHELL_POLICY_PATH` environment variable
+- The policy configuration file location defaults to `.github/hooks/agent-shell/policy.json` relative to the repository root (discovered via `git rev-parse --show-toplevel`), but can be overridden via the `AGENTSHELL_POLICY_PATH` environment variable. Relative paths in `AGENTSHELL_POLICY_PATH` shall be resolved relative to the repository root (from `git rev-parse --show-toplevel`); absolute paths are used as-is.
 - Deny rules take precedence over allow rules
 - If an allow list is present and the command does not match any allow rule, the command is denied
 
@@ -63,7 +63,7 @@ so that I can **have agent-shell enforce command policies before the agent execu
 
 - When the user creates a `.github/hooks/hooks.json` file with a `preToolUse` array containing a command entry that executes `agent-shell policy-check`, the system shall be invocable by the Copilot coding agent's hook mechanism.
 - The agent-shell `policy-check` mode shall be compatible with the Copilot coding agent's `preToolUse` hook contract (JSON stdin with `toolName`/`toolArgs`, JSON stdout with `permissionDecision`/`permissionDecisionReason`).
-- When agent-shell is referenced in the hook configuration, the system shall execute without requiring additional dependencies beyond the globally installed agent-shell binary and a POSIX-compatible shell (`sh`).
+- When agent-shell is referenced in the hook configuration, the system shall execute without requiring additional dependencies beyond the globally installed agent-shell binary and platform-default shell (POSIX-compatible `sh` on Unix/macOS, PowerShell on Windows).
 - The `copilot-setup` CLI command shall provide an option to scaffold `.github/hooks/` with agent-shell preToolUse integration, including the hooks.json configuration and policy check scripts.
 
 #### Notes
@@ -341,7 +341,10 @@ const HookCommandSchema = z.object({
   cwd: z.string().optional(),
   timeoutSec: z.number().positive().optional(),
   env: z.record(z.string()).optional(),
-});
+}).refine(
+  (data) => data.bash !== undefined || data.powershell !== undefined,
+  { message: "At least one of 'bash' or 'powershell' must be provided" }
+);
 
 const HooksConfigSchema = z.object({
   version: z.literal(1),
@@ -413,7 +416,7 @@ The following questions have been resolved based on user decisions:
 - `packages/agent-shell/tests/types.test.ts` (updated — add validation tests for new schemas)
 
 **Requirements**:
-- The `PolicyConfigSchema` shall validate a JSON object with optional `allow` and required `deny` arrays of strings
+- The `PolicyConfigSchema` shall validate a JSON object with optional `allow` and optional `deny` arrays of strings (both default to empty arrays when not provided)
 - The `HooksConfigSchema` shall validate the GitHub Copilot hooks configuration format with version and hooks object
 - The `PolicyDecisionEventSchema` shall extend the existing base fields with `decision` (allow/deny) and `matched_rule` (string, optional)
 - The `ScriptEventSchema` discriminated union shall include the new `PolicyDecisionEvent` variant
