@@ -203,7 +203,7 @@ export const createCopilotSetupWorkflowHandler: CreateWorkflowHandler = async (
             await workflowGateway.copilotSetupWorkflowExists(dir);
 
         if (workflowExists) {
-            return updateExistingWorkflow(
+            return await updateExistingWorkflow(
                 dir,
                 workflowPath,
                 allCandidates,
@@ -211,7 +211,7 @@ export const createCopilotSetupWorkflowHandler: CreateWorkflowHandler = async (
             );
         }
 
-        return createNewWorkflow(dir, workflowPath, allCandidates, args);
+        return await createNewWorkflow(dir, workflowPath, allCandidates, args);
     } catch (error) {
         const message =
             error instanceof Error ? error.message : "Unknown error occurred";
