@@ -29,19 +29,23 @@ so that I can **enforce repository-level constraints on what agents are allowed 
 
 - When the hook receives JSON on stdin with `toolName` and `toolArgs` fields, the system shall return JSON on stdout with `permissionDecision` and `permissionDecisionReason` (required when denying) fields, per the [official GitHub Copilot hooks documentation](https://docs.github.com/en/copilot/reference/hooks-configuration#pre-tool-use-hook).
 
-- When agent-shell is invoked in `policy-check` mode, the system shall evaluate input in the following order: (1) parse stdin as JSON (fail-closed if invalid), (2) extract `toolName` from parsed JSON, (3) load and validate policy file (fail-closed if invalid JSON; allow-all if missing), (4) check if `toolName` is a terminal tool — the supported terminal tool names are: `bash`, `zsh`, `ash`, `sh` (fail-open to allow if not a terminal tool and policy is valid), (5) parse `toolArgs` as JSON and validate `command` exists and is a string (fail-closed if `toolArgs` is not valid JSON or `command` is missing/not a string), (6) evaluate deny rules first (deny if match), then evaluate allow rules if allow list exists (deny if no match), otherwise allow.
+- When agent-shell is invoked in `policy-check` mode, the system shall evaluate input in the following order: (1) parse stdin as JSON (fail-closed if invalid), (2) validate that `toolName` is present and is a string (fail-closed if missing or not a string), (3) load and validate policy file (fail-closed if invalid JSON; allow-all if missing), (4) check if `toolName` is a terminal tool — the supported terminal tool names are: `bash`, `zsh`, `ash`, `sh` (fail-open to allow if not a terminal tool and policy is valid), (5) where `toolName` is a terminal tool, validate that `toolArgs` is present and is a string (fail-closed if missing or not a string), (6) parse `toolArgs` as JSON, validate the parsed result is a non-null plain object (fail-closed if not valid JSON or parsed result is not a plain object), and validate `command` exists and is a string (fail-closed if missing or not a string), (7) evaluate deny rules first (deny if match), then evaluate allow rules if allow list exists (deny if no match), otherwise allow.
 - When the tool input contains a command that matches any deny rule in the agent-shell policy, the system shall write a JSON response to stdout with `{"permissionDecision":"deny","permissionDecisionReason":"..."}`.
 - When the tool input contains a command that does not match any deny rule (and matches an allow rule if allow list exists), the system shall write a JSON response to stdout with `{"permissionDecision":"allow"}`.
 - If the policy configuration file does not exist, then the system shall approve all tool uses by default.
 - If the policy configuration file exists but contains invalid JSON, then the system shall write a deny JSON response to stdout with an error description and write the error details to stderr (fail-closed: policy errors block execution).
 - If stdin contains data that is not valid JSON, then the system shall write a deny JSON response to stdout with a descriptive error message and write the parse error details to stderr (fail-closed: JSON parsing must succeed before any other evaluation).
+- If the stdin JSON contains a terminal `toolName` (one of: `bash`, `zsh`, `ash`, `sh`) and `toolArgs` parses successfully as JSON but the result is not a non-null plain object (e.g., the parsed value is `null`, a number, a boolean, an array, or a string), then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with non-object tool arguments).
 - If the stdin JSON contains a terminal `toolName` (one of: `bash`, `zsh`, `ash`, `sh`) but the parsed `toolArgs` does not contain a `command` field, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with unevaluable input).
 - If the stdin JSON contains a terminal `toolName` (one of: `bash`, `zsh`, `ash`, `sh`) but the `command` in `toolArgs` is not a string, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with invalid command type).
-- If the stdin contains valid JSON but the `toolName` field is not a terminal tool (i.e., not one of: `bash`, `zsh`, `ash`, `sh`), then the system shall write an allow JSON response to stdout (fail-open applies only to successfully parsed JSON with a non-terminal tool name).
+- If the stdin contains valid JSON and `toolName` is present and is a string, but the `toolName` value is not a terminal tool (i.e., not one of: `bash`, `zsh`, `ash`, `sh`), then the system shall write an allow JSON response to stdout (fail-open applies only to successfully parsed JSON with a valid, non-terminal tool name).
+- If the stdin JSON does not contain a `toolName` field or the `toolName` field is not a string, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for missing or invalid tool name).
+- If the stdin JSON contains a terminal `toolName` (one of: `bash`, `zsh`, `ash`, `sh`) but the `toolArgs` field is missing or is not a string, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with missing or non-string tool arguments).
 - While agent-shell is running in `policy-check` mode, the system shall emit a telemetry event recording the policy decision (allowed or denied) for auditability.
 - If telemetry emission fails (e.g., events directory not writable), then the system shall log the error to stderr but shall not change the allow/deny decision or prevent writing the decision JSON to stdout.
 - The system shall support exact-match and glob-pattern rules for command strings in both allow and deny lists.
 - When evaluating glob patterns, the system shall use the following matching semantics: `*` matches any sequence of characters (including spaces and empty strings), matching is case-sensitive, patterns are anchored to the full command string (the entire command must match the pattern, not a substring), and only `*` is a special character (all other characters including `.`, `?`, `[`, `]`, etc. shall match literally).
+- When evaluating command strings against allow or deny rules, the system shall first trim leading and trailing Unicode whitespace from the `command` value and shall then apply exact or glob matching to the trimmed value without performing any additional normalization (including case changes, internal whitespace collapsing, or Unicode normalization).
 - The system shall discover the repository root using `git rev-parse --show-toplevel` rather than relying on `process.cwd()`.
 
 #### Notes
@@ -50,9 +54,10 @@ so that I can **enforce repository-level constraints on what agents are allowed 
 - The hook receives JSON on stdin describing the tool and its input, and reads JSON from stdout for the decision
 - agent-shell must be available on PATH (globally installed) to function as a hook script
 - **Terminal tool names**: The system recognizes the following `toolName` values as terminal tools: `bash`, `zsh`, `ash`, `sh`. Only these tools have their commands evaluated against policy rules; all other tool types pass through with an allow decision.
-- The policy configuration file location defaults to `.github/hooks/agent-shell/policy.json` relative to the repository root (discovered via `git rev-parse --show-toplevel`), but can be overridden via the `AGENTSHELL_POLICY_PATH` environment variable. Relative paths in `AGENTSHELL_POLICY_PATH` shall be resolved relative to the repository root (from `git rev-parse --show-toplevel`); absolute paths are used as-is.
+- The policy configuration file location defaults to `.github/hooks/agent-shell/policy.json` relative to the repository root (discovered via `git rev-parse --show-toplevel`), but can be overridden via the `AGENTSHELL_POLICY_PATH` environment variable. Both relative and absolute paths in `AGENTSHELL_POLICY_PATH` are resolved with `realpath` and validated to be within the repository root before use — absolute paths are not exempt from the containment check.
 - Deny rules take precedence over allow rules
 - If an allow list is present and the command does not match any allow rule, the command is denied
+- An allow list of `[]` (empty array, key present in policy file) is treated as a whitelist with no entries — all commands are denied. This is distinct from an absent `allow` key, which applies no allow-list filtering and allows all commands not matching a deny rule.
 
 ### Story 2: Configure preToolUse hook to use agent-shell
 
@@ -83,6 +88,8 @@ so that I can **understand what the agent attempted and verify that policies are
 
 - When a policy decision is made (allow or deny), the system shall emit a `policy_decision` telemetry event to the events directory (defaults to `.agent-shell/events` unless `AGENTSHELL_LOG_DIR` is set).
 - The `policy_decision` event shall include the command that was evaluated, the policy rule that matched (if any), the decision (allow or deny), and the actor.
+- The `command` field in the telemetry event shall record the post-trim value of the command string (the same value used for policy matching), so that audit logs reproduce the exact string evaluated against the rules.
+- For non-terminal tool allow decisions (where `toolArgs` is never parsed), the `command` field in the telemetry event shall be an empty string and `matched_rule` shall be `null`.
 - When the user runs `agent-shell log`, the system shall display policy decision events alongside script execution events.
 - When the user runs `agent-shell log --failures`, the system shall include denied policy decisions in the results.
 
@@ -148,7 +155,7 @@ Based on the [official GitHub Copilot hooks documentation](https://docs.github.c
   "timestamp": 1704614600000,
   "cwd": "/path/to/project",
   "toolName": "bash",
-  "toolArgs": "{\"command\":\"npm run foo\",\"description\":\"Run foo script\"}"
+  "toolArgs": "{\"command\":\"npm run deploy production\",\"description\":\"Deploy to production\"}"
 }
 ```
 
@@ -178,7 +185,7 @@ Denied:
 ```json
 {
   "permissionDecision": "deny",
-  "permissionDecisionReason": "Command 'npm run foo' is blocked by agent-shell policy (matched rule: 'npm run foo')"
+  "permissionDecisionReason": "Command 'npm run deploy production' is blocked by agent-shell policy (matched rule: 'npm run deploy*')"
 }
 ```
 
@@ -259,10 +266,14 @@ sequenceDiagram
     AS->>AS: Parse toolArgs JSON string
     AS->>Policy: loadPolicy()
 
-    alt policy.json exists
+    alt policy.json exists and is valid JSON
         Policy-->>AS: Policy rules (allow/deny lists)
     else policy.json not found
-        Policy-->>AS: null (no policy)
+        Policy-->>AS: null (no policy — allow-all default)
+    else policy.json exists but invalid JSON
+        Policy-->>AS: throws error (fail-closed)
+        AS-->>Hook: {"permissionDecision": "deny", "permissionDecisionReason": "Invalid policy file: ..."}
+        Hook-->>Agent: Tool use blocked
     end
 
     AS->>AS: evaluatePolicy(command, rules)
@@ -447,8 +458,10 @@ The following questions have been resolved based on user decisions:
 - `packages/agent-shell/tests/git-utils.test.ts` (new)
 
 **Requirements**:
-- `getRepositoryRoot()` shall execute `git rev-parse --show-toplevel` and return the trimmed output
+- `getRepositoryRoot()` shall execute `git rev-parse --show-toplevel` with a sanitized environment that explicitly unsets `GIT_DIR`, `GIT_WORK_TREE`, `GIT_COMMON_DIR`, and `GIT_INDEX_FILE` before the subprocess is spawned, to prevent environment variable injection from redirecting the output
+- `getRepositoryRoot()` shall return the trimmed output of the command
 - If `git` command fails (e.g., not in a git repository), the function shall throw a descriptive error
+- After receiving the trimmed output, the function shall validate that the path is absolute (starts with `/` on Unix/macOS); if the path is not absolute, the function shall throw a descriptive error
 - The function shall cache the result to avoid repeated subprocess calls; the cache shall be scoped to the process lifetime and shall not be persisted between invocations
 
 **Verification**:
@@ -479,6 +492,7 @@ The following questions have been resolved based on user decisions:
 - When a policy file exists and is valid JSON, `loadPolicy` shall return the parsed and validated policy
 - When a policy file does not exist, `loadPolicy` shall return `null`
 - When a policy file contains invalid JSON, `loadPolicy` shall throw an error with a descriptive message
+- Before matching, `evaluatePolicy` shall trim leading and trailing Unicode whitespace from the `command` value; matching is applied to the trimmed value without any additional normalization
 - When a command matches any deny rule, `evaluatePolicy` shall return `{ decision: "deny", matchedRule: "<rule>" }`
 - When a command matches a deny rule with a `*` wildcard, `evaluatePolicy` shall return `{ decision: "deny", matchedRule: "<rule>" }`
 - When an allow list exists and the command does not match any allow rule, `evaluatePolicy` shall return `{ decision: "deny", matchedRule: null }`
@@ -486,6 +500,7 @@ The following questions have been resolved based on user decisions:
 - When the policy is `null` (no file), `evaluatePolicy` shall return `{ decision: "allow" }`
 - Before reading the policy file, the system shall attempt to resolve the path using `realpath` to follow any symlinks; if `realpath` returns `ENOENT` (file does not exist), `loadPolicy` shall return `null` (no policy)
 - After successful `realpath` resolution, the system shall validate the resolved path is within the repository root (discovered via `git rev-parse --show-toplevel`) using the existing `isWithinProjectRoot` helper (passing the discovered repo root as the "projectRoot" parameter)
+- `loadPolicy` shall pass the `realpath`-resolved path (not the original input path) to `readFile`, so that the file read operates on the same path that was validated — reducing the TOCTOU window between path resolution and file access
 - The default policy file path is `.github/hooks/agent-shell/policy.json` relative to the repository root, but can be overridden via the `AGENTSHELL_POLICY_PATH` environment variable
 - If the policy file path (after `realpath` resolution) is outside the repository root, `loadPolicy` shall throw a descriptive error and refuse to read the file
 - If the policy file is a symlink pointing outside the repository root, `loadPolicy` shall throw a descriptive error (symlink escape prevention)
@@ -549,10 +564,11 @@ The following questions have been resolved based on user decisions:
 - `packages/agent-shell/tests/telemetry.test.ts` (updated — add tests for new event emission)
 
 **Requirements**:
-- `emitPolicyDecisionEvent` shall accept command, decision (allow/deny), matched rule (optional), and environment
+- `emitPolicyDecisionEvent` shall accept command (post-trim string), decision (allow/deny), matched rule (optional), and environment
 - The emitted event shall include all base fields (v, session_id, actor, timestamp, env, tags) plus `decision` and `matched_rule`
 - The event shall be appended to the same session JSONL file as other events
 - The function shall follow the existing dependency injection pattern (`TelemetryDeps`)
+- When resolving the events directory in `policy-check` mode, the function shall use the repository root (from `getRepositoryRoot()`) as the project root for `AGENTSHELL_LOG_DIR` resolution — not `process.cwd()` — to ensure consistent path behavior regardless of the hook's working directory
 
 **Verification**:
 - [ ] `npm test packages/agent-shell/tests/telemetry.test.ts` passes
@@ -583,11 +599,13 @@ The following questions have been resolved based on user decisions:
 - The system shall parse stdin JSON and extract `toolName` and `toolArgs` fields per the [official hook contract](https://docs.github.com/en/copilot/reference/hooks-configuration#pre-tool-use-hook)
 - The system shall parse `toolArgs` (which is a JSON-encoded string) to extract the `command` field
 - When stdin contains valid tool input with a command, the system shall load the policy and evaluate the command
-- When the command is denied by policy, the system shall write `{"permissionDecision":"deny","permissionDecisionReason":"..."}` to stdout and exit with code 0
+- When the command is denied by policy, the system shall write `{"permissionDecision":"deny","permissionDecisionReason":"..."}` to stdout and exit with code 0; the response object shall be serialized using `JSON.stringify` (not manual string construction) to safely embed the command and rule strings regardless of their content
 - When the command is allowed, the system shall write `{"permissionDecision":"allow"}` to stdout and exit with code 0
 - When stdin contains invalid JSON, the system shall write a deny response to stdout and write an error to stderr
+- When stdin JSON does not contain a `toolName` field or the `toolName` field is not a string, the system shall write a deny response to stdout with a descriptive error (fail-closed for missing or invalid tool name)
+- When `toolName` is not a terminal tool (i.e., not one of: `bash`, `zsh`, `ash`, `sh`) and `toolName` is present and a string, the system shall write an allow response to stdout
+- When stdin JSON contains a terminal `toolName` (one of: `bash`, `zsh`, `ash`, `sh`) but the `toolArgs` field is missing or is not a string, the system shall write a deny response to stdout with a descriptive error (fail-closed for terminal commands with missing or non-string tool arguments)
 - When stdin JSON contains a terminal `toolName` (one of: `bash`, `zsh`, `ash`, `sh`) but `toolArgs` does not contain a `command` field, the system shall write a deny response to stdout with a descriptive error (fail-closed for terminal commands with unevaluable input)
-- When `toolName` is not a terminal tool (i.e., not one of: `bash`, `zsh`, `ash`, `sh`), the system shall write an allow response to stdout
 - When `command` in `toolArgs` is not a string, the system shall write a deny response to stdout with a descriptive error
 - When the policy file contains invalid JSON, the system shall write a deny response to stdout and write the error to stderr
 - If telemetry emission fails (e.g., events directory not writable), the system shall log the error to stderr but shall still write the decision JSON to stdout and exit with code 0
@@ -709,6 +727,15 @@ The following questions have been resolved based on user decisions:
 - Policy evaluation for non-terminal tools (e.g., file writes, API calls) — only terminal commands with `toolName` of `bash`, `zsh`, `ash`, or `sh` are evaluated
 - Remote/shared policy configurations (e.g., fetching policies from URLs)
 - Policy inheritance from organization-level configurations
+
+## Known Threat Model Limitations
+
+These are by-design limitations that policy authors must understand:
+
+- **Shell nesting bypass**: Policy evaluation matches the raw `command` string from `toolArgs`. An agent can wrap a denied command inside a shell invocation (e.g., `sh -c 'rm -rf /'`) that does not match the deny rule for `rm -rf *`. This is an inherent limitation of string-matching against shell command strings. Policy rules should account for this by denying broad patterns that cover known wrapping forms, and treating the policy as a defense-in-depth layer rather than a complete sandbox.
+- **`*` wildcard matches spaces and chained commands**: Because `*` matches any sequence of characters including spaces, an allow rule like `npm *` permits chained commands such as `npm run build && rm -rf /`. Policy authors should use the most specific allow rules possible and prefer explicit deny rules for dangerous operations.
+- **Policy file trust boundary**: The policy mechanism is only as strong as the filesystem permissions on `.github/hooks/agent-shell/policy.json`. Any user or process that can write to the policy file can modify allow/deny rules. Access to the policy file must be restricted to trusted users via repository and filesystem permissions.
+- **Hook timeout behavior**: If the `policy-check` hook exceeds the configured `timeoutSec`, the Copilot agent determines the outcome (allow or deny) based on its own timeout handling — which is outside agent-shell's control. If Copilot treats hook timeout as allow, a slow or hung `git rev-parse` (e.g., on a network-mounted filesystem) could become a bypass path. Keep the hook execution time well under `timeoutSec` and set a conservative timeout value.
 
 ## Future Considerations
 
