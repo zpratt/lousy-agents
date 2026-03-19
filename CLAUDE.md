@@ -162,6 +162,25 @@ See @.github/instructions/pipeline.instructions.md for workflow structure requir
 
 ---
 
+## Task Tracking
+
+Beads (`bd`) is the single source of truth for all task tracking in this project. AI agents must not use native task management as a substitute.
+
+**Always do:**
+- Use `bd create` to create new issues/tasks
+- Use `bd show <id>` to read task context before starting work
+- Use `bd close <id>` when a task is complete
+- Use `bd list` or `bd query` to discover open work
+
+**Never do:**
+- Use Claude Code's native task tools (`TaskCreate`, `TaskList`, `TaskUpdate`, etc.) for project tasks — these are session-scoped and invisible to other agents
+- Invent ad-hoc session-scoped task lists — all tasks must live in Beads
+- Mark tasks complete in any system other than Beads
+
+**If `bd` is unavailable:** do not fall back to native tools or ad-hoc lists — stop and inform the user that Beads must be installed before proceeding with task tracking.
+
+---
+
 ## Boundaries
 
 **Definition of Done — a task is complete only when all three conditions are met:**
