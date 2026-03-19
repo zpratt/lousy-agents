@@ -29,15 +29,15 @@ so that I can **enforce repository-level constraints on what agents are allowed 
 
 - When the hook receives JSON on stdin with `toolName` and `toolArgs` fields, the system shall return JSON on stdout with `permissionDecision` and `permissionDecisionReason` (required when denying) fields, per the [official GitHub Copilot hooks documentation](https://docs.github.com/en/copilot/reference/hooks-configuration#pre-tool-use-hook).
 
-- When agent-shell is invoked in `policy-check` mode, the system shall evaluate input in the following order: (1) parse stdin as JSON (fail-closed if invalid), (2) extract `toolName` and parse `toolArgs` JSON string (fail-closed if `toolArgs` is not valid JSON), (3) load and validate policy file (fail-closed if invalid JSON; allow-all if missing), (4) check if `toolName` is `bash` or a terminal tool (fail-open to allow if not a terminal tool and policy is valid), (5) validate `command` exists in parsed `toolArgs` and is a string (fail-closed if not), (6) evaluate deny rules first (deny if match), then evaluate allow rules if allow list exists (deny if no match), otherwise allow.
+- When agent-shell is invoked in `policy-check` mode, the system shall evaluate input in the following order: (1) parse stdin as JSON (fail-closed if invalid), (2) extract `toolName` from parsed JSON, (3) load and validate policy file (fail-closed if invalid JSON; allow-all if missing), (4) check if `toolName` is a terminal tool — the supported terminal tool names are: `bash`, `zsh`, `ash`, `sh` (fail-open to allow if not a terminal tool and policy is valid), (5) parse `toolArgs` as JSON and validate `command` exists and is a string (fail-closed if `toolArgs` is not valid JSON or `command` is missing/not a string), (6) evaluate deny rules first (deny if match), then evaluate allow rules if allow list exists (deny if no match), otherwise allow.
 - When the tool input contains a command that matches any deny rule in the agent-shell policy, the system shall write a JSON response to stdout with `{"permissionDecision":"deny","permissionDecisionReason":"..."}`.
 - When the tool input contains a command that does not match any deny rule (and matches an allow rule if allow list exists), the system shall write a JSON response to stdout with `{"permissionDecision":"allow"}`.
 - If the policy configuration file does not exist, then the system shall approve all tool uses by default.
 - If the policy configuration file exists but contains invalid JSON, then the system shall write a deny JSON response to stdout with an error description and write the error details to stderr (fail-closed: policy errors block execution).
 - If stdin contains data that is not valid JSON, then the system shall write a deny JSON response to stdout with a descriptive error message and write the parse error details to stderr (fail-closed: JSON parsing must succeed before any other evaluation).
-- If the stdin JSON contains `toolName` of `bash` but the parsed `toolArgs` does not contain a `command` field, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with unevaluable input).
-- If the stdin JSON contains `toolName` of `bash` but the `command` in `toolArgs` is not a string, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with invalid command type).
-- If the stdin contains valid JSON but the `toolName` field is not a terminal tool type (e.g., `bash`), then the system shall write an allow JSON response to stdout (fail-open applies only to successfully parsed JSON with a non-terminal tool name).
+- If the stdin JSON contains a terminal `toolName` (one of: `bash`, `zsh`, `ash`, `sh`) but the parsed `toolArgs` does not contain a `command` field, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with unevaluable input).
+- If the stdin JSON contains a terminal `toolName` (one of: `bash`, `zsh`, `ash`, `sh`) but the `command` in `toolArgs` is not a string, then the system shall write a deny JSON response to stdout with a descriptive error message (fail-closed for terminal commands with invalid command type).
+- If the stdin contains valid JSON but the `toolName` field is not a terminal tool (i.e., not one of: `bash`, `zsh`, `ash`, `sh`), then the system shall write an allow JSON response to stdout (fail-open applies only to successfully parsed JSON with a non-terminal tool name).
 - While agent-shell is running in `policy-check` mode, the system shall emit a telemetry event recording the policy decision (allowed or denied) for auditability.
 - If telemetry emission fails (e.g., events directory not writable), then the system shall log the error to stderr but shall not change the allow/deny decision or prevent writing the decision JSON to stdout.
 - The system shall support exact-match and glob-pattern rules for command strings in both allow and deny lists.
@@ -49,6 +49,7 @@ so that I can **enforce repository-level constraints on what agents are allowed 
 - The `preToolUse` hook is a GitHub Copilot coding agent feature that runs a configured script before tool execution
 - The hook receives JSON on stdin describing the tool and its input, and reads JSON from stdout for the decision
 - agent-shell must be available on PATH (globally installed) to function as a hook script
+- **Terminal tool names**: The system recognizes the following `toolName` values as terminal tools: `bash`, `zsh`, `ash`, `sh`. Only these tools have their commands evaluated against policy rules; all other tool types pass through with an allow decision.
 - The policy configuration file location defaults to `.github/hooks/agent-shell/policy.json` relative to the repository root (discovered via `git rev-parse --show-toplevel`), but can be overridden via the `AGENTSHELL_POLICY_PATH` environment variable. Relative paths in `AGENTSHELL_POLICY_PATH` shall be resolved relative to the repository root (from `git rev-parse --show-toplevel`); absolute paths are used as-is.
 - Deny rules take precedence over allow rules
 - If an allow list is present and the command does not match any allow rule, the command is denied
@@ -585,8 +586,8 @@ The following questions have been resolved based on user decisions:
 - When the command is denied by policy, the system shall write `{"permissionDecision":"deny","permissionDecisionReason":"..."}` to stdout and exit with code 0
 - When the command is allowed, the system shall write `{"permissionDecision":"allow"}` to stdout and exit with code 0
 - When stdin contains invalid JSON, the system shall write a deny response to stdout and write an error to stderr
-- When stdin JSON contains `toolName` of `bash` but `toolArgs` does not contain a `command` field, the system shall write a deny response to stdout with a descriptive error (fail-closed for terminal commands with unevaluable input)
-- When `toolName` is not a terminal tool type (e.g., `bash`), the system shall write an allow response to stdout
+- When stdin JSON contains a terminal `toolName` (one of: `bash`, `zsh`, `ash`, `sh`) but `toolArgs` does not contain a `command` field, the system shall write a deny response to stdout with a descriptive error (fail-closed for terminal commands with unevaluable input)
+- When `toolName` is not a terminal tool (i.e., not one of: `bash`, `zsh`, `ash`, `sh`), the system shall write an allow response to stdout
 - When `command` in `toolArgs` is not a string, the system shall write a deny response to stdout with a descriptive error
 - When the policy file contains invalid JSON, the system shall write a deny response to stdout and write the error to stderr
 - If telemetry emission fails (e.g., events directory not writable), the system shall log the error to stderr but shall still write the decision JSON to stdout and exit with code 0
@@ -705,7 +706,7 @@ The following questions have been resolved based on user decisions:
 
 ## Out of Scope
 
-- Policy evaluation for non-terminal tools (e.g., file writes, API calls) — only terminal/bash commands are evaluated
+- Policy evaluation for non-terminal tools (e.g., file writes, API calls) — only terminal commands with `toolName` of `bash`, `zsh`, `ash`, or `sh` are evaluated
 - Remote/shared policy configurations (e.g., fetching policies from URLs)
 - Policy inheritance from organization-level configurations
 
