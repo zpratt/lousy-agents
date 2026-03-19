@@ -88,7 +88,7 @@ so that I can **enforce repository-level constraints on what agents are allowed 
 - The hook receives JSON on stdin describing the tool and its input, and reads JSON from stdout for the decision
 - agent-shell must be available on PATH (globally installed) to function as a hook script
 - **Terminal tool names**: The system recognizes the following `toolName` values as terminal tools: `bash`, `zsh`, `ash`, `sh`. Only these tools have their commands evaluated against policy rules; all other tool types pass through with an allow decision.
-- The policy configuration file location defaults to `.github/hooks/agent-shell/policy.json` relative to the repository root (discovered via `git rev-parse --show-toplevel`), but can be overridden via the `AGENTSHELL_POLICY_PATH` environment variable. Both relative and absolute paths in `AGENTSHELL_POLICY_PATH` are resolved with `realpath` and validated to be within the repository root before use — absolute paths are not exempt from the containment check.
+- The policy configuration file location defaults to `.github/hooks/agent-shell/policy.json` relative to the repository root (discovered via `git rev-parse --show-toplevel`), but can be overridden via the `AGENTSHELL_POLICY_PATH` environment variable. Relative paths in `AGENTSHELL_POLICY_PATH` are resolved relative to the repository root (not the hook's current working directory) before being passed to `realpath`. Both relative and absolute paths are then resolved with `realpath` and validated to be within the repository root before use — absolute paths are not exempt from the containment check.
 - Deny rules take precedence over allow rules
 - If an allow list is present and the command does not match any allow rule, the command is denied
 - An allow list of `[]` (empty array, key present in policy file) is treated as a whitelist with no entries — all commands are denied. This is distinct from an absent `allow` key, which applies no allow-list filtering and allows all commands not matching a deny rule.
@@ -296,8 +296,9 @@ sequenceDiagram
     AS->>AS: resolveMode("policy-check")
     AS->>Git: git rev-parse --show-toplevel
     Git-->>AS: /path/to/repo
-    AS->>AS: Read JSON from stdin
-    AS->>AS: Parse toolArgs JSON string
+    AS->>AS: Read and parse JSON from stdin
+    AS->>AS: Validate toolName is present and a string
+
     AS->>Policy: loadPolicy()
 
     alt policy.json exists and is valid JSON
@@ -310,16 +311,24 @@ sequenceDiagram
         Hook-->>Agent: Tool use blocked
     end
 
-    AS->>AS: evaluatePolicy(command, rules)
-
-    alt command matches deny rule
-        AS->>Events: emitPolicyDecisionEvent(deny)
-        AS-->>Hook: {"permissionDecision": "deny", "permissionDecisionReason": "..."}
-        Hook-->>Agent: Tool use blocked
-    else command allowed
+    alt toolName is not a terminal tool
         AS->>Events: emitPolicyDecisionEvent(allow)
         AS-->>Hook: {"permissionDecision": "allow"}
-        Hook-->>Agent: Tool use approved
+        Hook-->>Agent: Tool use approved (fail-open for non-terminal tools)
+    else toolName is a terminal tool
+        AS->>AS: Parse toolArgs JSON string
+        AS->>AS: Validate command field exists and is a string
+        AS->>AS: evaluatePolicy(command, rules)
+
+        alt command matches deny rule
+            AS->>Events: emitPolicyDecisionEvent(deny)
+            AS-->>Hook: {"permissionDecision": "deny", "permissionDecisionReason": "..."}
+            Hook-->>Agent: Tool use blocked
+        else command allowed
+            AS->>Events: emitPolicyDecisionEvent(allow)
+            AS-->>Hook: {"permissionDecision": "allow"}
+            Hook-->>Agent: Tool use approved
+        end
     end
 ```
 
@@ -495,7 +504,7 @@ The following questions have been resolved based on user decisions:
 - `getRepositoryRoot()` shall execute `git rev-parse --show-toplevel` with a sanitized environment that explicitly unsets `GIT_DIR`, `GIT_WORK_TREE`, `GIT_COMMON_DIR`, and `GIT_INDEX_FILE` before the subprocess is spawned, to prevent environment variable injection from redirecting the output
 - `getRepositoryRoot()` shall return the trimmed output of the command
 - If `git` command fails (e.g., not in a git repository), the function shall throw a descriptive error
-- After receiving the trimmed output, the function shall validate that the path is absolute (starts with `/` on Unix/macOS); if the path is not absolute, the function shall throw a descriptive error
+- After receiving the trimmed output, the function shall validate that the path is absolute using Node's `path.isAbsolute()` (which handles both Unix `/` prefixes and Windows drive-letter paths like `C:\`); if the path is not absolute, the function shall throw a descriptive error
 - The function shall cache the result to avoid repeated subprocess calls; the cache shall be scoped to the process lifetime and shall not be persisted between invocations
 
 **Verification**:
@@ -535,7 +544,7 @@ The following questions have been resolved based on user decisions:
 - Before reading the policy file, the system shall attempt to resolve the path using `realpath` to follow any symlinks; if `realpath` returns `ENOENT` (file does not exist), `loadPolicy` shall return `null` (no policy)
 - After successful `realpath` resolution, the system shall validate the resolved path is within the repository root (discovered via `git rev-parse --show-toplevel`) using the existing `isWithinProjectRoot` helper (passing the discovered repo root as the "projectRoot" parameter)
 - `loadPolicy` shall pass the `realpath`-resolved path (not the original input path) to `readFile`, so that the file read operates on the same path that was validated — reducing the TOCTOU window between path resolution and file access
-- The default policy file path is `.github/hooks/agent-shell/policy.json` relative to the repository root, but can be overridden via the `AGENTSHELL_POLICY_PATH` environment variable
+- The default policy file path is `.github/hooks/agent-shell/policy.json` relative to the repository root, but can be overridden via the `AGENTSHELL_POLICY_PATH` environment variable; relative paths in `AGENTSHELL_POLICY_PATH` are resolved relative to the repository root (not the hook's current working directory) before `realpath` is called
 - If the policy file path (after `realpath` resolution) is outside the repository root, `loadPolicy` shall throw a descriptive error and refuse to read the file
 - If the policy file is a symlink pointing outside the repository root, `loadPolicy` shall throw a descriptive error (symlink escape prevention)
 
