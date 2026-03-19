@@ -1,5 +1,39 @@
 # Feature: agent-shell `preToolUse` hook support for policy-based command blocking
 
+## Table of Contents
+
+- [Problem Statement](#problem-statement)
+- [Personas](#personas)
+- [Value Assessment](#value-assessment)
+- [User Stories](#user-stories)
+  - [Story 1: Block a disallowed npm script via preToolUse hook](#story-1-block-a-disallowed-npm-script-via-pretooluse-hook)
+  - [Story 2: Configure preToolUse hook to use agent-shell](#story-2-configure-pretooluse-hook-to-use-agent-shell)
+  - [Story 3: Audit blocked commands via telemetry](#story-3-audit-blocked-commands-via-telemetry)
+- [Design](#design)
+  - [Components Affected](#components-affected)
+  - [Dependencies](#dependencies)
+  - [Data Model Changes](#data-model-changes)
+  - [Diagrams](#diagrams)
+  - [Hook Configuration](#hook-configuration)
+  - [Open Questions (Resolved)](#open-questions-resolved)
+  - [Additional Design Decisions](#additional-design-decisions)
+- [Tasks](#tasks)
+  - [Task 0: Verify Copilot preToolUse hook contract](#task-0-verify-copilot-pretooluse-hook-contract)
+  - [Task 1: Define policy configuration schema and types](#task-1-define-policy-configuration-schema-and-types)
+  - [Task 2: Implement repository root discovery](#task-2-implement-repository-root-discovery)
+  - [Task 3: Implement policy loading and evaluation](#task-3-implement-policy-loading-and-evaluation)
+  - [Task 4: Add `policy-check` mode to CLI argument parser](#task-4-add-policy-check-mode-to-cli-argument-parser)
+  - [Task 5: Add policy decision telemetry emission](#task-5-add-policy-decision-telemetry-emission)
+  - [Task 6: Implement `policy-check` mode in main entry point](#task-6-implement-policy-check-mode-in-main-entry-point)
+  - [Task 7: Integrate policy decision events into log query and display](#task-7-integrate-policy-decision-events-into-log-query-and-display)
+  - [Task 8: Update README and USAGE documentation](#task-8-update-readme-and-usage-documentation)
+  - [Task 9: Add `copilot-setup` hook provisioning](#task-9-add-copilot-setup-hook-provisioning)
+- [Out of Scope](#out-of-scope)
+- [Known Threat Model Limitations](#known-threat-model-limitations)
+- [Future Considerations](#future-considerations)
+
+---
+
 ## Problem Statement
 
 When AI coding agents (such as GitHub Copilot coding agent) execute terminal commands (npm scripts, terraform, shell commands, etc.) via agent-shell, there is no mechanism to prevent specific commands from running before they start. Agent-shell currently records telemetry _after_ execution completes, but cannot intercept and block commands that violate repository-level policies. Repository maintainers need a way to define which commands are allowed or denied, and have those policies enforced at the `preToolUse` hook point — before the agent invokes a tool — so that disallowed commands are blocked rather than observed after the fact.
