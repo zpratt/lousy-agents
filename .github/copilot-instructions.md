@@ -272,6 +272,7 @@ describe('fetchUserById', () => {
 ## Boundaries
 
 **✅ Always do:**
+- Use `bd` (Beads) as the single source of truth for all task tracking — `bd create`, `bd show <id>`, `bd close <id>`, `bd list`, `bd query` — do not use ad-hoc lists or native agent task tools
 - Write tests before implementation (TDD)
 - Run lint and tests after every change
 - Run full validation before commits
@@ -286,6 +287,7 @@ describe('fetchUserById', () => {
 - Database schema changes
 
 **🚫 Never do:**
+- Track tasks in ad-hoc markdown lists, inline comments, or any system other than Beads (`bd`). If `bd` is unavailable, stop and inform the user — do not substitute
 - Skip the TDD workflow
 - Store secrets in code (use environment variables)
 - Use Jest (use Vitest)
