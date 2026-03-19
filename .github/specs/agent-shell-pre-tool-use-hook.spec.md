@@ -103,7 +103,7 @@ so that I can **have agent-shell enforce command policies before the agent execu
 
 - When the user creates a `.github/hooks/hooks.json` file with a `preToolUse` array containing a command entry that executes `agent-shell policy-check`, the system shall be invocable by the Copilot coding agent's hook mechanism.
 - The agent-shell `policy-check` mode shall be compatible with the Copilot coding agent's `preToolUse` hook contract (JSON stdin with `toolName`/`toolArgs`, JSON stdout with `permissionDecision`/`permissionDecisionReason`).
-- When agent-shell is referenced in the hook configuration, the system shall execute without requiring additional dependencies beyond the globally installed agent-shell binary and platform-default shell (POSIX-compatible `sh` on Unix/macOS, PowerShell on Windows).
+- When agent-shell is referenced in the hook configuration, the system shall execute without requiring additional dependencies beyond the globally installed agent-shell binary and a POSIX-compatible `sh` shell.
 - The `copilot-setup` CLI command shall provide an option to scaffold `.github/hooks/` with agent-shell preToolUse integration, including the hooks.json configuration and policy check scripts.
 
 #### Notes
@@ -346,7 +346,6 @@ Based on the [official GitHub Copilot hooks documentation](https://docs.github.c
       {
         "type": "command",
         "bash": "./.github/hooks/agent-shell/policy-check.sh",
-        "powershell": "./.github/hooks/agent-shell/policy-check.ps1",
         "cwd": ".",
         "timeoutSec": 5,
         "env": {
@@ -364,7 +363,7 @@ Based on the [official GitHub Copilot hooks documentation](https://docs.github.c
 | `hooks.preToolUse` | `array` | Array of hooks to run before tool invocation |
 | `type` | `"command"` | Hook type |
 | `bash` | `string` | Path to shell script (Unix/macOS) |
-| `powershell` | `string` | Path to PowerShell script (Windows) |
+| `powershell` | `string` | (Optional) Path to PowerShell script — Windows support is out of scope for this iteration |
 | `cwd` | `string` | Working directory for script execution |
 | `timeoutSec` | `number` | Maximum execution time in seconds (recommended: ≤5 seconds per hook) |
 | `env` | `object` | Environment variables to pass to the hook script |
@@ -376,12 +375,6 @@ Based on the [official GitHub Copilot hooks documentation](https://docs.github.c
 ```sh
 #!/usr/bin/env sh
 exec agent-shell policy-check
-```
-
-#### `.github/hooks/agent-shell/policy-check.ps1`
-
-```powershell
-& agent-shell policy-check
 ```
 
 #### Hook Configuration Zod Schema
@@ -504,7 +497,7 @@ The following questions have been resolved based on user decisions:
 - `getRepositoryRoot()` shall execute `git rev-parse --show-toplevel` with a sanitized environment that explicitly unsets `GIT_DIR`, `GIT_WORK_TREE`, `GIT_COMMON_DIR`, and `GIT_INDEX_FILE` before the subprocess is spawned, to prevent environment variable injection from redirecting the output
 - `getRepositoryRoot()` shall return the trimmed output of the command
 - If `git` command fails (e.g., not in a git repository), the function shall throw a descriptive error
-- After receiving the trimmed output, the function shall validate that the path is absolute using Node's `path.isAbsolute()` (which handles both Unix `/` prefixes and Windows drive-letter paths like `C:\`); if the path is not absolute, the function shall throw a descriptive error
+- After receiving the trimmed output, the function shall validate that the path is absolute (starts with `/`); if the path is not absolute, the function shall throw a descriptive error
 - The function shall cache the result to avoid repeated subprocess calls; the cache shall be scoped to the process lifetime and shall not be persisted between invocations
 
 **Verification**:
@@ -748,7 +741,7 @@ The following questions have been resolved based on user decisions:
 **Requirements**:
 - The `copilot-setup` command shall offer a sub-choice for adding agent-shell preToolUse hook support
 - When selected, the command shall create `.github/hooks/hooks.json` with a preToolUse entry for agent-shell
-- When selected, the command shall create both `.github/hooks/agent-shell/policy-check.sh` and `.github/hooks/agent-shell/policy-check.ps1` for cross-platform compatibility
+- When selected, the command shall create `.github/hooks/agent-shell/policy-check.sh`
 - When selected, the command shall create a default `.github/hooks/agent-shell/policy.json` with example rules
 - The command shall not overwrite existing hook files without confirmation
 - Dry-run mode shall preview what would be created without writing files
@@ -767,6 +760,7 @@ The following questions have been resolved based on user decisions:
 
 ## Out of Scope
 
+- Windows and PowerShell support — this feature targets Unix/Linux/macOS environments only; Windows support may be added in a future iteration
 - Policy evaluation for non-terminal tools (e.g., file writes, API calls) — only terminal commands with `toolName` of `bash`, `zsh`, `ash`, or `sh` are evaluated
 - Remote/shared policy configurations (e.g., fetching policies from URLs)
 - Policy inheritance from organization-level configurations
