@@ -20,36 +20,43 @@ import {
 export const readCopilotSetupWorkflowHandler: ToolHandler = async (
     args: ToolArgs,
 ) => {
-    const dir = args.targetDir || process.cwd();
+    try {
+        const dir = args.targetDir || process.cwd();
 
-    if (!(await fileExists(dir))) {
-        return errorResponse(`Target directory does not exist: ${dir}`);
-    }
+        if (!(await fileExists(dir))) {
+            return errorResponse(`Target directory does not exist: ${dir}`);
+        }
 
-    const workflowGateway = createWorkflowGateway();
-    const exists = await workflowGateway.copilotSetupWorkflowExists(dir);
-    const workflowPath = await workflowGateway.getCopilotSetupWorkflowPath(dir);
+        const workflowGateway = createWorkflowGateway();
+        const exists = await workflowGateway.copilotSetupWorkflowExists(dir);
+        const workflowPath =
+            await workflowGateway.getCopilotSetupWorkflowPath(dir);
 
-    if (!exists) {
+        if (!exists) {
+            return successResponse({
+                exists: false,
+                workflowPath,
+                message:
+                    "Copilot Setup Steps workflow does not exist. Use create_copilot_setup_workflow to create it.",
+            });
+        }
+
+        const workflow = await workflowGateway.readCopilotSetupWorkflow(dir);
+        const workflowObj = workflow as Record<string, unknown>;
+        const steps = extractAllWorkflowSteps(workflow);
+
         return successResponse({
-            exists: false,
+            exists: true,
             workflowPath,
-            message:
-                "Copilot Setup Steps workflow does not exist. Use create_copilot_setup_workflow to create it.",
+            workflow: {
+                name: workflowObj?.name || "Copilot Setup Steps",
+                steps,
+            },
+            message: `Found Copilot Setup Steps workflow with ${steps.length} step(s)`,
         });
+    } catch (error) {
+        const message =
+            error instanceof Error ? error.message : "Unknown error occurred";
+        return errorResponse(`Failed to read workflow: ${message}`);
     }
-
-    const workflow = await workflowGateway.readCopilotSetupWorkflow(dir);
-    const workflowObj = workflow as Record<string, unknown>;
-    const steps = extractAllWorkflowSteps(workflow);
-
-    return successResponse({
-        exists: true,
-        workflowPath,
-        workflow: {
-            name: workflowObj?.name || "Copilot Setup Steps",
-            steps,
-        },
-        message: `Found Copilot Setup Steps workflow with ${steps.length} step(s)`,
-    });
 };

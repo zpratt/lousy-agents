@@ -20,36 +20,45 @@ import {
 export const discoverWorkflowSetupActionsHandler: ToolHandler = async (
     args: ToolArgs,
 ) => {
-    const dir = args.targetDir || process.cwd();
+    try {
+        const dir = args.targetDir || process.cwd();
 
-    if (!(await fileExists(dir))) {
-        return errorResponse(`Target directory does not exist: ${dir}`);
-    }
+        if (!(await fileExists(dir))) {
+            return errorResponse(`Target directory does not exist: ${dir}`);
+        }
 
-    const workflowGateway = createWorkflowGateway();
-    const workflowsDir = join(dir, ".github", "workflows");
-    const workflowsDirExists = await fileExists(workflowsDir);
+        const workflowGateway = createWorkflowGateway();
+        const workflowsDir = join(dir, ".github", "workflows");
+        const workflowsDirExists = await fileExists(workflowsDir);
 
-    if (!workflowsDirExists) {
+        if (!workflowsDirExists) {
+            return successResponse({
+                actions: [],
+                message:
+                    "No .github/workflows directory found - no workflows to analyze",
+            });
+        }
+
+        const candidates =
+            await workflowGateway.parseWorkflowsForSetupActions(dir);
+
         return successResponse({
-            actions: [],
+            actions: candidates.map((c) => ({
+                action: c.action,
+                version: c.version,
+                config: c.config,
+                source: c.source,
+            })),
             message:
-                "No .github/workflows directory found - no workflows to analyze",
+                candidates.length > 0
+                    ? `Found ${candidates.length} setup action(s) in workflows`
+                    : "No setup actions found in existing workflows",
         });
+    } catch (error) {
+        const message =
+            error instanceof Error ? error.message : "Unknown error occurred";
+        return errorResponse(
+            `Failed to discover workflow setup actions: ${message}`,
+        );
     }
-
-    const candidates = await workflowGateway.parseWorkflowsForSetupActions(dir);
-
-    return successResponse({
-        actions: candidates.map((c) => ({
-            action: c.action,
-            version: c.version,
-            config: c.config,
-            source: c.source,
-        })),
-        message:
-            candidates.length > 0
-                ? `Found ${candidates.length} setup action(s) in workflows`
-                : "No setup actions found in existing workflows",
-    });
 };

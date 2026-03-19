@@ -19,26 +19,32 @@ import {
 export const discoverEnvironmentHandler: ToolHandler = async (
     args: ToolArgs,
 ) => {
-    const dir = args.targetDir || process.cwd();
+    try {
+        const dir = args.targetDir || process.cwd();
 
-    if (!(await fileExists(dir))) {
-        return errorResponse(`Target directory does not exist: ${dir}`);
+        if (!(await fileExists(dir))) {
+            return errorResponse(`Target directory does not exist: ${dir}`);
+        }
+
+        const environmentGateway = createEnvironmentGateway();
+        const environment = await environmentGateway.detectEnvironment(dir);
+
+        return successResponse({
+            hasMise: environment.hasMise,
+            versionFiles: environment.versionFiles.map((vf) => ({
+                type: vf.type,
+                filename: vf.filename,
+                version: vf.version,
+            })),
+            message: environment.hasMise
+                ? "Found mise.toml - mise will manage all tool versions"
+                : environment.versionFiles.length > 0
+                  ? `Found ${environment.versionFiles.length} version file(s)`
+                  : "No environment configuration files found",
+        });
+    } catch (error) {
+        const message =
+            error instanceof Error ? error.message : "Unknown error occurred";
+        return errorResponse(`Failed to discover environment: ${message}`);
     }
-
-    const environmentGateway = createEnvironmentGateway();
-    const environment = await environmentGateway.detectEnvironment(dir);
-
-    return successResponse({
-        hasMise: environment.hasMise,
-        versionFiles: environment.versionFiles.map((vf) => ({
-            type: vf.type,
-            filename: vf.filename,
-            version: vf.version,
-        })),
-        message: environment.hasMise
-            ? "Found mise.toml - mise will manage all tool versions"
-            : environment.versionFiles.length > 0
-              ? `Found ${environment.versionFiles.length} version file(s)`
-              : "No environment configuration files found",
-    });
 };
