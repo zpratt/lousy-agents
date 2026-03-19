@@ -51,7 +51,7 @@ export const resolveActionVersionsHandler: ResolveActionsHandler = async (
             });
         }
 
-        const dir = args.targetDir ?? process.cwd();
+        const dir = args.targetDir || process.cwd();
 
         if (!(await fileExists(dir))) {
             return errorResponse(`Target directory does not exist: ${dir}`);

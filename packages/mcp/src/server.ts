@@ -40,6 +40,7 @@ const resolvedVersionSchema = z.object({
 const targetDirInputSchema = {
     targetDir: z
         .string()
+        .min(1, "Target directory cannot be empty")
         .optional()
         .describe(
             "Target directory to operate on. Defaults to current working directory.",
