@@ -413,6 +413,37 @@ describe("policy-check mode", () => {
         });
     });
 
+    describe("given getRepositoryRoot throws during telemetry", () => {
+        it("should still write the decision and log error to stderr", async () => {
+            // Arrange
+            const command = chance.sentence();
+            const stdinJson = createStdinJson(
+                "bash",
+                JSON.stringify({ command }),
+            );
+            const policyDeps = createMockPolicyDeps(null);
+            // Succeed for loadPolicy, then throw for telemetry
+            policyDeps.getRepositoryRoot = vi
+                .fn()
+                .mockReturnValueOnce("/repo")
+                .mockImplementation(() => {
+                    throw new Error("not a git repo");
+                });
+            const deps = createDeps({
+                readStdin: vi.fn().mockResolvedValue(stdinJson),
+                policyDeps,
+            });
+
+            // Act
+            await handlePolicyCheck(deps);
+
+            // Assert
+            const response = JSON.parse(deps.stdout[0]);
+            expect(response).toEqual({ permissionDecision: "allow" });
+            expect(deps.stderr.some((s) => s.includes("telemetry"))).toBe(true);
+        });
+    });
+
     describe("given an unexpected runtime error", () => {
         it("should write a deny response with generic error and log to stderr", async () => {
             // Arrange

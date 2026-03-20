@@ -37,25 +37,36 @@ function denyResponse(reason: string): string {
     });
 }
 
-function tryEmitTelemetry(
+const TELEMETRY_TIMEOUT_MS = 5_000;
+
+async function tryEmitTelemetry(
     deps: PolicyCheckDeps,
     command: string,
     decision: "allow" | "deny",
     matchedRule: string | null,
 ): Promise<void> {
-    const repoRoot = deps.policyDeps.getRepositoryRoot();
-    return emitPolicyDecisionEvent(
-        {
-            command,
-            decision,
-            matched_rule: matchedRule,
-            env: deps.env,
-            projectRoot: repoRoot,
-        },
-        deps.telemetryDeps,
-    ).catch((err) => {
+    try {
+        const repoRoot = deps.policyDeps.getRepositoryRoot();
+        const emission = emitPolicyDecisionEvent(
+            {
+                command,
+                decision,
+                matched_rule: matchedRule,
+                env: deps.env,
+                projectRoot: repoRoot,
+            },
+            deps.telemetryDeps,
+        );
+        const timeout = new Promise<void>((_, reject) =>
+            setTimeout(
+                () => reject(new Error("telemetry write timed out")),
+                TELEMETRY_TIMEOUT_MS,
+            ),
+        );
+        await Promise.race([emission, timeout]);
+    } catch (err) {
         deps.writeStderr(`agent-shell: telemetry write error: ${err}\n`);
-    });
+    }
 }
 
 export async function handlePolicyCheck(deps: PolicyCheckDeps): Promise<void> {
@@ -81,8 +92,8 @@ export async function handlePolicyCheck(deps: PolicyCheckDeps): Promise<void> {
         const { toolName, toolArgs } = hookResult.data;
 
         if (!TERMINAL_TOOLS.has(toolName)) {
-            await tryEmitTelemetry(deps, toolName, "allow", null);
             deps.writeStdout(allowResponse());
+            await tryEmitTelemetry(deps, toolName, "allow", null);
             return;
         }
 
@@ -133,14 +144,14 @@ export async function handlePolicyCheck(deps: PolicyCheckDeps): Promise<void> {
                       `Command '${command}' denied by policy rule: ${result.matchedRule ?? "not in allow list"}`,
                   );
 
+        deps.writeStdout(responseJson);
+
         await tryEmitTelemetry(
             deps,
             command.trim(),
             result.decision,
             result.matchedRule,
         );
-
-        deps.writeStdout(responseJson);
     } catch (err) {
         deps.writeStderr(`agent-shell: unexpected error: ${err}\n`);
         deps.writeStdout(

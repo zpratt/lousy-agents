@@ -17,38 +17,41 @@ const DEFAULT_POLICY_SUBPATH = ".github/hooks/agent-shell/policy.json";
 
 /**
  * Glob matcher supporting only `*` wildcards.
- * Uses a two-pointer/backtrack approach — O(n·m) worst case where
- * n = command length and m = rule length. Avoids the exponential
- * backtracking that regex `.*` quantifiers can cause.
+ *
+ * Splits the rule on `*` into literal segments and checks that each
+ * segment appears in the command in order. O(n·m) worst case where
+ * n = command length and m = rule length, with no exponential
+ * backtracking (unlike regex `.*` quantifiers).
  */
 function matchesRule(command: string, rule: string): boolean {
-    let ci = 0;
-    let ri = 0;
-    let starIdx = -1;
-    let matchIdx = 0;
+    const segments = rule.split("*");
 
-    while (ci < command.length) {
-        if (ri < rule.length && rule[ri] === "*") {
-            starIdx = ri;
-            matchIdx = ci;
-            ri++;
-        } else if (ri < rule.length && rule[ri] === command[ci]) {
-            ci++;
-            ri++;
-        } else if (starIdx !== -1) {
-            ri = starIdx + 1;
-            matchIdx++;
-            ci = matchIdx;
-        } else {
-            return false;
-        }
+    // No wildcards — require exact match
+    if (segments.length === 1) return command === rule;
+
+    // First segment must match the start of the command
+    const first = segments[0];
+    if (!command.startsWith(first)) return false;
+
+    let searchFrom = first.length;
+
+    // Inner segments must appear in order
+    for (let i = 1; i < segments.length - 1; i++) {
+        const idx = command.indexOf(segments[i], searchFrom);
+        if (idx === -1) return false;
+        searchFrom = idx + segments[i].length;
     }
 
-    while (ri < rule.length && rule[ri] === "*") {
-        ri++;
+    // Last segment must match the end of the command
+    const last = segments[segments.length - 1];
+    if (segments.length > 1 && !command.endsWith(last)) return false;
+
+    // Ensure the last segment doesn't overlap with already-matched content
+    if (segments.length > 1 && command.length - last.length < searchFrom) {
+        return false;
     }
 
-    return ri === rule.length;
+    return true;
 }
 
 export function evaluatePolicy(
