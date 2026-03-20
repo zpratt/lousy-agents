@@ -21,7 +21,7 @@
         "react-dom": "19.2.4"
     },
     "devDependencies": {
-        "@biomejs/biome": "2.4.2",
+        "@biomejs/biome": "2.4.6",
         "@eslint/eslintrc": "^3",
         "@lousy-agents/mcp": "5.4.0",
         "@modelcontextprotocol/server-sequential-thinking": "2025.12.18",

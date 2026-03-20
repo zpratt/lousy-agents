@@ -19,6 +19,11 @@
             "description": "Pin all npm dependencies to exact versions",
             "matchManagers": ["npm"],
             "rangeStrategy": "pin"
+        },
+        {
+            "description": "Group all Biome updates (npm packages + schema URLs + scaffold templates) into a single PR",
+            "matchPackageNames": ["@biomejs/biome"],
+            "groupName": "biome"
         }
     ],
     "customManagers": [
@@ -79,6 +84,28 @@
             ],
             "depNameTemplate": "anthropics/claude-code",
             "datasourceTemplate": "github-releases"
+        },
+        {
+            "description": "Track Biome schema version in biome.json and biome.template.json files",
+            "customType": "regex",
+            "managerFilePatterns": ["/(^|/)biome(\\.template)?\\.json$/"],
+            "matchStrings": [
+                "\"\\$schema\":\\s*\"https://biomejs\\.dev/schemas/(?<currentValue>[^/]+)/schema\\.json\""
+            ],
+            "depNameTemplate": "@biomejs/biome",
+            "datasourceTemplate": "npm"
+        },
+        {
+            "description": "Track @biomejs/biome version in scaffold template package.json files (EJS templates that npm manager cannot parse)",
+            "customType": "regex",
+            "managerFilePatterns": [
+                "/packages/cli/(cli|ui|api)/.+/package\\.json$/"
+            ],
+            "matchStrings": [
+                "\"@biomejs/biome\":\\s*\"(?<currentValue>[^\"]+)\""
+            ],
+            "depNameTemplate": "@biomejs/biome",
+            "datasourceTemplate": "npm"
         },
         {
             "description": "Track reviewdog CLI version in action.yml",
