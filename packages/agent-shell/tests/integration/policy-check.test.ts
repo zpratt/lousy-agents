@@ -31,6 +31,7 @@ function createMockPolicyDeps(
 ): PolicyDeps {
     return {
         realpath: vi.fn().mockImplementation(async (p: string) => {
+            if (p === repoRoot) return repoRoot;
             if (policyJson === null) {
                 const err = new Error("ENOENT") as Error & { code: string };
                 err.code = "ENOENT";

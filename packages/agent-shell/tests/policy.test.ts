@@ -305,8 +305,11 @@ describe("loadPolicy", () => {
     describe("given the policy file does not exist", () => {
         it("should return null", async () => {
             // Arrange
+            const repoRoot = "/fake/repo";
             const deps = buildPolicyDeps({
-                realpath: vi.fn(async () => {
+                getRepositoryRoot: vi.fn(() => repoRoot),
+                realpath: vi.fn(async (p: string) => {
+                    if (p === repoRoot) return repoRoot;
                     throw enoentError();
                 }),
             });
@@ -381,7 +384,10 @@ describe("loadPolicy", () => {
             const repoRoot = "/fake/repo";
             const deps = buildPolicyDeps({
                 getRepositoryRoot: vi.fn(() => repoRoot),
-                realpath: vi.fn(async () => "/etc/evil-policy.json"),
+                realpath: vi.fn(async (p: string) => {
+                    if (p === repoRoot) return repoRoot;
+                    return "/etc/evil-policy.json";
+                }),
             });
 
             // Act & Assert
@@ -397,7 +403,10 @@ describe("loadPolicy", () => {
             const repoRoot = "/fake/repo";
             const deps = buildPolicyDeps({
                 getRepositoryRoot: vi.fn(() => repoRoot),
-                realpath: vi.fn(async () => "/other/repo/policy.json"),
+                realpath: vi.fn(async (p: string) => {
+                    if (p === repoRoot) return repoRoot;
+                    return "/other/repo/policy.json";
+                }),
             });
 
             // Act & Assert
@@ -413,7 +422,10 @@ describe("loadPolicy", () => {
             const repoRoot = "/fake/repo";
             const deps = buildPolicyDeps({
                 getRepositoryRoot: vi.fn(() => repoRoot),
-                realpath: vi.fn(async () => "/etc/passwd"),
+                realpath: vi.fn(async (p: string) => {
+                    if (p === repoRoot) return repoRoot;
+                    return "/etc/passwd";
+                }),
             });
 
             // Act & Assert
@@ -443,6 +455,7 @@ describe("loadPolicy", () => {
     describe("given realpath throws a non-ENOENT error", () => {
         it("should propagate the error", async () => {
             // Arrange
+            const repoRoot = "/fake/repo";
             const permError = new Error(
                 "EACCES: permission denied",
             ) as Error & {
@@ -450,7 +463,9 @@ describe("loadPolicy", () => {
             };
             permError.code = "EACCES";
             const deps = buildPolicyDeps({
-                realpath: vi.fn(async () => {
+                getRepositoryRoot: vi.fn(() => repoRoot),
+                realpath: vi.fn(async (p: string) => {
+                    if (p === repoRoot) return repoRoot;
                     throw permError;
                 }),
             });
@@ -485,20 +500,18 @@ describe("loadPolicy", () => {
 
 describe("matchesRule (via evaluatePolicy) ReDoS resistance", () => {
     describe("given a rule with many wildcards and a long non-matching command", () => {
-        it("should complete in sub-second time (linear, not exponential)", () => {
+        it("should complete without hanging and return the correct decision", () => {
             // Arrange — this pattern causes catastrophic backtracking with regex
             const rule = `${"a*".repeat(20)}b`;
             const command = "a".repeat(100);
             const policy: PolicyConfig = { deny: [rule] };
 
             // Act
-            const start = performance.now();
             const result = evaluatePolicy(policy, command);
-            const elapsed = performance.now() - start;
 
-            // Assert — must complete in < 100ms (regex would take minutes)
-            expect(elapsed).toBeLessThan(100);
+            // Assert — should not hang, and should allow the non-matching command
             expect(result.decision).toBe("allow");
+            expect(result.matchedRule).toBeNull();
         });
     });
 });

@@ -16,9 +16,10 @@ export interface PolicyDecision {
 const DEFAULT_POLICY_SUBPATH = ".github/hooks/agent-shell/policy.json";
 
 /**
- * Linear-time glob matcher supporting only `*` wildcards.
- * Uses a two-pointer/backtrack approach — O(n*m) worst case, no
- * exponential backtracking (unlike regex `.*` quantifiers).
+ * Glob matcher supporting only `*` wildcards.
+ * Uses a two-pointer/backtrack approach — O(n·m) worst case where
+ * n = command length and m = rule length. Avoids the exponential
+ * backtracking that regex `.*` quantifiers can cause.
  */
 function matchesRule(command: string, rule: string): boolean {
     let ci = 0;
@@ -108,7 +109,8 @@ export async function loadPolicy(
     env: Record<string, string | undefined>,
     deps: PolicyDeps,
 ): Promise<PolicyConfig | null> {
-    const repoRoot = deps.getRepositoryRoot();
+    const rawRepoRoot = deps.getRepositoryRoot();
+    const repoRoot = await deps.realpath(rawRepoRoot);
     const candidatePath = resolvePolicyPath(env, repoRoot);
 
     let resolvedPath: string;
