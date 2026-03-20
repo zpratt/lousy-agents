@@ -112,6 +112,8 @@ export async function loadPolicy(
 ): Promise<PolicyConfig | null> {
     const rawRepoRoot = deps.getRepositoryRoot();
     const repoRoot = await deps.realpath(rawRepoRoot);
+    const override = env.AGENTSHELL_POLICY_PATH;
+    const isOverride = override !== undefined && override !== "";
     const candidatePath = resolvePolicyPath(env, repoRoot);
 
     let resolvedPath: string;
@@ -119,6 +121,11 @@ export async function loadPolicy(
         resolvedPath = await deps.realpath(candidatePath);
     } catch (error: unknown) {
         if (isEnoent(error)) {
+            if (isOverride) {
+                throw new Error(
+                    `Policy override path does not exist: ${candidatePath}`,
+                );
+            }
             return null;
         }
         throw error;

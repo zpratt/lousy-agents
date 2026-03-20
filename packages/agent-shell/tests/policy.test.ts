@@ -336,6 +336,26 @@ describe("loadPolicy", () => {
         });
     });
 
+    describe("given AGENTSHELL_POLICY_PATH points to a non-existent file", () => {
+        it("should throw an error instead of silently returning null", async () => {
+            // Arrange
+            const repoRoot = "/fake/repo";
+            const customPath = "custom/missing-policy.json";
+            const deps = buildPolicyDeps({
+                getRepositoryRoot: vi.fn(() => repoRoot),
+                realpath: vi.fn(async (p: string) => {
+                    if (p === repoRoot) return repoRoot;
+                    throw enoentError();
+                }),
+            });
+
+            // Act & Assert
+            await expect(
+                loadPolicy({ AGENTSHELL_POLICY_PATH: customPath }, deps),
+            ).rejects.toThrow(/does not exist/i);
+        });
+    });
+
     describe("given AGENTSHELL_POLICY_PATH env var overrides the default path", () => {
         it("should use the overridden path relative to repo root", async () => {
             // Arrange

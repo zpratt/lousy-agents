@@ -65,8 +65,8 @@ async function main(): Promise<void> {
                 },
                 telemetryDeps: createDefaultDeps(),
             });
-            process.exit(0);
-            break;
+            process.exitCode = 0;
+            return;
         }
         case "passthrough": {
             const result = spawnSync("/bin/sh", mode.args, {
