@@ -4,7 +4,11 @@ import { detectActor } from "./actor.js";
 import { captureEnv, captureTags } from "./env-capture.js";
 import { isWithinProjectRoot } from "./path-utils.js";
 import type { ShimResult } from "./shim.js";
-import type { ScriptEndEvent, ShimErrorEvent } from "./types.js";
+import type {
+    PolicyDecisionEvent,
+    ScriptEndEvent,
+    ShimErrorEvent,
+} from "./types.js";
 import { SCHEMA_VERSION } from "./types.js";
 
 export interface TelemetryDeps {
@@ -95,7 +99,7 @@ export async function resolveWriteEventsDir(
 async function writeEvent(
     eventsDir: string,
     sessionId: string,
-    event: ScriptEndEvent | ShimErrorEvent,
+    event: ScriptEndEvent | ShimErrorEvent | PolicyDecisionEvent,
     deps: TelemetryDeps,
 ): Promise<void> {
     const filePath = join(eventsDir, `${sessionId}.jsonl`);
@@ -169,4 +173,44 @@ export async function emitShimErrorEvent(
     };
 
     await writeEvent(eventsDir, sessionId, event, deps);
+}
+
+export async function emitPolicyDecisionEvent(
+    options: {
+        command: string;
+        decision: "allow" | "deny";
+        matched_rule: string | null;
+        env: Record<string, string | undefined>;
+        projectRoot: string;
+    },
+    deps: TelemetryDeps,
+): Promise<void> {
+    const depsWithProjectRoot: TelemetryDeps = {
+        ...deps,
+        cwd: () => options.projectRoot,
+    };
+
+    const sessionId = resolveSessionId(options.env, deps);
+    const eventsDir = await resolveWriteEventsDir(
+        options.env,
+        depsWithProjectRoot,
+    );
+
+    const capturedEnv = captureEnv(options.env);
+    const tags = captureTags(options.env);
+
+    const event: PolicyDecisionEvent = {
+        v: SCHEMA_VERSION,
+        session_id: sessionId,
+        event: "policy_decision",
+        command: options.command,
+        decision: options.decision,
+        matched_rule: options.matched_rule,
+        actor: detectActor(options.env),
+        timestamp: deps.now(),
+        env: capturedEnv,
+        tags,
+    };
+
+    await writeEvent(eventsDir, sessionId, event, depsWithProjectRoot);
 }

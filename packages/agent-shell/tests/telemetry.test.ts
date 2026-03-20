@@ -4,12 +4,17 @@ import { describe, expect, it, vi } from "vitest";
 import type { ShimResult } from "../src/shim.js";
 import type { TelemetryDeps } from "../src/telemetry.js";
 import {
+    emitPolicyDecisionEvent,
     emitScriptEndEvent,
     emitShimErrorEvent,
     resolveSessionId,
     resolveWriteEventsDir,
 } from "../src/telemetry.js";
-import { ScriptEndEventSchema, ShimErrorEventSchema } from "../src/types.js";
+import {
+    PolicyDecisionEventSchema,
+    ScriptEndEventSchema,
+    ShimErrorEventSchema,
+} from "../src/types.js";
 
 const chance = new Chance();
 
@@ -452,6 +457,131 @@ describe("graceful degradation", () => {
             expect(deps.writeStderr).toHaveBeenCalledWith(
                 expect.stringContaining("agent-shell"),
             );
+        });
+    });
+});
+
+describe("policy decision event emission", () => {
+    describe("given a deny decision with a matched rule", () => {
+        it("should emit a valid policy_decision event", async () => {
+            // Arrange
+            const command = chance.sentence();
+            const matchedRule = chance.word();
+            const projectRoot = "/repo-root";
+            const deps = createMockDeps();
+            const env = {};
+
+            // Act
+            await emitPolicyDecisionEvent(
+                {
+                    command,
+                    decision: "deny",
+                    matched_rule: matchedRule,
+                    env,
+                    projectRoot,
+                },
+                deps,
+            );
+
+            // Assert
+            const parsed = JSON.parse(deps.written[0]);
+            const validated = PolicyDecisionEventSchema.parse(parsed);
+            expect(validated.event).toBe("policy_decision");
+            expect(validated.command).toBe(command);
+            expect(validated.decision).toBe("deny");
+            expect(validated.matched_rule).toBe(matchedRule);
+            expect(validated.session_id).toBe("generated-uuid");
+            expect(validated.timestamp).toBe("2026-01-01T00:00:00.000Z");
+        });
+    });
+
+    describe("given an allow decision with no matched rule", () => {
+        it("should emit a policy_decision event with null matched_rule", async () => {
+            // Arrange
+            const command = chance.sentence();
+            const projectRoot = "/repo-root";
+            const deps = createMockDeps();
+            const env = {};
+
+            // Act
+            await emitPolicyDecisionEvent(
+                {
+                    command,
+                    decision: "allow",
+                    matched_rule: null,
+                    env,
+                    projectRoot,
+                },
+                deps,
+            );
+
+            // Assert
+            const parsed = JSON.parse(deps.written[0]);
+            expect(parsed.decision).toBe("allow");
+            expect(parsed.matched_rule).toBeNull();
+        });
+    });
+
+    describe("given a projectRoot parameter", () => {
+        it("should use projectRoot instead of deps.cwd() for event directory resolution", async () => {
+            // Arrange
+            const command = chance.sentence();
+            const projectRoot = "/custom-repo-root";
+            const deps = createMockDeps({
+                cwd: vi.fn().mockReturnValue("/different-cwd"),
+            });
+            const env = {};
+
+            // Act
+            await emitPolicyDecisionEvent(
+                {
+                    command,
+                    decision: "allow",
+                    matched_rule: null,
+                    env,
+                    projectRoot,
+                },
+                deps,
+            );
+
+            // Assert
+            expect(deps.mkdir).toHaveBeenCalledWith(
+                "/custom-repo-root/.agent-shell/events",
+                { recursive: true },
+            );
+            const [filePath] = vi.mocked(deps.appendFile).mock.calls[0];
+            expect(filePath).toBe(
+                "/custom-repo-root/.agent-shell/events/generated-uuid.jsonl",
+            );
+        });
+    });
+
+    describe("given all base telemetry fields", () => {
+        it("should include v, session_id, actor, env, and tags", async () => {
+            // Arrange
+            const command = chance.sentence();
+            const projectRoot = "/repo-root";
+            const deps = createMockDeps();
+            const env = {};
+
+            // Act
+            await emitPolicyDecisionEvent(
+                {
+                    command,
+                    decision: "allow",
+                    matched_rule: null,
+                    env,
+                    projectRoot,
+                },
+                deps,
+            );
+
+            // Assert
+            const parsed = JSON.parse(deps.written[0]);
+            expect(parsed.v).toBe(1);
+            expect(parsed.actor).toBe("human");
+            expect(parsed.env).toBeDefined();
+            expect(parsed.tags).toBeDefined();
         });
     });
 });
