@@ -17,38 +17,42 @@ const DEFAULT_POLICY_SUBPATH = ".github/hooks/agent-shell/policy.json";
 
 /**
  * Glob matcher supporting only `*` wildcards.
- * Uses a two-pointer/backtrack approach — O(n·m) worst case where
- * n = command length and m = rule length. Avoids the exponential
- * backtracking that regex `.*` quantifiers can cause.
+ * Splits the rule on `*` into literal segments, then verifies:
+ *   - the first segment matches the start of the command (prefix)
+ *   - the last segment matches the end of the command (suffix)
+ *   - each remaining segment appears left-to-right in between
+ * This runs in O(n·m) time and avoids the exponential backtracking
+ * that regex `.*` quantifiers can cause.
  */
 function matchesRule(command: string, rule: string): boolean {
-    let ci = 0;
-    let ri = 0;
-    let starIdx = -1;
-    let matchIdx = 0;
+    const segments = rule.split("*");
 
-    while (ci < command.length) {
-        if (ri < rule.length && rule[ri] === "*") {
-            starIdx = ri;
-            matchIdx = ci;
-            ri++;
-        } else if (ri < rule.length && rule[ri] === command[ci]) {
-            ci++;
-            ri++;
-        } else if (starIdx !== -1) {
-            ri = starIdx + 1;
-            matchIdx++;
-            ci = matchIdx;
-        } else {
-            return false;
-        }
+    if (segments.length === 1) {
+        return command === rule;
     }
 
-    while (ri < rule.length && rule[ri] === "*") {
-        ri++;
+    const prefix = segments[0];
+    const suffix = segments[segments.length - 1];
+
+    // Guard against overlapping prefix and suffix (e.g. rule="a*a", command="a")
+    if (prefix.length + suffix.length > command.length) {
+        return false;
     }
 
-    return ri === rule.length;
+    if (!command.startsWith(prefix) || !command.endsWith(suffix)) {
+        return false;
+    }
+
+    let pos = prefix.length;
+    const limit = command.length - suffix.length;
+    for (let i = 1; i < segments.length - 1; i++) {
+        const segment = segments[i];
+        const idx = command.indexOf(segment, pos);
+        if (idx === -1 || idx + segment.length > limit) return false;
+        pos = idx + segment.length;
+    }
+
+    return true;
 }
 
 export function evaluatePolicy(
