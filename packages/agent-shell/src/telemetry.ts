@@ -25,6 +25,14 @@ const SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const DEFAULT_EVENTS_SUBDIR = ".agent-shell/events";
 const MAX_ANCESTOR_DEPTH = 50;
 
+function isPathNotFoundError(err: unknown): boolean {
+    if (typeof err === "object" && err !== null && "code" in err) {
+        const code = (err as { code: unknown }).code;
+        return code === "ENOENT" || code === "ENOTDIR";
+    }
+    return false;
+}
+
 async function realpathExistingAncestor(
     targetPath: string,
     deps: Pick<TelemetryDeps, "realpath">,
@@ -33,7 +41,8 @@ async function realpathExistingAncestor(
     for (let i = 0; i < MAX_ANCESTOR_DEPTH; i++) {
         try {
             return await deps.realpath(current);
-        } catch {
+        } catch (err) {
+            if (!isPathNotFoundError(err)) throw err;
             const parent = dirname(current);
             if (parent === current) return null;
             current = parent;

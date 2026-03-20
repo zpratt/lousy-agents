@@ -253,7 +253,9 @@ describe("events directory resolution", () => {
                 .fn()
                 .mockImplementation(async (p: string) => {
                     if (p === "/project/sneaky-link/logs")
-                        throw new Error("ENOENT");
+                        throw Object.assign(new Error("ENOENT"), {
+                            code: "ENOENT",
+                        });
                     if (p === "/project/sneaky-link") return "/elsewhere";
                     return p;
                 });
@@ -267,6 +269,28 @@ describe("events directory resolution", () => {
             expect(deps.mkdir).not.toHaveBeenCalledWith(
                 "/project/sneaky-link/logs",
                 expect.anything(),
+            );
+        });
+    });
+
+    describe("given ancestor realpath fails with a non-ENOENT error", () => {
+        it("should propagate the error instead of silently falling back", async () => {
+            // Arrange
+            const env = { AGENTSHELL_LOG_DIR: "restricted-dir/logs" };
+            const realpathMock = vi
+                .fn()
+                .mockImplementation(async (p: string) => {
+                    if (p === "/project/restricted-dir/logs")
+                        throw Object.assign(new Error("EACCES"), {
+                            code: "EACCES",
+                        });
+                    return p;
+                });
+            const deps = createMockDeps({ realpath: realpathMock });
+
+            // Act & Assert
+            await expect(resolveWriteEventsDir(env, deps)).rejects.toThrow(
+                "EACCES",
             );
         });
     });
