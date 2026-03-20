@@ -57,13 +57,21 @@ async function tryEmitTelemetry(
             },
             deps.telemetryDeps,
         );
-        const timeout = new Promise<void>((_, reject) =>
-            setTimeout(
+        let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+        const timeout = new Promise<void>((_, reject) => {
+            timeoutHandle = setTimeout(
                 () => reject(new Error("telemetry write timed out")),
                 TELEMETRY_TIMEOUT_MS,
-            ),
-        );
-        await Promise.race([emission, timeout]);
+            );
+            timeoutHandle.unref();
+        });
+        try {
+            await Promise.race([emission, timeout]);
+        } finally {
+            if (timeoutHandle !== undefined) {
+                clearTimeout(timeoutHandle);
+            }
+        }
     } catch (err) {
         deps.writeStderr(`agent-shell: telemetry write error: ${err}\n`);
     }
