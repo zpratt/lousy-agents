@@ -86,14 +86,6 @@ export async function resolveWriteEventsDir(
     const logDir = env.AGENTSHELL_LOG_DIR;
 
     if (logDir !== undefined && logDir !== "") {
-        if (logDir.includes("..")) {
-            deps.writeStderr(
-                `agent-shell: AGENTSHELL_LOG_DIR contains path traversal, using default\n`,
-            );
-            await deps.mkdir(defaultDir, { recursive: true });
-            return defaultDir;
-        }
-
         // Reject external paths (including absolute) before any filesystem side-effects
         const resolvedLogical = resolve(projectRoot, logDir);
         if (!isWithinProjectRoot(resolvedLogical, projectRoot)) {

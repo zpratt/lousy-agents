@@ -112,6 +112,23 @@ describe("Repository root discovery", () => {
         });
     });
 
+    describe("given the git command returns a non-absolute path with embedded newlines", () => {
+        it("throws a descriptive error about control characters, not the raw output", () => {
+            // Arrange
+            const executor: GitCommandExecutor = vi
+                .fn()
+                .mockReturnValue("relative\n/evil/path");
+
+            // Act
+            const getRepositoryRoot = createGetRepositoryRoot(executor);
+
+            // Assert
+            expect(() => getRepositoryRoot()).toThrow(
+                "Repository root path contains unexpected control characters",
+            );
+        });
+    });
+
     describe("given the git command returns a path with traversal sequences", () => {
         it("normalizes the path by resolving traversal sequences", () => {
             // Arrange

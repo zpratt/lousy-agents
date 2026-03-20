@@ -52,6 +52,12 @@ describe("isWithinProjectRoot", () => {
         });
     });
 
+    describe("given a resolved path with a trailing slash matching the project root", () => {
+        it("should return true", () => {
+            expect(isWithinProjectRoot("/project/", "/project")).toBe(true);
+        });
+    });
+
     describe("given a directory name starting with dots that is not traversal", () => {
         it("should return true", () => {
             expect(isWithinProjectRoot("/project/..foo/bar", "/project")).toBe(

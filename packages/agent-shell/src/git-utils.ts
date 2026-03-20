@@ -68,15 +68,15 @@ export function createGetRepositoryRoot(
             );
         }
 
-        if (!output || !isAbsolute(output)) {
-            throw new Error(
-                `Expected an absolute path from git but received: ${output.slice(0, MAX_ERROR_OUTPUT_LENGTH)}`,
-            );
-        }
-
         if (/[\n\r]/.test(output)) {
             throw new Error(
                 "Repository root path contains unexpected control characters.",
+            );
+        }
+
+        if (!output || !isAbsolute(output)) {
+            throw new Error(
+                `Expected an absolute path from git but received: ${output.slice(0, MAX_ERROR_OUTPUT_LENGTH)}`,
             );
         }
 

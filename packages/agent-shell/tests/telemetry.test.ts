@@ -209,6 +209,21 @@ describe("events directory resolution", () => {
         });
     });
 
+    describe("given AGENTSHELL_LOG_DIR with a dot-prefixed name that is not traversal", () => {
+        it("should accept the directory and not fall back to default", async () => {
+            // Arrange — "..foo" starts with ".." but is a valid directory name, not traversal
+            const env = { AGENTSHELL_LOG_DIR: "..foo" };
+            const deps = createMockDeps();
+
+            // Act
+            const result = await resolveWriteEventsDir(env, deps);
+
+            // Assert — should resolve to /project/..foo, not fall back to default
+            expect(result).toBe("/project/..foo");
+            expect(deps.writeStderr).not.toHaveBeenCalled();
+        });
+    });
+
     describe("given AGENTSHELL_LOG_DIR with an absolute path outside project root", () => {
         it("should fall back to default without creating the external directory", async () => {
             // Arrange
