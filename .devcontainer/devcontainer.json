@@ -27,7 +27,7 @@
             "onAutoForward": "notify"
         }
     },
-    "postCreateCommand": "mise trust -a && mise install && (curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/v0.61.0/scripts/install.sh | bash || true) && npm ci",
+    "postCreateCommand": "bash .devcontainer/setup.sh",
     "waitFor": "postCreateCommand",
     "remoteUser": "vscode",
     "customizations": {
