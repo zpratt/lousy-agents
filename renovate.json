@@ -108,6 +108,26 @@
             "depNameTemplate": "devcontainers/features",
             "datasourceTemplate": "github-releases",
             "extractVersionTemplate": "^docker-in-docker_v(?<version>.*)$"
+        },
+        {
+            "description": "Track dolt version in devcontainer setup script",
+            "customType": "regex",
+            "managerFilePatterns": ["/^\\.devcontainer/setup\\.sh$/"],
+            "matchStrings": [
+                "#\\s*renovate:\\s*datasource=github-releases\\s+depName=dolthub/dolt\\nDOLT_VERSION=\"(?<currentValue>[^\"]+)\""
+            ],
+            "depNameTemplate": "dolthub/dolt",
+            "datasourceTemplate": "github-releases"
+        },
+        {
+            "description": "Track beads version in devcontainer setup script",
+            "customType": "regex",
+            "managerFilePatterns": ["/^\\.devcontainer/setup\\.sh$/"],
+            "matchStrings": [
+                "#\\s*renovate:\\s*datasource=github-releases\\s+depName=steveyegge/beads\\nBEADS_VERSION=\"(?<currentValue>[^\"]+)\""
+            ],
+            "depNameTemplate": "steveyegge/beads",
+            "datasourceTemplate": "github-releases"
         }
     ]
 }
