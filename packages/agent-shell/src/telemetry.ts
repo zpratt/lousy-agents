@@ -77,9 +77,9 @@ export async function resolveWriteEventsDir(
             return defaultDir;
         }
 
-        await deps.mkdir(logDir, { recursive: true });
+        await deps.mkdir(resolvedLogical, { recursive: true });
 
-        const resolved = await deps.realpath(logDir);
+        const resolved = await deps.realpath(resolvedLogical);
 
         if (!isWithinProjectRoot(resolved, projectRoot)) {
             deps.writeStderr(

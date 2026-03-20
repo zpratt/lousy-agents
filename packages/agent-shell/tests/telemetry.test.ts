@@ -172,6 +172,28 @@ describe("events directory resolution", () => {
         });
     });
 
+    describe("given a relative AGENTSHELL_LOG_DIR", () => {
+        it("should resolve it relative to projectRoot (deps.cwd), not process.cwd", async () => {
+            // Arrange
+            const relativeDir = "custom-logs";
+            const env = { AGENTSHELL_LOG_DIR: relativeDir };
+            const expectedResolved = "/project/custom-logs";
+            const deps = createMockDeps({
+                realpath: vi.fn().mockResolvedValue(expectedResolved),
+            });
+
+            // Act
+            const result = await resolveWriteEventsDir(env, deps);
+
+            // Assert — mkdir and realpath receive the resolved path, not the raw relative value
+            expect(deps.mkdir).toHaveBeenCalledWith(expectedResolved, {
+                recursive: true,
+            });
+            expect(deps.realpath).toHaveBeenCalledWith(expectedResolved);
+            expect(result).toBe(expectedResolved);
+        });
+    });
+
     describe("given AGENTSHELL_LOG_DIR with path traversal", () => {
         it("should fall back to default and write diagnostic to stderr", async () => {
             // Arrange
