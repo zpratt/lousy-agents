@@ -1,6 +1,7 @@
 ---
 name: triaging-pr-reviews
 description: Use when analyzing PR review comments — especially from automated reviewers like GitHub Copilot — to classify root concerns, verify claims against actual code, evaluate trade-offs, and decide what to implement, reject, or implement differently
+argument-hint: "PR number to analyze (e.g., #317). Optionally specify a source filter: 'copilot', 'human', or 'all' (default: all)"
 allowed-tools: read, terminal, search
 ---
 
