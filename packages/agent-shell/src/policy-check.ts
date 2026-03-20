@@ -1,4 +1,5 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
+import { z } from "zod/v4";
 import type { PolicyDeps } from "./policy.js";
 import { evaluatePolicy, loadPolicy } from "./policy.js";
 import type { TelemetryDeps } from "./telemetry.js";
@@ -16,6 +17,15 @@ export interface PolicyCheckDeps {
 
 const TERMINAL_TOOLS = new Set(["bash", "zsh", "ash", "sh"]);
 
+const HookInputSchema = z.object({
+    toolName: z.string(),
+    toolArgs: z.string().optional(),
+});
+
+const ToolArgsSchema = z.object({
+    command: z.string(),
+});
+
 function allowResponse(): string {
     return JSON.stringify({ permissionDecision: "allow" });
 }
@@ -24,6 +34,27 @@ function denyResponse(reason: string): string {
     return JSON.stringify({
         permissionDecision: "deny",
         permissionDecisionReason: reason,
+    });
+}
+
+function tryEmitTelemetry(
+    deps: PolicyCheckDeps,
+    command: string,
+    decision: "allow" | "deny",
+    matchedRule: string | null,
+): Promise<void> {
+    const repoRoot = deps.policyDeps.getRepositoryRoot();
+    return emitPolicyDecisionEvent(
+        {
+            command,
+            decision,
+            matched_rule: matchedRule,
+            env: deps.env,
+            projectRoot: repoRoot,
+        },
+        deps.telemetryDeps,
+    ).catch((err) => {
+        deps.writeStderr(`agent-shell: telemetry write error: ${err}\n`);
     });
 }
 
@@ -40,31 +71,23 @@ export async function handlePolicyCheck(deps: PolicyCheckDeps): Promise<void> {
             return;
         }
 
-        if (
-            typeof input !== "object" ||
-            input === null ||
-            !("toolName" in input)
-        ) {
+        const hookResult = HookInputSchema.safeParse(input);
+
+        if (!hookResult.success) {
             deps.writeStdout(denyResponse("Missing or invalid toolName field"));
             return;
         }
 
-        const { toolName } = input as Record<string, unknown>;
-
-        if (typeof toolName !== "string") {
-            deps.writeStdout(denyResponse("Missing or invalid toolName field"));
-            return;
-        }
+        const { toolName, toolArgs } = hookResult.data;
 
         if (!TERMINAL_TOOLS.has(toolName)) {
+            await tryEmitTelemetry(deps, toolName, "allow", null);
             deps.writeStdout(allowResponse());
             return;
         }
 
         // Terminal tool — validate toolArgs
-        const toolArgs = (input as Record<string, unknown>).toolArgs;
-
-        if (typeof toolArgs !== "string") {
+        if (toolArgs === undefined) {
             deps.writeStdout(
                 denyResponse(
                     "Missing or non-string toolArgs for terminal tool",
@@ -82,23 +105,14 @@ export async function handlePolicyCheck(deps: PolicyCheckDeps): Promise<void> {
             return;
         }
 
-        if (
-            typeof parsedArgs !== "object" ||
-            parsedArgs === null ||
-            !("command" in parsedArgs)
-        ) {
+        const argsResult = ToolArgsSchema.safeParse(parsedArgs);
+
+        if (!argsResult.success) {
             deps.writeStdout(denyResponse("Missing command field in toolArgs"));
             return;
         }
 
-        const { command } = parsedArgs as Record<string, unknown>;
-
-        if (typeof command !== "string") {
-            deps.writeStdout(
-                denyResponse("Non-string command field in toolArgs"),
-            );
-            return;
-        }
+        const { command } = argsResult.data;
 
         // Load and evaluate policy
         let policy: PolicyConfig | null;
@@ -119,22 +133,12 @@ export async function handlePolicyCheck(deps: PolicyCheckDeps): Promise<void> {
                       `Command '${command}' denied by policy rule: ${result.matchedRule ?? "not in allow list"}`,
                   );
 
-        // Emit telemetry (best-effort)
-        const repoRoot = deps.policyDeps.getRepositoryRoot();
-        try {
-            await emitPolicyDecisionEvent(
-                {
-                    command: command.trim(),
-                    decision: result.decision,
-                    matched_rule: result.matchedRule,
-                    env: deps.env,
-                    projectRoot: repoRoot,
-                },
-                deps.telemetryDeps,
-            );
-        } catch (err) {
-            deps.writeStderr(`agent-shell: telemetry write error: ${err}\n`);
-        }
+        await tryEmitTelemetry(
+            deps,
+            command.trim(),
+            result.decision,
+            result.matchedRule,
+        );
 
         deps.writeStdout(responseJson);
     } catch (err) {

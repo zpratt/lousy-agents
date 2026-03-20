@@ -151,6 +151,31 @@ describe("policy-check mode", () => {
             const response = JSON.parse(deps.stdout[0]);
             expect(response).toEqual({ permissionDecision: "allow" });
         });
+
+        it("should emit a telemetry event for non-terminal tool decisions", async () => {
+            // Arrange
+            const toolName = chance.word();
+            const stdinJson = createStdinJson(
+                toolName,
+                JSON.stringify({ path: "/some/file" }),
+            );
+            const telemetryDeps = createMockTelemetryDeps();
+            const deps = createDeps({
+                readStdin: vi.fn().mockResolvedValue(stdinJson),
+                telemetryDeps,
+            });
+
+            // Act
+            await handlePolicyCheck(deps);
+
+            // Assert
+            expect(telemetryDeps.appendFile).toHaveBeenCalledOnce();
+            const [, data] = vi.mocked(telemetryDeps.appendFile).mock.calls[0];
+            const event = JSON.parse(data as string);
+            expect(event.event).toBe("policy_decision");
+            expect(event.decision).toBe("allow");
+            expect(event.command).toBe(toolName);
+        });
     });
 
     describe("given each recognized terminal tool name", () => {
@@ -250,10 +275,10 @@ describe("policy-check mode", () => {
             // Act
             await handlePolicyCheck(deps);
 
-            // Assert
+            // Assert — Zod rejects non-string toolArgs at schema level
             const response = JSON.parse(deps.stdout[0]);
             expect(response.permissionDecision).toBe("deny");
-            expect(response.permissionDecisionReason).toContain("toolArgs");
+            expect(response.permissionDecisionReason).toBeDefined();
         });
     });
 

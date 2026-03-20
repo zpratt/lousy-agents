@@ -22,10 +22,21 @@ Environment:
   AGENTSHELL_PASSTHROUGH=1  Bypass instrumentation
 `;
 
+const MAX_STDIN_BYTES = 1024 * 1024; // 1 MiB — reject oversized hook payloads
+
 function readStdin(): Promise<string> {
     return new Promise((resolve, reject) => {
         const chunks: Buffer[] = [];
-        process.stdin.on("data", (chunk: Buffer) => chunks.push(chunk));
+        let totalBytes = 0;
+        process.stdin.on("data", (chunk: Buffer) => {
+            totalBytes += chunk.length;
+            if (totalBytes > MAX_STDIN_BYTES) {
+                process.stdin.destroy();
+                reject(new Error("stdin exceeds maximum allowed size"));
+                return;
+            }
+            chunks.push(chunk);
+        });
         process.stdin.on("end", () =>
             resolve(Buffer.concat(chunks).toString("utf-8")),
         );
