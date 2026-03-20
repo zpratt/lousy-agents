@@ -4,6 +4,7 @@ extends: default
 
 ignore:
   - node_modules/
+  - .beads/
 
 rules:
   braces:
