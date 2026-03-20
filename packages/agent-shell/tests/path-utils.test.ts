@@ -51,4 +51,12 @@ describe("isWithinProjectRoot", () => {
             );
         });
     });
+
+    describe("given a directory name starting with dots that is not traversal", () => {
+        it("should return true", () => {
+            expect(isWithinProjectRoot("/project/..foo/bar", "/project")).toBe(
+                true,
+            );
+        });
+    });
 });

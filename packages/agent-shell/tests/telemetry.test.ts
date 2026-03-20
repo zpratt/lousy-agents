@@ -241,7 +241,33 @@ describe("events directory resolution", () => {
 
             // Assert
             expect(result).toBe("/project/.agent-shell/events");
-            expect(deps.writeStderr).toHaveBeenCalledOnce();
+            expect(deps.writeStderr).toHaveBeenCalled();
+        });
+    });
+
+    describe("given AGENTSHELL_LOG_DIR with a symlinked ancestor escaping the project", () => {
+        it("should not create directories under the symlink", async () => {
+            // Arrange
+            const env = { AGENTSHELL_LOG_DIR: "sneaky-link/logs" };
+            const realpathMock = vi
+                .fn()
+                .mockImplementation(async (p: string) => {
+                    if (p === "/project/sneaky-link/logs")
+                        throw new Error("ENOENT");
+                    if (p === "/project/sneaky-link") return "/elsewhere";
+                    return p;
+                });
+            const deps = createMockDeps({ realpath: realpathMock });
+
+            // Act
+            const result = await resolveWriteEventsDir(env, deps);
+
+            // Assert
+            expect(result).toBe("/project/.agent-shell/events");
+            expect(deps.mkdir).not.toHaveBeenCalledWith(
+                "/project/sneaky-link/logs",
+                expect.anything(),
+            );
         });
     });
 

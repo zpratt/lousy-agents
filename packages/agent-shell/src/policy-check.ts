@@ -57,6 +57,8 @@ async function tryEmitTelemetry(
             },
             deps.telemetryDeps,
         );
+        // Prevent unhandled rejection if emission rejects after timeout wins the race
+        emission.catch(() => {});
         let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
         const timeout = new Promise<void>((_, reject) => {
             timeoutHandle = setTimeout(

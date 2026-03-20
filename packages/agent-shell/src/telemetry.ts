@@ -1,5 +1,5 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { detectActor } from "./actor.js";
 import { captureEnv, captureTags } from "./env-capture.js";
 import { isWithinProjectRoot } from "./path-utils.js";
@@ -23,6 +23,24 @@ export interface TelemetryDeps {
 
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const DEFAULT_EVENTS_SUBDIR = ".agent-shell/events";
+const MAX_ANCESTOR_DEPTH = 50;
+
+async function realpathExistingAncestor(
+    targetPath: string,
+    deps: Pick<TelemetryDeps, "realpath">,
+): Promise<string | null> {
+    let current = targetPath;
+    for (let i = 0; i < MAX_ANCESTOR_DEPTH; i++) {
+        try {
+            return await deps.realpath(current);
+        } catch {
+            const parent = dirname(current);
+            if (parent === current) return null;
+            current = parent;
+        }
+    }
+    return null;
+}
 
 export function resolveSessionId(
     env: Record<string, string | undefined>,
@@ -72,6 +90,22 @@ export async function resolveWriteEventsDir(
         if (!isWithinProjectRoot(resolvedLogical, projectRoot)) {
             deps.writeStderr(
                 `agent-shell: AGENTSHELL_LOG_DIR resolves outside project root, using default\n`,
+            );
+            await deps.mkdir(defaultDir, { recursive: true });
+            return defaultDir;
+        }
+
+        // Validate existing ancestor realpath before mkdir to prevent symlink escape
+        const ancestorReal = await realpathExistingAncestor(
+            resolvedLogical,
+            deps,
+        );
+        if (
+            ancestorReal === null ||
+            !isWithinProjectRoot(ancestorReal, projectRoot)
+        ) {
+            deps.writeStderr(
+                `agent-shell: AGENTSHELL_LOG_DIR resolves outside project root via ancestor symlink, using default\n`,
             );
             await deps.mkdir(defaultDir, { recursive: true });
             return defaultDir;

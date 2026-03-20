@@ -1,4 +1,4 @@
-import { isAbsolute, relative } from "node:path";
+import { isAbsolute, relative, sep } from "node:path";
 
 export function isWithinProjectRoot(
     resolvedPath: string,
@@ -6,6 +6,11 @@ export function isWithinProjectRoot(
 ): boolean {
     if (resolvedPath === projectRoot) return true;
     const rel = relative(projectRoot, resolvedPath);
-    // Outside the root if: empty, starts with "..", or is absolute (different drive on Windows)
-    return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
+    // Outside the root if: empty, exact "..", starts with "../" (or "..\"), or is absolute (different drive on Windows)
+    return (
+        rel !== "" &&
+        rel !== ".." &&
+        !rel.startsWith(`..${sep}`) &&
+        !isAbsolute(rel)
+    );
 }
