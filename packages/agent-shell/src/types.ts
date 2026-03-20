@@ -33,11 +33,54 @@ export const ShimErrorEventSchema = z
     })
     .strict();
 
+export const PolicyDecisionEventSchema = z
+    .object({
+        ...baseFields,
+        event: z.literal("policy_decision"),
+        decision: z.enum(["allow", "deny"]),
+        matched_rule: z.string().nullable(),
+    })
+    .strict();
+
 export const ScriptEventSchema = z.discriminatedUnion("event", [
     ScriptEndEventSchema,
     ShimErrorEventSchema,
+    PolicyDecisionEventSchema,
 ]);
+
+export const PolicyConfigSchema = z.object({
+    allow: z.array(z.string()).optional(),
+    deny: z.array(z.string()).default([]),
+});
+
+const HookCommandSchema = z
+    .object({
+        type: z.literal("command"),
+        bash: z.string().optional(),
+        powershell: z.string().optional(),
+        cwd: z.string().optional(),
+        timeoutSec: z.number().positive().optional(),
+        env: z.record(z.string(), z.string()).optional(),
+    })
+    .refine(
+        (data) => data.bash !== undefined || data.powershell !== undefined,
+        { message: "At least one of 'bash' or 'powershell' must be provided" },
+    );
+
+export const HooksConfigSchema = z.object({
+    version: z.literal(1),
+    hooks: z.object({
+        sessionStart: z.array(HookCommandSchema).optional(),
+        userPromptSubmitted: z.array(HookCommandSchema).optional(),
+        preToolUse: z.array(HookCommandSchema).optional(),
+        postToolUse: z.array(HookCommandSchema).optional(),
+        sessionEnd: z.array(HookCommandSchema).optional(),
+    }),
+});
 
 export type ScriptEndEvent = z.infer<typeof ScriptEndEventSchema>;
 export type ShimErrorEvent = z.infer<typeof ShimErrorEventSchema>;
+export type PolicyDecisionEvent = z.infer<typeof PolicyDecisionEventSchema>;
 export type ScriptEvent = z.infer<typeof ScriptEventSchema>;
+export type PolicyConfig = z.infer<typeof PolicyConfigSchema>;
+export type HooksConfig = z.infer<typeof HooksConfigSchema>;
