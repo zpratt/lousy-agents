@@ -96,18 +96,6 @@
             "datasourceTemplate": "npm"
         },
         {
-            "description": "Track @biomejs/biome version in scaffold template package.json files (EJS templates that npm manager cannot parse)",
-            "customType": "regex",
-            "managerFilePatterns": [
-                "/packages/cli/(cli|ui|api)/.+/package\\.json$/"
-            ],
-            "matchStrings": [
-                "\"@biomejs/biome\":\\s*\"(?<currentValue>[^\"]+)\""
-            ],
-            "depNameTemplate": "@biomejs/biome",
-            "datasourceTemplate": "npm"
-        },
-        {
             "description": "Track reviewdog CLI version in action.yml",
             "customType": "regex",
             "managerFilePatterns": ["/(^|/)action\\.ya?ml$/"],
