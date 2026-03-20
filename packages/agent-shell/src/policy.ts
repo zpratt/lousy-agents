@@ -15,14 +15,39 @@ export interface PolicyDecision {
 
 const DEFAULT_POLICY_SUBPATH = ".github/hooks/agent-shell/policy.json";
 
-function escapeRegExpPart(str: string): string {
-    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
+/**
+ * Linear-time glob matcher supporting only `*` wildcards.
+ * Uses a two-pointer/backtrack approach — O(n*m) worst case, no
+ * exponential backtracking (unlike regex `.*` quantifiers).
+ */
 function matchesRule(command: string, rule: string): boolean {
-    const parts = rule.split("*");
-    const pattern = parts.map(escapeRegExpPart).join(".*");
-    return new RegExp(`^${pattern}$`).test(command);
+    let ci = 0;
+    let ri = 0;
+    let starIdx = -1;
+    let matchIdx = 0;
+
+    while (ci < command.length) {
+        if (ri < rule.length && rule[ri] === "*") {
+            starIdx = ri;
+            matchIdx = ci;
+            ri++;
+        } else if (ri < rule.length && rule[ri] === command[ci]) {
+            ci++;
+            ri++;
+        } else if (starIdx !== -1) {
+            ri = starIdx + 1;
+            matchIdx++;
+            ci = matchIdx;
+        } else {
+            return false;
+        }
+    }
+
+    while (ri < rule.length && rule[ri] === "*") {
+        ri++;
+    }
+
+    return ri === rule.length;
 }
 
 export function evaluatePolicy(

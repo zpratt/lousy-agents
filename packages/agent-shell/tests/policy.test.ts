@@ -482,3 +482,70 @@ describe("loadPolicy", () => {
         });
     });
 });
+
+describe("matchesRule (via evaluatePolicy) ReDoS resistance", () => {
+    describe("given a rule with many wildcards and a long non-matching command", () => {
+        it("should complete in sub-second time (linear, not exponential)", () => {
+            // Arrange — this pattern causes catastrophic backtracking with regex
+            const rule = `${"a*".repeat(20)}b`;
+            const command = "a".repeat(100);
+            const policy: PolicyConfig = { deny: [rule] };
+
+            // Act
+            const start = performance.now();
+            const result = evaluatePolicy(policy, command);
+            const elapsed = performance.now() - start;
+
+            // Assert — must complete in < 100ms (regex would take minutes)
+            expect(elapsed).toBeLessThan(100);
+            expect(result.decision).toBe("allow");
+        });
+    });
+});
+
+describe("loadPolicy TOCTOU and error propagation", () => {
+    describe("given realpath succeeds but readFile throws ENOENT (TOCTOU race)", () => {
+        it("should return null gracefully", async () => {
+            // Arrange
+            const repoRoot = "/fake/repo";
+            const deps = buildPolicyDeps({
+                getRepositoryRoot: vi.fn(() => repoRoot),
+                realpath: vi.fn(async (p: string) => p),
+                readFile: vi.fn(async () => {
+                    throw enoentError();
+                }),
+            });
+
+            // Act
+            const result = await loadPolicy({}, deps);
+
+            // Assert
+            expect(result).toBeNull();
+        });
+    });
+
+    describe("given readFile throws a non-ENOENT error", () => {
+        it("should propagate the error", async () => {
+            // Arrange
+            const repoRoot = "/fake/repo";
+            const permError = new Error(
+                "EACCES: permission denied",
+            ) as Error & {
+                code: string;
+            };
+            permError.code = "EACCES";
+            const deps = buildPolicyDeps({
+                getRepositoryRoot: vi.fn(() => repoRoot),
+                realpath: vi.fn(async (p: string) => p),
+                readFile: vi.fn(async () => {
+                    throw permError;
+                }),
+            });
+
+            // Act & Assert
+            await expect(loadPolicy({}, deps)).rejects.toThrow(
+                /permission denied/i,
+            );
+        });
+    });
+});
