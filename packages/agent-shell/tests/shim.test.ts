@@ -320,4 +320,32 @@ describe("resolveMode", () => {
             expect(mode.type).toBe("shim");
         });
     });
+
+    describe("given policy-check as the first argument", () => {
+        it("should resolve to policy-check mode", () => {
+            // Arrange
+            const args = ["policy-check"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode).toEqual({ type: "policy-check" });
+        });
+    });
+
+    describe("given policy-check with AGENTSHELL_PASSTHROUGH=1", () => {
+        it("should resolve to policy-check mode, not passthrough", () => {
+            // Arrange
+            const args = ["policy-check"];
+            // biome-ignore lint/style/useNamingConvention: env var name
+            const env = { AGENTSHELL_PASSTHROUGH: "1" };
+
+            // Act
+            const mode = resolveMode(args, env);
+
+            // Assert
+            expect(mode).toEqual({ type: "policy-check" });
+        });
+    });
 });

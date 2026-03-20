@@ -1,5 +1,6 @@
 export type Mode =
     | { type: "passthrough"; args: string[] }
+    | { type: "policy-check" }
     | { type: "version" }
     | { type: "shim"; command: string }
     | { type: "log" }
@@ -9,11 +10,13 @@ export function resolveMode(
     args: string[],
     env: Record<string, string | undefined>,
 ): Mode {
+    const firstArg = args[0];
+
+    if (firstArg === "policy-check") return { type: "policy-check" };
+
     if (env.AGENTSHELL_PASSTHROUGH === "1") {
         return { type: "passthrough", args };
     }
-
-    const firstArg = args[0];
 
     if (firstArg === "--version") return { type: "version" };
     if (firstArg === "-c" && args[1]) return { type: "shim", command: args[1] };
