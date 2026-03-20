@@ -477,3 +477,136 @@ describe("PolicyDecisionEventSchema", () => {
         });
     });
 });
+
+describe("PolicyConfigSchema strict mode", () => {
+    describe("given a config with a typo in a field name", () => {
+        it("should reject unrecognized keys to prevent silent policy bypass", () => {
+            // Arrange — "alow" is a typo for "allow"
+            const config = { alow: ["npm test"], deny: [] };
+
+            // Act & Assert
+            expect(() => PolicyConfigSchema.parse(config)).toThrow();
+        });
+    });
+
+    describe("given null input", () => {
+        it("should reject non-object input", () => {
+            // Act & Assert
+            expect(() => PolicyConfigSchema.parse(null)).toThrow();
+        });
+    });
+
+    describe("given a string input", () => {
+        it("should reject non-object input", () => {
+            // Act & Assert
+            expect(() => PolicyConfigSchema.parse("not-an-object")).toThrow();
+        });
+    });
+
+    describe("given a rule exceeding max length", () => {
+        it("should reject overly long rule strings", () => {
+            // Arrange
+            const longRule = "a".repeat(1025);
+            const config = { deny: [longRule] };
+
+            // Act & Assert
+            expect(() => PolicyConfigSchema.parse(config)).toThrow();
+        });
+    });
+});
+
+describe("HooksConfigSchema strict mode", () => {
+    describe("given a typo in a lifecycle hook name", () => {
+        it("should reject unrecognized hook names to prevent silent omission", () => {
+            // Arrange — "preTooluse" is a typo for "preToolUse"
+            const hookEntry = {
+                type: "command" as const,
+                bash: "./policy-check.sh",
+            };
+            const config = {
+                version: 1,
+                hooks: { preTooluse: [hookEntry] },
+            };
+
+            // Act & Assert
+            expect(() => HooksConfigSchema.parse(config)).toThrow();
+        });
+    });
+
+    describe("given a config missing the hooks field", () => {
+        it("should reject the config", () => {
+            // Arrange
+            const config = { version: 1 };
+
+            // Act & Assert
+            expect(() => HooksConfigSchema.parse(config)).toThrow();
+        });
+    });
+
+    describe("given a config missing the version field", () => {
+        it("should reject the config", () => {
+            // Arrange
+            const config = { hooks: {} };
+
+            // Act & Assert
+            expect(() => HooksConfigSchema.parse(config)).toThrow();
+        });
+    });
+
+    describe("given a hook command with timeoutSec of zero", () => {
+        it("should reject non-positive timeout", () => {
+            // Arrange
+            const config = {
+                version: 1,
+                hooks: {
+                    preToolUse: [
+                        {
+                            type: "command" as const,
+                            bash: "./check.sh",
+                            timeoutSec: 0,
+                        },
+                    ],
+                },
+            };
+
+            // Act & Assert
+            expect(() => HooksConfigSchema.parse(config)).toThrow();
+        });
+    });
+
+    describe("given a hook command with negative timeoutSec", () => {
+        it("should reject negative timeout", () => {
+            // Arrange
+            const config = {
+                version: 1,
+                hooks: {
+                    preToolUse: [
+                        {
+                            type: "command" as const,
+                            bash: "./check.sh",
+                            timeoutSec: -1,
+                        },
+                    ],
+                },
+            };
+
+            // Act & Assert
+            expect(() => HooksConfigSchema.parse(config)).toThrow();
+        });
+    });
+});
+
+describe("PolicyDecisionEventSchema strict mode", () => {
+    describe("given an event with extra unknown properties", () => {
+        it("should reject unrecognized fields", () => {
+            // Arrange
+            const event = {
+                ...buildPolicyDecisionEvent(),
+                extra_field: chance.word(),
+            };
+
+            // Act & Assert
+            expect(() => PolicyDecisionEventSchema.parse(event)).toThrow();
+        });
+    });
+});

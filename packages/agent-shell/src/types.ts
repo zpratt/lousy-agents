@@ -48,10 +48,19 @@ export const ScriptEventSchema = z.discriminatedUnion("event", [
     PolicyDecisionEventSchema,
 ]);
 
-export const PolicyConfigSchema = z.object({
-    allow: z.array(z.string()).optional(),
-    deny: z.array(z.string()).default([]),
-});
+const MAX_POLICY_RULES = 10_000;
+const MAX_RULE_LENGTH = 1024;
+
+const policyRuleArray = z
+    .array(z.string().max(MAX_RULE_LENGTH))
+    .max(MAX_POLICY_RULES);
+
+export const PolicyConfigSchema = z
+    .object({
+        allow: policyRuleArray.optional(),
+        deny: policyRuleArray.default([]),
+    })
+    .strict();
 
 const HookCommandSchema = z
     .object({
@@ -69,13 +78,15 @@ const HookCommandSchema = z
 
 export const HooksConfigSchema = z.object({
     version: z.literal(1),
-    hooks: z.object({
-        sessionStart: z.array(HookCommandSchema).optional(),
-        userPromptSubmitted: z.array(HookCommandSchema).optional(),
-        preToolUse: z.array(HookCommandSchema).optional(),
-        postToolUse: z.array(HookCommandSchema).optional(),
-        sessionEnd: z.array(HookCommandSchema).optional(),
-    }),
+    hooks: z
+        .object({
+            sessionStart: z.array(HookCommandSchema).optional(),
+            userPromptSubmitted: z.array(HookCommandSchema).optional(),
+            preToolUse: z.array(HookCommandSchema).optional(),
+            postToolUse: z.array(HookCommandSchema).optional(),
+            sessionEnd: z.array(HookCommandSchema).optional(),
+        })
+        .strict(),
 });
 
 export type ScriptEndEvent = z.infer<typeof ScriptEndEventSchema>;
