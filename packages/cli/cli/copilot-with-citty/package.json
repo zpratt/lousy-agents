@@ -19,7 +19,7 @@
         "zod": "4.3.6"
     },
     "devDependencies": {
-        "@biomejs/biome": "2.3.14",
+        "@biomejs/biome": "2.4.6",
         "@lousy-agents/mcp": "5.4.1",
         "@modelcontextprotocol/server-sequential-thinking": "2025.12.18",
         "@types/node": "24.12.0",
