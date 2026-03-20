@@ -148,7 +148,7 @@ describe("ScriptEvent schema", () => {
         });
     });
 
-    describe("given a policy_decision event without matched_rule", () => {
+    describe("given a policy_decision event with null matched_rule", () => {
         it("should parse with matched_rule as null", () => {
             // Arrange
             const event = buildPolicyDecisionEvent({ matched_rule: null });
@@ -167,7 +167,7 @@ describe("ScriptEvent schema", () => {
 
 function buildPolicyDecisionEvent(overrides: Record<string, unknown> = {}) {
     return {
-        v: 1 as const,
+        v: SCHEMA_VERSION,
         session_id: chance.guid(),
         event: "policy_decision" as const,
         command: chance.word(),

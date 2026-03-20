@@ -71,23 +71,26 @@ const HookCommandSchema = z
         timeoutSec: z.number().positive().optional(),
         env: z.record(z.string(), z.string()).optional(),
     })
+    .strict()
     .refine(
         (data) => data.bash !== undefined || data.powershell !== undefined,
         { message: "At least one of 'bash' or 'powershell' must be provided" },
     );
 
-export const HooksConfigSchema = z.object({
-    version: z.literal(1),
-    hooks: z
-        .object({
-            sessionStart: z.array(HookCommandSchema).optional(),
-            userPromptSubmitted: z.array(HookCommandSchema).optional(),
-            preToolUse: z.array(HookCommandSchema).optional(),
-            postToolUse: z.array(HookCommandSchema).optional(),
-            sessionEnd: z.array(HookCommandSchema).optional(),
-        })
-        .strict(),
-});
+export const HooksConfigSchema = z
+    .object({
+        version: z.literal(1),
+        hooks: z
+            .object({
+                sessionStart: z.array(HookCommandSchema).optional(),
+                userPromptSubmitted: z.array(HookCommandSchema).optional(),
+                preToolUse: z.array(HookCommandSchema).optional(),
+                postToolUse: z.array(HookCommandSchema).optional(),
+                sessionEnd: z.array(HookCommandSchema).optional(),
+            })
+            .strict(),
+    })
+    .strict();
 
 export type ScriptEndEvent = z.infer<typeof ScriptEndEventSchema>;
 export type ShimErrorEvent = z.infer<typeof ShimErrorEventSchema>;

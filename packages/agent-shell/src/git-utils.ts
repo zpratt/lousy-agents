@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 
 /**
  * Function that executes the git command and returns its stdout.
@@ -68,7 +68,7 @@ export function createGetRepositoryRoot(
             );
         }
 
-        if (!output || !output.startsWith("/")) {
+        if (!output || !isAbsolute(output)) {
             throw new Error(
                 `Expected an absolute path from git but received: ${output.slice(0, MAX_ERROR_OUTPUT_LENGTH)}`,
             );
