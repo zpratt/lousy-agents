@@ -1,4 +1,4 @@
-import { join, resolve } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { isWithinProjectRoot } from "./path-utils.js";
 import { type PolicyConfig, PolicyConfigSchema } from "./types.js";
 
@@ -94,7 +94,7 @@ function resolvePolicyPath(
     const override = env.AGENTSHELL_POLICY_PATH;
 
     if (override !== undefined && override !== "") {
-        if (resolve(override) === override) {
+        if (isAbsolute(override)) {
             // Absolute path — use as-is (will be validated after realpath)
             return override;
         }

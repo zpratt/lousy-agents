@@ -19,7 +19,7 @@ const TERMINAL_TOOLS = new Set(["bash", "zsh", "ash", "sh"]);
 
 const HookInputSchema = z.object({
     toolName: z.string(),
-    toolArgs: z.string().optional(),
+    toolArgs: z.unknown().optional(),
 });
 
 const ToolArgsSchema = z.object({
@@ -87,7 +87,7 @@ export async function handlePolicyCheck(deps: PolicyCheckDeps): Promise<void> {
         }
 
         // Terminal tool — validate toolArgs
-        if (toolArgs === undefined) {
+        if (typeof toolArgs !== "string") {
             deps.writeStdout(
                 denyResponse(
                     "Missing or non-string toolArgs for terminal tool",
