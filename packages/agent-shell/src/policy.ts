@@ -26,32 +26,30 @@ const DEFAULT_POLICY_SUBPATH = ".github/hooks/agent-shell/policy.json";
 function matchesRule(command: string, rule: string): boolean {
     const segments = rule.split("*");
 
-    // No wildcards — require exact match
-    if (segments.length === 1) return command === rule;
-
-    // First segment must match the start of the command
-    const first = segments[0];
-    if (!command.startsWith(first)) return false;
-
-    let searchFrom = first.length;
-
-    // Inner segments must appear in order
-    for (let i = 1; i < segments.length - 1; i++) {
-        const idx = command.indexOf(segments[i], searchFrom);
-        if (idx === -1) return false;
-        searchFrom = idx + segments[i].length;
+    if (segments.length === 1) {
+        return command === rule;
     }
 
-    // Last segment must match the end of the command
-    const last = segments[segments.length - 1];
-    if (segments.length > 1 && !command.endsWith(last)) return false;
+    const prefixSegment = segments[0];
+    const suffixSegment = segments[segments.length - 1];
+    const innerSegments = segments.slice(1, -1);
 
-    // Ensure the last segment doesn't overlap with already-matched content
-    if (segments.length > 1 && command.length - last.length < searchFrom) {
+    if (!command.startsWith(prefixSegment)) {
         return false;
     }
 
-    return true;
+    let cursor = prefixSegment.length;
+
+    for (const segment of innerSegments) {
+        const index = command.indexOf(segment, cursor);
+        if (index === -1) {
+            return false;
+        }
+        cursor = index + segment.length;
+    }
+
+    const suffixStart = command.length - suffixSegment.length;
+    return suffixStart >= cursor && command.endsWith(suffixSegment);
 }
 
 export function evaluatePolicy(
