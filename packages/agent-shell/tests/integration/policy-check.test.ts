@@ -133,7 +133,7 @@ describe("policy-check mode", () => {
     });
 
     describe("given a non-terminal tool", () => {
-        it("should write an allow response without evaluating policy", async () => {
+        it("should write an allow response without applying policy rules", async () => {
             // Arrange
             const toolName = chance.word();
             const stdinJson = createStdinJson(
@@ -321,6 +321,68 @@ describe("policy-check mode", () => {
             const response = JSON.parse(deps.stdout[0]);
             expect(response.permissionDecision).toBe("deny");
             expect(response.permissionDecisionReason).toContain("command");
+        });
+    });
+
+    describe("given a terminal tool with toolArgs parsing to null", () => {
+        it("should write a deny response indicating toolArgs must be a non-null plain object", async () => {
+            // Arrange
+            const stdinJson = createStdinJson("bash", JSON.stringify(null));
+            const deps = createDeps({
+                readStdin: vi.fn().mockResolvedValue(stdinJson),
+            });
+
+            // Act
+            await handlePolicyCheck(deps);
+
+            // Assert
+            const response = JSON.parse(deps.stdout[0]);
+            expect(response.permissionDecision).toBe("deny");
+            expect(response.permissionDecisionReason).toContain("non-null");
+        });
+    });
+
+    describe("given a terminal tool with toolArgs parsing to an array", () => {
+        it("should write a deny response indicating toolArgs must be a non-null plain object", async () => {
+            // Arrange
+            const stdinJson = createStdinJson(
+                "bash",
+                JSON.stringify(["command", "echo"]),
+            );
+            const deps = createDeps({
+                readStdin: vi.fn().mockResolvedValue(stdinJson),
+            });
+
+            // Act
+            await handlePolicyCheck(deps);
+
+            // Assert
+            const response = JSON.parse(deps.stdout[0]);
+            expect(response.permissionDecision).toBe("deny");
+            expect(response.permissionDecisionReason).toContain("non-null");
+        });
+    });
+
+    describe("given an invalid policy file and a non-terminal tool", () => {
+        it("should write a deny response and error to stderr (fail-closed)", async () => {
+            // Arrange
+            const toolName = chance.word();
+            const stdinJson = createStdinJson(
+                toolName,
+                JSON.stringify({ path: "/some/file" }),
+            );
+            const deps = createDeps({
+                readStdin: vi.fn().mockResolvedValue(stdinJson),
+                policyDeps: createMockPolicyDeps("not valid json {{"),
+            });
+
+            // Act
+            await handlePolicyCheck(deps);
+
+            // Assert
+            const response = JSON.parse(deps.stdout[0]);
+            expect(response.permissionDecision).toBe("deny");
+            expect(deps.stderr.length).toBeGreaterThan(0);
         });
     });
 

@@ -22,10 +22,6 @@ const HookInputSchema = z.object({
     toolArgs: z.unknown().optional(),
 });
 
-const ToolArgsSchema = z.object({
-    command: z.string(),
-});
-
 function allowResponse(): string {
     return JSON.stringify({ permissionDecision: "allow" });
 }
@@ -101,6 +97,18 @@ export async function handlePolicyCheck(deps: PolicyCheckDeps): Promise<void> {
 
         const { toolName, toolArgs } = hookResult.data;
 
+        // Step 3 (per spec): load and validate policy before terminal tool check
+        // (fail-closed on invalid policy, even for non-terminal tools)
+        let policy: PolicyConfig | null;
+        try {
+            policy = await loadPolicy(deps.env, deps.policyDeps);
+        } catch (err) {
+            deps.writeStderr(`agent-shell: policy load error: ${err}\n`);
+            deps.writeStdout(denyResponse("Failed to load policy"));
+            return;
+        }
+
+        // Step 4 (per spec): non-terminal tools pass through with allow
         if (!TERMINAL_TOOLS.has(toolName)) {
             deps.writeStdout(allowResponse());
             await tryEmitTelemetry(deps, toolName, "allow", null);
@@ -126,24 +134,33 @@ export async function handlePolicyCheck(deps: PolicyCheckDeps): Promise<void> {
             return;
         }
 
-        const argsResult = ToolArgsSchema.safeParse(parsedArgs);
+        // toolArgs must be a non-null plain object
+        if (
+            parsedArgs === null ||
+            typeof parsedArgs !== "object" ||
+            Array.isArray(parsedArgs)
+        ) {
+            deps.writeStdout(
+                denyResponse(
+                    "toolArgs must be a non-null plain object for terminal tools",
+                ),
+            );
+            return;
+        }
 
-        if (!argsResult.success) {
+        const obj = parsedArgs as Record<string, unknown>;
+
+        if (!("command" in obj)) {
             deps.writeStdout(denyResponse("Missing command field in toolArgs"));
             return;
         }
 
-        const { command } = argsResult.data;
-
-        // Load and evaluate policy
-        let policy: PolicyConfig | null;
-        try {
-            policy = await loadPolicy(deps.env, deps.policyDeps);
-        } catch (err) {
-            deps.writeStderr(`agent-shell: policy load error: ${err}\n`);
-            deps.writeStdout(denyResponse("Failed to load policy"));
+        if (typeof obj.command !== "string") {
+            deps.writeStdout(denyResponse("command field must be a string"));
             return;
         }
+
+        const command = obj.command;
 
         const result = evaluatePolicy(policy, command);
 

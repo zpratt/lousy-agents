@@ -310,6 +310,41 @@ describe("events directory resolution", () => {
         });
     });
 
+    describe("given a log dir nested more than 50 levels deep with no intermediate dirs existing", () => {
+        it("should resolve to the deep path without falling back to default", async () => {
+            // Arrange: 55 levels deep — exceeds the old hard cap of 50
+            const depth = 55;
+            const segments = Array.from({ length: depth }, (_, i) => `d${i}`);
+            const logDir = segments.join("/");
+            const env = { AGENTSHELL_LOG_DIR: logDir };
+
+            const created: string[] = [];
+            const deps = createMockDeps({
+                mkdir: vi.fn().mockImplementation(async (p: string) => {
+                    created.push(p);
+                }),
+                realpath: vi.fn().mockImplementation(async (p: string) => {
+                    // /project always exists; deep path exists after mkdir
+                    if (p === "/project") return "/project";
+                    if (created.includes(p)) return p;
+                    throw Object.assign(new Error("ENOENT"), {
+                        code: "ENOENT",
+                    });
+                }),
+            });
+
+            // Act
+            const result = await resolveWriteEventsDir(env, deps);
+
+            // Assert: resolved to the deep path, not the default fallback
+            const expected = `/project/${logDir}`;
+            expect(result).toBe(expected);
+            expect(deps.mkdir).toHaveBeenCalledWith(expected, {
+                recursive: true,
+            });
+        });
+    });
+
     describe("given AGENTSHELL_LOG_DIR is not set", () => {
         it("should use the default .agent-shell/events/ directory", async () => {
             // Arrange

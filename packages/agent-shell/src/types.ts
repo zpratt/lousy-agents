@@ -58,7 +58,7 @@ const policyRuleArray = z
 export const PolicyConfigSchema = z
     .object({
         allow: policyRuleArray.optional(),
-        deny: policyRuleArray.default([]),
+        deny: policyRuleArray.default(() => []),
     })
     .strict();
 

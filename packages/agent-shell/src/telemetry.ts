@@ -23,7 +23,6 @@ export interface TelemetryDeps {
 
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const DEFAULT_EVENTS_SUBDIR = ".agent-shell/events";
-const MAX_ANCESTOR_DEPTH = 50;
 
 function isPathNotFoundError(err: unknown): boolean {
     if (typeof err === "object" && err !== null && "code" in err) {
@@ -38,7 +37,7 @@ async function realpathExistingAncestor(
     deps: Pick<TelemetryDeps, "realpath">,
 ): Promise<string | null> {
     let current = targetPath;
-    for (let i = 0; i < MAX_ANCESTOR_DEPTH; i++) {
+    while (true) {
         try {
             return await deps.realpath(current);
         } catch (err) {
@@ -48,7 +47,6 @@ async function realpathExistingAncestor(
             current = parent;
         }
     }
-    return null;
 }
 
 export function resolveSessionId(
