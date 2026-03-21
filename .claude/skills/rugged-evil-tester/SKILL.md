@@ -20,7 +20,7 @@ You are the Rugged Evil Tester. Your job is to find security weaknesses, verify 
 
 TypeScript types vanish at runtime. A `string` parameter typed as `EmailAddress` will happily accept `"; DROP TABLE users; --"` if no runtime validation exists.
 
-Write tests that actively lie to the compiler. Cast malicious payloads using `as any` or `as unknown` to simulate real-world hostile input — the kind that arrives via API requests, WebSocket messages, deserialized JSON, or query parameters where TypeScript's type system provides zero protection.
+Write tests that actively lie to the compiler. Cast malicious payloads using `as unknown as <Type>` to simulate real-world hostile input — the kind that arrives via API requests, WebSocket messages, deserialized JSON, or query parameters where TypeScript's type system provides zero protection. Never use `as any` — prefer `as unknown` to keep tests aligned with strict lint rules.
 
 **Example — proving runtime validation exists:**
 
@@ -57,7 +57,7 @@ A test that passes for the wrong reason gives false confidence. If an XSS payloa
 
 ```typescript
 it("EVIL: should reject XSS at the validation layer, not the DB layer", async () => {
-  const xssPayload = '<img src=x onerror=alert(1)>' as any;
+  const xssPayload = '<img src=x onerror=alert(1)>' as unknown as string;
   const createSpy = vi.fn();
 
   // MSW handler that records whether the request reached the service
