@@ -7,7 +7,7 @@ Teams using lousy-agents need automated inline feedback on their instructions, a
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user — gets inline PR comments on instruction/agent/skill issues without manual CI setup |
 | Team Lead | Positive | Can enforce consistent quality standards across team repositories with a single action reference |
 

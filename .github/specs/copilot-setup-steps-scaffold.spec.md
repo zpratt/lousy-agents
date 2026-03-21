@@ -7,7 +7,7 @@ When software engineers want to leverage GitHub Copilot Coding Agent effectively
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user - gets automated workflow setup tailored to their project's environment |
 | Platform Engineer | Positive | Can ensure consistent Copilot agent configuration across repositories |
 | Team Lead | Positive | Can standardize Copilot workflow configuration in documentation and templates |

@@ -63,7 +63,7 @@ If the frontmatter contradicts the body (e.g., description says "general review"
 Based on the body content, classify the agent into exactly one primary archetype. If the agent spans multiple archetypes, note each and flag blended scope as WARN in dimension 2 (scope boundaries) with evidence citing both archetypes and the specific sections where each archetype's behavior appears.
 
 | Archetype | Defining characteristic | Discriminator | Examples |
-|-----------|------------------------|---------------|----------|
+| ----------- | ------------------------ | --------------- | ---------- |
 | **Evaluator** | Produces a single aggregate score or numeric rating as its primary output | Output contains a final score, rank, or numeric grade that summarizes the evaluation | Code quality judges, scorecard evaluators, LLM-as-Judge implementations |
 | **Workflow** | Executes a multi-step procedure with tool calls | Body contains explicit tool invocations (file writes, terminal commands, API calls) as required steps | Build-and-deploy agents, iterative refinement loops, permissions fixers |
 | **Conversational** | Gathers information through turn-taking before acting | Body contains explicit pause points that wait for user input before proceeding | Feature planners, spec generators, interview-style agents |
@@ -167,7 +167,7 @@ Use this exact structure. Do not add or remove sections.
 ## Frontmatter Audit
 
 | Field | Value | Assessment |
-|-------|-------|------------|
+| ------- | ------- | ------------ |
 | `name` | ... | PASS / FAIL — reason |
 | `description` | ... | PASS / FAIL — reason |
 | `model` | ... | PASS / FAIL — reason |
@@ -179,7 +179,7 @@ Use this exact structure. Do not add or remove sections.
 ### Universal
 
 | # | Dimension | Assessment | Evidence | Impact |
-|---|-----------|------------|----------|--------|
+| --- | ----------- | ------------ | ---------- | -------- |
 | 1 | Instruction precision | PASS/WARN/FAIL/N/A | ... | ... |
 | 2 | Scope boundaries | ... | ... | ... |
 | ... | ... | ... | ... | ... |
@@ -187,7 +187,7 @@ Use this exact structure. Do not add or remove sections.
 ### [Primary archetype name]
 
 | # | Dimension | Assessment | Evidence | Impact |
-|---|-----------|------------|----------|--------|
+| --- | ----------- | ------------ | ---------- | -------- |
 | ... | ... | PASS/WARN/FAIL/N/A | ... | ... |
 
 (If secondary archetypes were identified, add one additional table per secondary archetype using the same format. Omit secondary archetype sections if the agent has a single archetype.)
@@ -195,7 +195,7 @@ Use this exact structure. Do not add or remove sections.
 ### [Secondary archetype name] (if applicable)
 
 | # | Dimension | Assessment | Evidence | Impact |
-|---|-----------|------------|----------|--------|
+| --- | ----------- | ------------ | ---------- | -------- |
 | ... | ... | PASS/WARN/FAIL/N/A | ... | ... |
 
 ## Coherence Check
@@ -204,7 +204,7 @@ Use this exact structure. Do not add or remove sections.
 ## Summary
 
 | Priority | Issue | Impact |
-|----------|-------|--------|
+| ---------- | ------- | -------- |
 | **P0** | ... | ... |
 | **P1** | ... | ... |
 | ... | ... | ... |

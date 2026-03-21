@@ -7,7 +7,7 @@ Software engineers learning vibe coding need a way to quickly scaffold a new RES
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user - gets a fully-configured Fastify REST API with testing, database integration, and linting setup |
 | Backend Developer | Positive | Receives a complete Fastify/TypeScript development environment with Clean Architecture patterns ready to use |
 | Team Lead | Positive | Can ensure consistent REST API project setup across team members |

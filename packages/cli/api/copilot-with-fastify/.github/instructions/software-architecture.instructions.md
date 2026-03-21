@@ -399,7 +399,7 @@ export class UserRepositoryImpl implements UserRepository {
 ## Import Rules Summary
 
 | From | Entities | Use Cases | Gateways/Routes/DB | Index (Root) |
-|------|----------|-----------|-------------------|--------------|
+| ------ | ---------- | ----------- | ------------------- | -------------- |
 | Entities | ✓ | ✗ | ✗ | ✗ |
 | Use Cases | ✓ | ✓ | ✗ | ✗ |
 | Gateways/Routes/DB | ✓ | ✓ | ✓ | ✗ |

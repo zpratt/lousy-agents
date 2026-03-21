@@ -44,7 +44,7 @@ export default {
 ### Severity Levels
 
 | Severity | Behavior |
-|----------|----------|
+| ---------- | ---------- |
 | `"error"` | Emits an error diagnostic and causes a non-zero exit code |
 | `"warn"` | Emits a warning diagnostic but does not affect the exit code |
 | `"off"` | Suppresses the diagnostic entirely |
@@ -86,7 +86,7 @@ When no target flags are provided, the command runs all three linters.
 Use flags to lint specific targets:
 
 | Flag | Description |
-|------|-------------|
+| ------ | ------------- |
 | `--skills` | Lint skill frontmatter in `.github/skills/` and `.claude/skills/` |
 | `--agents` | Lint agent frontmatter in `.github/agents/` |
 | `--instructions` | Analyze instruction quality across all instruction file formats |
@@ -128,7 +128,7 @@ Validates YAML frontmatter in `.github/skills/*/SKILL.md` and `.claude/skills/*/
 ### Rule IDs
 
 | Rule ID | Default Severity | Description |
-|---------|-----------------|-------------|
+| --------- | ----------------- | ------------- |
 | `skill/missing-frontmatter` | `error` | No YAML frontmatter found |
 | `skill/invalid-frontmatter` | `error` | YAML frontmatter present but could not be parsed |
 | `skill/missing-name` | `error` | Name field is missing |
@@ -166,14 +166,14 @@ Validates YAML frontmatter in `.github/agents/*.md` files.
 ### What It Validates
 
 | Field | Required? | Validation |
-|-------|-----------|------------|
+| ------- | ----------- | ------------ |
 | `name` | Yes | Non-empty, lowercase with hyphens, max 64 chars, matches filename stem |
 | `description` | Yes | Non-empty, max 1024 chars, not whitespace-only |
 
 ### Rule IDs
 
 | Rule ID | Default Severity | Description |
-|---------|-----------------|-------------|
+| --------- | ----------------- | ------------- |
 | `agent/missing-frontmatter` | `error` | No YAML frontmatter found |
 | `agent/invalid-frontmatter` | `error` | YAML frontmatter present but could not be parsed |
 | `agent/missing-name` | `error` | Name field is missing |
@@ -211,7 +211,7 @@ Analyzes the structural quality of feedback loop documentation in instruction fi
 ### Supported Instruction File Formats
 
 | File / Pattern | Agent Platform |
-|----------------|----------------|
+| ---------------- | ---------------- |
 | `.github/copilot-instructions.md` | GitHub Copilot |
 | `.github/instructions/*.md` | GitHub Copilot (scoped) |
 | `.github/agents/*.md` | GitHub Copilot (custom agents) |
@@ -223,7 +223,7 @@ Analyzes the structural quality of feedback loop documentation in instruction fi
 Each feedback loop command is scored on three dimensions (0 or 1 each):
 
 | Dimension | Score of 1 when... |
-|-----------|-------------------|
+| ----------- | ------------------- |
 | **Structural Context** | Command appears under a matched heading (e.g., `## Validation`, `## Commands`) |
 | **Execution Clarity** | Command appears inside a code block (fenced or inline) |
 | **Loop Completeness** | Conditional keywords (`if`, `fail`, `fix`, `error`, etc.) appear near the code block |
@@ -231,7 +231,7 @@ Each feedback loop command is scored on three dimensions (0 or 1 each):
 ### Rule IDs
 
 | Rule ID | Default Severity | Description |
-|---------|-----------------|-------------|
+| --------- | ----------------- | ------------- |
 | `instruction/parse-error` | `warn` | Instruction file could not be parsed |
 | `instruction/command-not-in-code-block` | `warn` | Command appears only in prose, not in a code block |
 | `instruction/command-outside-section` | `warn` | Command is not under a dedicated feedback loop section |
@@ -372,7 +372,7 @@ When no target inputs are set, the action lints all targets (skills, agents, and
 ### Inputs
 
 | Input | Required | Default | Description |
-|-------|----------|---------|-------------|
+| ------- | ---------- | --------- | ------------- |
 | `github_token` | Yes | — | GitHub token for reviewdog API access |
 | `skills` | No | `false` | Lint skill frontmatter in `.github/skills/` and `.claude/skills/` |
 | `agents` | No | `false` | Lint agent frontmatter in `.github/agents/` |
@@ -388,7 +388,7 @@ The action uses reviewdog to post results via the GitHub API, so the workflow jo
 needs explicit `permissions` depending on the chosen `reporter`:
 
 | Reporter | Required Permissions |
-|----------|---------------------|
+| ---------- | --------------------- |
 | `github-pr-check` (default) | `contents: read`, `checks: write` |
 | `github-check` | `contents: read`, `checks: write` |
 | `github-pr-review` | `contents: read`, `pull-requests: write` |

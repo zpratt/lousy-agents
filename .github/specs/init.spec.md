@@ -7,7 +7,7 @@ When developers initialize a new project using the `lousy-agents init` command, 
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user - gets relevant scaffolding files for their specific project type |
 | Team Lead | Positive | Can ensure consistent project setup across team members for different project types |
 

@@ -21,7 +21,7 @@ Each spec follows this structure:
 
 ## Personas
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 
 ## Value Assessment
 - **Primary value**: <type> — <explanation>
@@ -58,7 +58,7 @@ so that I can **<outcome>**.
 Use EARS (Easy Approach to Requirements Syntax) patterns:
 
 | Pattern | Template | Use When |
-|---------|----------|----------|
+| --------- | ---------- | ---------- |
 | Ubiquitous | The `<system>` shall `<response>` | Always true |
 | Event-driven | When `<trigger>`, the `<system>` shall `<response>` | Responding to event |
 | State-driven | While `<state>`, the `<system>` shall `<response>` | During a condition |

@@ -7,7 +7,7 @@ When the lousy-agents MCP server creates or updates Copilot Setup Steps workflow
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user - gets workflows with latest secure action versions without manual research |
 | Platform Engineer | Positive | Can ensure security compliance with SHA-pinned actions across repositories |
 | Team Lead | Positive | Can standardize on latest action versions with security assurance |

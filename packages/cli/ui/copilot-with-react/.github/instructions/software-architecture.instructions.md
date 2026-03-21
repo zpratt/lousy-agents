@@ -374,7 +374,7 @@ export class GetProductsUseCase {
 ## Import Rules Summary
 
 | From | Entities | Use Cases | Gateways/Hooks/Components | App (Infrastructure) |
-|------|----------|-----------|---------------------------|---------------------|
+| ------ | ---------- | ----------- | --------------------------- | --------------------- |
 | Entities | ✓ | ✗ | ✗ | ✗ |
 | Use Cases | ✓ | ✓ | ✗ | ✗ |
 | Gateways/Hooks/Components | ✓ | ✓ | ✓ | ✗ |

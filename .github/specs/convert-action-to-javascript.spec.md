@@ -7,7 +7,7 @@ The GitHub Action (`action.yml`) uses a large embedded shell script (lines 96–
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Faster action execution (no npm install), same lint feedback experience |
 | Team Lead | Positive | Action is now testable and maintainable; no runtime dependency on npm registry availability |
 

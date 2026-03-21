@@ -7,7 +7,7 @@ When software engineers want to leverage Claude Code on the web effectively, the
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user - gets automated Claude Code setup tailored to their project's environment |
 | Platform Engineer | Positive | Can ensure consistent agent configuration across both Copilot and Claude Code |
 | Team Lead | Positive | Can standardize Claude Code environment configuration in documentation and templates |

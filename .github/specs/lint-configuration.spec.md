@@ -7,7 +7,7 @@ The lousy-agents lint command currently treats all lint rules with fixed severit
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user — can tailor lint rules to their project's needs and suppress noise |
 | Team Lead | Positive | Can define a shared lint configuration that enforces team-wide standards |
 

@@ -47,7 +47,7 @@ Always study the [project context](../context/project.context.md) to understand 
 All acceptance criteria must use EARS (Easy Approach to Requirements Syntax) patterns:
 
 | Pattern | Template | Use When |
-|---------|----------|----------|
+| --------- | ---------- | ---------- |
 | Ubiquitous | The `<system>` shall `<response>` | Always true, no trigger |
 | Event-driven | When `<trigger>`, the `<system>` shall `<response>` | Responding to an event |
 | State-driven | While `<state>`, the `<system>` shall `<response>` | Active during a condition |
@@ -113,7 +113,7 @@ Personas should be developed and maintained in a central location (e.g., `docs/p
 Evaluate every feature against these value types. A feature may deliver multiple.
 
 | Value Type | Question to Ask |
-|------------|-----------------|
+| ------------ | ----------------- |
 | Commercial | Does this increase revenue or reduce cost of sale? |
 | Future | Does this save time or money later? Does it reduce technical debt? |
 | Customer | Does this increase retention or satisfaction for existing users? |
@@ -140,7 +140,7 @@ A spec has three sections that flow into each other:
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | <name> | Positive/Negative/Neutral | <brief explanation> |
 
 ## Value Assessment
@@ -379,7 +379,7 @@ All diagrams in specs must use **Mermaid** syntax for consistency and GitHub ren
 ### Supported Diagram Types
 
 | Diagram Type | Mermaid Type | Use Case |
-|--------------|--------------|----------|
+| -------------- | -------------- | ---------- |
 | Data Flow | `flowchart TB` or `flowchart LR` | Show how data moves between components |
 | Sequence | `sequenceDiagram` | Show interaction order between actors/systems |
 | State | `stateDiagram-v2` | Show state transitions |
