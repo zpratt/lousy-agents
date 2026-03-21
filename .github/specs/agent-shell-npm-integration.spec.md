@@ -7,7 +7,7 @@ npm users who run `npx @lousy-agents/cli copilot-setup` gain a workflow that con
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user — gets prompted to enable agent-shell telemetry with a single keypress |
 | Platform Engineer | Positive | Can ensure agent-shell is consistently configured across npm repositories |
 | Team Lead | Positive | Can guide team members to enable observability as part of Copilot setup |

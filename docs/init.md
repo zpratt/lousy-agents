@@ -80,7 +80,7 @@ Scaffolds new projects with everything needed for effective AI-assisted developm
 ## Options
 
 | Flag | Type | Required | Description |
-|------|------|----------|-------------|
+| ------ | ------ | ---------- | ------------- |
 | `--kind` | `webapp \| api \| cli \| graphql` | No | Project type. If omitted, an interactive prompt is shown. |
 | `--name` | `string` | No | Project name (used in package.json and config files). If omitted, you will be prompted. Must be a valid npm package name. |
 

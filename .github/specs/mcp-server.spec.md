@@ -7,7 +7,7 @@ Software engineers using AI coding assistants like GitHub Copilot need a way to 
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user - can ask AI assistant to manage Copilot workflows without switching contexts |
 | Platform Engineer | Positive | Can provide consistent tooling for teams via shared MCP configuration |
 | Team Lead | Positive | Can standardize AI assistant capabilities across team for workflow management |

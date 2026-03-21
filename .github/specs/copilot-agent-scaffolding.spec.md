@@ -7,7 +7,7 @@ Developers need to create custom GitHub Copilot agents with proper YAML frontmat
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user - gets properly structured agent files with documentation links |
 | Team Lead | Positive | Can ensure consistent agent configuration across team members |
 

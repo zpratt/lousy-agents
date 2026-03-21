@@ -41,7 +41,7 @@ When AI coding agents (such as GitHub Copilot coding agent) execute terminal com
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user — gains guardrails that prevent unintended script execution during agent sessions |
 | Platform Engineer | Positive | Can define and enforce repository-level policies for what commands agents are allowed to run |
 | Team Lead | Positive | Gains confidence that agent sessions respect team-defined constraints without manual monitoring |
@@ -174,7 +174,7 @@ The policy file defaults to `.github/hooks/agent-shell/policy.json` (relative to
 ```
 
 | Field | Type | Description |
-|-------|------|-------------|
+| ------- | ------ | ------------- |
 | `allow` | `string[]` | (Optional) Array of command patterns to explicitly allow. If specified, commands must match an allow rule to proceed. If omitted, no allow-list filtering is applied. |
 | `deny` | `string[]` | (Optional) Array of command patterns to block. Defaults to `[]` if omitted. Deny rules take precedence over allow rules. |
 
@@ -194,7 +194,7 @@ Based on the [official GitHub Copilot hooks documentation](https://docs.github.c
 ```
 
 | Field | Type | Description |
-|-------|------|-------------|
+| ------- | ------ | ------------- |
 | `timestamp` | `number` | Unix timestamp in milliseconds |
 | `cwd` | `string` | Current working directory of the hook execution |
 | `toolName` | `string` | Name of the tool being invoked (e.g., `bash`) |
@@ -224,7 +224,7 @@ Denied:
 ```
 
 | Field | Type | Description |
-|-------|------|-------------|
+| ------- | ------ | ------------- |
 | `permissionDecision` | `"allow" \| "deny"` | The decision for the tool invocation |
 | `permissionDecisionReason` | `string` | (Required when denying) Human-readable reason for the denial |
 
@@ -358,7 +358,7 @@ Based on the [official GitHub Copilot hooks documentation](https://docs.github.c
 ```
 
 | Field | Type | Description |
-|-------|------|-------------|
+| ------- | ------ | ------------- |
 | `version` | `number` | Hook schema version (currently `1`) |
 | `hooks.preToolUse` | `array` | Array of hooks to run before tool invocation |
 | `type` | `"command"` | Hook type |

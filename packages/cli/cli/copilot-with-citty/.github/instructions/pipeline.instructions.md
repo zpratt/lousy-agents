@@ -41,7 +41,7 @@ Before adding any action:
 ## Runner Requirements
 
 | Workflow | Runner |
-|----------|--------|
+| ---------- | -------- |
 | Default (all workflows) | `ubuntu-latest` |
 
 ## Example CI Workflow

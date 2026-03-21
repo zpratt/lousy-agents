@@ -69,7 +69,7 @@ Each script execution produces one JSON line:
 ### Field Reference
 
 | Field | Type | Description |
-|-------|------|-------------|
+| ------- | ------ | ------------- |
 | `v` | number | Schema version (always `1`) |
 | `session_id` | string | UUID identifying the session |
 | `event` | string | `script_end` or `shim_error` |
@@ -92,7 +92,7 @@ Fields `script`, `package`, and `package_version` are only present when running 
 agent-shell classifies who initiated each script execution:
 
 | Priority | Condition | Actor |
-|----------|-----------|-------|
+| ---------- | ----------- | ------- |
 | 1 | `AGENTSHELL_ACTOR` is set | Value of the variable |
 | 2 | `GITHUB_ACTIONS=true` | `ci` |
 | 3 | `CLAUDE_CODE` is set | `claude-code` |
@@ -134,7 +134,7 @@ agent-shell log --list-sessions
 ### Duration Formats
 
 | Format | Meaning |
-|--------|---------|
+| -------- | --------- |
 | `30m` | Last 30 minutes |
 | `2h` | Last 2 hours |
 | `1d` | Last 1 day |
@@ -142,7 +142,7 @@ agent-shell log --list-sessions
 ## Environment Variables
 
 | Variable | Purpose | Default |
-|----------|---------|---------|
+| ---------- | --------- | --------- |
 | `AGENTSHELL_PASSTHROUGH` | Set to `1` to bypass all instrumentation | Unset (instrumentation active) |
 | `AGENTSHELL_ACTOR` | Override automatic actor detection | Unset (heuristic detection) |
 | `AGENTSHELL_SESSION_ID` | Shared session ID for event correlation | Unset (fresh UUID per invocation) |

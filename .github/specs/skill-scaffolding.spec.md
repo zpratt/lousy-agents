@@ -7,7 +7,7 @@ Developers need to create GitHub Copilot Agent Skills to teach Copilot how to pe
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user — gets properly structured skill directories with documentation links |
 | Team Lead | Positive | Can ensure consistent skill configuration across team members |
 

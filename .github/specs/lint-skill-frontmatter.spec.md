@@ -7,7 +7,7 @@ Developers creating GitHub Copilot Agent Skills may have incomplete or invalid Y
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user — gets immediate feedback on skill file issues before committing |
 | Team Lead | Positive | Can enforce consistent skill configuration standards across team members |
 

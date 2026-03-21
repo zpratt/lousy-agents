@@ -7,7 +7,7 @@ Software engineers learning vibe coding need a way to quickly scaffold a new web
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user - gets a fully-configured Next.js webapp with testing and linting setup |
 | Team Lead | Positive | Can ensure consistent webapp project setup across team members |
 | Frontend Developer | Positive | Receives a complete React/Next.js development environment ready to use |
