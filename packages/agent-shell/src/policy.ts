@@ -171,7 +171,7 @@ export async function loadPolicy(
         parsed = JSON.parse(content);
     } catch {
         throw new Error(
-            `Invalid JSON in policy file ${resolvedPath}: file exists but contains malformed JSON`,
+            `Invalid JSON in policy file ${sanitizePath(resolvedPath)}: file exists but contains malformed JSON`,
         );
     }
 
