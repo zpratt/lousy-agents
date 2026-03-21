@@ -6,8 +6,9 @@ DOLT_VERSION="1.84.0"
 # renovate: datasource=github-releases depName=steveyegge/beads
 BEADS_VERSION="0.61.0"
 
-mise trust -a
-mise install
+sudo mise self-update -y
+mise trust -a -y
+mise install -y --locked
 
 # Install dolt (required by beads)
 # Detect architecture for platform-specific binary
