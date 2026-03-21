@@ -347,6 +347,177 @@ describe("Lint command end-to-end", () => {
         });
     });
 
+    describe("given a repository with a valid Claude Code skill in .claude/skills/", () => {
+        it("should pass lint without errors", async () => {
+            // Arrange
+            const repoDir = join(projectDir, "claude-valid-repo");
+            const skillDir = join(repoDir, ".claude", "skills", "explain-code");
+            await mkdir(skillDir, { recursive: true });
+            await writeFile(
+                join(skillDir, "SKILL.md"),
+                [
+                    "---",
+                    "name: explain-code",
+                    "description: Explains code with visual diagrams and analogies",
+                    "allowed-tools: Read, Grep",
+                    "---",
+                    "",
+                    "# explain-code",
+                    "",
+                    "When explaining code, always include an analogy and a diagram.",
+                    "",
+                ].join("\n"),
+            );
+
+            // Act & Assert
+            await expect(
+                lintCommand.run({
+                    rawArgs: [],
+                    args: { _: [], skills: true },
+                    cmd: lintCommand,
+                    data: { targetDir: repoDir, skills: true },
+                }),
+            ).resolves.not.toThrow();
+            expect(process.exitCode).toBeUndefined();
+        });
+    });
+
+    describe("given a repository with an invalid Claude Code skill in .claude/skills/", () => {
+        it("should set non-zero exit code for missing required fields", async () => {
+            // Arrange
+            const repoDir = join(projectDir, "claude-invalid-repo");
+            const skillDir = join(repoDir, ".claude", "skills", "broken-skill");
+            await mkdir(skillDir, { recursive: true });
+            await writeFile(
+                join(skillDir, "SKILL.md"),
+                [
+                    "---",
+                    "description: Missing name field",
+                    "---",
+                    "",
+                    "# broken-skill",
+                    "",
+                ].join("\n"),
+            );
+
+            // Act
+            await lintCommand.run({
+                rawArgs: [],
+                args: { _: [], skills: true },
+                cmd: lintCommand,
+                data: { targetDir: repoDir, skills: true },
+            });
+
+            // Assert
+            expect(process.exitCode).toBe(1);
+        });
+    });
+
+    describe("given a repository with skills in both .github/skills/ and .claude/skills/", () => {
+        it("should lint skills from both directories and pass when all are valid", async () => {
+            // Arrange
+            const repoDir = join(projectDir, "both-dirs-valid-repo");
+            const copilotSkillDir = join(
+                repoDir,
+                ".github",
+                "skills",
+                "copilot-skill",
+            );
+            const claudeSkillDir = join(
+                repoDir,
+                ".claude",
+                "skills",
+                "claude-skill",
+            );
+            await mkdir(copilotSkillDir, { recursive: true });
+            await mkdir(claudeSkillDir, { recursive: true });
+            await writeFile(
+                join(copilotSkillDir, "SKILL.md"),
+                [
+                    "---",
+                    "name: copilot-skill",
+                    "description: A Copilot skill",
+                    "allowed-tools: tool1",
+                    "---",
+                    "",
+                    "# copilot-skill",
+                    "",
+                ].join("\n"),
+            );
+            await writeFile(
+                join(claudeSkillDir, "SKILL.md"),
+                [
+                    "---",
+                    "name: claude-skill",
+                    "description: A Claude Code skill",
+                    "allowed-tools: Read",
+                    "---",
+                    "",
+                    "# claude-skill",
+                    "",
+                ].join("\n"),
+            );
+
+            // Act & Assert
+            await expect(
+                lintCommand.run({
+                    rawArgs: [],
+                    args: { _: [], skills: true },
+                    cmd: lintCommand,
+                    data: { targetDir: repoDir, skills: true },
+                }),
+            ).resolves.not.toThrow();
+            expect(process.exitCode).toBeUndefined();
+        });
+
+        it("should set non-zero exit code when any skill in either directory is invalid", async () => {
+            // Arrange
+            const repoDir = join(projectDir, "both-dirs-mixed-repo");
+            const copilotSkillDir = join(
+                repoDir,
+                ".github",
+                "skills",
+                "good-copilot-skill",
+            );
+            const claudeSkillDir = join(
+                repoDir,
+                ".claude",
+                "skills",
+                "bad-claude-skill",
+            );
+            await mkdir(copilotSkillDir, { recursive: true });
+            await mkdir(claudeSkillDir, { recursive: true });
+            await writeFile(
+                join(copilotSkillDir, "SKILL.md"),
+                [
+                    "---",
+                    "name: good-copilot-skill",
+                    "description: A valid Copilot skill",
+                    "allowed-tools: tool1",
+                    "---",
+                    "",
+                    "# good-copilot-skill",
+                    "",
+                ].join("\n"),
+            );
+            await writeFile(
+                join(claudeSkillDir, "SKILL.md"),
+                ["# No frontmatter", "", "Invalid skill.", ""].join("\n"),
+            );
+
+            // Act
+            await lintCommand.run({
+                rawArgs: [],
+                args: { _: [], skills: true },
+                cmd: lintCommand,
+                data: { targetDir: repoDir, skills: true },
+            });
+
+            // Assert
+            expect(process.exitCode).toBe(1);
+        });
+    });
+
     describe("given a repository with instruction files and feedback loops", () => {
         it("should analyze instruction quality with --instructions flag", async () => {
             // Arrange
