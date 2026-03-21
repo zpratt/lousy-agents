@@ -14,12 +14,32 @@ import type { SkillLintGateway } from "../use-cases/lint-skill-frontmatter.js";
 import { fileExists } from "./file-system-utils.js";
 
 /**
+ * Skill directory locations to search for SKILL.md files.
+ */
+const SKILL_DIRECTORIES = [
+    join(".github", "skills"),
+    join(".claude", "skills"),
+] as const;
+
+/**
  * File system implementation of the skill lint gateway.
  */
 export class FileSystemSkillLintGateway implements SkillLintGateway {
     async discoverSkills(targetDir: string): Promise<DiscoveredSkillFile[]> {
-        const skillsDir = join(targetDir, ".github", "skills");
+        const skills: DiscoveredSkillFile[] = [];
 
+        for (const relativeDir of SKILL_DIRECTORIES) {
+            const skillsDir = join(targetDir, relativeDir);
+            const discovered = await this.discoverSkillsInDir(skillsDir);
+            skills.push(...discovered);
+        }
+
+        return skills;
+    }
+
+    private async discoverSkillsInDir(
+        skillsDir: string,
+    ): Promise<DiscoveredSkillFile[]> {
         if (!(await fileExists(skillsDir))) {
             return [];
         }

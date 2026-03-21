@@ -122,6 +122,88 @@ describe("SkillLintGateway", () => {
                 expect(result).toEqual([]);
             });
         });
+
+        describe("given skills in .claude/skills/", () => {
+            it("should discover Claude Code skill files", async () => {
+                // Arrange
+                const skillName = "claude-skill";
+                const skillDir = join(testDir, ".claude", "skills", skillName);
+                await mkdir(skillDir, { recursive: true });
+                await writeFile(
+                    join(skillDir, "SKILL.md"),
+                    "---\nname: claude-skill\n---\n",
+                );
+
+                // Act
+                const result = await gateway.discoverSkills(testDir);
+
+                // Assert
+                expect(result).toHaveLength(1);
+                expect(result[0].skillName).toBe(skillName);
+                expect(result[0].filePath).toBe(join(skillDir, "SKILL.md"));
+            });
+        });
+
+        describe("given skills in both .github/skills/ and .claude/skills/", () => {
+            it("should discover skills from both directories", async () => {
+                // Arrange
+                const copilotSkill = "copilot-skill";
+                const claudeSkill = "claude-skill";
+                const copilotDir = join(
+                    testDir,
+                    ".github",
+                    "skills",
+                    copilotSkill,
+                );
+                const claudeDir = join(
+                    testDir,
+                    ".claude",
+                    "skills",
+                    claudeSkill,
+                );
+                await mkdir(copilotDir, { recursive: true });
+                await mkdir(claudeDir, { recursive: true });
+                await writeFile(
+                    join(copilotDir, "SKILL.md"),
+                    "---\nname: copilot-skill\n---\n",
+                );
+                await writeFile(
+                    join(claudeDir, "SKILL.md"),
+                    "---\nname: claude-skill\n---\n",
+                );
+
+                // Act
+                const result = await gateway.discoverSkills(testDir);
+
+                // Assert
+                expect(result).toHaveLength(2);
+                const names = result.map((s) => s.skillName).sort();
+                expect(names).toEqual([claudeSkill, copilotSkill]);
+            });
+        });
+
+        describe("given a .claude/skills/ directory with path traversal characters", () => {
+            it("should skip the directory", async () => {
+                // Arrange
+                const skillDir = join(
+                    testDir,
+                    ".claude",
+                    "skills",
+                    "..%2f..%2fetc",
+                );
+                await mkdir(skillDir, { recursive: true });
+                await writeFile(
+                    join(skillDir, "SKILL.md"),
+                    "---\nname: test\n---\n",
+                );
+
+                // Act
+                const result = await gateway.discoverSkills(testDir);
+
+                // Assert
+                expect(result).toEqual([]);
+            });
+        });
     });
 
     describe("readSkillFileContent", () => {

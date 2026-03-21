@@ -58,6 +58,51 @@ describe("lint command", () => {
         });
     });
 
+    describe("when Claude Code skills exist in .claude/skills/", () => {
+        it("should complete without error for valid skills", async () => {
+            // Arrange
+            const skillName = "claude-skill";
+            const skillDir = join(testDir, ".claude", "skills", skillName);
+            await mkdir(skillDir, { recursive: true });
+            await writeFile(
+                join(skillDir, "SKILL.md"),
+                "---\nname: claude-skill\ndescription: A Claude Code skill\nallowed-tools: Read, Grep\n---\n# Claude Skill\n",
+            );
+
+            // Act & Assert
+            await expect(
+                lintCommand.run({
+                    rawArgs: [],
+                    args: { _: [], skills: true },
+                    cmd: lintCommand,
+                    data: { targetDir: testDir, skills: true },
+                }),
+            ).resolves.not.toThrow();
+        });
+
+        it("should set non-zero exit code for invalid Claude Code skills", async () => {
+            // Arrange
+            const skillName = "bad-claude-skill";
+            const skillDir = join(testDir, ".claude", "skills", skillName);
+            await mkdir(skillDir, { recursive: true });
+            await writeFile(
+                join(skillDir, "SKILL.md"),
+                "# No frontmatter here\n",
+            );
+
+            // Act
+            await lintCommand.run({
+                rawArgs: [],
+                args: { _: [], skills: true },
+                cmd: lintCommand,
+                data: { targetDir: testDir, skills: true },
+            });
+
+            // Assert
+            expect(process.exitCode).toBe(1);
+        });
+    });
+
     describe("when skills have invalid frontmatter", () => {
         it("should set non-zero exit code when using --skills", async () => {
             // Arrange

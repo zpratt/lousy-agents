@@ -12,7 +12,7 @@ inputs:
     description: 'GitHub token for reviewdog API access'
     required: true
   skills:
-    description: 'Lint skill frontmatter in .github/skills/'
+    description: 'Lint skill frontmatter in .github/skills/ and .claude/skills/'
     required: false
     default: 'false'
   agents:
