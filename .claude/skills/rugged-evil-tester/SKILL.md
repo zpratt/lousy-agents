@@ -60,7 +60,8 @@ it("EVIL: should reject XSS at the validation layer, not the DB layer", async ()
   const xssPayload = '<img src=x onerror=alert(1)>' as unknown as string;
   const createSpy = vi.fn();
 
-  // MSW handler that records whether the request reached the service
+  // MSW handler proves the request never reached the downstream service.
+  // If createSpy is called, validation silently passed bad input through.
   server.use(
     http.post("https://api.example.com/comments", async ({ request }) => {
       const body = await request.json();
@@ -69,17 +70,11 @@ it("EVIL: should reject XSS at the validation layer, not the DB layer", async ()
     }),
   );
 
-  const result = await fetch("https://api.example.com/comments", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ body: xssPayload }),
-  });
+  // createComment validates input before making any network call.
+  // A ValidationError here means the correct layer caught the bad input.
+  await expect(createComment({ body: xssPayload })).rejects.toThrow(ValidationError);
 
-  // Assert the validation layer caught it (400), not the DB (500)
-  expect(result.status).toBe(400);
-  const json = await result.json();
-  expect(json.error).toMatch(/validation/i);
-  // The downstream service should never have been called
+  // The downstream service should never have been reached
   expect(createSpy).not.toHaveBeenCalled();
 });
 ```
