@@ -354,16 +354,17 @@ describe("Shim lifecycle integration", { timeout: 30_000 }, () => {
                 await chmod(eventsDir, 0o444);
                 const marker = chance.word({ length: 10 });
 
-                // Act
-                const result = runShim(tmpDir, ["-c", `echo ${marker}`]);
+                try {
+                    // Act
+                    const result = runShim(tmpDir, ["-c", `echo ${marker}`]);
 
-                // Assert — command runs despite telemetry failure
-                expect(result.stdout).toContain(marker);
-                expect(result.status).toBe(0);
-                expect(result.stderr.length).toBeGreaterThan(0);
-
-                // Restore permissions for cleanup
-                await chmod(eventsDir, 0o755);
+                    // Assert — command runs despite telemetry failure
+                    expect(result.stdout).toContain(marker);
+                    expect(result.status).toBe(0);
+                    expect(result.stderr.length).toBeGreaterThan(0);
+                } finally {
+                    await chmod(eventsDir, 0o755);
+                }
             },
         );
     });
