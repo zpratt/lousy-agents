@@ -94,6 +94,9 @@ export async function resolveWriteEventsDir(
             return defaultDir;
         }
 
+        // Canonicalize projectRoot once for real-path comparisons; handles symlinked cwd
+        const projectRootReal = await deps.realpath(projectRoot);
+
         // Validate existing ancestor realpath before mkdir to prevent symlink escape
         const ancestorReal = await realpathExistingAncestor(
             resolvedLogical,
@@ -101,7 +104,7 @@ export async function resolveWriteEventsDir(
         );
         if (
             ancestorReal === null ||
-            !isWithinProjectRoot(ancestorReal, projectRoot)
+            !isWithinProjectRoot(ancestorReal, projectRootReal)
         ) {
             deps.writeStderr(
                 `agent-shell: AGENTSHELL_LOG_DIR resolves outside project root via ancestor symlink, using default\n`,
@@ -114,7 +117,7 @@ export async function resolveWriteEventsDir(
 
         const resolved = await deps.realpath(resolvedLogical);
 
-        if (!isWithinProjectRoot(resolved, projectRoot)) {
+        if (!isWithinProjectRoot(resolved, projectRootReal)) {
             deps.writeStderr(
                 `agent-shell: AGENTSHELL_LOG_DIR resolves outside project root, using default\n`,
             );

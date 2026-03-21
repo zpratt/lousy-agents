@@ -243,12 +243,37 @@ describe("events directory resolution", () => {
         });
     });
 
+    describe("given a project root that is itself a symlink", () => {
+        it("should not produce a false-negative fallback for a valid log dir within the real root", async () => {
+            // Arrange: cwd() returns a logical symlink path (/symlink-project → /real-project)
+            const env = { AGENTSHELL_LOG_DIR: "logs" };
+            const deps = createMockDeps({
+                cwd: vi.fn().mockReturnValue("/symlink-project"),
+                realpath: vi
+                    .fn()
+                    .mockImplementation(async (p: string) =>
+                        p.replace("/symlink-project", "/real-project"),
+                    ),
+            });
+
+            // Act
+            const result = await resolveWriteEventsDir(env, deps);
+
+            // Assert: resolves within the real project root — no false-negative fallback
+            expect(result).toBe("/real-project/logs");
+            expect(deps.writeStderr).not.toHaveBeenCalled();
+        });
+    });
+
     describe("given AGENTSHELL_LOG_DIR that resolves outside project root via symlink", () => {
         it("should fall back to default and write diagnostic to stderr", async () => {
             // Arrange
             const env = { AGENTSHELL_LOG_DIR: "/project/sneaky-link" };
             const deps = createMockDeps({
-                realpath: vi.fn().mockResolvedValue("/elsewhere/logs"),
+                realpath: vi.fn().mockImplementation(async (p: string) => {
+                    if (p === "/project") return "/project";
+                    return "/elsewhere/logs";
+                }),
             });
 
             // Act
