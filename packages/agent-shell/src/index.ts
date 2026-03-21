@@ -79,8 +79,8 @@ async function main(): Promise<void> {
         }
         case "version": {
             process.stdout.write(`${VERSION}\n`);
-            process.exit(0);
-            break;
+            process.exitCode = 0;
+            return;
         }
         case "shim": {
             let onComplete: ((result: ShimResult) => Promise<void>) | undefined;
@@ -129,8 +129,8 @@ async function main(): Promise<void> {
         }
         case "usage": {
             process.stderr.write(USAGE);
-            process.exit(1);
-            break;
+            process.exitCode = 1;
+            return;
         }
     }
 }
