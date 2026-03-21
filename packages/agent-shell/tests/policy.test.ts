@@ -577,6 +577,68 @@ describe("loadPolicy TOCTOU and error propagation", () => {
         });
     });
 
+    describe("given AGENTSHELL_POLICY_PATH contains control characters (log injection attempt)", () => {
+        it("should not embed raw control characters in the error message when realpath fails", async () => {
+            // Arrange — newline in the override path is the canonical log-injection payload
+            const maliciousPath = "custom/policy.json\nINJECTED: fake log line";
+            const repoRoot = "/fake/repo";
+            const deps = buildPolicyDeps({
+                getRepositoryRoot: vi.fn(() => repoRoot),
+                realpath: vi.fn(async (p: string) => {
+                    if (p === repoRoot) return repoRoot;
+                    throw enoentError();
+                }),
+            });
+
+            // Act & Assert — message must not contain a raw newline
+            const error = await loadPolicy(
+                { AGENTSHELL_POLICY_PATH: maliciousPath },
+                deps,
+            ).catch((e: unknown) => e);
+            expect(error).toBeInstanceOf(Error);
+            expect((error as Error).message).not.toMatch(/\n/);
+        });
+
+        it("should not embed raw control characters in the error message when path escapes repo root", async () => {
+            // Arrange
+            const maliciousPath = "/outside/repo\nINJECTED: fake log line";
+            const repoRoot = "/fake/repo";
+            const deps = buildPolicyDeps({
+                getRepositoryRoot: vi.fn(() => repoRoot),
+                realpath: vi.fn(async (p: string) => p),
+            });
+
+            // Act & Assert
+            const error = await loadPolicy(
+                { AGENTSHELL_POLICY_PATH: maliciousPath },
+                deps,
+            ).catch((e: unknown) => e);
+            expect(error).toBeInstanceOf(Error);
+            expect((error as Error).message).not.toMatch(/\n/);
+        });
+
+        it("should not embed raw control characters in the error message on TOCTOU readFile ENOENT", async () => {
+            // Arrange
+            const maliciousPath = "custom/policy.json\nINJECTED: fake log line";
+            const repoRoot = "/fake/repo";
+            const deps = buildPolicyDeps({
+                getRepositoryRoot: vi.fn(() => repoRoot),
+                realpath: vi.fn(async (p: string) => p),
+                readFile: vi.fn(async () => {
+                    throw enoentError();
+                }),
+            });
+
+            // Act & Assert
+            const error = await loadPolicy(
+                { AGENTSHELL_POLICY_PATH: maliciousPath },
+                deps,
+            ).catch((e: unknown) => e);
+            expect(error).toBeInstanceOf(Error);
+            expect((error as Error).message).not.toMatch(/\n/);
+        });
+    });
+
     describe("given readFile throws a non-ENOENT error", () => {
         it("should propagate the error", async () => {
             // Arrange

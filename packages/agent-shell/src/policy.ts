@@ -80,6 +80,18 @@ export function evaluatePolicy(
     return { decision: "allow", matchedRule: null };
 }
 
+/**
+ * Escapes ASCII control characters in a path before embedding it in an error
+ * message. Prevents log/terminal injection when the path originates from an
+ * environment variable (e.g. AGENTSHELL_POLICY_PATH).
+ */
+function sanitizePath(path: string): string {
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching control characters for sanitization
+    return path.replace(/[\u0000-\u001f\u007f]/g, (ch) => {
+        return `\\x${ch.charCodeAt(0).toString(16).padStart(2, "0")}`;
+    });
+}
+
 function isEnoent(error: unknown): boolean {
     return (
         error instanceof Error &&
@@ -125,7 +137,7 @@ export async function loadPolicy(
         if (isEnoent(error)) {
             if (isOverride) {
                 throw new Error(
-                    `Policy override path does not exist: ${candidatePath}`,
+                    `Policy override path does not exist: ${sanitizePath(candidatePath)}`,
                 );
             }
             return null;
@@ -135,7 +147,7 @@ export async function loadPolicy(
 
     if (!isWithinProjectRoot(resolvedPath, repoRoot)) {
         throw new Error(
-            `Policy file path resolves outside the repository root: ${resolvedPath}`,
+            `Policy file path resolves outside the repository root: ${sanitizePath(resolvedPath)}`,
         );
     }
 
@@ -146,7 +158,7 @@ export async function loadPolicy(
         if (isEnoent(error)) {
             if (isOverride) {
                 throw new Error(
-                    `Policy override path does not exist: ${resolvedPath}`,
+                    `Policy override path does not exist: ${sanitizePath(resolvedPath)}`,
                 );
             }
             return null;
