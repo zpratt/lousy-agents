@@ -5,7 +5,7 @@ Validates agent skills, custom agents, and instruction files. Discovers lint tar
 ## Features
 
 - **Unified Linting**: Lint skills, agents, and instruction files through a single command
-- **Automatic Discovery**: Finds targets across `.github/skills/`, `.github/agents/`, and instruction file locations
+- **Automatic Discovery**: Finds targets across `.github/skills/`, `.claude/skills/`, `.github/agents/`, and instruction file locations
 - **Frontmatter Validation**: Checks for required fields and validates their format
 - **Instruction Quality Analysis**: Scores feedback loop documentation across three dimensions (structural context, execution clarity, loop completeness)
 - **Line-Level Diagnostics**: Reports errors and warnings with exact line numbers
@@ -87,7 +87,7 @@ Use flags to lint specific targets:
 
 | Flag | Description |
 |------|-------------|
-| `--skills` | Lint skill frontmatter in `.github/skills/` |
+| `--skills` | Lint skill frontmatter in `.github/skills/` and `.claude/skills/` |
 | `--agents` | Lint agent frontmatter in `.github/agents/` |
 | `--instructions` | Analyze instruction quality across all instruction file formats |
 | `--format <type>` | Output format: `human` (default), `json`, or `rdjsonl` |
@@ -110,7 +110,7 @@ npx @lousy-agents/cli lint
 
 ## Skill Linting (`--skills`)
 
-Validates YAML frontmatter in `.github/skills/*/SKILL.md` files.
+Validates YAML frontmatter in `.github/skills/*/SKILL.md` and `.claude/skills/*/SKILL.md` files.
 
 ### What It Validates
 
@@ -374,7 +374,7 @@ When no target inputs are set, the action lints all targets (skills, agents, and
 | Input | Required | Default | Description |
 |-------|----------|---------|-------------|
 | `github_token` | Yes | — | GitHub token for reviewdog API access |
-| `skills` | No | `false` | Lint skill frontmatter in `.github/skills/` |
+| `skills` | No | `false` | Lint skill frontmatter in `.github/skills/` and `.claude/skills/` |
 | `agents` | No | `false` | Lint agent frontmatter in `.github/agents/` |
 | `instructions` | No | `false` | Lint instruction quality |
 | `directory` | No | `.` | Target directory to lint |

@@ -255,7 +255,8 @@ export const lintCommand = defineCommand({
     args: {
         skills: {
             type: "boolean",
-            description: "Lint skill frontmatter in .github/skills/",
+            description:
+                "Lint skill frontmatter in .github/skills/ and .claude/skills/",
             default: false,
         },
         agents: {
