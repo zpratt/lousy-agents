@@ -92,13 +92,12 @@ function sanitizePath(path: string): string {
     });
 }
 
-function isEnoent(error: unknown): boolean {
-    return (
-        error instanceof Error &&
-        "code" in error &&
-        ((error as Error & { code: string }).code === "ENOENT" ||
-            (error as Error & { code: string }).code === "ENOTDIR")
-    );
+function isPolicyFileNotFound(error: unknown): boolean {
+    if (typeof error === "object" && error !== null && "code" in error) {
+        const { code } = error as { code: unknown };
+        return code === "ENOENT" || code === "ENOTDIR";
+    }
+    return false;
 }
 
 function resolvePolicyPath(
@@ -134,7 +133,7 @@ export async function loadPolicy(
     try {
         resolvedPath = await deps.realpath(candidatePath);
     } catch (error: unknown) {
-        if (isEnoent(error)) {
+        if (isPolicyFileNotFound(error)) {
             if (isOverride) {
                 throw new Error(
                     `Policy override path does not exist: ${sanitizePath(candidatePath)}`,
@@ -155,7 +154,7 @@ export async function loadPolicy(
     try {
         content = await deps.readFile(resolvedPath, "utf-8");
     } catch (error: unknown) {
-        if (isEnoent(error)) {
+        if (isPolicyFileNotFound(error)) {
             if (isOverride) {
                 throw new Error(
                     `Policy override path does not exist: ${sanitizePath(resolvedPath)}`,
