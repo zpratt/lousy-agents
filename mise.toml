@@ -76,6 +76,11 @@ description = "Build the project with rspack"
 depends = ["clean"]
 run = "npm run build"
 
+[tasks.test-integration]
+description = "Run smoke tests against the built CLI"
+depends = ["build"]
+run = "npm run test:integration"
+
 [tasks.smoke-test]
 description = "Run smoke tests against the built CLI"
 depends = ["build"]
@@ -89,6 +94,7 @@ description = 'Run CI tasks'
 run = [
     { task = 'lint'},
     { task = 'test'},
+    { task = 'test-integration'},
     { task = 'smoke-test'}
 ]
 
