@@ -35,6 +35,10 @@ url = "https://github.com/rhysd/actionlint/releases/download/v1.7.11/actionlint_
 checksum = "sha256:5414b7124a91f4b5abee62e5c9d84802237734f8d15b9b7032732a32c3ebffa3"
 url = "https://github.com/rhysd/actionlint/releases/download/v1.7.11/actionlint_1.7.11_windows_amd64.zip"
 
+[[tools.devcontainer-cli]]
+version = "0.84.1"
+backend = "npm:@devcontainers/cli"
+
 [[tools.jq]]
 version = "1.8.1"
 backend = "aqua:jqlang/jq"
