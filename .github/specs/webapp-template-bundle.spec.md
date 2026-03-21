@@ -7,7 +7,7 @@ When users run `npx @lousy-agents/cli init --kind webapp`, the command fails wit
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Negative | Cannot scaffold webapp projects when using published npm package |
 | CLI User | Negative | Encounters cryptic error message when trying to use webapp scaffolding |
 | Package Maintainer | Neutral | Needs to fix bundle configuration |

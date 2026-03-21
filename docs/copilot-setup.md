@@ -102,8 +102,8 @@ After generating or updating the workflow, the command checks your repository fo
 
 The created ruleset always includes a **Copilot code review** rule that enables automated PR reviews. The inclusion of **code scanning** rules depends on whether GitHub Advanced Security is enabled:
 
-| Repository Configuration | Ruleset Rules                                                       |
-|--------------------------|----------------------------------------------------------------------|
+| Repository Configuration | Ruleset Rules                                                        |
+| ------------------------ | -------------------------------------------------------------------- |
 | GHAS **not** enabled     | `copilot_code_review` only                                           |
 | GHAS **enabled**         | `copilot_code_review` + `code_scanning` (CodeQL and Copilot Autofix) |
 

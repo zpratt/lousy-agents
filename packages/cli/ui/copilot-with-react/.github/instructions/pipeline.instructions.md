@@ -41,6 +41,6 @@ Before adding any action:
 ## Runner Requirements
 
 | Workflow | Runner |
-|----------|--------|
+| ---------- | -------- |
 | Default (all workflows) | `ubuntu-latest` |
 | `copilot-setup-steps.yml` | May use different runners as needed |

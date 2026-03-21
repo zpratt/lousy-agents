@@ -7,7 +7,7 @@ Currently, the webapp scaffolding creates files with hardcoded project names (e.
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user - can create customized projects without manual find-and-replace |
 | Team Lead | Positive | Can standardize project naming across team scaffolded projects |
 | Platform Engineer | Positive | Can automate project creation in scripts with custom names |

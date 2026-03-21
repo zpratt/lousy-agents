@@ -42,7 +42,7 @@ Before adding any action:
 ## Runner Requirements
 
 | Workflow | Runner |
-|----------|--------|
+| ---------- | -------- |
 | Default (all workflows) | `ubuntu-latest` |
 | `copilot-setup-steps.yml` | May use different runners as needed |
 
@@ -118,7 +118,7 @@ Testcontainers works out of the box on `ubuntu-latest` runners since they have D
 ### Environment Variables
 
 | Variable | Description | Default |
-|----------|-------------|---------|
+| ---------- | ------------- | --------- |
 | `TESTCONTAINERS_RYUK_DISABLED` | Disable Ryuk container cleanup | `false` |
 | `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE` | Override Docker socket path | auto-detected |
 

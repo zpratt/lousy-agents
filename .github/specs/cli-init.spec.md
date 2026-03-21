@@ -7,7 +7,7 @@ Software engineers learning vibe coding need a way to quickly scaffold a new CLI
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user - gets a fully-configured CLI project with testing, linting, and TypeScript setup |
 | CLI Developer | Positive | Receives a complete TypeScript CLI development environment with Clean Architecture patterns ready to use |
 | Team Lead | Positive | Can ensure consistent CLI project setup across team members |

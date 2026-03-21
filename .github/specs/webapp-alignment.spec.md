@@ -7,7 +7,7 @@ The webapp scaffolding (`init --kind webapp`) was missing several files that the
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Gets a consistent scaffolding experience regardless of project type |
 | Frontend Developer | Positive | Webapp projects now include CI workflow, MCP config, and .gitignore by default |
 | Team Lead | Positive | Can rely on consistent project setup across CLI, API, and webapp projects |

@@ -7,7 +7,7 @@ Currently, the `lousy-agents init` command requires interactive user input to se
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Can scaffold projects faster by providing options directly, reducing setup time |
 | Platform Engineer | Positive | Can automate project creation in scripts and CI/CD pipelines without interactive prompts |
 | Team Lead | Positive | Can standardize project creation commands in documentation and onboarding materials |

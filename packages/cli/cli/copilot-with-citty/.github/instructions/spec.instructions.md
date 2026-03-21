@@ -43,7 +43,7 @@ When reviewing a spec:
 All acceptance criteria must use EARS (Easy Approach to Requirements Syntax) patterns:
 
 | Pattern | Template | Use When |
-|---------|----------|----------|
+| --------- | ---------- | ---------- |
 | Ubiquitous | The `<system>` shall `<response>` | Always true, no trigger |
 | Event-driven | When `<trigger>`, the `<system>` shall `<response>` | Responding to an event |
 | State-driven | While `<state>`, the `<system>` shall `<response>` | Active during a condition |

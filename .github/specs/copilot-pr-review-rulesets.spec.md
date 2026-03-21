@@ -7,7 +7,7 @@ When software engineers use GitHub Copilot Coding Agent, pull requests created b
 ## Personas
 
 | Persona | Impact | Notes |
-|---------|--------|-------|
+| --------- | -------- | ------- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user — gets automated ruleset configuration for Copilot PR review |
 | Platform Engineer | Positive | Can ensure Copilot code review is consistently enabled across repositories |
 | Team Lead | Positive | Can verify that Copilot code review is enforced for quality assurance |

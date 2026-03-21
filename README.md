@@ -53,7 +53,7 @@ If you're adopting Lousy Agents for the first time, use this order:
 Lousy Agents is an npm workspace monorepo. Most users only need one published package at a time:
 
 | Package | Install / Run | Use it when |
-|---------|----------------|-------------|
+| --------- | ---------------- | ------------- |
 | `@lousy-agents/cli` | `npx @lousy-agents/cli init` | You want the scaffolding CLI for new or existing projects |
 | `@lousy-agents/mcp` | `npx -y -p @lousy-agents/mcp lousy-agents-mcp` | You want Lousy Agents tools available through an MCP client |
 | `@lousy-agents/agent-shell` | `npm install -g @lousy-agents/agent-shell` | You want an audit trail for npm script execution |
@@ -190,7 +190,7 @@ Use the root install to work on all workspace packages together. The root `npm r
 ## Roadmap
 
 | Feature | Status |
-|---------|--------|
+| --------- | -------- |
 | Scaffolding for webapps | ✅ Complete |
 | Scaffolding for REST APIs | ✅ Complete |
 | Scaffolding for CLI | ✅ Complete |

@@ -377,7 +377,7 @@ Both patterns achieve the same goal: explicit dependency injection and testabili
 ## Import Rules Summary
 
 | From | Entities | Use Cases | Gateways/Commands/Lib | Index (Root) |
-|------|----------|-----------|----------------------|--------------|
+| ------ | ---------- | ----------- | ---------------------- | -------------- |
 | Entities | ✓ | ✗ | ✗ | ✗ |
 | Use Cases | ✓ | ✓ | ✗ | ✗ |
 | Gateways/Commands/Lib | ✓ | ✓ | ✓ | ✗ |

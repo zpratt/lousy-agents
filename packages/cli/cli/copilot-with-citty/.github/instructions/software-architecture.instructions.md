@@ -141,7 +141,7 @@ runMain(main);
 ## Import Rules Summary
 
 | From | Entities | Use Cases | Commands/Gateways/Lib | Index (Root) |
-|------|----------|-----------|----------------------|--------------|
+| ------ | ---------- | ----------- | ---------------------- | -------------- |
 | Entities | ✓ | ✗ | ✗ | ✗ |
 | Use Cases | ✓ | ✓ | ✗ | ✗ |
 | Commands/Gateways/Lib | ✓ | ✓ | ✓ | ✗ |

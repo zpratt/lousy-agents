@@ -7,7 +7,7 @@ Creates new resources for your project, including custom GitHub Copilot agents a
 ## Options
 
 | Subcommand / Flag | Argument | Description |
-|-------------------|----------|-------------|
+| ------------------- | ---------- | ------------- |
 | `--copilot-agent` | `<name>` | Create a custom GitHub Copilot agent in `.github/agents/` |
 | `skill` | `<name>` | Create a GitHub Copilot Agent Skill in `.github/skills/` |
 
