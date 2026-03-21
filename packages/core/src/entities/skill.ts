@@ -1,5 +1,5 @@
 /**
- * Core domain entity for GitHub Copilot Agent Skills.
+ * Core domain entity for agent skills (GitHub Copilot and Claude Code).
  * Handles name normalization, SKILL.md content generation, and lint types.
  */
 
