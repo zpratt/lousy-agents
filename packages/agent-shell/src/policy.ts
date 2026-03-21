@@ -91,19 +91,19 @@ function isEnoent(error: unknown): boolean {
 function resolvePolicyPath(
     env: Record<string, string | undefined>,
     repoRoot: string,
-): string {
+): { path: string; isOverride: boolean } {
     const override = env.AGENTSHELL_POLICY_PATH;
 
     if (override !== undefined && override !== "") {
         if (isAbsolute(override)) {
             // Absolute path — use as-is (will be validated after realpath)
-            return override;
+            return { path: override, isOverride: true };
         }
         // Relative path — resolve relative to repo root
-        return join(repoRoot, override);
+        return { path: join(repoRoot, override), isOverride: true };
     }
 
-    return join(repoRoot, DEFAULT_POLICY_SUBPATH);
+    return { path: join(repoRoot, DEFAULT_POLICY_SUBPATH), isOverride: false };
 }
 
 export async function loadPolicy(
@@ -112,9 +112,10 @@ export async function loadPolicy(
 ): Promise<PolicyConfig | null> {
     const rawRepoRoot = deps.getRepositoryRoot();
     const repoRoot = await deps.realpath(rawRepoRoot);
-    const override = env.AGENTSHELL_POLICY_PATH;
-    const isOverride = override !== undefined && override !== "";
-    const candidatePath = resolvePolicyPath(env, repoRoot);
+    const { path: candidatePath, isOverride } = resolvePolicyPath(
+        env,
+        repoRoot,
+    );
 
     let resolvedPath: string;
     try {
@@ -142,6 +143,11 @@ export async function loadPolicy(
         content = await deps.readFile(resolvedPath, "utf-8");
     } catch (error: unknown) {
         if (isEnoent(error)) {
+            if (isOverride) {
+                throw new Error(
+                    `Policy override path does not exist: ${resolvedPath}`,
+                );
+            }
             return null;
         }
         throw error;

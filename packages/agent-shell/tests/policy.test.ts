@@ -537,7 +537,7 @@ describe("matchesRule (via evaluatePolicy) ReDoS resistance", () => {
 });
 
 describe("loadPolicy TOCTOU and error propagation", () => {
-    describe("given realpath succeeds but readFile throws ENOENT (TOCTOU race)", () => {
+    describe("given realpath succeeds but readFile throws ENOENT (TOCTOU race, default path)", () => {
         it("should return null gracefully", async () => {
             // Arrange
             const repoRoot = "/fake/repo";
@@ -554,6 +554,26 @@ describe("loadPolicy TOCTOU and error propagation", () => {
 
             // Assert
             expect(result).toBeNull();
+        });
+    });
+
+    describe("given realpath succeeds but readFile throws ENOENT with AGENTSHELL_POLICY_PATH set (TOCTOU race, override path)", () => {
+        it("should throw instead of returning null (fail-closed)", async () => {
+            // Arrange
+            const repoRoot = "/fake/repo";
+            const customPath = "custom/policy.json";
+            const deps = buildPolicyDeps({
+                getRepositoryRoot: vi.fn(() => repoRoot),
+                realpath: vi.fn(async (p: string) => p),
+                readFile: vi.fn(async () => {
+                    throw enoentError();
+                }),
+            });
+
+            // Act & Assert
+            await expect(
+                loadPolicy({ AGENTSHELL_POLICY_PATH: customPath }, deps),
+            ).rejects.toThrow(/does not exist/i);
         });
     });
 
