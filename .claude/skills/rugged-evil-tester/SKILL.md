@@ -2,6 +2,14 @@
 name: rugged-evil-tester
 description: "Generates adversarial, negative, and chaos tests for TypeScript code. Use when asked for evil tests, security tests, boundary tests, fuzzing, injection testing, rugged testing, or to 'break this' / 'find vulnerabilities'. Not for happy-path or standard unit/integration tests."
 effort: high
+allowed-tools:
+  - Read
+  - Grep
+  - Glob
+  - Write
+  - Edit
+  - Bash
+  - Agent
 ---
 
 # Rugged Evil Tester
@@ -42,7 +50,9 @@ Attackers love strings because strings are the universal bypass. Target any endp
 - **Unicode normalization:** Homoglyph attacks (`аdmin` using Cyrillic `а`), zero-width characters, bidirectional text overrides
 - **Null bytes & control characters:** `\0`, `\x00`, `\r\n`, vertical tabs — these break parsers, loggers, and file systems
 - **Injection fragments:** SQL (`' OR 1=1 --`), NoSQL (`{"$gt": ""}`), XSS (`<script>`, `javascript:`, event handlers), template injection (`{{7*7}}`, `${process.env}`)
-- **Buffer overflows:** Strings that exceed expected lengths by 10x, 100x, or contain repeated patterns designed to break regex engines (ReDoS)
+- **Length-based resource exhaustion:** Strings that exceed expected lengths by 10x, 100x — these test memory pressure, allocation limits, and downstream size assumptions
+- **ReDoS (Regular Expression Denial of Service):** Repeated patterns designed to trigger catastrophic backtracking in poorly anchored regexes (e.g., `(a+)+$` with `"aaa...!"`)
+
 - **Encoding tricks:** Double URL encoding, mixed UTF-8/UTF-16, overlong UTF-8 sequences
 
 Verify that the system uses modeled data — strict validation schemas, branded types with runtime checks, or string wrapper classes — to aggressively reject these inputs rather than silently passing them through.
