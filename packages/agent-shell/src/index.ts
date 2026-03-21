@@ -65,6 +65,8 @@ async function main(): Promise<void> {
                 },
                 telemetryDeps: createDefaultDeps(),
             });
+            // Use exitCode + return (not process.exit) so pending stdout writes
+            // from writeStdout can drain before the process terminates.
             process.exitCode = 0;
             return;
         }

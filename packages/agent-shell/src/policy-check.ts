@@ -108,10 +108,12 @@ export async function handlePolicyCheck(deps: PolicyCheckDeps): Promise<void> {
             return;
         }
 
-        // Step 4 (per spec): non-terminal tools pass through with allow
+        // Step 4 (per spec): non-terminal tools pass through with allow.
+        // Per spec: command field is empty string for non-terminal tool decisions
+        // (toolArgs is never parsed, so no command string is available).
         if (!TERMINAL_TOOLS.has(toolName)) {
             deps.writeStdout(allowResponse());
-            await tryEmitTelemetry(deps, toolName, "allow", null);
+            await tryEmitTelemetry(deps, "", "allow", null);
             return;
         }
 

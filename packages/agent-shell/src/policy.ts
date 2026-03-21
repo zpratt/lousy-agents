@@ -84,7 +84,8 @@ function isEnoent(error: unknown): boolean {
     return (
         error instanceof Error &&
         "code" in error &&
-        (error as Error & { code: string }).code === "ENOENT"
+        ((error as Error & { code: string }).code === "ENOENT" ||
+            (error as Error & { code: string }).code === "ENOTDIR")
     );
 }
 

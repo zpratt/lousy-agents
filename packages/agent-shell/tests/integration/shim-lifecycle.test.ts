@@ -345,6 +345,10 @@ describe("Shim lifecycle integration", { timeout: 30_000 }, () => {
 
     describe("given the events directory is not writable", () => {
         it("executes the command successfully and emits diagnostic", async () => {
+            // Root ignores chmod — skip to avoid false failures in privileged containers
+            if (process.getuid?.() === 0) {
+                return;
+            }
             // Arrange
             const eventsDir = defaultEventsDir(tmpDir);
             await mkdir(eventsDir, { recursive: true });
