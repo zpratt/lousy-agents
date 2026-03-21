@@ -53,21 +53,34 @@ Don't just assert that an error is thrown. Assert that the *correct security mec
 
 A test that passes for the wrong reason gives false confidence. If an XSS payload throws because the database rejects the character, you've accidentally proven your DB is doing your validation layer's job — and one schema migration could silently remove that protection.
 
-**Pattern — layer-specific assertions:**
+**Pattern — layer-specific assertions (using fetch + MSW):**
 
 ```typescript
 it("EVIL: should reject XSS at the validation layer, not the DB layer", async () => {
   const xssPayload = '<img src=x onerror=alert(1)>' as any;
+  const createSpy = vi.fn();
 
-  const result = await request(app)
-    .post("/api/comments")
-    .send({ body: xssPayload });
+  // MSW handler that records whether the request reached the service
+  server.use(
+    http.post("https://api.example.com/comments", async ({ request }) => {
+      const body = await request.json();
+      createSpy(body);
+      return HttpResponse.json({ id: "1" });
+    }),
+  );
 
-  // Assert the validation middleware caught it (400), not the DB (500)
+  const result = await fetch("https://api.example.com/comments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ body: xssPayload }),
+  });
+
+  // Assert the validation layer caught it (400), not the DB (500)
   expect(result.status).toBe(400);
-  expect(result.body.error).toMatch(/validation/i);
-  // The handler should never have been called
-  expect(commentService.create).not.toHaveBeenCalled();
+  const json = await result.json();
+  expect(json.error).toMatch(/validation/i);
+  // The downstream service should never have been called
+  expect(createSpy).not.toHaveBeenCalled();
 });
 ```
 
