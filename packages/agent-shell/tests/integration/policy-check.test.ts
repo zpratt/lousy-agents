@@ -174,7 +174,8 @@ describe("policy-check mode", () => {
             const event = JSON.parse(data as string);
             expect(event.event).toBe("policy_decision");
             expect(event.decision).toBe("allow");
-            expect(event.command).toBe(toolName);
+            // Per spec: command is empty string for non-terminal tool decisions
+            expect(event.command).toBe("");
         });
     });
 
@@ -275,7 +276,8 @@ describe("policy-check mode", () => {
             // Act
             await handlePolicyCheck(deps);
 
-            // Assert — Zod rejects non-string toolArgs at schema level
+            // Assert — rejected by the typeof toolArgs !== "string" check
+            // (HookInputSchema uses z.unknown().optional(), so Zod accepts any type here)
             const response = JSON.parse(deps.stdout[0]);
             expect(response.permissionDecision).toBe("deny");
             expect(response.permissionDecisionReason).toBeDefined();

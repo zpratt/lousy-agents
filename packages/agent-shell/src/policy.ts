@@ -80,30 +80,42 @@ export function evaluatePolicy(
     return { decision: "allow", matchedRule: null };
 }
 
-function isEnoent(error: unknown): boolean {
-    return (
-        error instanceof Error &&
-        "code" in error &&
-        (error as Error & { code: string }).code === "ENOENT"
-    );
+/**
+ * Escapes ASCII control characters in a path before embedding it in an error
+ * message. Prevents log/terminal injection when the path originates from an
+ * environment variable (e.g. AGENTSHELL_POLICY_PATH).
+ */
+function sanitizePath(path: string): string {
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching control characters for sanitization
+    return path.replace(/[\u0000-\u001f\u007f]/g, (ch) => {
+        return `\\x${ch.charCodeAt(0).toString(16).padStart(2, "0")}`;
+    });
+}
+
+function isPolicyFileNotFound(error: unknown): boolean {
+    if (typeof error === "object" && error !== null && "code" in error) {
+        const { code } = error as { code: unknown };
+        return code === "ENOENT" || code === "ENOTDIR";
+    }
+    return false;
 }
 
 function resolvePolicyPath(
     env: Record<string, string | undefined>,
     repoRoot: string,
-): string {
+): { path: string; isOverride: boolean } {
     const override = env.AGENTSHELL_POLICY_PATH;
 
     if (override !== undefined && override !== "") {
         if (isAbsolute(override)) {
             // Absolute path — use as-is (will be validated after realpath)
-            return override;
+            return { path: override, isOverride: true };
         }
         // Relative path — resolve relative to repo root
-        return join(repoRoot, override);
+        return { path: join(repoRoot, override), isOverride: true };
     }
 
-    return join(repoRoot, DEFAULT_POLICY_SUBPATH);
+    return { path: join(repoRoot, DEFAULT_POLICY_SUBPATH), isOverride: false };
 }
 
 export async function loadPolicy(
@@ -112,13 +124,21 @@ export async function loadPolicy(
 ): Promise<PolicyConfig | null> {
     const rawRepoRoot = deps.getRepositoryRoot();
     const repoRoot = await deps.realpath(rawRepoRoot);
-    const candidatePath = resolvePolicyPath(env, repoRoot);
+    const { path: candidatePath, isOverride } = resolvePolicyPath(
+        env,
+        repoRoot,
+    );
 
     let resolvedPath: string;
     try {
         resolvedPath = await deps.realpath(candidatePath);
     } catch (error: unknown) {
-        if (isEnoent(error)) {
+        if (isPolicyFileNotFound(error)) {
+            if (isOverride) {
+                throw new Error(
+                    `Policy override path does not exist: ${sanitizePath(candidatePath)}`,
+                );
+            }
             return null;
         }
         throw error;
@@ -126,7 +146,7 @@ export async function loadPolicy(
 
     if (!isWithinProjectRoot(resolvedPath, repoRoot)) {
         throw new Error(
-            `Policy file path resolves outside the repository root: ${resolvedPath}`,
+            `Policy file path resolves outside the repository root: ${sanitizePath(resolvedPath)}`,
         );
     }
 
@@ -134,7 +154,12 @@ export async function loadPolicy(
     try {
         content = await deps.readFile(resolvedPath, "utf-8");
     } catch (error: unknown) {
-        if (isEnoent(error)) {
+        if (isPolicyFileNotFound(error)) {
+            if (isOverride) {
+                throw new Error(
+                    `Policy override path does not exist: ${sanitizePath(resolvedPath)}`,
+                );
+            }
             return null;
         }
         throw error;
@@ -145,7 +170,7 @@ export async function loadPolicy(
         parsed = JSON.parse(content);
     } catch {
         throw new Error(
-            `Invalid JSON in policy file ${resolvedPath}: file exists but contains malformed JSON`,
+            `Invalid JSON in policy file ${sanitizePath(resolvedPath)}: file exists but contains malformed JSON`,
         );
     }
 

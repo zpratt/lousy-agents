@@ -65,8 +65,10 @@ async function main(): Promise<void> {
                 },
                 telemetryDeps: createDefaultDeps(),
             });
-            process.exit(0);
-            break;
+            // Use exitCode + return (not process.exit) so pending stdout writes
+            // from writeStdout can drain before the process terminates.
+            process.exitCode = 0;
+            return;
         }
         case "passthrough": {
             const result = spawnSync("/bin/sh", mode.args, {
@@ -77,8 +79,8 @@ async function main(): Promise<void> {
         }
         case "version": {
             process.stdout.write(`${VERSION}\n`);
-            process.exit(0);
-            break;
+            process.exitCode = 0;
+            return;
         }
         case "shim": {
             let onComplete: ((result: ShimResult) => Promise<void>) | undefined;
@@ -127,8 +129,8 @@ async function main(): Promise<void> {
         }
         case "usage": {
             process.stderr.write(USAGE);
-            process.exit(1);
-            break;
+            process.exitCode = 1;
+            return;
         }
     }
 }

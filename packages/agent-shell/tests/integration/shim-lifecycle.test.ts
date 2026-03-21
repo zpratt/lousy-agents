@@ -344,24 +344,29 @@ describe("Shim lifecycle integration", { timeout: 30_000 }, () => {
     });
 
     describe("given the events directory is not writable", () => {
-        it("executes the command successfully and emits diagnostic", async () => {
-            // Arrange
-            const eventsDir = defaultEventsDir(tmpDir);
-            await mkdir(eventsDir, { recursive: true });
-            await chmod(eventsDir, 0o444);
-            const marker = chance.word({ length: 10 });
+        // Root ignores chmod, so this test is meaningless in privileged containers
+        it.skipIf(process.getuid?.() === 0)(
+            "executes the command successfully and emits diagnostic",
+            async () => {
+                // Arrange
+                const eventsDir = defaultEventsDir(tmpDir);
+                await mkdir(eventsDir, { recursive: true });
+                await chmod(eventsDir, 0o444);
+                const marker = chance.word({ length: 10 });
 
-            // Act
-            const result = runShim(tmpDir, ["-c", `echo ${marker}`]);
+                try {
+                    // Act
+                    const result = runShim(tmpDir, ["-c", `echo ${marker}`]);
 
-            // Assert — command runs despite telemetry failure
-            expect(result.stdout).toContain(marker);
-            expect(result.status).toBe(0);
-            expect(result.stderr.length).toBeGreaterThan(0);
-
-            // Restore permissions for cleanup
-            await chmod(eventsDir, 0o755);
-        });
+                    // Assert — command runs despite telemetry failure
+                    expect(result.stdout).toContain(marker);
+                    expect(result.status).toBe(0);
+                    expect(result.stderr.length).toBeGreaterThan(0);
+                } finally {
+                    await chmod(eventsDir, 0o755);
+                }
+            },
+        );
     });
 
     describe("given --version argument", () => {
