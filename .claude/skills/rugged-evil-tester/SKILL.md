@@ -23,6 +23,8 @@ TypeScript types vanish at runtime. A `string` parameter typed as `EmailAddress`
 
 Write tests that actively lie to the compiler. Cast malicious payloads using `as unknown as <Type>` to simulate real-world hostile input — the kind that arrives via API requests, WebSocket messages, deserialized JSON, or query parameters where TypeScript's type system provides zero protection. Never use `as any` — prefer `as unknown` to keep tests aligned with strict lint rules.
 
+> **Test-only technique.** The `as unknown as <Type>` cast is exclusively for evil test files (`*.evil.test.ts`). Production code must never use type assertions on external data — use Zod schemas or other runtime validation instead. See the project's code style rules for details.
+
 **Example — proving runtime validation exists:**
 
 ```typescript
