@@ -85,7 +85,7 @@ For each technical comment, read the actual code before forming any opinion:
 Categorize the root concern driving each comment:
 
 | Category | Signal | Example |
-|----------|--------|---------|
+| ---------- | -------- | --------- |
 | **Security** | Injection, traversal, untrusted input, control chars | "Error message embeds unsanitized input" |
 | **Correctness** | False positives/negatives, edge cases, logic bugs | "`includes('..')` rejects valid names like `..foo`" |
 | **Performance** | Hot paths, unnecessary allocations, blocking calls | "Awaiting telemetry blocks the critical path" |
@@ -101,7 +101,7 @@ Categorize the root concern driving each comment:
 For each verified claim, assess these questions:
 
 | Question | Why It Matters |
-|----------|---------------|
+| ---------- | --------------- |
 | Is the claim technically correct for THIS code? | Automated reviewers lack full context |
 | Can this scenario actually be triggered? | Latent bugs vs active vulnerabilities |
 | Would the suggested fix break existing tests? | Especially security and regression tests |
@@ -226,7 +226,7 @@ Automated reviewers frequently flag Windows/POSIX compatibility. Before implemen
 ## Common Mistakes
 
 | Mistake | Fix |
-|---------|-----|
+| --------- | ----- |
 | Implementing without reading the code | Always verify the claim at the cited line |
 | Treating bot suggestions as requirements | They are hypotheses — verify each one |
 | Missing deliberate design choices | Search for tests that validate current behavior |
