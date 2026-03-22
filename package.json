@@ -56,8 +56,5 @@
         "typescript": "5.9.3",
         "vitest": "4.1.0",
         "whatwg-fetch": "3.6.20"
-    },
-    "dependencies": {
-        "@rolldown/binding-darwin-arm64": "^1.0.0-rc.10"
     }
 }
