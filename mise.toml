@@ -19,7 +19,8 @@ pipx = "latest"
 shellcheck = "0.11.0"
 trivy = "0.69.3"
 vhs = "0.11.0"
-yamllint = "1.38.0" # Created with `mise use --pin yamllint`
+yamllint = "1.38.0"                # Created with `mise use --pin yamllint`
+devcontainer-cli = "0.84.1"
 
 [tasks.yamllint]
 description = "Running yamllint locally on all yaml files"
@@ -59,8 +60,15 @@ run = "npm run lint"
 [tasks.lint]
 description = "Run all required linting tools (in parallel)"
 run = [
-    { tasks = ['actionlint', 'yamllint', 'markdownlint', 'shellcheck', 'check-issue-forms', 'format-check']}, # These run in parallel!
-    { task = 'trivy-fs'}
+  { tasks = [
+    'actionlint',
+    'yamllint',
+    'markdownlint',
+    'shellcheck',
+    'check-issue-forms',
+    'format-check',
+  ] }, # These run in parallel!
+  { task = 'trivy-fs' },
 ]
 
 [tasks.test]
@@ -76,36 +84,40 @@ description = "Build the project with rspack"
 depends = ["clean"]
 run = "npm run build"
 
+[tasks.test-integration]
+description = "Run smoke tests against the built CLI"
+depends = ["build"]
+run = "npm run test:integration"
+
 [tasks.smoke-test]
 description = "Run smoke tests against the built CLI"
 depends = ["build"]
 run = [
-    "./packages/cli/dist/index.js --help",
-    "./packages/cli/dist/index.js init --help"
+  "./packages/cli/dist/index.js --help",
+  "./packages/cli/dist/index.js init --help",
 ]
 
 [tasks.ci] # only dependencies to be run
 description = 'Run CI tasks'
 run = [
-    { task = 'lint'},
-    { task = 'test'},
-    { task = 'smoke-test'}
+  { task = 'lint' },
+  { task = 'test' },
+  { task = 'test-integration' },
+  { task = 'smoke-test' },
 ]
 
 [tasks.format-fix]
 description = "Fixing format issues"
 hide = true
-run = [
-    "npm run lint:fix"
-]
+run = ["npm run lint:fix"]
 
 [tasks.demo]
 description = "Record a demo of lousy-agents using VHS"
 run = [
-    "npm run build",
-    "npm link",
-    "rm -rf demo",
-    "mkdir -p media",
-    "vhs demo.tape",
-    "rm -rf demo"
+  "npm run build",
+  "npm link",
+  "rm -rf demo",
+  "mkdir -p media",
+  "vhs demo.tape",
+  "rm -rf demo",
 ]

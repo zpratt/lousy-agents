@@ -11,7 +11,8 @@
         "includes": [
             "**",
             "!packages/cli/cli/copilot-with-citty/src",
-            "!packages/action/dist"
+            "!packages/action/dist",
+            "!.beads"
         ]
     },
     "formatter": {

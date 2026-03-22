@@ -1,9 +1,11 @@
 // biome-ignore-all lint/style/useNamingConvention: TelemetryDeps interface matches domain terminology
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir, realpath } from "node:fs/promises";
+import { appendFile, mkdir, readFile, realpath } from "node:fs/promises";
+import { createGetRepositoryRoot } from "./git-utils.js";
 import { runLog } from "./log/index.js";
 import { resolveMode } from "./mode.js";
+import { handlePolicyCheck } from "./policy-check.js";
 import type { ShimResult } from "./shim.js";
 import { runShim } from "./shim.js";
 import type { TelemetryDeps } from "./telemetry.js";
@@ -12,6 +14,7 @@ import { emitScriptEndEvent, emitShimErrorEvent } from "./telemetry.js";
 const VERSION = "0.1.0";
 
 const USAGE = `Usage: agent-shell -c <command>
+       agent-shell policy-check
        agent-shell --version
        agent-shell log
 
@@ -19,10 +22,54 @@ Environment:
   AGENTSHELL_PASSTHROUGH=1  Bypass instrumentation
 `;
 
+const MAX_STDIN_BYTES = 1024 * 1024; // 1 MiB — reject oversized hook payloads
+
+function readStdin(): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        let totalBytes = 0;
+        process.stdin.on("data", (chunk: Buffer) => {
+            totalBytes += chunk.length;
+            if (totalBytes > MAX_STDIN_BYTES) {
+                process.stdin.destroy();
+                reject(new Error("stdin exceeds maximum allowed size"));
+                return;
+            }
+            chunks.push(chunk);
+        });
+        process.stdin.on("end", () =>
+            resolve(Buffer.concat(chunks).toString("utf-8")),
+        );
+        process.stdin.on("error", reject);
+    });
+}
+
 async function main(): Promise<void> {
     const mode = resolveMode(process.argv.slice(2), process.env);
 
     switch (mode.type) {
+        case "policy-check": {
+            const getRepositoryRoot = createGetRepositoryRoot(
+                undefined,
+                process.env,
+            );
+            await handlePolicyCheck({
+                readStdin: () => readStdin(),
+                writeStdout: (data) => process.stdout.write(data),
+                writeStderr: (data) => process.stderr.write(data),
+                env: process.env,
+                policyDeps: {
+                    realpath: (path) => realpath(path),
+                    readFile: (path, encoding) => readFile(path, encoding),
+                    getRepositoryRoot,
+                },
+                telemetryDeps: createDefaultDeps(),
+            });
+            // Use exitCode + return (not process.exit) so pending stdout writes
+            // from writeStdout can drain before the process terminates.
+            process.exitCode = 0;
+            return;
+        }
         case "passthrough": {
             const result = spawnSync("/bin/sh", mode.args, {
                 stdio: "inherit",
@@ -32,8 +79,8 @@ async function main(): Promise<void> {
         }
         case "version": {
             process.stdout.write(`${VERSION}\n`);
-            process.exit(0);
-            break;
+            process.exitCode = 0;
+            return;
         }
         case "shim": {
             let onComplete: ((result: ShimResult) => Promise<void>) | undefined;
@@ -82,8 +129,8 @@ async function main(): Promise<void> {
         }
         case "usage": {
             process.stderr.write(USAGE);
-            process.exit(1);
-            break;
+            process.exitCode = 1;
+            return;
         }
     }
 }

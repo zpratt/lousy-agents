@@ -6,8 +6,9 @@ DOLT_VERSION="1.84.0"
 # renovate: datasource=github-releases depName=steveyegge/beads
 BEADS_VERSION="0.62.0"
 
-mise trust -a
-mise install
+# Trust config files first (before any mise commands that read config)
+mise trust --all --yes
+mise install --yes --locked
 
 # Install dolt (required by beads)
 # Detect architecture for platform-specific binary
@@ -44,3 +45,6 @@ if ! command -v bd >/dev/null 2>&1; then
 fi
 
 npm ci
+
+claude mcp add --transport stdio context7 npx @upstash/context7-mcp
+claude mcp add --transport stdio sequential-thinking npx @modelcontextprotocol/server-sequential-thinking

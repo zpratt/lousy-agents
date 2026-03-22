@@ -4,12 +4,17 @@ import { describe, expect, it, vi } from "vitest";
 import type { ShimResult } from "../src/shim.js";
 import type { TelemetryDeps } from "../src/telemetry.js";
 import {
+    emitPolicyDecisionEvent,
     emitScriptEndEvent,
     emitShimErrorEvent,
     resolveSessionId,
     resolveWriteEventsDir,
 } from "../src/telemetry.js";
-import { ScriptEndEventSchema, ShimErrorEventSchema } from "../src/types.js";
+import {
+    PolicyDecisionEventSchema,
+    ScriptEndEventSchema,
+    ShimErrorEventSchema,
+} from "../src/types.js";
 
 const chance = new Chance();
 
@@ -167,6 +172,28 @@ describe("events directory resolution", () => {
         });
     });
 
+    describe("given a relative AGENTSHELL_LOG_DIR", () => {
+        it("should resolve it relative to projectRoot (deps.cwd), not process.cwd", async () => {
+            // Arrange
+            const relativeDir = "custom-logs";
+            const env = { AGENTSHELL_LOG_DIR: relativeDir };
+            const expectedResolved = "/project/custom-logs";
+            const deps = createMockDeps({
+                realpath: vi.fn().mockResolvedValue(expectedResolved),
+            });
+
+            // Act
+            const result = await resolveWriteEventsDir(env, deps);
+
+            // Assert — mkdir and realpath receive the resolved path, not the raw relative value
+            expect(deps.mkdir).toHaveBeenCalledWith(expectedResolved, {
+                recursive: true,
+            });
+            expect(deps.realpath).toHaveBeenCalledWith(expectedResolved);
+            expect(result).toBe(expectedResolved);
+        });
+    });
+
     describe("given AGENTSHELL_LOG_DIR with path traversal", () => {
         it("should fall back to default and write diagnostic to stderr", async () => {
             // Arrange
@@ -179,6 +206,21 @@ describe("events directory resolution", () => {
             // Assert
             expect(result).toBe("/project/.agent-shell/events");
             expect(deps.writeStderr).toHaveBeenCalledOnce();
+        });
+    });
+
+    describe("given AGENTSHELL_LOG_DIR with a dot-prefixed name that is not traversal", () => {
+        it("should accept the directory and not fall back to default", async () => {
+            // Arrange — "..foo" starts with ".." but is a valid directory name, not traversal
+            const env = { AGENTSHELL_LOG_DIR: "..foo" };
+            const deps = createMockDeps();
+
+            // Act
+            const result = await resolveWriteEventsDir(env, deps);
+
+            // Assert — should resolve to /project/..foo, not fall back to default
+            expect(result).toBe("/project/..foo");
+            expect(deps.writeStderr).not.toHaveBeenCalled();
         });
     });
 
@@ -201,12 +243,60 @@ describe("events directory resolution", () => {
         });
     });
 
+    describe("given a project root that is itself a symlink", () => {
+        it("should not produce a false-negative fallback for a valid log dir within the real root", async () => {
+            // Arrange: cwd() returns a logical symlink path (/symlink-project → /real-project)
+            const env = { AGENTSHELL_LOG_DIR: "logs" };
+            const deps = createMockDeps({
+                cwd: vi.fn().mockReturnValue("/symlink-project"),
+                realpath: vi
+                    .fn()
+                    .mockImplementation(async (p: string) =>
+                        p.replace("/symlink-project", "/real-project"),
+                    ),
+            });
+
+            // Act
+            const result = await resolveWriteEventsDir(env, deps);
+
+            // Assert: resolves within the real project root — no false-negative fallback
+            expect(result).toBe("/real-project/logs");
+            expect(deps.writeStderr).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("given a symlinked project root with absolute log dir pointing to real root", () => {
+        it("should not produce a false-negative fallback for a valid absolute path within the real root", async () => {
+            // Arrange: cwd() returns a symlink path, but AGENTSHELL_LOG_DIR is absolute to real location
+            const env = { AGENTSHELL_LOG_DIR: "/real-project/logs" };
+            const deps = createMockDeps({
+                cwd: vi.fn().mockReturnValue("/symlink-project"),
+                realpath: vi.fn().mockImplementation(async (p: string) => {
+                    // Symlink resolution: /symlink-project → /real-project
+                    if (p === "/symlink-project") return "/real-project";
+                    // The absolute log dir is already using real paths
+                    return p;
+                }),
+            });
+
+            // Act
+            const result = await resolveWriteEventsDir(env, deps);
+
+            // Assert: accepts the absolute path since it's within the real project root
+            expect(result).toBe("/real-project/logs");
+            expect(deps.writeStderr).not.toHaveBeenCalled();
+        });
+    });
+
     describe("given AGENTSHELL_LOG_DIR that resolves outside project root via symlink", () => {
         it("should fall back to default and write diagnostic to stderr", async () => {
             // Arrange
             const env = { AGENTSHELL_LOG_DIR: "/project/sneaky-link" };
             const deps = createMockDeps({
-                realpath: vi.fn().mockResolvedValue("/elsewhere/logs"),
+                realpath: vi.fn().mockImplementation(async (p: string) => {
+                    if (p === "/project") return "/project";
+                    return "/elsewhere/logs";
+                }),
             });
 
             // Act
@@ -214,7 +304,92 @@ describe("events directory resolution", () => {
 
             // Assert
             expect(result).toBe("/project/.agent-shell/events");
-            expect(deps.writeStderr).toHaveBeenCalledOnce();
+            expect(deps.writeStderr).toHaveBeenCalled();
+        });
+    });
+
+    describe("given AGENTSHELL_LOG_DIR with a symlinked ancestor escaping the project", () => {
+        it("should not create directories under the symlink", async () => {
+            // Arrange
+            const env = { AGENTSHELL_LOG_DIR: "sneaky-link/logs" };
+            const realpathMock = vi
+                .fn()
+                .mockImplementation(async (p: string) => {
+                    if (p === "/project/sneaky-link/logs")
+                        throw Object.assign(new Error("ENOENT"), {
+                            code: "ENOENT",
+                        });
+                    if (p === "/project/sneaky-link") return "/elsewhere";
+                    return p;
+                });
+            const deps = createMockDeps({ realpath: realpathMock });
+
+            // Act
+            const result = await resolveWriteEventsDir(env, deps);
+
+            // Assert
+            expect(result).toBe("/project/.agent-shell/events");
+            expect(deps.mkdir).not.toHaveBeenCalledWith(
+                "/project/sneaky-link/logs",
+                expect.anything(),
+            );
+        });
+    });
+
+    describe("given ancestor realpath fails with a non-ENOENT error", () => {
+        it("should propagate the error instead of silently falling back", async () => {
+            // Arrange
+            const env = { AGENTSHELL_LOG_DIR: "restricted-dir/logs" };
+            const realpathMock = vi
+                .fn()
+                .mockImplementation(async (p: string) => {
+                    if (p === "/project/restricted-dir/logs")
+                        throw Object.assign(new Error("EACCES"), {
+                            code: "EACCES",
+                        });
+                    return p;
+                });
+            const deps = createMockDeps({ realpath: realpathMock });
+
+            // Act & Assert
+            await expect(resolveWriteEventsDir(env, deps)).rejects.toThrow(
+                "EACCES",
+            );
+        });
+    });
+
+    describe("given a log dir nested more than 50 levels deep with no intermediate dirs existing", () => {
+        it("should resolve to the deep path without falling back to default", async () => {
+            // Arrange: 55 levels deep — exceeds the old hard cap of 50
+            const depth = 55;
+            const segments = Array.from({ length: depth }, (_, i) => `d${i}`);
+            const logDir = segments.join("/");
+            const env = { AGENTSHELL_LOG_DIR: logDir };
+
+            const created: string[] = [];
+            const deps = createMockDeps({
+                mkdir: vi.fn().mockImplementation(async (p: string) => {
+                    created.push(p);
+                }),
+                realpath: vi.fn().mockImplementation(async (p: string) => {
+                    // /project always exists; deep path exists after mkdir
+                    if (p === "/project") return "/project";
+                    if (created.includes(p)) return p;
+                    throw Object.assign(new Error("ENOENT"), {
+                        code: "ENOENT",
+                    });
+                }),
+            });
+
+            // Act
+            const result = await resolveWriteEventsDir(env, deps);
+
+            // Assert: resolved to the deep path, not the default fallback
+            const expected = `/project/${logDir}`;
+            expect(result).toBe(expected);
+            expect(deps.mkdir).toHaveBeenCalledWith(expected, {
+                recursive: true,
+            });
         });
     });
 
@@ -452,6 +627,131 @@ describe("graceful degradation", () => {
             expect(deps.writeStderr).toHaveBeenCalledWith(
                 expect.stringContaining("agent-shell"),
             );
+        });
+    });
+});
+
+describe("policy decision event emission", () => {
+    describe("given a deny decision with a matched rule", () => {
+        it("should emit a valid policy_decision event", async () => {
+            // Arrange
+            const command = chance.sentence();
+            const matchedRule = chance.word();
+            const projectRoot = "/repo-root";
+            const deps = createMockDeps();
+            const env = {};
+
+            // Act
+            await emitPolicyDecisionEvent(
+                {
+                    command,
+                    decision: "deny",
+                    matched_rule: matchedRule,
+                    env,
+                    projectRoot,
+                },
+                deps,
+            );
+
+            // Assert
+            const parsed = JSON.parse(deps.written[0]);
+            const validated = PolicyDecisionEventSchema.parse(parsed);
+            expect(validated.event).toBe("policy_decision");
+            expect(validated.command).toBe(command);
+            expect(validated.decision).toBe("deny");
+            expect(validated.matched_rule).toBe(matchedRule);
+            expect(validated.session_id).toBe("generated-uuid");
+            expect(validated.timestamp).toBe("2026-01-01T00:00:00.000Z");
+        });
+    });
+
+    describe("given an allow decision with no matched rule", () => {
+        it("should emit a policy_decision event with null matched_rule", async () => {
+            // Arrange
+            const command = chance.sentence();
+            const projectRoot = "/repo-root";
+            const deps = createMockDeps();
+            const env = {};
+
+            // Act
+            await emitPolicyDecisionEvent(
+                {
+                    command,
+                    decision: "allow",
+                    matched_rule: null,
+                    env,
+                    projectRoot,
+                },
+                deps,
+            );
+
+            // Assert
+            const parsed = JSON.parse(deps.written[0]);
+            expect(parsed.decision).toBe("allow");
+            expect(parsed.matched_rule).toBeNull();
+        });
+    });
+
+    describe("given a projectRoot parameter", () => {
+        it("should use projectRoot instead of deps.cwd() for event directory resolution", async () => {
+            // Arrange
+            const command = chance.sentence();
+            const projectRoot = "/custom-repo-root";
+            const deps = createMockDeps({
+                cwd: vi.fn().mockReturnValue("/different-cwd"),
+            });
+            const env = {};
+
+            // Act
+            await emitPolicyDecisionEvent(
+                {
+                    command,
+                    decision: "allow",
+                    matched_rule: null,
+                    env,
+                    projectRoot,
+                },
+                deps,
+            );
+
+            // Assert
+            expect(deps.mkdir).toHaveBeenCalledWith(
+                "/custom-repo-root/.agent-shell/events",
+                { recursive: true },
+            );
+            const [filePath] = vi.mocked(deps.appendFile).mock.calls[0];
+            expect(filePath).toBe(
+                "/custom-repo-root/.agent-shell/events/generated-uuid.jsonl",
+            );
+        });
+    });
+
+    describe("given all base telemetry fields", () => {
+        it("should include v, session_id, actor, env, and tags", async () => {
+            // Arrange
+            const command = chance.sentence();
+            const projectRoot = "/repo-root";
+            const deps = createMockDeps();
+            const env = {};
+
+            // Act
+            await emitPolicyDecisionEvent(
+                {
+                    command,
+                    decision: "allow",
+                    matched_rule: null,
+                    env,
+                    projectRoot,
+                },
+                deps,
+            );
+
+            // Assert
+            const parsed = JSON.parse(deps.written[0]);
+            expect(parsed.v).toBe(1);
+            expect(parsed.actor).toBe("human");
+            expect(parsed.env).toBeDefined();
+            expect(parsed.tags).toBeDefined();
         });
     });
 });
