@@ -10,6 +10,8 @@ BEADS_VERSION="0.61.0"
 mise trust --all --yes
 mise install --yes --locked
 
+alias gs="git status -s"
+
 # Install dolt (required by beads)
 # Detect architecture for platform-specific binary
 DOLT_ARCH=""
@@ -45,3 +47,6 @@ if ! command -v bd >/dev/null 2>&1; then
 fi
 
 npm ci
+
+claude mcp add --transport stdio context7 npx @upstash/context7-mcp
+claude mcp add --transport stdio sequential-thinking npx @modelcontextprotocol/server-sequential-thinking
