@@ -265,6 +265,29 @@ describe("events directory resolution", () => {
         });
     });
 
+    describe("given a symlinked project root with absolute log dir pointing to real root", () => {
+        it("should not produce a false-negative fallback for a valid absolute path within the real root", async () => {
+            // Arrange: cwd() returns a symlink path, but AGENTSHELL_LOG_DIR is absolute to real location
+            const env = { AGENTSHELL_LOG_DIR: "/real-project/logs" };
+            const deps = createMockDeps({
+                cwd: vi.fn().mockReturnValue("/symlink-project"),
+                realpath: vi.fn().mockImplementation(async (p: string) => {
+                    // Symlink resolution: /symlink-project → /real-project
+                    if (p === "/symlink-project") return "/real-project";
+                    // The absolute log dir is already using real paths
+                    return p;
+                }),
+            });
+
+            // Act
+            const result = await resolveWriteEventsDir(env, deps);
+
+            // Assert: accepts the absolute path since it's within the real project root
+            expect(result).toBe("/real-project/logs");
+            expect(deps.writeStderr).not.toHaveBeenCalled();
+        });
+    });
+
     describe("given AGENTSHELL_LOG_DIR that resolves outside project root via symlink", () => {
         it("should fall back to default and write diagnostic to stderr", async () => {
             // Arrange
