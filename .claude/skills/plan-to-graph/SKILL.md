@@ -61,9 +61,9 @@ bd dep add <child_id> <parent_id>
 - When a spec task says **"Depends on: Task N"**, add the corresponding dependency between the two task IDs
 - When tasks within the same epic have no explicit dependencies, they can be treated as parallel (no inter-task dep needed beyond the epic parent)
 
-### 4. Handle Acceptance Criteria
+### 4. Handle Verification Steps
 
-After creating each task, add a comment capturing its verification steps from the spec:
+After creating each task, add a comment capturing its verification steps / acceptance criteria from the spec's checklist:
 
 ```bash
 bd comment <task_id> "Verification: <paste verification checklist from spec>"
