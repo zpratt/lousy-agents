@@ -168,7 +168,7 @@ export async function handlePolicyCheck(deps: PolicyCheckDeps): Promise<void> {
 
         const obj = parsedArgs as Record<string, unknown>;
 
-        if (!("command" in obj)) {
+        if (!Object.hasOwn(obj, "command")) {
             deps.writeStdout(denyResponse("Missing command field in toolArgs"));
             return;
         }

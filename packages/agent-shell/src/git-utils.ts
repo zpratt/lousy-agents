@@ -68,7 +68,8 @@ export function createGetRepositoryRoot(
             );
         }
 
-        if (/[\n\r]/.test(output)) {
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching control characters for sanitization
+        if (/[\u0000-\u001f\u007f]/.test(output)) {
             throw new Error(
                 "Repository root path contains unexpected control characters.",
             );

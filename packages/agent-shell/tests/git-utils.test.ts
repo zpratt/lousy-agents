@@ -112,6 +112,23 @@ describe("Repository root discovery", () => {
         });
     });
 
+    describe("given the git command returns output with other ASCII control characters", () => {
+        it("throws a descriptive error about control characters, not the raw output", () => {
+            // Arrange — ESC (\x1b) is a control character that is not \n or \r
+            const executor: GitCommandExecutor = vi
+                .fn()
+                .mockReturnValue("/valid/path\x1b[31minjected");
+
+            // Act
+            const getRepositoryRoot = createGetRepositoryRoot(executor);
+
+            // Assert
+            expect(() => getRepositoryRoot()).toThrow(
+                "Repository root path contains unexpected control characters",
+            );
+        });
+    });
+
     describe("given the git command returns a non-absolute path with embedded newlines", () => {
         it("throws a descriptive error about control characters, not the raw output", () => {
             // Arrange
