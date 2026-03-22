@@ -47,7 +47,7 @@ Each task listed in the spec's `## Tasks` section becomes a Beads task:
 bd create "<Task Title>" --type task
 ```
 
-Preserve the spec's task titles. Include the task objective in the title when the original title is too terse (e.g., prefer "Add input validation for workflow triggers" over "Task 3").
+Use the task title verbatim from the spec. If the spec title is terse (e.g., "Task 3"), keep it as-is and capture the full objective from the spec's **Objective** field in a follow-up `bd comment` on that task.
 
 ### 3. Wire Dependencies
 
