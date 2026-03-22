@@ -4,7 +4,7 @@ set -euo pipefail
 # renovate: datasource=github-releases depName=dolthub/dolt
 DOLT_VERSION="1.84.0"
 # renovate: datasource=github-releases depName=steveyegge/beads
-BEADS_VERSION="0.61.0"
+BEADS_VERSION="0.62.0"
 
 mise trust -a
 mise install
