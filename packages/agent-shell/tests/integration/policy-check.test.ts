@@ -526,6 +526,90 @@ describe("policy-check mode", () => {
         });
     });
 
+    describe("given a policy load error with control characters in the error message", () => {
+        it("should not write raw control characters to stderr", async () => {
+            // Arrange
+            const command = "echo test";
+            const stdinJson = createStdinJson(
+                "bash",
+                JSON.stringify({ command }),
+            );
+            const maliciousPath =
+                "/fake/repo/.github/hooks/\x1b[31mINJECTED\x1b[0m/policy.json";
+            const loadError = new Error(
+                `ENOENT: no such file or directory, stat '${maliciousPath}'`,
+            );
+            const deps = createDeps({
+                readStdin: vi.fn().mockResolvedValue(stdinJson),
+                policyDeps: {
+                    realpath: vi.fn().mockRejectedValue(loadError),
+                    readFile: vi.fn().mockRejectedValue(loadError),
+                    getRepositoryRoot: vi.fn().mockReturnValue("/fake/repo"),
+                },
+            });
+
+            // Act
+            await handlePolicyCheck(deps);
+
+            // Assert — policy load error is written to stderr but must not contain raw ESC bytes
+            const stderrOutput = deps.stderr.join("");
+            // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally testing for control character absence
+            expect(stderrOutput).not.toMatch(/\x1b/);
+            expect(stderrOutput).toContain("policy load error");
+        });
+    });
+
+    describe("given a telemetry error with control characters in the error message", () => {
+        it("should not write raw control characters to stderr", async () => {
+            // Arrange
+            const command = chance.sentence();
+            const stdinJson = createStdinJson(
+                "bash",
+                JSON.stringify({ command }),
+            );
+            const maliciousPath =
+                "/project/\x1b[31mINJECTED\x1b[0m/.agent-shell/events";
+            const telemetryError = new Error(
+                `EACCES: permission denied, mkdir '${maliciousPath}'`,
+            );
+            const deps = createDeps({
+                readStdin: vi.fn().mockResolvedValue(stdinJson),
+                policyDeps: createMockPolicyDeps(null),
+                telemetryDeps: createMockTelemetryDeps({
+                    mkdir: vi.fn().mockRejectedValue(telemetryError),
+                }),
+            });
+
+            // Act
+            await handlePolicyCheck(deps);
+
+            // Assert — telemetry write error is logged but must not contain raw ESC bytes
+            const stderrOutput = deps.stderr.join("");
+            // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally testing for control character absence
+            expect(stderrOutput).not.toMatch(/\x1b/);
+            expect(stderrOutput).toContain("telemetry");
+        });
+    });
+
+    describe("given an unexpected error with control characters in the error message", () => {
+        it("should not write raw control characters to stderr", async () => {
+            // Arrange
+            const maliciousMsg = "stdin broken \x1b[31mINJECTED\x1b[0m";
+            const deps = createDeps({
+                readStdin: vi.fn().mockRejectedValue(new Error(maliciousMsg)),
+            });
+
+            // Act
+            await handlePolicyCheck(deps);
+
+            // Assert
+            const stderrOutput = deps.stderr.join("");
+            // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally testing for control character absence
+            expect(stderrOutput).not.toMatch(/\x1b/);
+            expect(stderrOutput).toContain("unexpected error");
+        });
+    });
+
     describe("given the response contains special characters in command", () => {
         it("should safely serialize using JSON.stringify", async () => {
             // Arrange

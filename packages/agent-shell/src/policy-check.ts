@@ -17,6 +17,18 @@ export interface PolicyCheckDeps {
 
 const TERMINAL_TOOLS = new Set(["bash", "zsh", "ash", "sh"]);
 
+/**
+ * Strips ASCII control characters from error messages before writing to stderr.
+ * Prevents log/terminal injection when errors embed env-controlled paths.
+ */
+function sanitizeForStderr(err: unknown): string {
+    const msg = err instanceof Error ? err.message : String(err);
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching control characters for sanitization
+    return msg.replace(/[\u0000-\u001f\u007f]/g, (ch) => {
+        return `\\x${ch.charCodeAt(0).toString(16).padStart(2, "0")}`;
+    });
+}
+
 const HookInputSchema = z.object({
     toolName: z.string(),
     toolArgs: z.unknown().optional(),
@@ -71,7 +83,9 @@ async function tryEmitTelemetry(
             }
         }
     } catch (err) {
-        deps.writeStderr(`agent-shell: telemetry write error: ${err}\n`);
+        deps.writeStderr(
+            `agent-shell: telemetry write error: ${sanitizeForStderr(err)}\n`,
+        );
     }
 }
 
@@ -103,7 +117,9 @@ export async function handlePolicyCheck(deps: PolicyCheckDeps): Promise<void> {
         try {
             policy = await loadPolicy(deps.env, deps.policyDeps);
         } catch (err) {
-            deps.writeStderr(`agent-shell: policy load error: ${err}\n`);
+            deps.writeStderr(
+                `agent-shell: policy load error: ${sanitizeForStderr(err)}\n`,
+            );
             deps.writeStdout(denyResponse("Failed to load policy"));
             return;
         }
@@ -182,7 +198,9 @@ export async function handlePolicyCheck(deps: PolicyCheckDeps): Promise<void> {
             result.matchedRule,
         );
     } catch (err) {
-        deps.writeStderr(`agent-shell: unexpected error: ${err}\n`);
+        deps.writeStderr(
+            `agent-shell: unexpected error: ${sanitizeForStderr(err)}\n`,
+        );
         deps.writeStdout(
             denyResponse("Internal error during policy evaluation"),
         );
