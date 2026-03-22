@@ -1,10 +1,14 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { detectActor } from "./actor.js";
 import { captureEnv, captureTags } from "./env-capture.js";
 import { isWithinProjectRoot } from "./path-utils.js";
 import type { ShimResult } from "./shim.js";
-import type { ScriptEndEvent, ShimErrorEvent } from "./types.js";
+import type {
+    PolicyDecisionEvent,
+    ScriptEndEvent,
+    ShimErrorEvent,
+} from "./types.js";
 import { SCHEMA_VERSION } from "./types.js";
 
 export interface TelemetryDeps {
@@ -19,6 +23,31 @@ export interface TelemetryDeps {
 
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const DEFAULT_EVENTS_SUBDIR = ".agent-shell/events";
+
+function isPathNotFoundError(err: unknown): boolean {
+    if (typeof err === "object" && err !== null && "code" in err) {
+        const code = (err as { code: unknown }).code;
+        return code === "ENOENT" || code === "ENOTDIR";
+    }
+    return false;
+}
+
+async function realpathExistingAncestor(
+    targetPath: string,
+    deps: Pick<TelemetryDeps, "realpath">,
+): Promise<string | null> {
+    let current = targetPath;
+    while (true) {
+        try {
+            return await deps.realpath(current);
+        } catch (err) {
+            if (!isPathNotFoundError(err)) throw err;
+            const parent = dirname(current);
+            if (parent === current) return null;
+            current = parent;
+        }
+    }
+}
 
 export function resolveSessionId(
     env: Record<string, string | undefined>,
@@ -55,14 +84,6 @@ export async function resolveWriteEventsDir(
     const logDir = env.AGENTSHELL_LOG_DIR;
 
     if (logDir !== undefined && logDir !== "") {
-        if (logDir.includes("..")) {
-            deps.writeStderr(
-                `agent-shell: AGENTSHELL_LOG_DIR contains path traversal, using default\n`,
-            );
-            await deps.mkdir(defaultDir, { recursive: true });
-            return defaultDir;
-        }
-
         // Reject external paths (including absolute) before any filesystem side-effects
         const resolvedLogical = resolve(projectRoot, logDir);
         if (!isWithinProjectRoot(resolvedLogical, projectRoot)) {
@@ -73,11 +94,30 @@ export async function resolveWriteEventsDir(
             return defaultDir;
         }
 
-        await deps.mkdir(logDir, { recursive: true });
+        // Canonicalize projectRoot once for real-path comparisons; handles symlinked cwd
+        const projectRootReal = await deps.realpath(projectRoot);
 
-        const resolved = await deps.realpath(logDir);
+        // Validate existing ancestor realpath before mkdir to prevent symlink escape
+        const ancestorReal = await realpathExistingAncestor(
+            resolvedLogical,
+            deps,
+        );
+        if (
+            ancestorReal === null ||
+            !isWithinProjectRoot(ancestorReal, projectRootReal)
+        ) {
+            deps.writeStderr(
+                `agent-shell: AGENTSHELL_LOG_DIR resolves outside project root via ancestor symlink, using default\n`,
+            );
+            await deps.mkdir(defaultDir, { recursive: true });
+            return defaultDir;
+        }
 
-        if (!isWithinProjectRoot(resolved, projectRoot)) {
+        await deps.mkdir(resolvedLogical, { recursive: true });
+
+        const resolved = await deps.realpath(resolvedLogical);
+
+        if (!isWithinProjectRoot(resolved, projectRootReal)) {
             deps.writeStderr(
                 `agent-shell: AGENTSHELL_LOG_DIR resolves outside project root, using default\n`,
             );
@@ -95,7 +135,7 @@ export async function resolveWriteEventsDir(
 async function writeEvent(
     eventsDir: string,
     sessionId: string,
-    event: ScriptEndEvent | ShimErrorEvent,
+    event: ScriptEndEvent | ShimErrorEvent | PolicyDecisionEvent,
     deps: TelemetryDeps,
 ): Promise<void> {
     const filePath = join(eventsDir, `${sessionId}.jsonl`);
@@ -169,4 +209,44 @@ export async function emitShimErrorEvent(
     };
 
     await writeEvent(eventsDir, sessionId, event, deps);
+}
+
+export async function emitPolicyDecisionEvent(
+    options: {
+        command: string;
+        decision: "allow" | "deny";
+        matched_rule: string | null;
+        env: Record<string, string | undefined>;
+        projectRoot: string;
+    },
+    deps: TelemetryDeps,
+): Promise<void> {
+    const depsWithProjectRoot: TelemetryDeps = {
+        ...deps,
+        cwd: () => options.projectRoot,
+    };
+
+    const sessionId = resolveSessionId(options.env, deps);
+    const eventsDir = await resolveWriteEventsDir(
+        options.env,
+        depsWithProjectRoot,
+    );
+
+    const capturedEnv = captureEnv(options.env);
+    const tags = captureTags(options.env);
+
+    const event: PolicyDecisionEvent = {
+        v: SCHEMA_VERSION,
+        session_id: sessionId,
+        event: "policy_decision",
+        command: options.command,
+        decision: options.decision,
+        matched_rule: options.matched_rule,
+        actor: detectActor(options.env),
+        timestamp: deps.now(),
+        env: capturedEnv,
+        tags,
+    };
+
+    await writeEvent(eventsDir, sessionId, event, depsWithProjectRoot);
 }
