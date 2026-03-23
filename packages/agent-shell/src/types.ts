@@ -62,31 +62,58 @@ export const PolicyConfigSchema = z
     })
     .strict();
 
+// NOTE: This schema mirrors CopilotHookCommandSchema in @lousy-agents/core
+// (packages/core/src/entities/copilot-hook-schema.ts). Keep them aligned.
+// agent-shell cannot import from core since it is a standalone published binary.
+
+const MAX_HOOKS_PER_EVENT = 100;
+
+/** Regex that allows standard env var names and rejects __proto__ (the prototype-polluting key). */
+const ENV_KEY_PATTERN = /^(?!__proto__$)[a-zA-Z_][a-zA-Z0-9_]*$/;
+
 const HookCommandSchema = z
     .object({
         type: z.literal("command"),
-        bash: z.string().optional(),
-        powershell: z.string().optional(),
+        bash: z
+            .string()
+            .min(1, "Hook bash command must not be empty")
+            .optional(),
+        powershell: z
+            .string()
+            .min(1, "Hook PowerShell command must not be empty")
+            .optional(),
         cwd: z.string().optional(),
         timeoutSec: z.number().positive().optional(),
-        env: z.record(z.string(), z.string()).optional(),
+        env: z
+            .record(
+                z
+                    .string()
+                    .regex(
+                        ENV_KEY_PATTERN,
+                        "Hook env key must be a valid identifier (no prototype-polluting keys)",
+                    ),
+                z.string(),
+            )
+            .optional(),
     })
     .strict()
-    .refine(
-        (data) => data.bash !== undefined || data.powershell !== undefined,
-        { message: "At least one of 'bash' or 'powershell' must be provided" },
-    );
+    .refine((data) => Boolean(data.bash) || Boolean(data.powershell), {
+        message:
+            "At least one of 'bash' or 'powershell' must be provided and non-empty",
+    });
+
+const hookArray = z.array(HookCommandSchema).max(MAX_HOOKS_PER_EVENT);
 
 export const HooksConfigSchema = z
     .object({
         version: z.literal(1),
         hooks: z
             .object({
-                sessionStart: z.array(HookCommandSchema).optional(),
-                userPromptSubmitted: z.array(HookCommandSchema).optional(),
-                preToolUse: z.array(HookCommandSchema).optional(),
-                postToolUse: z.array(HookCommandSchema).optional(),
-                sessionEnd: z.array(HookCommandSchema).optional(),
+                sessionStart: hookArray.optional(),
+                userPromptSubmitted: hookArray.optional(),
+                preToolUse: hookArray.optional(),
+                postToolUse: hookArray.optional(),
+                sessionEnd: hookArray.optional(),
             })
             .strict(),
     })

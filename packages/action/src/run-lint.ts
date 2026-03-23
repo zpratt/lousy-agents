@@ -9,6 +9,7 @@ import type {
 } from "@lousy-agents/core/entities/lint.js";
 import { createFormatter } from "@lousy-agents/core/formatters/index.js";
 import { createAgentLintGateway } from "@lousy-agents/core/gateways/agent-lint-gateway.js";
+import { createHookConfigGateway } from "@lousy-agents/core/gateways/hook-config-gateway.js";
 import { createInstructionFileDiscoveryGateway } from "@lousy-agents/core/gateways/instruction-file-discovery-gateway.js";
 import { createMarkdownAstGateway } from "@lousy-agents/core/gateways/markdown-ast-gateway.js";
 import { createFeedbackLoopCommandsGateway } from "@lousy-agents/core/gateways/script-discovery-gateway.js";
@@ -18,6 +19,8 @@ import { AnalyzeInstructionQualityUseCase } from "@lousy-agents/core/use-cases/a
 import { applySeverityFilter } from "@lousy-agents/core/use-cases/apply-severity-filter.js";
 import type { LintAgentFrontmatterOutput } from "@lousy-agents/core/use-cases/lint-agent-frontmatter.js";
 import { LintAgentFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-agent-frontmatter.js";
+import type { LintHookConfigOutput } from "@lousy-agents/core/use-cases/lint-hook-config.js";
+import { LintHookConfigUseCase } from "@lousy-agents/core/use-cases/lint-hook-config.js";
 import type { LintSkillFrontmatterOutput } from "@lousy-agents/core/use-cases/lint-skill-frontmatter.js";
 import { LintSkillFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-skill-frontmatter.js";
 import type { ActionInputs } from "./validate-inputs.js";
@@ -113,6 +116,49 @@ async function lintAgents(targetDir: string): Promise<LintOutput> {
 }
 
 /**
+ * Converts hook lint output to unified LintOutput.
+ */
+function hookOutputToLintOutput(output: LintHookConfigOutput): LintOutput {
+    const diagnostics: LintDiagnostic[] = [];
+
+    for (const result of output.results) {
+        for (const d of result.diagnostics) {
+            diagnostics.push({
+                filePath: result.filePath,
+                line: d.line,
+                severity: d.severity,
+                message: d.message,
+                field: d.field,
+                ruleId: d.ruleId,
+                target: "hook",
+            });
+        }
+    }
+
+    return {
+        diagnostics,
+        target: "hook",
+        filesAnalyzed: output.results.map((r) => r.filePath),
+        summary: {
+            totalFiles: output.totalFiles,
+            totalErrors: output.totalErrors,
+            totalWarnings: output.totalWarnings,
+            totalInfos: 0,
+        },
+    };
+}
+
+/**
+ * Runs hook configuration linting.
+ */
+async function lintHooks(targetDir: string): Promise<LintOutput> {
+    const gateway = createHookConfigGateway();
+    const useCase = new LintHookConfigUseCase(gateway);
+    const output = await useCase.execute({ targetDir });
+    return hookOutputToLintOutput(output);
+}
+
+/**
  * Runs instruction quality analysis.
  */
 async function lintInstructions(targetDir: string): Promise<LintOutput> {
@@ -159,7 +205,10 @@ export async function runLint(
     const rulesConfig = await loadLintConfig(inputs.directory);
 
     const noFlagProvided =
-        !inputs.skills && !inputs.agents && !inputs.instructions;
+        !inputs.skills &&
+        !inputs.agents &&
+        !inputs.hooks &&
+        !inputs.instructions;
 
     const allOutputs: LintOutput[] = [];
     let totalErrors = 0;
@@ -173,6 +222,13 @@ export async function runLint(
 
     if (noFlagProvided || inputs.agents) {
         const rawOutput = await lintAgents(inputs.directory);
+        const filtered = applySeverityFilter(rawOutput, rulesConfig);
+        allOutputs.push(filtered);
+        totalErrors += filtered.summary.totalErrors;
+    }
+
+    if (noFlagProvided || inputs.hooks) {
+        const rawOutput = await lintHooks(inputs.directory);
         const filtered = applySeverityFilter(rawOutput, rulesConfig);
         allOutputs.push(filtered);
         totalErrors += filtered.summary.totalErrors;

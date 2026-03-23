@@ -1,9 +1,9 @@
 ---
 name: 'Lousy Agents Lint'
 description: >-
-  Lint instructions, agents, and skills via reviewdog. Produces inline
-  check annotations (github-pr-check, default) or PR review comments
-  (github-pr-review) depending on the reporter input.
+  Lint instructions, agents, skills, and hook configurations via reviewdog.
+  Produces inline check annotations (github-pr-check, default) or PR review
+  comments (github-pr-review) depending on the reporter input.
   Requires Node.js >= 20 on the runner (included on GitHub-hosted runners).
 author: 'zpratt'
 
@@ -17,6 +17,12 @@ inputs:
     default: 'false'
   agents:
     description: 'Lint agent frontmatter in .github/agents/'
+    required: false
+    default: 'false'
+  hooks:
+    description: >-
+      Lint pre-tool-use hook configurations in .github/copilot/hooks.json,
+      .claude/settings.json, and .claude/settings.local.json
     required: false
     default: 'false'
   instructions:
@@ -62,6 +68,7 @@ runs:
         INPUT_LEVEL: ${{ inputs.level }}
         INPUT_SKILLS: ${{ inputs.skills }}
         INPUT_AGENTS: ${{ inputs.agents }}
+        INPUT_HOOKS: ${{ inputs.hooks }}
         INPUT_INSTRUCTIONS: ${{ inputs.instructions }}
         DOTENV_CONFIG_QUIET: 'true'
       run: |

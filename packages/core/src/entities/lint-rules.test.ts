@@ -17,11 +17,31 @@ describe("Lint rule registry", () => {
     });
 
     describe("DEFAULT_LINT_RULES", () => {
-        it("should have agents, instructions, and skills targets", () => {
+        it("should have agents, hooks, instructions, and skills targets", () => {
             // Assert
             expect(DEFAULT_LINT_RULES).toHaveProperty("agents");
+            expect(DEFAULT_LINT_RULES).toHaveProperty("hooks");
             expect(DEFAULT_LINT_RULES).toHaveProperty("instructions");
             expect(DEFAULT_LINT_RULES).toHaveProperty("skills");
+        });
+
+        it("should contain all known hook rule IDs", () => {
+            // Arrange
+            const expectedHookRules = [
+                "hook/invalid-json",
+                "hook/invalid-config",
+                "hook/missing-command",
+                "hook/missing-matcher",
+                "hook/missing-timeout",
+            ];
+
+            // Assert
+            for (const ruleId of expectedHookRules) {
+                expect(DEFAULT_LINT_RULES.hooks).toHaveProperty(ruleId);
+            }
+            expect(Object.keys(DEFAULT_LINT_RULES.hooks)).toHaveLength(
+                expectedHookRules.length,
+            );
         });
 
         it("should contain all known agent rule IDs", () => {
@@ -125,6 +145,32 @@ describe("Lint rule registry", () => {
             // Arrange
             const errorRules = Object.entries(DEFAULT_LINT_RULES.skills).filter(
                 ([id]) => id !== "skill/missing-allowed-tools",
+            );
+
+            // Assert
+            for (const [_ruleId, severity] of errorRules) {
+                expect(severity).toBe("error");
+            }
+        });
+
+        it("should default hook/missing-matcher and hook/missing-timeout to warn", () => {
+            // Assert
+            expect(DEFAULT_LINT_RULES.hooks["hook/missing-matcher"]).toBe(
+                "warn",
+            );
+            expect(DEFAULT_LINT_RULES.hooks["hook/missing-timeout"]).toBe(
+                "warn",
+            );
+        });
+
+        it("should default all other hook rules to error", () => {
+            // Arrange
+            const warnRules = new Set([
+                "hook/missing-matcher",
+                "hook/missing-timeout",
+            ]);
+            const errorRules = Object.entries(DEFAULT_LINT_RULES.hooks).filter(
+                ([id]) => !warnRules.has(id),
             );
 
             // Assert

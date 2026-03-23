@@ -280,6 +280,37 @@ describe("Severity filter", () => {
         });
     });
 
+    describe("given a hook target", () => {
+        it("should use the hooks rules config", () => {
+            // Arrange
+            const ruleId = "hook/missing-timeout";
+            const diagnostic = buildDiagnostic({
+                ruleId,
+                severity: "warning",
+                target: "hook",
+            });
+            const output = buildLintOutput({
+                diagnostics: [diagnostic],
+                target: "hook",
+                summary: {
+                    totalFiles: 1,
+                    totalErrors: 0,
+                    totalWarnings: 1,
+                    totalInfos: 0,
+                },
+            });
+            const rules = buildRulesConfig({
+                hooks: { ...DEFAULT_LINT_RULES.hooks, [ruleId]: "off" },
+            });
+
+            // Act
+            const result = applySeverityFilter(output, rules);
+
+            // Assert
+            expect(result.diagnostics).toHaveLength(0);
+        });
+    });
+
     describe("given an instruction target with quality result", () => {
         it("should filter suggestions whose rule is configured as off", () => {
             // Arrange

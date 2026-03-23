@@ -18,12 +18,17 @@ describe("Lint entity types", () => {
     });
 
     describe("LintTarget", () => {
-        it("should accept skill, agent, and instruction values", () => {
+        it("should accept skill, agent, instruction, and hook values", () => {
             // Arrange
-            const targets: LintTarget[] = ["skill", "agent", "instruction"];
+            const targets: LintTarget[] = [
+                "skill",
+                "agent",
+                "instruction",
+                "hook",
+            ];
 
             // Assert
-            expect(targets).toHaveLength(3);
+            expect(targets).toHaveLength(4);
         });
     });
 

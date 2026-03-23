@@ -46,6 +46,13 @@ export {
     SCRIPT_PHASE_MAPPING,
 } from "./feedback-loop.js";
 export type {
+    DiscoveredHookFile,
+    HookLintDiagnostic,
+    HookLintResult,
+    HookLintSeverity,
+    HookPlatform,
+} from "./hook.js";
+export type {
     CommandQualityScores,
     DiscoveredInstructionFile,
     InstructionFileFormat,

@@ -34,6 +34,7 @@ export interface ActionInputs {
     readonly directory: string;
     readonly skills: boolean;
     readonly agents: boolean;
+    readonly hooks: boolean;
     readonly instructions: boolean;
     readonly reporter: Reporter;
     readonly filterMode: FilterMode;
@@ -159,12 +160,14 @@ export async function readActionInputs(
 
     const skills = env.INPUT_SKILLS?.toLowerCase() === "true";
     const agents = env.INPUT_AGENTS?.toLowerCase() === "true";
+    const hooks = env.INPUT_HOOKS?.toLowerCase() === "true";
     const instructions = env.INPUT_INSTRUCTIONS?.toLowerCase() === "true";
 
     return {
         directory,
         skills,
         agents,
+        hooks,
         instructions,
         reporter,
         filterMode,
