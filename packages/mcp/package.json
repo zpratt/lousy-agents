@@ -36,7 +36,7 @@
         "build": "rspack build --config rspack.config.ts && chmod +x dist/mcp-server.js"
     },
     "dependencies": {
-        "@modelcontextprotocol/sdk": "1.27.1",
+        "@modelcontextprotocol/sdk": "1.28.0",
         "yaml": "2.8.3",
         "zod": "4.3.6"
     },
