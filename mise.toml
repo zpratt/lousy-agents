@@ -17,7 +17,6 @@ markdownlint-cli2 = "0.22.0"
 pipx = "latest"
 "pipx:check-jsonschema" = "0.37.1"
 shellcheck = "0.11.0"
-trivy = "0.69.3"
 vhs = "0.11.0"
 yamllint = "1.38.0"                # Created with `mise use --pin yamllint`
 devcontainer-cli = "0.84.1"
@@ -25,11 +24,6 @@ devcontainer-cli = "0.84.1"
 [tasks.yamllint]
 description = "Running yamllint locally on all yaml files"
 run = "yamllint -c ./.yamllintrc ."
-hide = true
-
-[tasks.trivy-fs]
-description = "Running trivy against local files"
-run = "trivy fs --ignorefile .trivyignore ."
 hide = true
 
 [tasks.actionlint]
@@ -68,7 +62,6 @@ run = [
     'check-issue-forms',
     'format-check',
   ] }, # These run in parallel!
-  { task = 'trivy-fs' },
 ]
 
 [tasks.test]

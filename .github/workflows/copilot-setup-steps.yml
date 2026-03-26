@@ -54,7 +54,4 @@ jobs:
           actionlint --version
           yamllint --version
 
-          echo "=== Security Tools ==="
-          trivy --version
-
           echo "=== Development environment ready! ==="

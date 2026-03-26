@@ -74,7 +74,7 @@ checksum = "sha256:23cb60a1354eed6bcc8d9b9735e8c7b388cd1fdcb75726b93bc299ef22dd9
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-windows-amd64.exe"
 
 [[tools.markdownlint-cli2]]
-version = "0.21.0"
+version = "0.22.0"
 backend = "npm:markdownlint-cli2"
 
 [[tools.node]]
@@ -162,7 +162,7 @@ checksum = "sha256:b9eabd835dffe0677e36bd99416fc9837c592bd8c079235379bed3dfe043c
 url = "https://github.com/pypa/pipx/releases/download/1.8.0/pipx.pyz"
 
 [[tools."pipx:check-jsonschema"]]
-version = "0.37.0"
+version = "0.37.1"
 backend = "pipx:check-jsonschema"
 
 [[tools.shellcheck]]
@@ -196,45 +196,6 @@ url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellche
 [tools.shellcheck."platforms.windows-x64"]
 checksum = "sha256:8a4e35ab0b331c85d73567b12f2a444df187f483e5079ceffa6bda1faa2e740e"
 url = "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.zip"
-
-[[tools.trivy]]
-version = "0.69.3"
-backend = "aqua:aquasecurity/trivy"
-
-[tools.trivy."platforms.linux-arm64"]
-checksum = "sha256:7e3924a974e912e57b4a99f65ece7931f8079584dae12eb7845024f97087bdfd"
-url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-ARM64.tar.gz"
-provenance = "cosign"
-
-[tools.trivy."platforms.linux-arm64-musl"]
-checksum = "sha256:7e3924a974e912e57b4a99f65ece7931f8079584dae12eb7845024f97087bdfd"
-url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-ARM64.tar.gz"
-provenance = "cosign"
-
-[tools.trivy."platforms.linux-x64"]
-checksum = "sha256:1816b632dfe529869c740c0913e36bd1629cb7688bd5634f4a858c1d57c88b75"
-url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-64bit.tar.gz"
-provenance = "cosign"
-
-[tools.trivy."platforms.linux-x64-musl"]
-checksum = "sha256:1816b632dfe529869c740c0913e36bd1629cb7688bd5634f4a858c1d57c88b75"
-url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_Linux-64bit.tar.gz"
-provenance = "cosign"
-
-[tools.trivy."platforms.macos-arm64"]
-checksum = "sha256:a2f2179afd4f8bb265ca3c7aefb56a666bc4a9a411663bc0f22c3549fbc643a5"
-url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_macOS-ARM64.tar.gz"
-provenance = "cosign"
-
-[tools.trivy."platforms.macos-x64"]
-checksum = "sha256:fec4a9f7569b624dd9d044fca019e5da69e032700edbb1d7318972c448ec2f4e"
-url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_macOS-64bit.tar.gz"
-provenance = "cosign"
-
-[tools.trivy."platforms.windows-x64"]
-checksum = "sha256:74362dc711383255308230ecbeb587eb1e4e83a8d332be5b0259afac6e0c2224"
-url = "https://github.com/aquasecurity/trivy/releases/download/v0.69.3/trivy_0.69.3_windows-64bit.zip"
-provenance = "cosign"
 
 [[tools.vhs]]
 version = "0.11.0"

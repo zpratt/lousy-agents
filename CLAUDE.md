@@ -13,7 +13,7 @@ Mise manages all tools and Node versions. Use file-scoped commands for faster fe
 ```bash
 # Core commands
 mise run test            # Run tests (vitest)
-mise run lint            # Run ALL linting tools in parallel (Biome, actionlint, yamllint, markdownlint, shellcheck, issue-form schemas, Trivy)
+mise run lint            # Run ALL linting tools in parallel (Biome, actionlint, yamllint, markdownlint, shellcheck, issue-form schemas)
 mise run format-check    # Biome only — code formatting + static analysis
 mise run format-fix      # Auto-fix Biome lint/format issues
 npm run build            # Production build
@@ -52,7 +52,7 @@ Follow this sequence for ALL code changes. Work in small increments — one chan
 7. **Verify refactor**: Run `mise run test && mise run lint` — confirm tests still green and all linting passes
 8. **Validate**: Run `mise run ci` — runs `mise run lint`, `mise run test`, and `mise run smoke-test` (which builds then exercises the CLI)
 
-Task is NOT complete until step 8 validation passes. Never skip `mise run lint` — it runs Biome, actionlint, yamllint, markdownlint, shellcheck, issue-form schema validation, and Trivy.
+Task is NOT complete until step 8 validation passes. Never skip `mise run lint` — it runs Biome, actionlint, yamllint, markdownlint, shellcheck, and issue-form schema validation.
 
 ---
 
