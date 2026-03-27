@@ -48,7 +48,7 @@
         "@types/chance": "1.1.7",
         "@types/mdast": "4.0.4",
         "@types/node": "25.5.0",
-        "@upstash/context7-mcp": "2.1.4",
+        "@upstash/context7-mcp": "2.1.6",
         "chance": "1.1.13",
         "fast-check": "4.6.0",
         "testcontainers": "11.13.0",
