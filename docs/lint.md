@@ -280,7 +280,7 @@ Validates hook configuration files for GitHub Copilot and Claude Code. Catches J
 | `.claude/settings.json` | Claude Code |
 | `.claude/settings.local.json` | Claude Code (local override) |
 
-Files are only discovered when they exist and contain hook configuration sections. Symlinks are skipped for security.
+Discovery is heuristic-based: Copilot hook configs are only discovered if they contain the `"preToolUse"` key, and Claude settings files are only discovered if they contain the `"PreToolUse"` key. For example, a `.github/copilot/hooks.json` file that only defines `sessionStart` hooks (and no `preToolUse` hooks) will not be discovered or linted. Symlinks are skipped for security.
 
 ### What It Validates
 
@@ -322,7 +322,7 @@ All hook config(s) passed lint checks
 
 ```
 Discovered 1 hook config(s)
-✖ .github/copilot/hooks.json:1 [hooks.preToolUse[0]]: At least one of 'bash' or 'powershell' must be provided and non-empty
+✖ .github/copilot/hooks.json:1 [hooks.preToolUse.0]: At least one of 'bash' or 'powershell' must be provided and non-empty
 lint failed: 1 error(s), 0 warning(s)
 ```
 

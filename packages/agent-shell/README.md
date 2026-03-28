@@ -147,7 +147,7 @@ agent-shell includes a `policy-check` subcommand that evaluates shell commands a
 
 The policy-check command is designed to be used as a [GitHub Copilot pre-tool-use hook](https://docs.github.com/en/copilot/customizing-copilot/extending-copilot-coding-agent-with-pre-and-post-tool-use-hooks). It reads a JSON request from stdin containing the tool name and arguments, evaluates the command against a policy file, and writes a permission decision to stdout.
 
-Only terminal tools (`bash`, `zsh`, `ash`, `sh`) have their commands evaluated against policy rules. Non-terminal tools are always allowed.
+Only terminal tools (`bash`, `zsh`, `ash`, `sh`) have their commands evaluated against policy rules when the policy file loads successfully; non-terminal tools are then allowed without policy evaluation. If the default policy file is missing, all tools are allowed, but if the policy file is present and malformed or invalid, all tools are denied.
 
 ### Policy File
 
@@ -166,7 +166,7 @@ By default, the policy file is located at `.github/hooks/agent-shell/policy.json
 2. If an `allow` list exists and the command does not match any pattern → **deny**
 3. Otherwise → **allow**
 
-Patterns support `*` wildcards for prefix, suffix, and infix matching (e.g., `npm run *` matches `npm run test`). The security model is fail-closed: if the policy file is missing, malformed, or cannot be loaded, commands are denied.
+Patterns support `*` wildcards for prefix, suffix, and infix matching (e.g., `npm run *` matches `npm run test`). When using the default policy path, a missing policy file results in all commands being allowed. When `AGENTSHELL_POLICY_PATH` is set and the referenced policy file is missing, malformed, or cannot be loaded, commands are denied (fail-closed).
 
 ### Copilot Hook Configuration
 
