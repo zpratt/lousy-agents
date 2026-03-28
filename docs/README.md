@@ -17,8 +17,9 @@ Welcome to the Lousy Agents documentation! This directory contains detailed docu
   - Agent file structure
   - Usage examples
 
-- **[`lint` Command](lint.md)** - Validate skills, agents, and instruction files
+- **[`lint` Command](lint.md)** - Validate skills, agents, hook configurations, and instruction files
   - Skill and agent frontmatter validation
+  - Hook configuration validation for Copilot and Claude Code
   - Instruction quality analysis (structural context, execution clarity, loop completeness)
   - Multiple output formats (human, JSON, reviewdog)
   - CI integration
@@ -69,11 +70,12 @@ The `new` command creates new resources for your project. See the [complete new 
 
 ### `lint`
 
-The `lint` command validates skills, agents, and instruction files. See the [complete lint documentation](lint.md) for:
+The `lint` command validates skills, agents, hook configurations, and instruction files. See the [complete lint documentation](lint.md) for:
 
 - Skill and agent frontmatter validation
+- Hook configuration validation for Copilot and Claude Code
 - Instruction quality analysis
-- Target flags (`--skills`, `--agents`, `--instructions`)
+- Target flags (`--skills`, `--agents`, `--hooks`, `--instructions`)
 - Output formats (`--format human|json|rdjsonl`)
 - CI integration
 
@@ -83,6 +85,7 @@ The `copilot-setup` command analyzes your project and generates GitHub Actions w
 
 - Environment detection capabilities
 - Workflow analysis and merging
+- Dry-run mode for previewing changes
 - Version file support
 - Generated workflow examples
 - Copilot PR review ruleset creation (with GHAS-aware code scanning)

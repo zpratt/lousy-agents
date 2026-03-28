@@ -139,6 +139,82 @@ agent-shell log --list-sessions
 | `2h` | Last 2 hours |
 | `1d` | Last 1 day |
 
+## Policy-Based Command Blocking
+
+agent-shell includes a `policy-check` subcommand that evaluates shell commands against allow/deny rules before execution. This enables repository maintainers to define which commands AI agents are permitted to run via a pre-tool-use hook.
+
+### How It Works
+
+The policy-check command is designed to be used as a [GitHub Copilot pre-tool-use hook](https://docs.github.com/en/copilot/customizing-copilot/extending-copilot-coding-agent-with-pre-and-post-tool-use-hooks). It reads a JSON request from stdin containing the tool name and arguments, evaluates the command against a policy file, and writes a permission decision to stdout.
+
+Only terminal tools (`bash`, `zsh`, `ash`, `sh`) have their commands evaluated against policy rules when the policy file loads successfully; non-terminal tools are then allowed without policy evaluation. If the default policy file is missing, all tools are allowed, but if the policy file is present and malformed or invalid, all tools are denied.
+
+### Policy File
+
+By default, the policy file is located at `.github/hooks/agent-shell/policy.json` relative to the repository root. Override the location with the `AGENTSHELL_POLICY_PATH` environment variable.
+
+```json
+{
+  "allow": ["npm test", "npm run lint*", "git status"],
+  "deny": ["npm publish", "rm -rf *"]
+}
+```
+
+**Evaluation order:**
+
+1. If the command matches any `deny` pattern → **deny**
+2. If an `allow` list exists and the command does not match any pattern → **deny**
+3. Otherwise → **allow**
+
+Patterns support `*` wildcards for prefix, suffix, and infix matching (e.g., `npm run *` matches `npm run test`). When using the default policy path, a missing policy file results in all commands being allowed. When `AGENTSHELL_POLICY_PATH` is set and the referenced policy file is missing, malformed, or cannot be loaded, commands are denied (fail-closed).
+
+### Copilot Hook Configuration
+
+Add the following to `.github/copilot/hooks.json` to use policy-check as a pre-tool-use hook:
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "timeoutSec": 30,
+        "bash": "agent-shell policy-check"
+      }
+    ]
+  }
+}
+```
+
+### Input/Output Format
+
+**Input** (JSON via stdin):
+
+```json
+{
+  "toolName": "bash",
+  "toolArgs": "{\"command\": \"npm test\"}"
+}
+```
+
+**Output** (JSON to stdout):
+
+```json
+{"permissionDecision": "allow"}
+```
+
+Or when denied:
+
+```json
+{
+  "permissionDecision": "deny",
+  "permissionDecisionReason": "Command 'npm publish' denied by policy rule: npm publish"
+}
+```
+
+Policy decisions are recorded as telemetry events alongside regular script execution events.
+
 ## Environment Variables
 
 | Variable | Purpose | Default |
@@ -147,6 +223,7 @@ agent-shell log --list-sessions
 | `AGENTSHELL_ACTOR` | Override automatic actor detection | Unset (heuristic detection) |
 | `AGENTSHELL_SESSION_ID` | Shared session ID for event correlation | Unset (fresh UUID per invocation) |
 | `AGENTSHELL_LOG_DIR` | Override event file directory | `.agent-shell/events/` |
+| `AGENTSHELL_POLICY_PATH` | Override policy file location for `policy-check` | `.github/hooks/agent-shell/policy.json` |
 | `AGENTSHELL_TAG_<key>` | Attach custom key=value metadata to events | None |
 
 ### Custom Tags
