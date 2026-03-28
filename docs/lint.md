@@ -1,12 +1,13 @@
 # `lint` Command
 
-Validates agent skills, custom agents, and instruction files. Discovers lint targets in the repository, checks YAML frontmatter and instruction quality, and reports diagnostics with line numbers.
+Validates agent skills, custom agents, hook configurations, and instruction files. Discovers lint targets in the repository, checks YAML frontmatter, JSON configuration, and instruction quality, and reports diagnostics with line numbers.
 
 ## Features
 
-- **Unified Linting**: Lint skills, agents, and instruction files through a single command
-- **Automatic Discovery**: Finds targets across `.github/skills/`, `.claude/skills/`, `.github/agents/`, and instruction file locations
+- **Unified Linting**: Lint skills, agents, hook configurations, and instruction files through a single command
+- **Automatic Discovery**: Finds targets across `.github/skills/`, `.claude/skills/`, `.github/agents/`, `.github/copilot/`, `.claude/`, and instruction file locations
 - **Frontmatter Validation**: Checks for required fields and validates their format
+- **Hook Configuration Validation**: Validates JSON hook config files for Copilot and Claude Code against expected schemas
 - **Instruction Quality Analysis**: Scores feedback loop documentation across three dimensions (structural context, execution clarity, loop completeness)
 - **Line-Level Diagnostics**: Reports errors and warnings with exact line numbers
 - **Multiple Output Formats**: Human-readable (default), JSON, and reviewdog-compatible JSON Lines
@@ -29,6 +30,9 @@ export default {
       agents: {
         "agent/invalid-name-format": "warn",
         "agent/name-mismatch": "off",
+      },
+      hooks: {
+        "hook/missing-timeout": "off",
       },
       instructions: {
         "instruction/command-outside-section": "off",
@@ -56,6 +60,7 @@ When no configuration file is found, or when a rule is not specified in the conf
 - **Agent rules**: All default to `"error"` except `agent/invalid-field` which defaults to `"warn"`
 - **Instruction rules**: All default to `"warn"`
 - **Skill rules**: All default to `"error"` except `skill/missing-allowed-tools` which defaults to `"warn"`
+- **Hook rules**: All default to `"error"` except `hook/missing-matcher` and `hook/missing-timeout` which default to `"warn"`
 
 ### Configuration File Formats
 
@@ -79,7 +84,7 @@ Run from your project root to lint everything (skills, agents, and instructions)
 npx @lousy-agents/cli lint
 ```
 
-When no target flags are provided, the command runs all three linters.
+When no target flags are provided, the command runs all linters (skills, agents, hooks, and instructions).
 
 ### Target Flags
 
@@ -89,6 +94,7 @@ Use flags to lint specific targets:
 | ------ | ------------- |
 | `--skills` | Lint skill frontmatter in `.github/skills/` and `.claude/skills/` |
 | `--agents` | Lint agent frontmatter in `.github/agents/` |
+| `--hooks` | Lint hook configuration files for Copilot and Claude Code |
 | `--instructions` | Analyze instruction quality across all instruction file formats |
 | `--format <type>` | Output format: `human` (default), `json`, or `rdjsonl` |
 
@@ -98,6 +104,9 @@ npx @lousy-agents/cli lint --skills
 
 # Lint only agents
 npx @lousy-agents/cli lint --agents
+
+# Lint only hook configurations
+npx @lousy-agents/cli lint --hooks
 
 # Analyze only instruction quality
 npx @lousy-agents/cli lint --instructions
@@ -259,6 +268,74 @@ No instruction files found
 
 ---
 
+## Hook Configuration Linting (`--hooks`)
+
+Validates hook configuration files for GitHub Copilot and Claude Code. Catches JSON syntax errors, schema violations, and missing recommended fields before hooks are used at runtime.
+
+### Discovered Files
+
+| File Path | Platform |
+| --------- | -------- |
+| `.github/copilot/hooks.json` | GitHub Copilot |
+| `.claude/settings.json` | Claude Code |
+| `.claude/settings.local.json` | Claude Code (local override) |
+
+Files are only discovered when they exist and contain hook configuration sections. Symlinks are skipped for security.
+
+### What It Validates
+
+**Copilot hooks** (`.github/copilot/hooks.json`):
+
+- `version` must be `1`
+- Hook lifecycle arrays: `sessionStart`, `userPromptSubmitted`, `preToolUse`, `postToolUse`, `sessionEnd`
+- Each command must have at least one of `bash` or `powershell` (non-empty)
+- Recommends `timeoutSec` for each hook command
+
+**Claude Code hooks** (`.claude/settings.json`, `.claude/settings.local.json`):
+
+- `hooks.PreToolUse` array with at least one entry
+- Each entry must have a `hooks` array with at least one command
+- Each command must have a non-empty `command` field
+- Recommends `matcher` field on each `PreToolUse` entry (without it, hooks run for all tools)
+
+### Rule IDs
+
+| Rule ID | Default Severity | Description |
+| --------- | ----------------- | ------------- |
+| `hook/invalid-json` | `error` | JSON parsing failed |
+| `hook/invalid-config` | `error` | Configuration structure does not match expected schema |
+| `hook/missing-command` | `error` | Hook command field missing or empty |
+| `hook/missing-matcher` | `warn` | Recommended `matcher` field missing from Claude `PreToolUse` entry |
+| `hook/missing-timeout` | `warn` | Recommended `timeoutSec` field missing from Copilot hook command |
+
+### Examples
+
+#### Successful Hook Lint
+
+```
+Discovered 1 hook config(s)
+✔ .github/copilot/hooks.json: OK
+All hook config(s) passed lint checks
+```
+
+#### Hook Lint With Errors
+
+```
+Discovered 1 hook config(s)
+✖ .github/copilot/hooks.json:1 [hooks.preToolUse[0]]: At least one of 'bash' or 'powershell' must be provided and non-empty
+lint failed: 1 error(s), 0 warning(s)
+```
+
+#### Hook Lint With Warnings
+
+```
+Discovered 1 hook config(s)
+⚠ .claude/settings.json:1 [hooks.PreToolUse[0].matcher]: Recommended field 'matcher' is missing from PreToolUse hook entry. Without a matcher, the hook runs for all tools.
+All hook config(s) passed lint checks (1 warning)
+```
+
+---
+
 ## Output Formats (`--format`)
 
 ### Human (default)
@@ -331,6 +408,9 @@ The `lint` command returns a non-zero exit code when errors are found, making it
 - name: Lint custom agents
   run: npx @lousy-agents/cli lint --agents
 
+- name: Lint hook configurations
+  run: npx @lousy-agents/cli lint --hooks
+
 # Machine-readable output for reviewdog
 - name: Lint with reviewdog
   run: npx @lousy-agents/cli lint --format rdjsonl | reviewdog -f=rdjsonl
@@ -367,7 +447,7 @@ jobs:
           github_token: ${{ github.token }}
 ```
 
-When no target inputs are set, the action lints all targets (skills, agents, and instructions).
+When no target inputs are set, the action lints all targets (skills, agents, hooks, and instructions).
 
 ### Inputs
 
@@ -376,6 +456,7 @@ When no target inputs are set, the action lints all targets (skills, agents, and
 | `github_token` | Yes | — | GitHub token for reviewdog API access |
 | `skills` | No | `false` | Lint skill frontmatter in `.github/skills/` and `.claude/skills/` |
 | `agents` | No | `false` | Lint agent frontmatter in `.github/agents/` |
+| `hooks` | No | `false` | Lint hook configuration files for Copilot and Claude Code |
 | `instructions` | No | `false` | Lint instruction quality |
 | `directory` | No | `.` | Target directory to lint |
 | `reporter` | No | `github-pr-check` | reviewdog reporter (`github-pr-check`, `github-pr-review`, `github-check`) |

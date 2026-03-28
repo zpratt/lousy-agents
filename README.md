@@ -81,7 +81,7 @@ AI coding assistants work best when given clear constraints. Without structure, 
 
 - **[`init`](docs/init.md)** - Scaffold new projects with testing, linting, and Copilot configuration
 - **[`new`](docs/new.md)** - Create new resources like custom GitHub Copilot agents
-- **[`lint`](docs/lint.md)** - Validate skills, agents, and instruction files
+- **[`lint`](docs/lint.md)** - Validate skills, agents, hook configurations, and instruction files
 - **[`copilot-setup`](docs/copilot-setup.md)** - Generate GitHub Actions workflows for Copilot environment setup
 
 ### MCP Server
@@ -90,7 +90,7 @@ AI coding assistants work best when given clear constraints. Without structure, 
 
 ### Companion Tools
 
-- **[agent-shell](packages/agent-shell/README.md)** - A flight recorder for npm script execution. Records independent telemetry of what scripts ran, who initiated them, and whether they succeeded.
+- **[agent-shell](packages/agent-shell/README.md)** - A flight recorder for npm script execution with policy-based command blocking. Records independent telemetry of what scripts ran, who initiated them, and whether they succeeded.
 
 ![agent-shell demo](media/agent-shell.gif)
 
@@ -146,7 +146,7 @@ For detailed documentation on each command, see:
 
 - **[`init` command](docs/init.md)** - Scaffold new projects
 - **[`new` command](docs/new.md)** - Create new resources
-- **[`lint` command](docs/lint.md)** - Validate skills, agents, and instruction files
+- **[`lint` command](docs/lint.md)** - Validate skills, agents, hook configurations, and instruction files
 - **[`copilot-setup` command](docs/copilot-setup.md)** - Generate Copilot workflows
 - **[MCP Server](docs/mcp-server.md)** - AI assistant integration
 
@@ -170,7 +170,7 @@ npx @lousy-agents/cli new --copilot-agent security
 npx @lousy-agents/cli copilot-setup
 ```
 
-**Lint skills, agents, and instructions:**
+**Lint skills, agents, hooks, and instructions:**
 
 ```bash
 npx @lousy-agents/cli lint
@@ -199,6 +199,8 @@ Use the root install to work on all workspace packages together. The root `npm r
 | Copilot agent and skill scaffolding | ✅ Complete |
 | Agent skill frontmatter linting | ✅ Complete |
 | Agent and instruction quality linting | ✅ Complete |
+| Hook configuration linting | ✅ Complete |
+| Policy-based command blocking (agent-shell) | ✅ Complete |
 | MCP server package | ✅ Complete |
 | Claude Code web environment setup | ✅ Complete |
 
@@ -207,7 +209,7 @@ Use the root install to work on all workspace packages together. The root `npm r
 - **[Start with `init`](docs/init.md)** - Scaffold a project with the CLI
 - **[Then `copilot-setup`](docs/copilot-setup.md)** - Generate workflow setup for existing repositories
 - **[`new` Command](docs/new.md)** - Create new resources after your scaffold is in place
-- **[`lint` Command](docs/lint.md)** - Validate skills, agents, and instruction files
+- **[`lint` Command](docs/lint.md)** - Validate skills, agents, hook configurations, and instruction files
 - **[MCP Server](docs/mcp-server.md)** - Configure the separately published `@lousy-agents/mcp` package
 - **[agent-shell](packages/agent-shell/README.md)** - Add npm script execution telemetry
 

@@ -30,6 +30,25 @@ This will:
 2. Parse existing GitHub Actions workflows for setup actions
 3. Generate or update `.github/workflows/copilot-setup-steps.yml`
 
+### Dry Run
+
+Preview what changes would be made without modifying any files:
+
+```bash
+npx @lousy-agents/cli copilot-setup --dry-run
+```
+
+In dry-run mode, the command performs all detection and analysis but skips file writes, directory creation, ruleset creation, and `.npmrc` modifications. Each skipped action is logged with a `[DRY-RUN]` prefix:
+
+```
+ℹ [DRY-RUN MODE] No files will be modified
+ℹ Detecting environment configuration...
+✔ Found version files: .nvmrc
+ℹ [DRY-RUN] Would create copilot-setup-steps.yml with 2 step(s)
+ℹ [DRY-RUN] Would create Copilot PR review ruleset: "Copilot Code Review"
+ℹ [DRY-RUN] Would add agent-shell to .npmrc
+```
+
 ### What It Detects
 
 **Version Files**:
