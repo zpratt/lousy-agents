@@ -179,6 +179,7 @@ Add the following to `.github/copilot/hooks.json` to use policy-check as a pre-t
     "preToolUse": [
       {
         "type": "command",
+        "timeoutSec": 30,
         "bash": "agent-shell policy-check"
       }
     ]

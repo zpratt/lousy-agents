@@ -78,7 +78,7 @@ The configuration is loaded using [c12](https://github.com/unjs/c12) with the na
 
 ### Basic Usage
 
-Run from your project root to lint everything (skills, agents, and instructions):
+Run from your project root to lint everything (skills, agents, hooks, and instructions):
 
 ```bash
 npx @lousy-agents/cli lint
@@ -331,7 +331,7 @@ lint failed: 1 error(s), 0 warning(s)
 ```
 Discovered 1 hook config(s)
 ⚠ .claude/settings.json:1 [hooks.PreToolUse[0].matcher]: Recommended field 'matcher' is missing from PreToolUse hook entry. Without a matcher, the hook runs for all tools.
-All hook config(s) passed lint checks (1 warning)
+Lint passed with 1 warning(s)
 ```
 
 ---
