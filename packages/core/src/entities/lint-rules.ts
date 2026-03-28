@@ -12,6 +12,7 @@ export type RuleConfigMap = Readonly<Record<string, RuleSeverityConfig>>;
 /** Lint configuration organized by target */
 export interface LintRulesConfig {
     readonly agents: RuleConfigMap;
+    readonly hooks: RuleConfigMap;
     readonly instructions: RuleConfigMap;
     readonly skills: RuleConfigMap;
 }
@@ -27,6 +28,13 @@ export const DEFAULT_LINT_RULES: LintRulesConfig = {
         "agent/missing-description": "error",
         "agent/invalid-description": "error",
         "agent/invalid-field": "warn",
+    },
+    hooks: {
+        "hook/invalid-json": "error",
+        "hook/invalid-config": "error",
+        "hook/missing-command": "error",
+        "hook/missing-matcher": "warn",
+        "hook/missing-timeout": "warn",
     },
     instructions: {
         "instruction/parse-error": "warn",

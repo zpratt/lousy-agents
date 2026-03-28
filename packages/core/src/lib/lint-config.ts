@@ -21,6 +21,7 @@ const RuleConfigMapSchema = z.record(
 /** Zod schema for the lint.rules section of the config */
 const LintRulesConfigSchema = z.object({
     agents: RuleConfigMapSchema.optional(),
+    hooks: RuleConfigMapSchema.optional(),
     instructions: RuleConfigMapSchema.optional(),
     skills: RuleConfigMapSchema.optional(),
 });
@@ -86,6 +87,7 @@ export async function loadLintConfig(
 
     return {
         agents: mergeTargetRules(DEFAULT_LINT_RULES.agents, rules.agents),
+        hooks: mergeTargetRules(DEFAULT_LINT_RULES.hooks, rules.hooks),
         instructions: mergeTargetRules(
             DEFAULT_LINT_RULES.instructions,
             rules.instructions,

@@ -1,6 +1,7 @@
 /**
  * Shared lint diagnostic types for all lint targets.
- * Provides a unified diagnostic model for skills, agents, and instructions.
+ * Provides a unified diagnostic model across all supported lint targets
+ * (skills, agents, instructions, and hooks).
  */
 
 import type { InstructionQualityResult } from "./instruction-quality.js";
@@ -9,7 +10,7 @@ import type { InstructionQualityResult } from "./instruction-quality.js";
 export type LintSeverity = "error" | "warning" | "info";
 
 /** A lint target category */
-export type LintTarget = "skill" | "agent" | "instruction";
+export type LintTarget = "skill" | "agent" | "instruction" | "hook";
 
 /** A single lint diagnostic */
 export interface LintDiagnostic {

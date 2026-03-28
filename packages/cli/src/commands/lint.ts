@@ -14,6 +14,7 @@ import {
     type LintFormatType,
 } from "@lousy-agents/core/formatters/index.js";
 import { createAgentLintGateway } from "@lousy-agents/core/gateways/agent-lint-gateway.js";
+import { createHookConfigGateway } from "@lousy-agents/core/gateways/hook-config-gateway.js";
 import { createInstructionFileDiscoveryGateway } from "@lousy-agents/core/gateways/instruction-file-discovery-gateway.js";
 import { createMarkdownAstGateway } from "@lousy-agents/core/gateways/markdown-ast-gateway.js";
 import { createFeedbackLoopCommandsGateway } from "@lousy-agents/core/gateways/script-discovery-gateway.js";
@@ -23,6 +24,8 @@ import { AnalyzeInstructionQualityUseCase } from "@lousy-agents/core/use-cases/a
 import { applySeverityFilter } from "@lousy-agents/core/use-cases/apply-severity-filter.js";
 import type { LintAgentFrontmatterOutput } from "@lousy-agents/core/use-cases/lint-agent-frontmatter.js";
 import { LintAgentFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-agent-frontmatter.js";
+import type { LintHookConfigOutput } from "@lousy-agents/core/use-cases/lint-hook-config.js";
+import { LintHookConfigUseCase } from "@lousy-agents/core/use-cases/lint-hook-config.js";
 import type { LintSkillFrontmatterOutput } from "@lousy-agents/core/use-cases/lint-skill-frontmatter.js";
 import { LintSkillFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-skill-frontmatter.js";
 import type { CommandContext } from "citty";
@@ -179,6 +182,49 @@ async function lintAgents(targetDir: string): Promise<LintOutput> {
 }
 
 /**
+ * Converts hook lint output to unified LintOutput.
+ */
+function hookOutputToLintOutput(output: LintHookConfigOutput): LintOutput {
+    const diagnostics: LintDiagnostic[] = [];
+
+    for (const result of output.results) {
+        for (const d of result.diagnostics) {
+            diagnostics.push({
+                filePath: result.filePath,
+                line: d.line,
+                severity: d.severity,
+                message: d.message,
+                field: d.field,
+                ruleId: d.ruleId,
+                target: "hook",
+            });
+        }
+    }
+
+    return {
+        diagnostics,
+        target: "hook",
+        filesAnalyzed: output.results.map((r) => r.filePath),
+        summary: {
+            totalFiles: output.totalFiles,
+            totalErrors: output.totalErrors,
+            totalWarnings: output.totalWarnings,
+            totalInfos: 0,
+        },
+    };
+}
+
+/**
+ * Runs hook configuration linting.
+ */
+async function lintHooks(targetDir: string): Promise<LintOutput> {
+    const gateway = createHookConfigGateway();
+    const useCase = new LintHookConfigUseCase(gateway);
+    const output = await useCase.execute({ targetDir });
+    return hookOutputToLintOutput(output);
+}
+
+/**
  * Runs instruction quality analysis.
  */
 async function lintInstructions(targetDir: string): Promise<LintOutput> {
@@ -250,7 +296,7 @@ export const lintCommand = defineCommand({
     meta: {
         name: "lint",
         description:
-            "Lint agent skills, custom agents, and instruction files. Validates frontmatter and instruction quality.",
+            "Lint agent skills, custom agents, instruction files, and hook configurations. Validates frontmatter, instruction quality, and hook config schemas.",
     },
     args: {
         skills: {
@@ -262,6 +308,12 @@ export const lintCommand = defineCommand({
         agents: {
             type: "boolean",
             description: "Lint custom agent frontmatter in .github/agents/",
+            default: false,
+        },
+        hooks: {
+            type: "boolean",
+            description:
+                "Lint pre-tool-use hook configurations in .github/copilot/hooks.json, .claude/settings.json, and .claude/settings.local.json",
             default: false,
         },
         instructions: {
@@ -299,12 +351,17 @@ export const lintCommand = defineCommand({
             context.args?.skills === true || context.data?.skills === true;
         const lintAgentsFlag =
             context.args?.agents === true || context.data?.agents === true;
+        const lintHooksFlag =
+            context.args?.hooks === true || context.data?.hooks === true;
         const lintInstructionsFlag =
             context.args?.instructions === true ||
             context.data?.instructions === true;
 
         const noFlagProvided =
-            !lintSkillsFlag && !lintAgentsFlag && !lintInstructionsFlag;
+            !lintSkillsFlag &&
+            !lintAgentsFlag &&
+            !lintHooksFlag &&
+            !lintInstructionsFlag;
 
         const formatValue =
             (context.args?.format as string) ??
@@ -336,6 +393,14 @@ export const lintCommand = defineCommand({
             totalWarnings += agentOutput.summary.totalWarnings;
         }
 
+        if (noFlagProvided || lintHooksFlag) {
+            const rawOutput = await lintHooks(targetDir);
+            const hookOutput = applySeverityFilter(rawOutput, rulesConfig);
+            allOutputs.push(hookOutput);
+            totalErrors += hookOutput.summary.totalErrors;
+            totalWarnings += hookOutput.summary.totalWarnings;
+        }
+
         if (noFlagProvided || lintInstructionsFlag) {
             const rawOutput = await lintInstructions(targetDir);
             const instructionOutput = applySeverityFilter(
@@ -350,6 +415,7 @@ export const lintCommand = defineCommand({
         const targetLabels: Record<string, string> = {
             skill: "skill(s)",
             agent: "agent(s)",
+            hook: "hook config(s)",
             instruction: "instruction file(s)",
         };
 
