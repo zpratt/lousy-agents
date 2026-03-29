@@ -124,6 +124,9 @@ export function generateHooksConfig(): GeneratedHooksConfig {
                 {
                     type: "command",
                     bash: "agent-shell policy-check",
+                    // 30s is generous for a fast JSON parse + policy eval;
+                    // provides headroom for cold-start or slow disk I/O
+                    // without blocking the agent indefinitely.
                     timeoutSec: 30,
                 },
             ],

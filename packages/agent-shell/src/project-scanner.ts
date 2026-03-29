@@ -150,8 +150,11 @@ async function discoverWorkflowCommands(targetDir: string): Promise<string[]> {
 }
 
 /**
- * Shell builtins and control flow patterns that should not appear
- * in an allow list.
+ * Patterns that match shell control structures, variable assignments,
+ * and other non-command lines extracted from multi-line workflow `run:`
+ * blocks. These are filtered out because they are not meaningful tool
+ * invocations that should appear in a policy allow list — only actual
+ * commands (npm, mise, node, git, etc.) are useful for policy rules.
  */
 const SHELL_NOISE_PATTERNS = [
     /^(if|then|else|elif|fi|for|while|do|done|case|esac)\b/,
