@@ -146,7 +146,41 @@ async function discoverWorkflowCommands(targetDir: string): Promise<string[]> {
     }
 
     // Deduplicate
-    return [...new Set(allCommands)];
+    return [...new Set(allCommands)].filter(isUsefulCommand);
+}
+
+/**
+ * Shell builtins and control flow patterns that should not appear
+ * in an allow list.
+ */
+const SHELL_NOISE_PATTERNS = [
+    /^(if|then|else|elif|fi|for|while|do|done|case|esac)\b/,
+    /^(set\s+[+-]e|set\s+[+-]o)/,
+    /^(exit\s+\d|exit\s+\$)/,
+    /^\w+="?\$\{\{/, // variable assignments from GH expressions
+    /^[A-Z_]+=("[^"]*"|'[^']*'|\S+)\s*\\?$/, // env var assignments
+    /^(echo|printf)\s/, // echo/printf statements
+    /^(cd|mkdir|rm|test)\s/, // directory manipulation and test assertions
+    /^>\s/, // redirections
+    /^(else|fi|done|esac)$/, // bare control flow keywords
+    /^\w+=\$\?$/, // exit code capture
+    /^\\$/, // line continuations
+    /^'[^']*'\s*\\?$/, // bare string arguments (continuation lines)
+    /^"[^"]*"\s*\\?$/, // bare double-quoted strings
+    /^node\s+"?\$/, // node with variable script path
+];
+
+function isUsefulCommand(cmd: string): boolean {
+    // Skip short fragments
+    if (cmd.length < 3) return false;
+
+    // Skip lines ending with backslash (continuation lines) unless they're complete commands
+    if (cmd.endsWith("\\") && !cmd.includes(" -c ")) return false;
+
+    // Skip lines that are clearly subshell or redirection fragments
+    if (cmd.endsWith(")") && !cmd.includes("(")) return false;
+
+    return !SHELL_NOISE_PATTERNS.some((pattern) => pattern.test(cmd));
 }
 
 /**
