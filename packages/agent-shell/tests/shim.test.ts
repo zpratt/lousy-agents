@@ -348,4 +348,45 @@ describe("resolveMode", () => {
             expect(mode).toEqual({ type: "policy-check" });
         });
     });
+
+    describe("given policy --init as arguments", () => {
+        it("should resolve to policy-init mode", () => {
+            // Arrange
+            const args = ["policy", "--init"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode).toEqual({ type: "policy-init" });
+        });
+    });
+
+    describe("given policy without --init flag", () => {
+        it("should resolve to usage mode", () => {
+            // Arrange
+            const args = ["policy"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode).toEqual({ type: "usage" });
+        });
+    });
+
+    describe("given policy --init with AGENTSHELL_PASSTHROUGH=1", () => {
+        it("should resolve to policy-init mode, not passthrough", () => {
+            // Arrange
+            const args = ["policy", "--init"];
+            // biome-ignore lint/style/useNamingConvention: env var name
+            const env = { AGENTSHELL_PASSTHROUGH: "1" };
+
+            // Act
+            const mode = resolveMode(args, env);
+
+            // Assert
+            expect(mode).toEqual({ type: "policy-init" });
+        });
+    });
 });

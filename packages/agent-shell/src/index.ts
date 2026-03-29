@@ -6,6 +6,7 @@ import { createGetRepositoryRoot } from "./git-utils.js";
 import { runLog } from "./log/index.js";
 import { resolveMode } from "./mode.js";
 import { handlePolicyCheck } from "./policy-check.js";
+import { handlePolicyInit } from "./policy-init.js";
 import type { ShimResult } from "./shim.js";
 import { runShim } from "./shim.js";
 import type { TelemetryDeps } from "./telemetry.js";
@@ -15,6 +16,7 @@ const VERSION = "0.1.0";
 
 const USAGE = `Usage: agent-shell -c <command>
        agent-shell policy-check
+       agent-shell policy --init
        agent-shell --version
        agent-shell log
 
@@ -23,6 +25,18 @@ Environment:
 `;
 
 const MAX_STDIN_BYTES = 1024 * 1024; // 1 MiB — reject oversized hook payloads
+
+/**
+ * Strips ASCII control characters from error messages before writing to stderr.
+ * Prevents log/terminal injection when errors embed untrusted data.
+ */
+function sanitizeForStderr(err: unknown): string {
+    const msg = err instanceof Error ? err.message : String(err);
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching control characters for sanitization
+    return msg.replace(/[\u0000-\u001f\u007f]/g, (ch) => {
+        return `\\x${ch.charCodeAt(0).toString(16).padStart(2, "0")}`;
+    });
+}
 
 function readStdin(): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -68,6 +82,26 @@ async function main(): Promise<void> {
             // Use exitCode + return (not process.exit) so pending stdout writes
             // from writeStdout can drain before the process terminates.
             process.exitCode = 0;
+            return;
+        }
+        case "policy-init": {
+            try {
+                const getRepositoryRoot = createGetRepositoryRoot(
+                    undefined,
+                    process.env,
+                );
+                await handlePolicyInit({
+                    getRepositoryRoot,
+                    writeStdout: (data) => process.stdout.write(data),
+                    writeStderr: (data) => process.stderr.write(data),
+                });
+                process.exitCode = 0;
+            } catch (err) {
+                process.stderr.write(
+                    `agent-shell: policy init error: ${sanitizeForStderr(err)}\n`,
+                );
+                process.exitCode = 1;
+            }
             return;
         }
         case "passthrough": {

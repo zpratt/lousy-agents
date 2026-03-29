@@ -1,6 +1,7 @@
 export type Mode =
     | { type: "passthrough"; args: string[] }
     | { type: "policy-check" }
+    | { type: "policy-init" }
     | { type: "version" }
     | { type: "shim"; command: string }
     | { type: "log" }
@@ -13,6 +14,8 @@ export function resolveMode(
     const firstArg = args[0];
 
     if (firstArg === "policy-check") return { type: "policy-check" };
+    if (firstArg === "policy" && args[1] === "--init")
+        return { type: "policy-init" };
 
     if (env.AGENTSHELL_PASSTHROUGH === "1") {
         return { type: "passthrough", args };
