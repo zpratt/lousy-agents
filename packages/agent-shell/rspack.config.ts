@@ -63,6 +63,7 @@ const config: Configuration = {
         minimize: false,
         splitChunks: false,
     },
+    externals: ["@github/copilot-sdk"],
     externalsType: "module",
 };
 

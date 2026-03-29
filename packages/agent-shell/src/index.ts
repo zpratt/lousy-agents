@@ -6,6 +6,7 @@ import { createGetRepositoryRoot } from "./git-utils.js";
 import { runLog } from "./log/index.js";
 import { resolveMode } from "./mode.js";
 import { handlePolicyCheck } from "./policy-check.js";
+import { handlePolicyInit } from "./policy-init.js";
 import type { ShimResult } from "./shim.js";
 import { runShim } from "./shim.js";
 import type { TelemetryDeps } from "./telemetry.js";
@@ -15,6 +16,7 @@ const VERSION = "0.1.0";
 
 const USAGE = `Usage: agent-shell -c <command>
        agent-shell policy-check
+       agent-shell policy --init
        agent-shell --version
        agent-shell log
 
@@ -68,6 +70,26 @@ async function main(): Promise<void> {
             // Use exitCode + return (not process.exit) so pending stdout writes
             // from writeStdout can drain before the process terminates.
             process.exitCode = 0;
+            return;
+        }
+        case "policy-init": {
+            try {
+                const getRepositoryRoot = createGetRepositoryRoot(
+                    undefined,
+                    process.env,
+                );
+                await handlePolicyInit({
+                    getRepositoryRoot,
+                    writeStdout: (data) => process.stdout.write(data),
+                    writeStderr: (data) => process.stderr.write(data),
+                });
+                process.exitCode = 0;
+            } catch (err) {
+                process.stderr.write(
+                    `agent-shell: policy init error: ${err}\n`,
+                );
+                process.exitCode = 1;
+            }
             return;
         }
         case "passthrough": {
