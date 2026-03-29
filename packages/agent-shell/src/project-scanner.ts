@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 
 /**
@@ -49,7 +49,6 @@ const LANGUAGE_MARKERS: Record<string, string> = {
 
 async function fileExists(path: string): Promise<boolean> {
     try {
-        const { stat } = await import("node:fs/promises");
         const s = await stat(path);
         return s.isFile();
     } catch {
@@ -59,7 +58,6 @@ async function fileExists(path: string): Promise<boolean> {
 
 async function dirExists(path: string): Promise<boolean> {
     try {
-        const { stat } = await import("node:fs/promises");
         const s = await stat(path);
         return s.isDirectory();
     } catch {
@@ -197,6 +195,8 @@ function extractRunCommandsFromYaml(content: string): string[] {
 
     let inRunBlock = false;
     let runIndent = 0;
+    let isFoldedBlock = false;
+    let foldedLines: string[] = [];
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -206,7 +206,6 @@ function extractRunCommandsFromYaml(content: string): string[] {
         const indent = line.length - trimmed.length;
 
         if (inRunBlock) {
-            // We're inside a multi-line run: | block
             if (trimmed.length === 0) {
                 // Empty line in block - continue
                 continue;
@@ -215,11 +214,22 @@ function extractRunCommandsFromYaml(content: string): string[] {
                 // This is content inside the run block
                 const cmd = trimmed.trim();
                 if (cmd.length > 0 && !cmd.startsWith("#")) {
-                    commands.push(cmd);
+                    if (isFoldedBlock) {
+                        // Folded blocks (>) join lines with spaces into a single command
+                        foldedLines.push(cmd);
+                    } else {
+                        // Literal blocks (|) emit one command per line
+                        commands.push(cmd);
+                    }
                 }
             } else {
-                // Block ended
+                // Block ended — flush folded content if any
+                if (isFoldedBlock && foldedLines.length > 0) {
+                    commands.push(foldedLines.join(" "));
+                    foldedLines = [];
+                }
                 inRunBlock = false;
+                isFoldedBlock = false;
             }
         }
 
@@ -232,6 +242,8 @@ function extractRunCommandsFromYaml(content: string): string[] {
                     // Multi-line block (|, >, |-, >-, |+, >+)
                     inRunBlock = true;
                     runIndent = indent;
+                    isFoldedBlock = value.startsWith(">");
+                    foldedLines = [];
                 } else if (value && value.length > 0) {
                     // Single-line run command
                     // Handle quoted vs unquoted values differently for inline comments:
@@ -252,6 +264,11 @@ function extractRunCommandsFromYaml(content: string): string[] {
                 }
             }
         }
+    }
+
+    // Flush any remaining folded block at end of file
+    if (isFoldedBlock && foldedLines.length > 0) {
+        commands.push(foldedLines.join(" "));
     }
 
     return commands;

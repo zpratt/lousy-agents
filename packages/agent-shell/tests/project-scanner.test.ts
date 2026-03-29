@@ -402,6 +402,41 @@ describe("scanProject", () => {
             // Assert
             expect(result.workflowCommands).toContainEqual("npx biome check .");
         });
+
+        it("should join multi-line folded (>) blocks into a single command", async () => {
+            // Arrange
+            const workflowsDir = join(testDir, ".github", "workflows");
+            await mkdir(workflowsDir, { recursive: true });
+            await writeFile(
+                join(workflowsDir, "deploy.yml"),
+                [
+                    "name: Deploy",
+                    "on: push",
+                    "jobs:",
+                    "  deploy:",
+                    "    runs-on: ubuntu-latest",
+                    "    steps:",
+                    "      - run: >",
+                    "          docker build",
+                    "          --tag my-image",
+                    "          --file Dockerfile",
+                    "          .",
+                ].join("\n"),
+            );
+
+            // Act
+            const result = await scanProject(testDir);
+
+            // Assert — folded blocks join lines with spaces, producing one command
+            expect(result.workflowCommands).toContainEqual(
+                "docker build --tag my-image --file Dockerfile .",
+            );
+            // Should NOT have individual lines as separate commands
+            expect(result.workflowCommands).not.toContainEqual("docker build");
+            expect(result.workflowCommands).not.toContainEqual(
+                "--tag my-image",
+            );
+        });
     });
 
     describe("given workflow YAML with inline comments on run commands", () => {

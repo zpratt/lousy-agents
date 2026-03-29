@@ -28,19 +28,23 @@ export async function enhanceWithCopilot(
                 model: "gpt-4.1",
             });
 
-            const prompt = buildAnalysisPrompt(scanResult, repoRoot);
+            try {
+                const prompt = buildAnalysisPrompt(scanResult, repoRoot);
 
-            const response = await session.sendAndWait({ prompt });
-            const content =
-                typeof response?.data === "object" &&
-                response.data !== null &&
-                "content" in response.data
-                    ? String((response.data as { content: unknown }).content)
-                    : "";
+                const response = await session.sendAndWait({ prompt });
+                const content =
+                    typeof response?.data === "object" &&
+                    response.data !== null &&
+                    "content" in response.data
+                        ? String(
+                              (response.data as { content: unknown }).content,
+                          )
+                        : "";
 
-            await session.destroy();
-
-            return parseAnalysisResponse(content);
+                return parseAnalysisResponse(content);
+            } finally {
+                await session.destroy();
+            }
         } finally {
             await client.stop();
         }

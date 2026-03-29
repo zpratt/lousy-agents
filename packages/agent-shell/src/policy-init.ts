@@ -99,10 +99,23 @@ export function generatePolicy(scanResult: ProjectScanResult): GeneratedPolicy {
     for (const cmd of scanResult.workflowCommands) {
         // Normalize common patterns — exact match only
         if (cmd === "npm test" || cmd.startsWith("npm test ")) {
+            // Keep full command with args (e.g. `npm test -- --coverage`)
+            // alongside the base rule, so both exact forms match.
             allowSet.add("npm test");
+            if (cmd !== "npm test" && !SHELL_METACHAR_PATTERN.test(cmd)) {
+                allowSet.add(cmd);
+            }
         } else if (cmd.startsWith("npm run ")) {
+            // Keep the full command (e.g. `npm run build -- --prod`)
+            // alongside the base script rule
             const scriptPart = cmd.slice("npm run ".length).split(" ")[0];
             allowSet.add(`npm run ${scriptPart}`);
+            if (
+                cmd !== `npm run ${scriptPart}` &&
+                !SHELL_METACHAR_PATTERN.test(cmd)
+            ) {
+                allowSet.add(cmd);
+            }
         } else if (cmd === "npm ci" || cmd === "npm install") {
             allowSet.add(cmd);
         } else if (cmd.startsWith("npx ")) {
@@ -110,8 +123,15 @@ export function generatePolicy(scanResult: ProjectScanResult): GeneratedPolicy {
                 allowSet.add(cmd);
             }
         } else if (cmd.startsWith("mise run ")) {
+            // Keep the full command alongside the base task rule
             const taskPart = cmd.slice("mise run ".length).split(" ")[0];
             allowSet.add(`mise run ${taskPart}`);
+            if (
+                cmd !== `mise run ${taskPart}` &&
+                !SHELL_METACHAR_PATTERN.test(cmd)
+            ) {
+                allowSet.add(cmd);
+            }
         } else {
             // Only allow commands without shell metacharacters to prevent
             // compound commands like `cmd1 && cmd2` from being added as-is.
