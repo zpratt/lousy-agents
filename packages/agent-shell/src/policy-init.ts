@@ -56,6 +56,18 @@ const HOOKS_SUBPATH = ".github/copilot/hooks.json";
 const SHELL_METACHAR_PATTERN = /[;|&`><$()\\]/;
 
 /**
+ * Sanitize untrusted text before writing to stdout/stderr.
+ * Replaces ASCII control characters (except newline) with escaped hex
+ * to prevent terminal/log injection from LLM or external data.
+ */
+function sanitizeOutput(text: string): string {
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching control characters for sanitization
+    return text.replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, (ch) => {
+        return `\\x${ch.charCodeAt(0).toString(16).padStart(2, "0")}`;
+    });
+}
+
+/**
  * Generates a policy configuration from project scan results.
  * Creates an allow list of commands discovered in the project,
  * plus common safe defaults. Includes standard deny rules.
@@ -196,14 +208,14 @@ export async function handlePolicyInit(deps: PolicyInitDeps): Promise<void> {
                 "\nSuggested additional allow rules from Copilot (not auto-applied):\n",
             );
             for (const rule of enhanced.additionalAllowRules) {
-                deps.writeStdout(`  - ${rule}\n`);
+                deps.writeStdout(`  - ${sanitizeOutput(rule)}\n`);
             }
         }
 
         if (enhanced.suggestions.length > 0) {
             deps.writeStdout("\nSuggestions from Copilot:\n");
             for (const suggestion of enhanced.suggestions) {
-                deps.writeStdout(`  - ${suggestion}\n`);
+                deps.writeStdout(`  - ${sanitizeOutput(suggestion)}\n`);
             }
         }
     }

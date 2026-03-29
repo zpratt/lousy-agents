@@ -404,6 +404,37 @@ describe("scanProject", () => {
         });
     });
 
+    describe("given workflow YAML with inline comments on run commands", () => {
+        it("should strip inline comments from single-line run commands", async () => {
+            // Arrange
+            const workflowsDir = join(testDir, ".github", "workflows");
+            await mkdir(workflowsDir, { recursive: true });
+            await writeFile(
+                join(workflowsDir, "ci.yml"),
+                [
+                    "name: CI",
+                    "on: push",
+                    "jobs:",
+                    "  test:",
+                    "    runs-on: ubuntu-latest",
+                    "    steps:",
+                    "      - run: npm ci # install deps",
+                    '      - run: "npm test" # run tests',
+                ].join("\n"),
+            );
+
+            // Act
+            const result = await scanProject(testDir);
+
+            // Assert
+            expect(result.workflowCommands).toContainEqual("npm ci");
+            expect(result.workflowCommands).toContainEqual("npm test");
+            expect(
+                result.workflowCommands.some((cmd) => cmd.includes("#")),
+            ).toBe(false);
+        });
+    });
+
     describe("given a mise.toml with multi-line task run commands", () => {
         it("should extract the first line as the command", async () => {
             // Arrange

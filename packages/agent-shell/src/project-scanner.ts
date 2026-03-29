@@ -234,8 +234,13 @@ function extractRunCommandsFromYaml(content: string): string[] {
                     runIndent = indent;
                 } else if (value && value.length > 0) {
                     // Single-line run command
+                    // Strip inline YAML comments (# preceded by whitespace, outside quotes)
+                    const commentStripped = value.replace(/\s+#.*$/, "").trim();
                     // Remove surrounding quotes if present
-                    const unquoted = value.replace(/^["'](.*)["']$/, "$1");
+                    const unquoted = commentStripped.replace(
+                        /^["'](.*)["']$/,
+                        "$1",
+                    );
                     if (unquoted.length > 0 && !unquoted.startsWith("#")) {
                         commands.push(unquoted);
                     }
