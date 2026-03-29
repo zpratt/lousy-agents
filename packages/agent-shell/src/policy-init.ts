@@ -55,6 +55,11 @@ const HOOKS_SUBPATH = ".github/copilot/hooks.json";
  * Generates a policy configuration from project scan results.
  * Creates an allow list of commands discovered in the project,
  * plus common safe defaults. Includes standard deny rules.
+ *
+ * Allow rules use exact match by default to prevent shell
+ * metacharacter bypass (e.g. `npm test && curl evil`).
+ * Wildcard `*` is only used for commands where subcommand
+ * arguments are inherently expected (e.g. `git *`).
  */
 export function generatePolicy(scanResult: ProjectScanResult): GeneratedPolicy {
     const allowSet = new Set<string>();
@@ -64,43 +69,44 @@ export function generatePolicy(scanResult: ProjectScanResult): GeneratedPolicy {
         allowSet.add(cmd);
     }
 
-    // Add npm script commands with wildcard suffix
+    // Add npm script commands as exact matches — no trailing wildcards
+    // to prevent shell metacharacter injection (e.g. `npm test; rm -rf /`).
     for (const script of scanResult.scripts) {
         if (script.name === "test") {
-            allowSet.add("npm test*");
+            allowSet.add("npm test");
         } else {
-            allowSet.add(`npm run ${script.name}*`);
+            allowSet.add(`npm run ${script.name}`);
         }
     }
 
     // Add workflow commands
     for (const cmd of scanResult.workflowCommands) {
-        // Normalize common patterns
+        // Normalize common patterns — exact match only
         if (cmd === "npm test" || cmd.startsWith("npm test ")) {
-            allowSet.add("npm test*");
+            allowSet.add("npm test");
         } else if (cmd.startsWith("npm run ")) {
             const scriptPart = cmd.slice("npm run ".length).split(" ")[0];
-            allowSet.add(`npm run ${scriptPart}*`);
+            allowSet.add(`npm run ${scriptPart}`);
         } else if (cmd === "npm ci" || cmd === "npm install") {
             allowSet.add(cmd);
         } else if (cmd.startsWith("npx ")) {
-            allowSet.add(`${cmd}*`);
+            allowSet.add(cmd);
         } else if (cmd.startsWith("mise run ")) {
             const taskPart = cmd.slice("mise run ".length).split(" ")[0];
-            allowSet.add(`mise run ${taskPart}*`);
+            allowSet.add(`mise run ${taskPart}`);
         } else {
             allowSet.add(cmd);
         }
     }
 
-    // Add mise task commands
+    // Add mise task commands as exact matches
     for (const task of scanResult.miseTasks) {
-        allowSet.add(`mise run ${task.name}*`);
+        allowSet.add(`mise run ${task.name}`);
     }
 
     // Add mise install if mise is detected
     if (scanResult.miseTasks.length > 0) {
-        allowSet.add("mise install*");
+        allowSet.add("mise install");
     }
 
     // Sort allow rules for deterministic output

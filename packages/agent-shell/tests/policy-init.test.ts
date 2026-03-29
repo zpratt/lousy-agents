@@ -32,9 +32,9 @@ describe("generatePolicy", () => {
             const policy = generatePolicy(scanResult);
 
             // Assert
-            expect(policy.allow).toContain("npm test*");
-            expect(policy.allow).toContain("npm run build*");
-            expect(policy.allow).toContain("npm run lint*");
+            expect(policy.allow).toContain("npm test");
+            expect(policy.allow).toContain("npm run build");
+            expect(policy.allow).toContain("npm run lint");
         });
     });
 
@@ -53,8 +53,8 @@ describe("generatePolicy", () => {
 
             // Assert
             expect(policy.allow).toContain("npm ci");
-            expect(policy.allow).toContain("npm test*");
-            expect(policy.allow).toContain("npm run build*");
+            expect(policy.allow).toContain("npm test");
+            expect(policy.allow).toContain("npm run build");
         });
     });
 
@@ -75,8 +75,8 @@ describe("generatePolicy", () => {
             const policy = generatePolicy(scanResult);
 
             // Assert
-            expect(policy.allow).toContain("mise run test*");
-            expect(policy.allow).toContain("mise run lint*");
+            expect(policy.allow).toContain("mise run test");
+            expect(policy.allow).toContain("mise run lint");
         });
     });
 
@@ -113,7 +113,7 @@ describe("generatePolicy", () => {
             const policy = generatePolicy(scanResult);
 
             // Assert
-            const testRules = policy.allow?.filter((r) => r === "npm test*");
+            const testRules = policy.allow?.filter((r) => r === "npm test");
             expect(testRules?.length).toBe(1);
         });
     });
@@ -186,12 +186,6 @@ describe("handlePolicyInit", () => {
                     );
                 },
             };
-            await mkdir(
-                join(testDir, "package.json").replace("/package.json", ""),
-                {
-                    recursive: true,
-                },
-            );
             const { writeFile } = await import("node:fs/promises");
             await writeFile(
                 join(testDir, "package.json"),
