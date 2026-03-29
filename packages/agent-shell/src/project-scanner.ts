@@ -198,6 +198,13 @@ function extractRunCommandsFromYaml(content: string): string[] {
     let isFoldedBlock = false;
     let foldedLines: string[] = [];
 
+    function flushFoldedBlock(): void {
+        if (foldedLines.length > 0) {
+            commands.push(foldedLines.join(" "));
+            foldedLines = [];
+        }
+    }
+
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (line === undefined) continue;
@@ -212,7 +219,7 @@ function extractRunCommandsFromYaml(content: string): string[] {
             }
             if (indent > runIndent) {
                 // This is content inside the run block
-                const cmd = trimmed.trim();
+                const cmd = trimmed.trimEnd();
                 if (cmd.length > 0 && !cmd.startsWith("#")) {
                     if (isFoldedBlock) {
                         // Folded blocks (>) join lines with spaces into a single command
@@ -224,9 +231,8 @@ function extractRunCommandsFromYaml(content: string): string[] {
                 }
             } else {
                 // Block ended — flush folded content if any
-                if (isFoldedBlock && foldedLines.length > 0) {
-                    commands.push(foldedLines.join(" "));
-                    foldedLines = [];
+                if (isFoldedBlock) {
+                    flushFoldedBlock();
                 }
                 inRunBlock = false;
                 isFoldedBlock = false;
@@ -267,8 +273,8 @@ function extractRunCommandsFromYaml(content: string): string[] {
     }
 
     // Flush any remaining folded block at end of file
-    if (isFoldedBlock && foldedLines.length > 0) {
-        commands.push(foldedLines.join(" "));
+    if (isFoldedBlock) {
+        flushFoldedBlock();
     }
 
     return commands;
