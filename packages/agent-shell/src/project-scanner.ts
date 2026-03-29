@@ -234,15 +234,20 @@ function extractRunCommandsFromYaml(content: string): string[] {
                     runIndent = indent;
                 } else if (value && value.length > 0) {
                     // Single-line run command
-                    // Strip inline YAML comments (# preceded by whitespace, outside quotes)
-                    const commentStripped = value.replace(/\s+#.*$/, "").trim();
-                    // Remove surrounding quotes if present
-                    const unquoted = commentStripped.replace(
-                        /^["'](.*)["']$/,
-                        "$1",
-                    );
-                    if (unquoted.length > 0 && !unquoted.startsWith("#")) {
-                        commands.push(unquoted);
+                    // Handle quoted vs unquoted values differently for inline comments:
+                    // - Quoted: extract content between quotes (ignores trailing comment)
+                    // - Unquoted: strip inline YAML comment (# preceded by whitespace)
+                    let command: string;
+                    const quoteMatch = value.match(/^(["'])(.*)\1/);
+                    if (quoteMatch) {
+                        // Quoted value — extract inner content (everything after closing quote is ignored)
+                        command = quoteMatch[2] ?? "";
+                    } else {
+                        // Unquoted — strip inline comment
+                        command = value.replace(/\s+#.*$/, "").trim();
+                    }
+                    if (command.length > 0 && !command.startsWith("#")) {
+                        commands.push(command);
                     }
                 }
             }

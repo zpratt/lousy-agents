@@ -433,6 +433,32 @@ describe("scanProject", () => {
                 result.workflowCommands.some((cmd) => cmd.includes("#")),
             ).toBe(false);
         });
+
+        it("should preserve hash symbols inside quoted command strings", async () => {
+            // Arrange
+            const workflowsDir = join(testDir, ".github", "workflows");
+            await mkdir(workflowsDir, { recursive: true });
+            await writeFile(
+                join(workflowsDir, "ci.yml"),
+                [
+                    "name: CI",
+                    "on: push",
+                    "jobs:",
+                    "  test:",
+                    "    runs-on: ubuntu-latest",
+                    "    steps:",
+                    `      - run: 'npm run build -- --tag=#latest'`,
+                ].join("\n"),
+            );
+
+            // Act
+            const result = await scanProject(testDir);
+
+            // Assert — hash inside quotes is part of the command, not a comment
+            expect(result.workflowCommands).toContainEqual(
+                "npm run build -- --tag=#latest",
+            );
+        });
     });
 
     describe("given a mise.toml with multi-line task run commands", () => {
