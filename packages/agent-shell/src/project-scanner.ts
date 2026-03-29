@@ -228,8 +228,8 @@ function extractRunCommandsFromYaml(content: string): string[] {
             const runMatch = trimmed.match(/^-?\s*run:\s*(.*)$/);
             if (runMatch) {
                 const value = runMatch[1]?.trim();
-                if (value === "|" || value === ">") {
-                    // Multi-line block
+                if (/^[|>][-+]?$/.test(value)) {
+                    // Multi-line block (|, >, |-, >-, |+, >+)
                     inRunBlock = true;
                     runIndent = indent;
                 } else if (value && value.length > 0) {

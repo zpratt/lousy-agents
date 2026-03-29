@@ -52,6 +52,13 @@ const POLICY_SUBPATH = ".github/hooks/agent-shell/policy.json";
 const HOOKS_SUBPATH = ".github/copilot/hooks.json";
 
 /**
+ * Shell metacharacters that indicate compound or piped commands.
+ * Commands containing these are excluded from the allow list because
+ * they could mask injection (e.g. `npm test && curl evil`).
+ */
+const SHELL_METACHAR_PATTERN = /[;|&`><$()\\]/;
+
+/**
  * Generates a policy configuration from project scan results.
  * Creates an allow list of commands discovered in the project,
  * plus common safe defaults. Includes standard deny rules.
@@ -95,7 +102,11 @@ export function generatePolicy(scanResult: ProjectScanResult): GeneratedPolicy {
             const taskPart = cmd.slice("mise run ".length).split(" ")[0];
             allowSet.add(`mise run ${taskPart}`);
         } else {
-            allowSet.add(cmd);
+            // Only allow commands without shell metacharacters to prevent
+            // compound commands like `cmd1 && cmd2` from being added as-is.
+            if (!SHELL_METACHAR_PATTERN.test(cmd)) {
+                allowSet.add(cmd);
+            }
         }
     }
 

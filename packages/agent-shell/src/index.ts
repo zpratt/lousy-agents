@@ -26,6 +26,18 @@ Environment:
 
 const MAX_STDIN_BYTES = 1024 * 1024; // 1 MiB — reject oversized hook payloads
 
+/**
+ * Strips ASCII control characters from error messages before writing to stderr.
+ * Prevents log/terminal injection when errors embed untrusted data.
+ */
+function sanitizeForStderr(err: unknown): string {
+    const msg = err instanceof Error ? err.message : String(err);
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching control characters for sanitization
+    return msg.replace(/[\u0000-\u001f\u007f]/g, (ch) => {
+        return `\\x${ch.charCodeAt(0).toString(16).padStart(2, "0")}`;
+    });
+}
+
 function readStdin(): Promise<string> {
     return new Promise((resolve, reject) => {
         const chunks: Buffer[] = [];
@@ -86,7 +98,7 @@ async function main(): Promise<void> {
                 process.exitCode = 0;
             } catch (err) {
                 process.stderr.write(
-                    `agent-shell: policy init error: ${err}\n`,
+                    `agent-shell: policy init error: ${sanitizeForStderr(err)}\n`,
                 );
                 process.exitCode = 1;
             }

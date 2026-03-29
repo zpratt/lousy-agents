@@ -71,7 +71,7 @@ so that I can **get language-appropriate allow rules in the generated policy**.
 - When the project contains `Cargo.toml`, the system shall detect Rust.
 - When the project contains `Gemfile`, the system shall detect Ruby.
 - When the project contains `pom.xml` or `build.gradle`, the system shall detect Java.
-- When the project contains `mise.toml`, the system shall discover task definitions and include `mise run <task>*` patterns.
+- When the project contains `mise.toml`, the system shall discover task definitions and include exact `mise run <task>` command entries for each task in the allow list, avoiding wildcard patterns for security.
 
 ---
 

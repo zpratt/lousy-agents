@@ -45,9 +45,11 @@ export async function enhanceWithCopilot(
             await client.stop();
         }
     } catch {
-        writeStderr(
-            "agent-shell: Copilot SDK not available — using static analysis only\n",
-        );
+        if (process.env.AGENT_SHELL_COPILOT_DEBUG) {
+            writeStderr(
+                "agent-shell: Copilot SDK not available — using static analysis only\n",
+            );
+        }
         return null;
     }
 }

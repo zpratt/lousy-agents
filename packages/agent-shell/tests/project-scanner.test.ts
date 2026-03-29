@@ -350,6 +350,60 @@ describe("scanProject", () => {
         });
     });
 
+    describe("given workflow YAML with block scalar modifiers", () => {
+        it("should extract commands from |- (strip) blocks", async () => {
+            // Arrange
+            const workflowsDir = join(testDir, ".github", "workflows");
+            await mkdir(workflowsDir, { recursive: true });
+            await writeFile(
+                join(workflowsDir, "deploy.yml"),
+                [
+                    "name: Deploy",
+                    "on: push",
+                    "jobs:",
+                    "  deploy:",
+                    "    runs-on: ubuntu-latest",
+                    "    steps:",
+                    "      - run: |-",
+                    "          npm ci",
+                    "          npm run deploy",
+                ].join("\n"),
+            );
+
+            // Act
+            const result = await scanProject(testDir);
+
+            // Assert
+            expect(result.workflowCommands).toContainEqual("npm ci");
+            expect(result.workflowCommands).toContainEqual("npm run deploy");
+        });
+
+        it("should extract commands from >- (folded strip) blocks", async () => {
+            // Arrange
+            const workflowsDir = join(testDir, ".github", "workflows");
+            await mkdir(workflowsDir, { recursive: true });
+            await writeFile(
+                join(workflowsDir, "lint.yml"),
+                [
+                    "name: Lint",
+                    "on: push",
+                    "jobs:",
+                    "  lint:",
+                    "    runs-on: ubuntu-latest",
+                    "    steps:",
+                    "      - run: >-",
+                    "          npx biome check .",
+                ].join("\n"),
+            );
+
+            // Act
+            const result = await scanProject(testDir);
+
+            // Assert
+            expect(result.workflowCommands).toContainEqual("npx biome check .");
+        });
+    });
+
     describe("given a mise.toml with multi-line task run commands", () => {
         it("should extract the first line as the command", async () => {
             // Arrange
