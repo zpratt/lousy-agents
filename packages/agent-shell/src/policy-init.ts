@@ -30,12 +30,9 @@ const DEFAULT_SAFE_COMMANDS = [
     "cat *",
     "ls *",
     "pwd",
-    "echo *",
     "head *",
     "tail *",
     "wc *",
-    "grep *",
-    "find *",
     "which *",
 ];
 
@@ -97,7 +94,9 @@ export function generatePolicy(scanResult: ProjectScanResult): GeneratedPolicy {
         } else if (cmd === "npm ci" || cmd === "npm install") {
             allowSet.add(cmd);
         } else if (cmd.startsWith("npx ")) {
-            allowSet.add(cmd);
+            if (!SHELL_METACHAR_PATTERN.test(cmd)) {
+                allowSet.add(cmd);
+            }
         } else if (cmd.startsWith("mise run ")) {
             const taskPart = cmd.slice("mise run ".length).split(" ")[0];
             allowSet.add(`mise run ${taskPart}`);
@@ -191,12 +190,15 @@ export async function handlePolicyInit(deps: PolicyInitDeps): Promise<void> {
 
     if (enhanced !== null) {
         deps.writeStdout("Enhanced with Copilot analysis\n");
-        for (const rule of enhanced.additionalAllowRules) {
-            if (!policy.allow.includes(rule)) {
-                policy.allow.push(rule);
+
+        if (enhanced.additionalAllowRules.length > 0) {
+            deps.writeStdout(
+                "\nSuggested additional allow rules from Copilot (not auto-applied):\n",
+            );
+            for (const rule of enhanced.additionalAllowRules) {
+                deps.writeStdout(`  - ${rule}\n`);
             }
         }
-        policy.allow.sort();
 
         if (enhanced.suggestions.length > 0) {
             deps.writeStdout("\nSuggestions from Copilot:\n");
