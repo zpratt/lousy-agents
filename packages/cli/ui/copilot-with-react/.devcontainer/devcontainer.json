@@ -17,7 +17,7 @@
             "upgradePackages": false
         },
         "ghcr.io/devcontainers-extra/features/actionlint:1.1.1": {
-            "version": "1.7.11"
+            "version": "1.7.12"
         }
     },
     "forwardPorts": [3000],
