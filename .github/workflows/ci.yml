@@ -44,7 +44,7 @@ jobs:
             ${{ runner.os }}-npm-
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Build action
         run: npm run build --workspace=packages/action
@@ -80,7 +80,7 @@ jobs:
             ${{ runner.os }}-npm-
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Check package signatures
         run: npm audit signatures
@@ -119,7 +119,7 @@ jobs:
           test -d .github
           test -f .github/instructions/test.instructions.md
           git init
-          npm install
+          npm install --ignore-scripts
           npm test
           npm run test:integration
           npm run lint
@@ -135,7 +135,7 @@ jobs:
           test -f tsconfig.json
           test -d .github
           test -f .github/instructions/test.instructions.md
-          npm install
+          npm install --ignore-scripts
           echo "Webapp smoke test passed"
 
       - name: Smoke test - lint --skills (valid skill)
@@ -243,7 +243,7 @@ jobs:
             ${{ runner.os }}-npm-
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Build action
         run: npm run build --workspace=packages/action

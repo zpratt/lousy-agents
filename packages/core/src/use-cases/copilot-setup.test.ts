@@ -188,7 +188,7 @@ describe("Workflow Generator", () => {
                 expect(result).toContainEqual(
                     expect.objectContaining({
                         name: "Install Node.js dependencies",
-                        run: "npm ci",
+                        run: "npm ci --ignore-scripts",
                         source: "version-file",
                     }),
                 );
@@ -218,7 +218,7 @@ describe("Workflow Generator", () => {
                 expect(result).toContainEqual(
                     expect.objectContaining({
                         name: "Install Node.js dependencies",
-                        run: "yarn install --frozen-lockfile",
+                        run: "yarn install --frozen-lockfile --ignore-scripts",
                         source: "version-file",
                     }),
                 );
@@ -248,7 +248,7 @@ describe("Workflow Generator", () => {
                 expect(result).toContainEqual(
                     expect.objectContaining({
                         name: "Install Node.js dependencies",
-                        run: "pnpm install --frozen-lockfile",
+                        run: "pnpm install --frozen-lockfile --ignore-scripts",
                         source: "version-file",
                     }),
                 );
@@ -279,7 +279,7 @@ describe("Workflow Generator", () => {
                     (c) => c.name === "Install Node.js dependencies",
                 );
                 expect(nodeInstallSteps).toHaveLength(1);
-                expect(nodeInstallSteps[0].run).toBe("npm ci");
+                expect(nodeInstallSteps[0].run).toBe("npm ci --ignore-scripts");
             });
 
             it("should create install step for pip", async () => {
@@ -506,7 +506,9 @@ describe("Workflow Generator", () => {
                     await buildCandidatesFromEnvironment(environment);
 
                 // Assert
-                const installSteps = result.filter((c) => c.run === "npm ci");
+                const installSteps = result.filter(
+                    (c) => c.run === "npm ci --ignore-scripts",
+                );
                 expect(installSteps).toHaveLength(1);
             });
 
@@ -574,7 +576,9 @@ describe("Workflow Generator", () => {
                 ).toHaveLength(1);
                 expect(
                     result.filter(
-                        (c) => c.run === "yarn install --frozen-lockfile",
+                        (c) =>
+                            c.run ===
+                            "yarn install --frozen-lockfile --ignore-scripts",
                     ),
                 ).toHaveLength(1);
                 expect(
@@ -668,7 +672,7 @@ describe("Workflow Generator", () => {
                     action: "run:npm",
                     source: "version-file",
                     name: "Install Node.js dependencies",
-                    run: "npm ci",
+                    run: "npm ci --ignore-scripts",
                 },
                 {
                     action: "run:pip",
@@ -842,7 +846,7 @@ describe("Workflow Generator", () => {
                 },
                 {
                     action: "run:npm",
-                    run: "npm ci",
+                    run: "npm ci --ignore-scripts",
                     name: "Install Node.js dependencies",
                     source: "version-file",
                 },
@@ -859,7 +863,7 @@ describe("Workflow Generator", () => {
                     s.name === "Install Node.js dependencies",
             );
             expect(installStep).toBeDefined();
-            expect(installStep.run).toBe("npm ci");
+            expect(installStep.run).toBe("npm ci --ignore-scripts");
             expect(installStep.uses).toBeUndefined();
         });
 

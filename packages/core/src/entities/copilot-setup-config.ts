@@ -40,9 +40,9 @@ export const PACKAGE_MANAGER_INSTALL_COMMANDS: Record<
     PackageManagerType,
     string
 > = {
-    npm: "npm ci",
-    yarn: "yarn install --frozen-lockfile",
-    pnpm: "pnpm install --frozen-lockfile",
+    npm: "npm ci --ignore-scripts",
+    yarn: "yarn install --frozen-lockfile --ignore-scripts",
+    pnpm: "pnpm install --frozen-lockfile --ignore-scripts",
     pip: "pip install -r requirements.txt",
     pipenv: "pipenv install --deploy",
     poetry: "poetry install --no-root",
