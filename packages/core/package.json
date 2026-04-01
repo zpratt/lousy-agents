@@ -26,7 +26,7 @@
     "dependencies": {
         "@github-actions-workflow-ts/lib": "2.4.0",
         "@octokit/rest": "22.0.1",
-        "c12": "3.3.3",
+        "c12": "3.3.4",
         "consola": "3.4.2",
         "remark": "15.0.1",
         "remark-parse": "11.0.0",

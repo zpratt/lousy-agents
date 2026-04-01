@@ -41,7 +41,7 @@
         "build": "rspack build --config rspack.config.ts && chmod +x dist/index.js"
     },
     "dependencies": {
-        "c12": "3.3.3",
+        "c12": "3.3.4",
         "citty": "0.2.1",
         "consola": "3.4.2",
         "eta": "4.5.1",
