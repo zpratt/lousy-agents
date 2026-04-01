@@ -348,4 +348,107 @@ describe("resolveMode", () => {
             expect(mode).toEqual({ type: "policy-check" });
         });
     });
+
+    describe("given policy --init as arguments", () => {
+        it("should resolve to policy-init mode", () => {
+            // Arrange
+            const args = ["policy", "--init"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode.type).toBe("policy-init");
+        });
+    });
+
+    describe("given policy without --init flag", () => {
+        it("should resolve to usage mode", () => {
+            // Arrange
+            const args = ["policy"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode).toEqual({ type: "usage" });
+        });
+    });
+
+    describe("given policy --init with AGENTSHELL_PASSTHROUGH=1", () => {
+        it("should resolve to policy-init mode, not passthrough", () => {
+            // Arrange
+            const args = ["policy", "--init"];
+            // biome-ignore lint/style/useNamingConvention: env var name
+            const env = { AGENTSHELL_PASSTHROUGH: "1" };
+
+            // Act
+            const mode = resolveMode(args, env);
+
+            // Assert
+            expect(mode.type).toBe("policy-init");
+        });
+    });
+
+    describe("given policy --init with --model option", () => {
+        it("should include the specified model in the mode", () => {
+            // Arrange
+            const args = ["policy", "--init", "--model=gpt-4.1"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode.type).toBe("policy-init");
+            if (mode.type === "policy-init") {
+                expect(mode.model).toBe("gpt-4.1");
+            }
+        });
+    });
+
+    describe("given policy --init with invalid --model value", () => {
+        it("should ignore a model containing shell metacharacters", () => {
+            // Arrange
+            const args = ["policy", "--init", "--model=;curl evil"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode.type).toBe("policy-init");
+            if (mode.type === "policy-init") {
+                expect(mode.model).toBeUndefined();
+            }
+        });
+
+        it("should ignore a model containing path traversal", () => {
+            // Arrange
+            const args = ["policy", "--init", "--model=../../exploit"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode.type).toBe("policy-init");
+            if (mode.type === "policy-init") {
+                expect(mode.model).toBeUndefined();
+            }
+        });
+    });
+
+    describe("given policy --init without --model option", () => {
+        it("should not include a model in the mode", () => {
+            // Arrange
+            const args = ["policy", "--init"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode.type).toBe("policy-init");
+            if (mode.type === "policy-init") {
+                expect(mode.model).toBeUndefined();
+            }
+        });
+    });
 });
