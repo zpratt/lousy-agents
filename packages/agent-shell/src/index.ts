@@ -6,6 +6,8 @@ import { createGetRepositoryRoot } from "./git-utils.js";
 import { runLog } from "./log/index.js";
 import { resolveMode } from "./mode.js";
 import { handlePolicyCheck } from "./policy-check.js";
+import { handlePolicyInit } from "./policy-init.js";
+import { sanitizeForStderr } from "./sanitize.js";
 import type { ShimResult } from "./shim.js";
 import { runShim } from "./shim.js";
 import type { TelemetryDeps } from "./telemetry.js";
@@ -15,6 +17,7 @@ const VERSION = "0.1.0";
 
 const USAGE = `Usage: agent-shell -c <command>
        agent-shell policy-check
+       agent-shell policy --init [--model=<model>]
        agent-shell --version
        agent-shell log
 
@@ -70,6 +73,27 @@ async function main(): Promise<void> {
             process.exitCode = 0;
             return;
         }
+        case "policy-init": {
+            try {
+                const getRepositoryRoot = createGetRepositoryRoot(
+                    undefined,
+                    process.env,
+                );
+                await handlePolicyInit({
+                    getRepositoryRoot,
+                    writeStdout: (data) => process.stdout.write(data),
+                    writeStderr: (data) => process.stderr.write(data),
+                    model: mode.model,
+                });
+                process.exitCode = 0;
+            } catch (err) {
+                process.stderr.write(
+                    `agent-shell: policy init error: ${sanitizeForStderr(err)}\n`,
+                );
+                process.exitCode = 1;
+            }
+            return;
+        }
         case "passthrough": {
             const result = spawnSync("/bin/sh", mode.args, {
                 stdio: "inherit",
@@ -96,7 +120,7 @@ async function main(): Promise<void> {
                         );
                     } catch (err) {
                         process.stderr.write(
-                            `agent-shell: telemetry write error: ${err}\n`,
+                            `agent-shell: telemetry write error: ${sanitizeForStderr(err)}\n`,
                         );
                         try {
                             await emitShimErrorEvent(
@@ -110,7 +134,7 @@ async function main(): Promise<void> {
                 };
             } catch (err) {
                 process.stderr.write(
-                    `agent-shell: context capture error: ${err}\n`,
+                    `agent-shell: context capture error: ${sanitizeForStderr(err)}\n`,
                 );
             }
 

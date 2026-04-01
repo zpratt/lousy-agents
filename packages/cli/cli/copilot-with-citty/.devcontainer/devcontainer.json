@@ -10,14 +10,14 @@
         },
         "ghcr.io/devcontainers/features/copilot-cli:1.0.0": {},
         "ghcr.io/anthropics/devcontainer-features/claude-code:1": {
-            "version": "v2.1.89"
+            "version": "v2.1.86"
         },
         "ghcr.io/rocker-org/devcontainer-features/apt-packages:1.0.2": {
             "packages": "yamllint, shellcheck",
             "upgradePackages": false
         },
         "ghcr.io/devcontainers-extra/features/actionlint:1.1.1": {
-            "version": "1.7.12"
+            "version": "1.7.11"
         }
     },
     "forwardPorts": [],

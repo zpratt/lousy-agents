@@ -90,7 +90,7 @@ AI coding assistants work best when given clear constraints. Without structure, 
 
 ### Companion Tools
 
-- **[agent-shell](packages/agent-shell/README.md)** - A flight recorder for npm script execution with policy-based command blocking. Records independent telemetry of what scripts ran, who initiated them, and whether they succeeded.
+- **[agent-shell](packages/agent-shell/README.md)** - A flight recorder for npm script execution with policy-based command blocking. Records independent telemetry of what scripts ran, who initiated them, and whether they succeeded. Run `agent-shell policy --init` to scan your project and generate a ready-to-use policy and hook configuration — with optional AI-powered analysis via the Copilot SDK and `@lousy-agents/mcp`.
 
 ![agent-shell demo](media/agent-shell.gif)
 
@@ -201,6 +201,7 @@ Use the root install to work on all workspace packages together. The root `npm r
 | Agent and instruction quality linting | ✅ Complete |
 | Hook configuration linting | ✅ Complete |
 | Policy-based command blocking (agent-shell) | ✅ Complete |
+| AI-powered policy initialization (agent-shell) | ✅ Complete |
 | MCP server package | ✅ Complete |
 | Claude Code web environment setup | ✅ Complete |
 

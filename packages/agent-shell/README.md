@@ -215,6 +215,136 @@ Or when denied:
 
 Policy decisions are recorded as telemetry events alongside regular script execution events.
 
+## Policy Initialization (`policy --init`)
+
+Manually writing a `policy.json` allow list requires knowing which commands your project actually uses. `policy --init` eliminates that blank-page problem: it scans your project and generates a ready-to-commit policy and hook configuration.
+
+```bash
+agent-shell policy --init
+```
+
+### What It Generates
+
+| File | Description |
+| ------ | ------------- |
+| `.github/hooks/agent-shell/policy.json` | Allow/deny policy derived from discovered commands |
+| `.github/copilot/hooks.json` | Copilot `preToolUse` hook entry wiring `agent-shell policy-check` |
+
+If either file already exists, the command skips writing it and notifies you. Both files are safe to commit for team-wide enforcement.
+
+### How It Discovers Commands
+
+The scanner inspects three sources:
+
+1. **`package.json` scripts** — Each `npm run <script>` entry becomes an exact allow rule
+2. **GitHub Actions workflow files** — `run:` commands in `.github/workflows/*.yml` are extracted and deduplicated
+3. **`mise.toml` tasks** — Each task becomes an exact `mise run <task>` allow rule (no wildcards, for security)
+
+Language detection (Node.js, Python, Go, Rust, Ruby, Java) is also performed and reported in the scan summary. Language-specific build tool patterns may be added in a future version.
+
+### AI-Enhanced Analysis
+
+When the `@github/copilot-sdk` package is available and authenticated, `policy --init` runs a second pass using the GitHub Copilot AI to refine the generated allow list. The AI session connects to `@lousy-agents/mcp` as a local MCP server for structured project discovery, and exposes two additional sandboxed tools for ad-hoc exploration:
+
+| Tool | What it does |
+| ------ | ------------- |
+| `read_project_file` | Reads a file within the repository (max 100 KB, path-traversal safe) |
+| `validate_allow_rule` | Checks whether a proposed allow rule is safe (no shell metacharacters) |
+
+The MCP server also provides `discover_feedback_loops` and `discover_environment` tools, giving the model structured access to SDLC commands and runtime/toolchain details without raw filesystem browsing.
+
+**Fallback behavior:**
+
+| Condition | Behavior |
+| ----------- | --------- |
+| `@github/copilot-sdk` not installed | Silently falls back to static analysis; no error |
+| SDK installed but not authenticated | Silently falls back to static analysis; no error |
+| SDK session fails mid-analysis | Falls back to static results; logs error to stderr when `AGENT_SHELL_COPILOT_DEBUG` is set |
+
+The final policy file is always generated. AI enhancement is best-effort and never blocks output.
+
+### Authentication Setup
+
+The `@github/copilot-sdk` authenticates using the **GitHub Copilot CLI**. You need both the GitHub CLI and the Copilot CLI extension installed and signed in.
+
+**1. Install the GitHub CLI**
+
+Follow the [official installation guide](https://cli.github.com) for your platform, then authenticate:
+
+```bash
+gh auth login
+```
+
+**2. Install the GitHub Copilot CLI extension**
+
+```bash
+gh extension install github/gh-copilot
+```
+
+**3. Authenticate with Copilot**
+
+```bash
+gh copilot auth
+```
+
+**4. Install the SDK**
+
+```bash
+npm install @github/copilot-sdk
+```
+
+Once authenticated, `policy --init` will automatically detect the SDK and run AI-enhanced analysis. To debug SDK interactions, set `AGENT_SHELL_COPILOT_DEBUG=1`.
+
+### Prerequisites
+
+- Must be run inside a git repository (`git rev-parse --show-toplevel` is used to locate the repo root)
+- `agent-shell` must be globally installed (required for the generated hook script to be on `PATH`)
+- `@github/copilot-sdk` is optional — see [Authentication Setup](#authentication-setup) above to enable AI-enhanced analysis
+
+### Example Output
+
+```
+Scanning project...
+Discovered: 8 npm script(s), 12 workflow command(s), 3 mise task(s), 1 language(s)
+Created .github/hooks/agent-shell/policy.json
+Created .github/copilot/hooks.json
+
+--- Proposed Policy ---
+{
+  "allow": [
+    "git branch --list *",
+    "git branch --show-current",
+    "git diff *",
+    "git log *",
+    "git rev-parse *",
+    "git show *",
+    "git status *",
+    "npm run build",
+    "npm run lint",
+    "npm test",
+    "pwd"
+  ],
+  "deny": [
+    "rm -rf *",
+    "sudo *"
+  ]
+}
+
+--- Hook Configuration ---
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "agent-shell policy-check",
+        "timeoutSec": 30
+      }
+    ]
+  }
+}
+```
+
 ## Environment Variables
 
 | Variable | Purpose | Default |
@@ -225,6 +355,7 @@ Policy decisions are recorded as telemetry events alongside regular script execu
 | `AGENTSHELL_LOG_DIR` | Override event file directory | `.agent-shell/events/` |
 | `AGENTSHELL_POLICY_PATH` | Override policy file location for `policy-check` | `.github/hooks/agent-shell/policy.json` |
 | `AGENTSHELL_TAG_<key>` | Attach custom key=value metadata to events | None |
+| `AGENT_SHELL_COPILOT_DEBUG` | Set to `1` to enable debug logging for Copilot SDK interactions during `policy --init` | Unset (debug logging off) |
 
 ### Custom Tags
 

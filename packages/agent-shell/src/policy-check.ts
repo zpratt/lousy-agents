@@ -2,6 +2,7 @@
 import { z } from "zod/v4";
 import type { PolicyDeps } from "./policy.js";
 import { evaluatePolicy, loadPolicy } from "./policy.js";
+import { sanitizeForStderr } from "./sanitize.js";
 import type { TelemetryDeps } from "./telemetry.js";
 import { emitPolicyDecisionEvent } from "./telemetry.js";
 import type { PolicyConfig } from "./types.js";
@@ -16,18 +17,6 @@ export interface PolicyCheckDeps {
 }
 
 const TERMINAL_TOOLS = new Set(["bash", "zsh", "ash", "sh"]);
-
-/**
- * Strips ASCII control characters from error messages before writing to stderr.
- * Prevents log/terminal injection when errors embed env-controlled paths.
- */
-function sanitizeForStderr(err: unknown): string {
-    const msg = err instanceof Error ? err.message : String(err);
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: intentionally matching control characters for sanitization
-    return msg.replace(/[\u0000-\u001f\u007f]/g, (ch) => {
-        return `\\x${ch.charCodeAt(0).toString(16).padStart(2, "0")}`;
-    });
-}
 
 const HookInputSchema = z.object({
     toolName: z.string(),

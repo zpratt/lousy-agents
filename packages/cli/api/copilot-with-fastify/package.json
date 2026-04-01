@@ -19,14 +19,14 @@
         "@fastify/cors": "11.2.0",
         "@fastify/sensible": "6.0.4",
         "fastify": "5.8.4",
-        "kysely": "0.28.15",
+        "kysely": "0.28.14",
         "pino": "10.3.1",
         "postgres": "3.4.8",
         "zod": "4.3.6"
     },
     "devDependencies": {
-        "@biomejs/biome": "2.4.10",
-        "@lousy-agents/mcp": "5.7.1",
+        "@biomejs/biome": "2.4.9",
+        "@lousy-agents/mcp": "5.7.0",
         "@modelcontextprotocol/server-sequential-thinking": "2025.12.18",
         "@testcontainers/postgresql": "11.13.0",
         "@types/node": "24.12.0",
