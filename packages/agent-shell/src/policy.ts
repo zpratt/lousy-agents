@@ -1,5 +1,6 @@
 import { isAbsolute, join } from "node:path";
 import { isWithinProjectRoot } from "./path-utils.js";
+import { SHELL_METACHAR_PATTERN } from "./sanitize.js";
 import { type PolicyConfig, PolicyConfigSchema } from "./types.js";
 
 export interface PolicyDeps {
@@ -61,6 +62,10 @@ export function evaluatePolicy(
     }
 
     const trimmed = command.trim();
+
+    if (SHELL_METACHAR_PATTERN.test(trimmed)) {
+        return { decision: "deny", matchedRule: null };
+    }
 
     for (const rule of policy.deny) {
         if (matchesRule(trimmed, rule)) {
