@@ -3,6 +3,7 @@ import { normalize, resolve } from "node:path";
 import { z } from "zod/v4";
 import { buildAnalysisPrompt, buildSystemMessage } from "./copilot-prompt.js";
 import type { ProjectScanResult } from "./project-scanner.js";
+import { resolveSdkPath } from "./resolve-sdk.js";
 import { isSafeCommand, sanitizeForStderr } from "./sanitize.js";
 
 const DEFAULT_MODEL = "claude-sonnet-4-6";
@@ -168,9 +169,10 @@ export async function enhanceWithCopilot(
 ): Promise<CopilotEnhancedResult | null> {
     let importSucceeded = false;
     try {
-        const { CopilotClient, defineTool, approveAll } = await import(
-            "@github/copilot-sdk"
-        );
+        const sdkPath = resolveSdkPath(repoRoot, "@github/copilot-sdk");
+        const { CopilotClient, defineTool, approveAll } = sdkPath
+            ? await import(/* webpackIgnore: true */ sdkPath)
+            : await import("@github/copilot-sdk");
         importSucceeded = true;
 
         const client = new CopilotClient();
