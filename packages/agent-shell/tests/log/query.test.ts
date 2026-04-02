@@ -511,6 +511,45 @@ describe("events directory resolution", () => {
             expect(result.error).toBeUndefined();
         });
     });
+
+    describe("given AGENTSHELL_LOG_DIR is a relative path within the project", () => {
+        it("should resolve it relative to the project root, not the OS working directory", async () => {
+            // Arrange
+            const deps = createMockDeps({});
+            const env = { AGENTSHELL_LOG_DIR: "custom-logs" };
+
+            // Act
+            const result = await resolveReadEventsDir(env, deps);
+
+            // Assert
+            expect(result.dir).toBe("/project/custom-logs");
+            expect(result.error).toBeUndefined();
+        });
+    });
+
+    describe("given AGENTSHELL_LOG_DIR does not exist", () => {
+        it("should return an error instead of throwing", async () => {
+            // Arrange
+            const enoent = Object.assign(
+                new Error("ENOENT: no such file or directory"),
+                { code: "ENOENT" },
+            );
+            const deps = createMockDeps(
+                {},
+                {
+                    realpath: vi.fn().mockRejectedValue(enoent),
+                },
+            );
+            const env = { AGENTSHELL_LOG_DIR: "/project/nonexistent-logs" };
+
+            // Act
+            const result = await resolveReadEventsDir(env, deps);
+
+            // Assert
+            expect(result.error).toBe("AGENTSHELL_LOG_DIR does not exist");
+            expect(result.dir).toBe("");
+        });
+    });
 });
 
 describe("session listing", () => {
