@@ -541,6 +541,21 @@ describe("events directory resolution", () => {
         });
     });
 
+    describe("given AGENTSHELL_LOG_DIR is an empty string", () => {
+        it("should use the default events directory", async () => {
+            // Arrange
+            const deps = createMockDeps({});
+            const env = { AGENTSHELL_LOG_DIR: "" };
+
+            // Act
+            const result = await resolveReadEventsDir(env, deps);
+
+            // Assert
+            expect(result.dir).toBe("/project/.agent-shell/events");
+            expect(result.error).toBeUndefined();
+        });
+    });
+
     describe("given AGENTSHELL_LOG_DIR is a relative path within the project", () => {
         it("should resolve it relative to the project root, not the OS working directory", async () => {
             // Arrange
