@@ -82,7 +82,7 @@ export async function resolveReadEventsDir(
             if (isPathNotFoundError(err)) {
                 return {
                     dir: "",
-                    error: "AGENTSHELL_LOG_DIR does not exist",
+                    error: "AGENTSHELL_LOG_DIR does not exist or is not a directory",
                 };
             }
             throw err;

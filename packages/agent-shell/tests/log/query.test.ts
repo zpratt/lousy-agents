@@ -578,7 +578,9 @@ describe("events directory resolution", () => {
             const result = await resolveReadEventsDir(env, deps);
 
             // Assert
-            expect(result.error).toBe("AGENTSHELL_LOG_DIR does not exist");
+            expect(result.error).toBe(
+                "AGENTSHELL_LOG_DIR does not exist or is not a directory",
+            );
             expect(result.dir).toBe("");
         });
 
@@ -603,7 +605,9 @@ describe("events directory resolution", () => {
             const result = await resolveReadEventsDir(env, deps);
 
             // Assert
-            expect(result.error).toBe("AGENTSHELL_LOG_DIR does not exist");
+            expect(result.error).toBe(
+                "AGENTSHELL_LOG_DIR does not exist or is not a directory",
+            );
             expect(result.dir).toBe("");
         });
     });
