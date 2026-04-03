@@ -98,10 +98,7 @@ export async function resolveReadEventsDir(
             throw err;
         }
 
-        if (
-            !isWithinProjectRoot(resolved, projectRoot) &&
-            !isWithinProjectRoot(resolved, projectRootReal)
-        ) {
+        if (!isWithinProjectRoot(resolved, projectRootReal)) {
             return {
                 dir: "",
                 error: "AGENTSHELL_LOG_DIR resolves outside project root",
