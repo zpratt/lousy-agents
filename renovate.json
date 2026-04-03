@@ -16,6 +16,11 @@
     "pinDigests": true,
     "packageRules": [
         {
+            "description": "Disable digest pinning for mise",
+            "matchManagers": ["mise"],
+            "pinDigests": false
+        },
+        {
             "description": "Pin all npm dependencies to exact versions",
             "matchManagers": ["npm"],
             "rangeStrategy": "pin"
