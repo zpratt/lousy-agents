@@ -483,7 +483,10 @@ describe("events directory resolution", () => {
             const deps = createMockDeps(
                 {},
                 {
-                    realpath: vi.fn().mockResolvedValue("/elsewhere/logs"),
+                    realpath: vi.fn().mockImplementation(async (p: string) => {
+                        if (p === "/project") return "/project";
+                        return "/elsewhere/logs";
+                    }),
                 },
             );
             const env = { AGENTSHELL_LOG_DIR: "/project/sneaky-link" };
@@ -494,6 +497,32 @@ describe("events directory resolution", () => {
             // Assert
             expect(result.error).toBeDefined();
             expect(result.error).toContain("outside project root");
+        });
+    });
+
+    describe("given a symlinked project root", () => {
+        it("should accept directories within the real project root", async () => {
+            // Arrange — cwd returns /workspace (symlink), realpath resolves to /mnt/project
+            const deps = createMockDeps(
+                {},
+                {
+                    cwd: vi.fn().mockReturnValue("/workspace"),
+                    realpath: vi.fn().mockImplementation(async (p: string) => {
+                        if (p === "/workspace") return "/mnt/project";
+                        if (p === "/workspace/custom-logs")
+                            return "/mnt/project/custom-logs";
+                        return p;
+                    }),
+                },
+            );
+            const env = { AGENTSHELL_LOG_DIR: "custom-logs" };
+
+            // Act
+            const result = await resolveReadEventsDir(env, deps);
+
+            // Assert
+            expect(result.dir).toBe("/mnt/project/custom-logs");
+            expect(result.error).toBeUndefined();
         });
     });
 
@@ -528,7 +557,7 @@ describe("events directory resolution", () => {
     });
 
     describe("given AGENTSHELL_LOG_DIR does not exist", () => {
-        it("should return an error instead of throwing", async () => {
+        it("should return an error instead of throwing for ENOENT", async () => {
             // Arrange
             const enoent = Object.assign(
                 new Error("ENOENT: no such file or directory"),
@@ -537,7 +566,10 @@ describe("events directory resolution", () => {
             const deps = createMockDeps(
                 {},
                 {
-                    realpath: vi.fn().mockRejectedValue(enoent),
+                    realpath: vi.fn().mockImplementation(async (p: string) => {
+                        if (p === "/project") return "/project";
+                        throw enoent;
+                    }),
                 },
             );
             const env = { AGENTSHELL_LOG_DIR: "/project/nonexistent-logs" };
@@ -547,6 +579,78 @@ describe("events directory resolution", () => {
 
             // Assert
             expect(result.error).toBe("AGENTSHELL_LOG_DIR does not exist");
+            expect(result.dir).toBe("");
+        });
+
+        it("should return an error instead of throwing for ENOTDIR", async () => {
+            // Arrange
+            const enotdir = Object.assign(
+                new Error("ENOTDIR: not a directory"),
+                { code: "ENOTDIR" },
+            );
+            const deps = createMockDeps(
+                {},
+                {
+                    realpath: vi.fn().mockImplementation(async (p: string) => {
+                        if (p === "/project") return "/project";
+                        throw enotdir;
+                    }),
+                },
+            );
+            const env = { AGENTSHELL_LOG_DIR: "/project/file-not-dir/logs" };
+
+            // Act
+            const result = await resolveReadEventsDir(env, deps);
+
+            // Assert
+            expect(result.error).toBe("AGENTSHELL_LOG_DIR does not exist");
+            expect(result.dir).toBe("");
+        });
+    });
+
+    describe("given AGENTSHELL_LOG_DIR triggers a permission error", () => {
+        it("should re-throw the error", async () => {
+            // Arrange
+            const eacces = Object.assign(
+                new Error("EACCES: permission denied"),
+                { code: "EACCES" },
+            );
+            const deps = createMockDeps(
+                {},
+                {
+                    realpath: vi.fn().mockImplementation(async (p: string) => {
+                        if (p === "/project") return "/project";
+                        throw eacces;
+                    }),
+                },
+            );
+            const env = { AGENTSHELL_LOG_DIR: "/project/restricted-logs" };
+
+            // Act & Assert
+            await expect(resolveReadEventsDir(env, deps)).rejects.toThrow(
+                "EACCES: permission denied",
+            );
+        });
+    });
+
+    describe("given AGENTSHELL_LOG_DIR is a relative traversal path", () => {
+        it("should return an error for paths escaping the project root", async () => {
+            // Arrange
+            const deps = createMockDeps(
+                {},
+                {
+                    realpath: vi
+                        .fn()
+                        .mockImplementation(async (p: string) => p),
+                },
+            );
+            const env = { AGENTSHELL_LOG_DIR: "../../etc" };
+
+            // Act
+            const result = await resolveReadEventsDir(env, deps);
+
+            // Assert
+            expect(result.error).toContain("outside project root");
             expect(result.dir).toBe("");
         });
     });

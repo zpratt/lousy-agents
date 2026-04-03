@@ -16,3 +16,11 @@ export function isWithinProjectRoot(
         !isAbsolute(rel)
     );
 }
+
+export function isPathNotFoundError(err: unknown): boolean {
+    if (typeof err === "object" && err !== null && "code" in err) {
+        const { code } = err as { code: unknown };
+        return code === "ENOENT" || code === "ENOTDIR";
+    }
+    return false;
+}
