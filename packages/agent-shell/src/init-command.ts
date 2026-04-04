@@ -316,7 +316,15 @@ export async function handleInit(
         const policy = generatePolicy(scanResult);
         const policyContent = `${JSON.stringify(policy, null, 2)}\n`;
 
-        await writeConfigFile(repoRoot, POLICY_SUBPATH, policyContent, deps);
+        const policyWritten = await writeConfigFile(
+            repoRoot,
+            POLICY_SUBPATH,
+            policyContent,
+            deps,
+        );
+        if (!policyWritten) {
+            return false;
+        }
     }
 
     // Print summary

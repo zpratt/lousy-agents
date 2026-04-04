@@ -82,9 +82,10 @@ describe("handleInit", () => {
                 const deps = createMockDeps({ isTty: false });
 
                 // Act
-                await handleInit(flags, deps);
+                const ok = await handleInit(flags, deps);
 
                 // Assert
+                expect(ok).toBe(true);
                 expect(deps.stderr.join("")).toContain("auto-enabling");
                 expect(deps.stderr.join("")).toContain("flight recording");
                 expect(deps.stderr.join("")).toContain("policy blocking");
@@ -99,9 +100,10 @@ describe("handleInit", () => {
                 const deps = createMockDeps();
 
                 // Act
-                await handleInit(flags, deps);
+                const ok = await handleInit(flags, deps);
 
                 // Assert
+                expect(ok).toBe(true);
                 const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
                 const hooksCall = writeFileCalls.find(([path]) =>
                     (path as string).includes("hooks.json"),
@@ -123,9 +125,10 @@ describe("handleInit", () => {
                 const deps = createMockDeps();
 
                 // Act
-                await handleInit(flags, deps);
+                const ok = await handleInit(flags, deps);
 
                 // Assert
+                expect(ok).toBe(true);
                 const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
                 const hooksCall = writeFileCalls.find(([path]) =>
                     (path as string).includes("hooks.json"),
@@ -151,9 +154,10 @@ describe("handleInit", () => {
                 const deps = createMockDeps();
 
                 // Act
-                await handleInit(flags, deps);
+                const ok = await handleInit(flags, deps);
 
                 // Assert
+                expect(ok).toBe(true);
                 expect(deps.stdout.join("")).toContain("No features selected");
                 expect(deps.writeFile).not.toHaveBeenCalled();
             });
@@ -169,9 +173,10 @@ describe("handleInit", () => {
                 const deps = createMockDeps();
 
                 // Act
-                await handleInit(flags, deps);
+                const ok = await handleInit(flags, deps);
 
                 // Assert
+                expect(ok).toBe(true);
                 const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
                 const hooksCall = writeFileCalls.find(([path]) =>
                     (path as string).includes("hooks.json"),
@@ -194,9 +199,10 @@ describe("handleInit", () => {
                 const deps = createMockDeps();
 
                 // Act
-                await handleInit(flags, deps);
+                const ok = await handleInit(flags, deps);
 
                 // Assert
+                expect(ok).toBe(true);
                 const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
                 const hooksCall = writeFileCalls.find(([path]) =>
                     (path as string).includes("hooks.json"),
@@ -222,9 +228,10 @@ describe("handleInit", () => {
             });
 
             // Act
-            await handleInit(flags, deps);
+            const ok = await handleInit(flags, deps);
 
             // Assert
+            expect(ok).toBe(true);
             expect(deps.stdout.join("")).toContain(
                 "All features already configured",
             );
@@ -266,9 +273,10 @@ describe("handleInit", () => {
                 });
 
                 // Act
-                await handleInit(flags, deps);
+                const ok = await handleInit(flags, deps);
 
                 // Assert
+                expect(ok).toBe(true);
                 const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
                 const hooksCall = writeFileCalls.find(([path]) =>
                     (path as string).includes("hooks.json"),
@@ -294,9 +302,10 @@ describe("handleInit", () => {
             });
 
             // Act
-            await handleInit(flags, deps);
+            const ok = await handleInit(flags, deps);
 
             // Assert
+            expect(ok).toBe(true);
             expect(promptMock).toHaveBeenCalledTimes(2);
             expect(promptMock).toHaveBeenCalledWith(
                 "Enable flight recording (postToolUse hook)?",
@@ -323,9 +332,10 @@ describe("handleInit", () => {
             });
 
             // Act
-            await handleInit(flags, deps);
+            const ok = await handleInit(flags, deps);
 
             // Assert
+            expect(ok).toBe(true);
             expect(promptMock).toHaveBeenCalledTimes(1);
             expect(promptMock).toHaveBeenCalledWith(
                 "Enable flight recording (postToolUse hook)?",
@@ -345,9 +355,10 @@ describe("handleInit", () => {
             });
 
             // Act
-            await handleInit(flags, deps);
+            const ok = await handleInit(flags, deps);
 
             // Assert
+            expect(ok).toBe(true);
             expect(deps.stdout.join("")).toContain("No features selected");
             expect(deps.writeFile).not.toHaveBeenCalled();
         });
@@ -361,6 +372,31 @@ describe("handleInit", () => {
                 realpath: vi.fn().mockImplementation(async (p: string) => {
                     if (p.includes("hooks.json")) {
                         return "/outside/hooks.json";
+                    }
+                    return p;
+                }),
+            });
+
+            // Act
+            const ok = await handleInit(flags, deps);
+
+            // Assert
+            expect(ok).toBe(false);
+            expect(deps.stderr.join("")).toContain(
+                "resolves outside repository root",
+            );
+        });
+    });
+
+    describe("given policy.json write fails after hooks.json succeeds", () => {
+        it("should return false when policy file write fails", async () => {
+            // Arrange
+            const flags = createDefaultFlags({ policy: true });
+            const deps = createMockDeps({
+                realpath: vi.fn().mockImplementation(async (p: string) => {
+                    // Fail containment only for policy.json path
+                    if (p.includes("policy.json")) {
+                        return "/outside/policy.json";
                     }
                     return p;
                 }),
@@ -407,9 +443,10 @@ describe("handleInit", () => {
             });
 
             // Act
-            await handleInit(flags, deps);
+            const ok = await handleInit(flags, deps);
 
             // Assert
+            expect(ok).toBe(true);
             const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
             const hooksCall = writeFileCalls.find(([path]) =>
                 (path as string).includes("hooks.json"),
@@ -454,9 +491,10 @@ describe("handleInit", () => {
             });
 
             // Act
-            await handleInit(flags, deps);
+            const ok = await handleInit(flags, deps);
 
             // Assert
+            expect(ok).toBe(true);
             const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
             const hooksCall = writeFileCalls.find(([path]) =>
                 (path as string).includes("hooks.json"),
@@ -483,9 +521,10 @@ describe("handleInit", () => {
             const deps = createMockDeps({ isTty: false });
 
             // Act
-            await handleInit(flags, deps);
+            const ok = await handleInit(flags, deps);
 
             // Assert
+            expect(ok).toBe(true);
             // Should NOT see the auto-enabling message since explicit flags were given
             expect(deps.stderr.join("")).not.toContain("auto-enabling");
             expect(deps.stdout.join("")).toContain("flight recording");
