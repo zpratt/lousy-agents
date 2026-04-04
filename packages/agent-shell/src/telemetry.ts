@@ -2,7 +2,7 @@
 import { dirname, join, resolve } from "node:path";
 import { detectActor } from "./actor.js";
 import { captureEnv, captureTags } from "./env-capture.js";
-import { isWithinProjectRoot } from "./path-utils.js";
+import { isPathNotFoundError, isWithinProjectRoot } from "./path-utils.js";
 import type { ShimResult } from "./shim.js";
 import type {
     PolicyDecisionEvent,
@@ -23,14 +23,6 @@ export interface TelemetryDeps {
 
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const DEFAULT_EVENTS_SUBDIR = ".agent-shell/events";
-
-function isPathNotFoundError(err: unknown): boolean {
-    if (typeof err === "object" && err !== null && "code" in err) {
-        const code = (err as { code: unknown }).code;
-        return code === "ENOENT" || code === "ENOTDIR";
-    }
-    return false;
-}
 
 async function realpathExistingAncestor(
     targetPath: string,

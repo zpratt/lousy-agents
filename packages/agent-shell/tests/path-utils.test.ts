@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isWithinProjectRoot } from "../src/path-utils.js";
+import { isPathNotFoundError, isWithinProjectRoot } from "../src/path-utils.js";
 
 describe("isWithinProjectRoot", () => {
     describe("given a path that is the project root itself", () => {
@@ -63,6 +63,49 @@ describe("isWithinProjectRoot", () => {
             expect(isWithinProjectRoot("/project/..foo/bar", "/project")).toBe(
                 true,
             );
+        });
+    });
+});
+
+describe("isPathNotFoundError", () => {
+    describe("given an ENOENT error", () => {
+        it("should return true", () => {
+            const err = Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+            expect(isPathNotFoundError(err)).toBe(true);
+        });
+    });
+
+    describe("given an ENOTDIR error", () => {
+        it("should return true", () => {
+            const err = Object.assign(new Error("ENOTDIR"), {
+                code: "ENOTDIR",
+            });
+            expect(isPathNotFoundError(err)).toBe(true);
+        });
+    });
+
+    describe("given an EACCES error", () => {
+        it("should return false", () => {
+            const err = Object.assign(new Error("EACCES"), {
+                code: "EACCES",
+            });
+            expect(isPathNotFoundError(err)).toBe(false);
+        });
+    });
+
+    describe("given a non-object error", () => {
+        it("should return false for a string", () => {
+            expect(isPathNotFoundError("ENOENT")).toBe(false);
+        });
+
+        it("should return false for null", () => {
+            expect(isPathNotFoundError(null)).toBe(false);
+        });
+    });
+
+    describe("given an object without a code property", () => {
+        it("should return false", () => {
+            expect(isPathNotFoundError(new Error("some error"))).toBe(false);
         });
     });
 });

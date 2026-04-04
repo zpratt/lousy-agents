@@ -1,5 +1,5 @@
 import { isAbsolute, join } from "node:path";
-import { isWithinProjectRoot } from "./path-utils.js";
+import { isPathNotFoundError, isWithinProjectRoot } from "./path-utils.js";
 import { SHELL_METACHAR_PATTERN } from "./sanitize.js";
 import { type PolicyConfig, PolicyConfigSchema } from "./types.js";
 
@@ -97,14 +97,6 @@ function sanitizePath(path: string): string {
     });
 }
 
-function isPolicyFileNotFound(error: unknown): boolean {
-    if (typeof error === "object" && error !== null && "code" in error) {
-        const { code } = error as { code: unknown };
-        return code === "ENOENT" || code === "ENOTDIR";
-    }
-    return false;
-}
-
 function resolvePolicyPath(
     env: Record<string, string | undefined>,
     repoRoot: string,
@@ -138,7 +130,7 @@ export async function loadPolicy(
     try {
         resolvedPath = await deps.realpath(candidatePath);
     } catch (error: unknown) {
-        if (isPolicyFileNotFound(error)) {
+        if (isPathNotFoundError(error)) {
             if (isOverride) {
                 throw new Error(
                     `Policy override path does not exist: ${sanitizePath(candidatePath)}`,
@@ -159,7 +151,7 @@ export async function loadPolicy(
     try {
         content = await deps.readFile(resolvedPath, "utf-8");
     } catch (error: unknown) {
-        if (isPolicyFileNotFound(error)) {
+        if (isPathNotFoundError(error)) {
             if (isOverride) {
                 throw new Error(
                     `Policy override path does not exist: ${sanitizePath(resolvedPath)}`,

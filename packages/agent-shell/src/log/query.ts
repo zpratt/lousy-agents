@@ -1,6 +1,6 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
-import { join } from "node:path";
-import { isWithinProjectRoot } from "../path-utils.js";
+import { join, resolve } from "node:path";
+import { isPathNotFoundError, isWithinProjectRoot } from "../path-utils.js";
 import type { ScriptEvent } from "../types.js";
 import { ScriptEventSchema } from "../types.js";
 
@@ -72,9 +72,33 @@ export async function resolveReadEventsDir(
     const logDir = env.AGENTSHELL_LOG_DIR;
 
     if (logDir !== undefined && logDir !== "") {
-        const resolved = await deps.realpath(logDir);
+        const projectRootReal = await deps.realpath(projectRoot);
+        const candidate = resolve(projectRoot, logDir);
 
-        if (!isWithinProjectRoot(resolved, projectRoot)) {
+        if (
+            !isWithinProjectRoot(candidate, projectRoot) &&
+            !isWithinProjectRoot(candidate, projectRootReal)
+        ) {
+            return {
+                dir: "",
+                error: "AGENTSHELL_LOG_DIR resolves outside project root",
+            };
+        }
+
+        let resolved: string;
+        try {
+            resolved = await deps.realpath(candidate);
+        } catch (err: unknown) {
+            if (isPathNotFoundError(err)) {
+                return {
+                    dir: "",
+                    error: "AGENTSHELL_LOG_DIR does not exist or is not a directory",
+                };
+            }
+            throw err;
+        }
+
+        if (!isWithinProjectRoot(resolved, projectRootReal)) {
             return {
                 dir: "",
                 error: "AGENTSHELL_LOG_DIR resolves outside project root",
