@@ -45,7 +45,7 @@ const DEFAULT_SAFE_COMMANDS = [
 const DEFAULT_DENY_RULES = ["rm -rf *", "sudo *"];
 
 const POLICY_SUBPATH = ".github/hooks/agent-shell/policy.json";
-const HOOKS_SUBPATH = ".github/copilot/hooks.json";
+const HOOKS_SUBPATH = ".github/hooks/agent-shell/hooks.json";
 
 /**
  * Extracts the script or task name from a command string, skipping any
@@ -282,7 +282,7 @@ export async function handlePolicyInit(deps: PolicyInitDeps): Promise<void> {
 
     await writeFileIfNotExists(
         hooksPath,
-        join(repoRoot, ".github", "copilot"),
+        join(repoRoot, ".github", "hooks", "agent-shell"),
         hooksContent,
         HOOKS_SUBPATH,
         deps.writeStdout,

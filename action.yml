@@ -21,7 +21,7 @@ inputs:
     default: 'false'
   hooks:
     description: >-
-      Lint pre-tool-use hook configurations in .github/copilot/hooks.json,
+      Lint pre-tool-use hook configurations in .github/hooks/agent-shell/hooks.json,
       .claude/settings.json, and .claude/settings.local.json
     required: false
     default: 'false'

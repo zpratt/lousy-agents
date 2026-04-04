@@ -77,14 +77,16 @@ describe("Hook entity types", () => {
         it("should represent a lint result for a hook file", () => {
             // Arrange
             const result: HookLintResult = {
-                filePath: "/repo/.github/copilot/hooks.json",
+                filePath: "/repo/.github/hooks/agent-shell/hooks.json",
                 platform: "copilot",
                 diagnostics: [],
                 valid: true,
             };
 
             // Assert
-            expect(result.filePath).toBe("/repo/.github/copilot/hooks.json");
+            expect(result.filePath).toBe(
+                "/repo/.github/hooks/agent-shell/hooks.json",
+            );
             expect(result.platform).toBe("copilot");
             expect(result.valid).toBe(true);
             expect(result.diagnostics).toHaveLength(0);

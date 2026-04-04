@@ -170,7 +170,7 @@ Patterns support `*` wildcards for prefix, suffix, and infix matching (e.g., `np
 
 ### Copilot Hook Configuration
 
-Add the following to `.github/copilot/hooks.json` to use policy-check as a pre-tool-use hook:
+Add the following to `.github/hooks/agent-shell/hooks.json` to use policy-check as a pre-tool-use hook:
 
 ```json
 {
@@ -228,7 +228,7 @@ agent-shell policy --init
 | File | Description |
 | ------ | ------------- |
 | `.github/hooks/agent-shell/policy.json` | Allow/deny policy derived from discovered commands |
-| `.github/copilot/hooks.json` | Copilot `preToolUse` hook entry wiring `agent-shell policy-check` |
+| `.github/hooks/agent-shell/hooks.json` | Copilot `preToolUse` hook entry wiring `agent-shell policy-check` |
 
 If either file already exists, the command skips writing it and notifies you. Both files are safe to commit for team-wide enforcement.
 
@@ -307,7 +307,7 @@ Once authenticated, `policy --init` will automatically detect the SDK and run AI
 Scanning project...
 Discovered: 8 npm script(s), 12 workflow command(s), 3 mise task(s), 1 language(s)
 Created .github/hooks/agent-shell/policy.json
-Created .github/copilot/hooks.json
+Created .github/hooks/agent-shell/hooks.json
 
 --- Proposed Policy ---
 {

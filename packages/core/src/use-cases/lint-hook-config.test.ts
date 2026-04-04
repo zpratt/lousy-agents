@@ -54,7 +54,7 @@ describe("LintHookConfigUseCase", () => {
     describe("given a valid copilot hook configuration", () => {
         it("should return valid result with timeout warning", async () => {
             // Arrange
-            const filePath = `/repo/.github/copilot/hooks.json`;
+            const filePath = `/repo/.github/hooks/agent-shell/hooks.json`;
             const discovered: DiscoveredHookFile[] = [
                 { filePath, platform: "copilot" },
             ];
@@ -96,7 +96,7 @@ describe("LintHookConfigUseCase", () => {
     describe("given a copilot hook config with all recommended fields", () => {
         it("should return valid result with no diagnostics", async () => {
             // Arrange
-            const filePath = `/repo/.github/copilot/hooks.json`;
+            const filePath = `/repo/.github/hooks/agent-shell/hooks.json`;
             const discovered: DiscoveredHookFile[] = [
                 { filePath, platform: "copilot" },
             ];
@@ -136,7 +136,7 @@ describe("LintHookConfigUseCase", () => {
     describe("given a copilot hook config with invalid JSON", () => {
         it("should return an error diagnostic with the parse error detail", async () => {
             // Arrange
-            const filePath = `/repo/.github/copilot/hooks.json`;
+            const filePath = `/repo/.github/hooks/agent-shell/hooks.json`;
             const discovered: DiscoveredHookFile[] = [
                 { filePath, platform: "copilot" },
             ];
@@ -167,7 +167,7 @@ describe("LintHookConfigUseCase", () => {
     describe("given a copilot hook config missing version field", () => {
         it("should return an error diagnostic", async () => {
             // Arrange
-            const filePath = `/repo/.github/copilot/hooks.json`;
+            const filePath = `/repo/.github/hooks/agent-shell/hooks.json`;
             const discovered: DiscoveredHookFile[] = [
                 { filePath, platform: "copilot" },
             ];
@@ -201,7 +201,7 @@ describe("LintHookConfigUseCase", () => {
     describe("given a copilot hook config missing shell command", () => {
         it("should return an error diagnostic with hook/missing-command rule", async () => {
             // Arrange
-            const filePath = `/repo/.github/copilot/hooks.json`;
+            const filePath = `/repo/.github/hooks/agent-shell/hooks.json`;
             const discovered: DiscoveredHookFile[] = [
                 { filePath, platform: "copilot" },
             ];
@@ -236,7 +236,7 @@ describe("LintHookConfigUseCase", () => {
     describe("given a copilot hook config with empty bash string", () => {
         it("should return an error diagnostic for empty command", async () => {
             // Arrange
-            const filePath = `/repo/.github/copilot/hooks.json`;
+            const filePath = `/repo/.github/hooks/agent-shell/hooks.json`;
             const discovered: DiscoveredHookFile[] = [
                 { filePath, platform: "copilot" },
             ];
@@ -265,7 +265,7 @@ describe("LintHookConfigUseCase", () => {
 
         it("should emit hook/missing-command (not hook/invalid-config) so severity can be configured consistently", async () => {
             // Arrange
-            const filePath = `/repo/.github/copilot/hooks.json`;
+            const filePath = `/repo/.github/hooks/agent-shell/hooks.json`;
             const discovered: DiscoveredHookFile[] = [
                 { filePath, platform: "copilot" },
             ];
@@ -300,7 +300,7 @@ describe("LintHookConfigUseCase", () => {
     describe("given a copilot hook config with empty powershell string", () => {
         it("should emit hook/missing-command so severity can be configured consistently", async () => {
             // Arrange
-            const filePath = `/repo/.github/copilot/hooks.json`;
+            const filePath = `/repo/.github/hooks/agent-shell/hooks.json`;
             const discovered: DiscoveredHookFile[] = [
                 { filePath, platform: "copilot" },
             ];
@@ -555,7 +555,7 @@ describe("LintHookConfigUseCase", () => {
         it("should validate each file independently", async () => {
             // Arrange
             const copilotFile: DiscoveredHookFile = {
-                filePath: "/repo/.github/copilot/hooks.json",
+                filePath: "/repo/.github/hooks/agent-shell/hooks.json",
                 platform: "copilot",
             };
             const claudeFile: DiscoveredHookFile = {
@@ -596,10 +596,13 @@ describe("LintHookConfigUseCase", () => {
                     .fn()
                     .mockResolvedValue([copilotFile, claudeFile]),
                 readFileContent: vi.fn().mockImplementation((path: string) => {
-                    if (path.includes("copilot")) {
+                    if (path === copilotFile.filePath) {
                         return Promise.resolve(copilotConfig);
                     }
-                    return Promise.resolve(claudeConfig);
+                    if (path === claudeFile.filePath) {
+                        return Promise.resolve(claudeConfig);
+                    }
+                    throw new Error(`Unexpected path: ${path}`);
                 }),
             });
             const useCase = new LintHookConfigUseCase(gateway);
@@ -621,7 +624,7 @@ describe("LintHookConfigUseCase", () => {
     describe("given a copilot hook config with sessionStart hook missing timeoutSec", () => {
         it("should return a missing-timeout warning for sessionStart hooks", async () => {
             // Arrange
-            const filePath = `/repo/.github/copilot/hooks.json`;
+            const filePath = `/repo/.github/hooks/agent-shell/hooks.json`;
             const discovered: DiscoveredHookFile[] = [
                 { filePath, platform: "copilot" },
             ];
@@ -655,7 +658,7 @@ describe("LintHookConfigUseCase", () => {
     describe("given a copilot hook config with all five event types each missing timeoutSec", () => {
         it("should emit one missing-timeout warning per hook command across all event types", async () => {
             // Arrange
-            const filePath = `/repo/.github/copilot/hooks.json`;
+            const filePath = `/repo/.github/hooks/agent-shell/hooks.json`;
             const discovered: DiscoveredHookFile[] = [
                 { filePath, platform: "copilot" },
             ];
@@ -693,7 +696,7 @@ describe("LintHookConfigUseCase", () => {
             // The raw JSON string simulates attacker-controlled file content — a JS
             // object literal { __proto__: "..." } would silently set prototype instead
             // of creating an own key, so it would not reach the JSON serialization.
-            const filePath = `/repo/.github/copilot/hooks.json`;
+            const filePath = `/repo/.github/hooks/agent-shell/hooks.json`;
             const discovered: DiscoveredHookFile[] = [
                 { filePath, platform: "copilot" },
             ];
@@ -717,7 +720,7 @@ describe("LintHookConfigUseCase", () => {
     describe("given a copilot hook config exceeding the maximum hooks per event", () => {
         it("should return an error diagnostic for the oversized array", async () => {
             // Arrange
-            const filePath = `/repo/.github/copilot/hooks.json`;
+            const filePath = `/repo/.github/hooks/agent-shell/hooks.json`;
             const discovered: DiscoveredHookFile[] = [
                 { filePath, platform: "copilot" },
             ];

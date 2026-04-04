@@ -26,7 +26,12 @@ describe("FileSystemHookConfigGateway", () => {
         describe("given a copilot hooks.json with preToolUse", () => {
             it("should discover the file as copilot platform", async () => {
                 // Arrange
-                const hooksDir = join(testDir, ".github", "copilot");
+                const hooksDir = join(
+                    testDir,
+                    ".github",
+                    "hooks",
+                    "agent-shell",
+                );
                 await mkdir(hooksDir, { recursive: true });
                 await writeFile(
                     join(hooksDir, "hooks.json"),
@@ -95,7 +100,12 @@ describe("FileSystemHookConfigGateway", () => {
         describe("given a copilot hooks.json without preToolUse key", () => {
             it("should not discover the file", async () => {
                 // Arrange
-                const hooksDir = join(testDir, ".github", "copilot");
+                const hooksDir = join(
+                    testDir,
+                    ".github",
+                    "hooks",
+                    "agent-shell",
+                );
                 await mkdir(hooksDir, { recursive: true });
                 await writeFile(
                     join(hooksDir, "hooks.json"),
@@ -113,7 +123,12 @@ describe("FileSystemHookConfigGateway", () => {
         describe("given a copilot hooks.json with invalid JSON containing preToolUse", () => {
             it("should still discover the file so use case can report the error", async () => {
                 // Arrange
-                const hooksDir = join(testDir, ".github", "copilot");
+                const hooksDir = join(
+                    testDir,
+                    ".github",
+                    "hooks",
+                    "agent-shell",
+                );
                 await mkdir(hooksDir, { recursive: true });
                 await writeFile(
                     join(hooksDir, "hooks.json"),
@@ -132,7 +147,12 @@ describe("FileSystemHookConfigGateway", () => {
         describe("given a copilot hooks.json where preToolUse appears only in a string value", () => {
             it("should not discover the file", async () => {
                 // Arrange
-                const hooksDir = join(testDir, ".github", "copilot");
+                const hooksDir = join(
+                    testDir,
+                    ".github",
+                    "hooks",
+                    "agent-shell",
+                );
                 await mkdir(hooksDir, { recursive: true });
                 await writeFile(
                     join(hooksDir, "hooks.json"),
@@ -174,7 +194,12 @@ describe("FileSystemHookConfigGateway", () => {
         describe("given a symbolic link at a known hook path", () => {
             it("should not discover the symlinked file", async () => {
                 // Arrange
-                const hooksDir = join(testDir, ".github", "copilot");
+                const hooksDir = join(
+                    testDir,
+                    ".github",
+                    "hooks",
+                    "agent-shell",
+                );
                 await mkdir(hooksDir, { recursive: true });
                 const realFile = join(testDir, "real-hooks.json");
                 await writeFile(

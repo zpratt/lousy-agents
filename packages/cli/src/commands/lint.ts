@@ -313,7 +313,7 @@ export const lintCommand = defineCommand({
         hooks: {
             type: "boolean",
             description:
-                "Lint pre-tool-use hook configurations in .github/copilot/hooks.json, .claude/settings.json, and .claude/settings.local.json",
+                "Lint pre-tool-use hook configurations in .github/hooks/agent-shell/hooks.json, .claude/settings.json, and .claude/settings.local.json",
             default: false,
         },
         instructions: {

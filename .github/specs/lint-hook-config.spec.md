@@ -27,7 +27,7 @@ so that I can catch missing required fields before runtime.
 
 #### Acceptance Criteria
 
-- When a `.github/copilot/hooks.json` file exists with a `preToolUse` section, the linter shall validate the configuration against the Copilot hook schema.
+- When a `.github/hooks/agent-shell/hooks.json` file exists with a `preToolUse` section, the linter shall validate the configuration against the Copilot hook schema.
 - When a Copilot hook configuration is missing a required field (version, hooks, type, bash/powershell), the linter shall report an error diagnostic.
 - When a Copilot hook configuration is missing the recommended `timeoutSec` field, the linter shall report a warning diagnostic.
 - If the Copilot hook configuration contains invalid JSON, then the linter shall report an error diagnostic with the `hook/invalid-json` rule ID.
@@ -155,7 +155,7 @@ flowchart TB
         LR["LintRulesConfig"]
     end
     subgraph FileSystem["File System"]
-        CF[".github/copilot/hooks.json"]
+        CF[".github/hooks/agent-shell/hooks.json"]
         CS[".claude/settings.json"]
         CL[".claude/settings.local.json"]
     end
@@ -186,7 +186,7 @@ sequenceDiagram
     User->>CLI: lousy-agents lint --hooks
     CLI->>UC: execute({ targetDir })
     UC->>GW: discoverHookFiles(targetDir)
-    GW->>FS: Check .github/copilot/hooks.json
+    GW->>FS: Check .github/hooks/agent-shell/hooks.json
     GW->>FS: Check .claude/settings.json
     GW->>FS: Check .claude/settings.local.json
     GW-->>UC: DiscoveredHookFile[]
@@ -300,7 +300,7 @@ sequenceDiagram
 - `packages/core/src/gateways/hook-config-gateway.ts`
 
 **Requirements**:
-- Discovers `.github/copilot/hooks.json` (copilot platform)
+- Discovers `.github/hooks/agent-shell/hooks.json` (copilot platform)
 - Discovers `.claude/settings.json` and `.claude/settings.local.json` (claude platform)
 - Only reports files that contain relevant hook sections
 - Uses existing `fileExists` utility

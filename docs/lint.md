@@ -5,7 +5,7 @@ Validates agent skills, custom agents, hook configurations, and instruction file
 ## Features
 
 - **Unified Linting**: Lint skills, agents, hook configurations, and instruction files through a single command
-- **Automatic Discovery**: Finds targets across `.github/skills/`, `.claude/skills/`, `.github/agents/`, `.github/copilot/`, `.claude/`, and instruction file locations
+- **Automatic Discovery**: Finds targets across `.github/skills/`, `.claude/skills/`, `.github/agents/`, `.github/hooks/agent-shell/`, `.claude/`, and instruction file locations
 - **Frontmatter Validation**: Checks for required fields and validates their format
 - **Hook Configuration Validation**: Validates JSON hook config files for Copilot and Claude Code against expected schemas
 - **Instruction Quality Analysis**: Scores feedback loop documentation across three dimensions (structural context, execution clarity, loop completeness)
@@ -276,15 +276,15 @@ Validates hook configuration files for GitHub Copilot and Claude Code. Catches J
 
 | File Path | Platform |
 | --------- | -------- |
-| `.github/copilot/hooks.json` | GitHub Copilot |
+| `.github/hooks/agent-shell/hooks.json` | GitHub Copilot |
 | `.claude/settings.json` | Claude Code |
 | `.claude/settings.local.json` | Claude Code (local override) |
 
-Discovery is heuristic-based: Copilot hook configs are only discovered if they contain the `"preToolUse"` key, and Claude settings files are only discovered if they contain the `"PreToolUse"` key. For example, a `.github/copilot/hooks.json` file that only defines `sessionStart` hooks (and no `preToolUse` hooks) will not be discovered or linted. Symlinks are skipped for security.
+Discovery is heuristic-based: Copilot hook configs are only discovered if they contain the `"preToolUse"` key, and Claude settings files are only discovered if they contain the `"PreToolUse"` key. For example, a `.github/hooks/agent-shell/hooks.json` file that only defines `sessionStart` hooks (and no `preToolUse` hooks) will not be discovered or linted. Symlinks are skipped for security.
 
 ### What It Validates
 
-**Copilot hooks** (`.github/copilot/hooks.json`):
+**Copilot hooks** (`.github/hooks/agent-shell/hooks.json`):
 
 - `version` must be `1`
 - Hook lifecycle arrays: `sessionStart`, `userPromptSubmitted`, `preToolUse`, `postToolUse`, `sessionEnd`
@@ -314,7 +314,7 @@ Discovery is heuristic-based: Copilot hook configs are only discovered if they c
 
 ```
 Discovered 1 hook config(s)
-✔ .github/copilot/hooks.json: OK
+✔ .github/hooks/agent-shell/hooks.json: OK
 All hook config(s) passed lint checks
 ```
 
@@ -322,7 +322,7 @@ All hook config(s) passed lint checks
 
 ```
 Discovered 1 hook config(s)
-✖ .github/copilot/hooks.json:1 [hooks.preToolUse.0]: At least one of 'bash' or 'powershell' must be provided and non-empty
+✖ .github/hooks/agent-shell/hooks.json:1 [hooks.preToolUse.0]: At least one of 'bash' or 'powershell' must be provided and non-empty
 lint failed: 1 error(s), 0 warning(s)
 ```
 
