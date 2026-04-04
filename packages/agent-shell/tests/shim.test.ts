@@ -451,4 +451,134 @@ describe("resolveMode", () => {
             }
         });
     });
+
+    describe("given 'record' as the first argument", () => {
+        it("should resolve to record mode", () => {
+            // Arrange
+            const args = ["record"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode).toEqual({ type: "record" });
+        });
+
+        it("should take precedence over AGENTSHELL_PASSTHROUGH=1", () => {
+            // Arrange
+            const args = ["record"];
+            // biome-ignore lint/style/useNamingConvention: env var name
+            const env = { AGENTSHELL_PASSTHROUGH: "1" };
+
+            // Act
+            const mode = resolveMode(args, env);
+
+            // Assert
+            expect(mode).toEqual({ type: "record" });
+        });
+    });
+
+    describe("given 'init' as the first argument", () => {
+        it("should resolve to init mode with all flags false by default", () => {
+            // Arrange
+            const args = ["init"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode).toEqual({
+                type: "init",
+                flightRecorder: false,
+                policy: false,
+                noFlightRecorder: false,
+                noPolicy: false,
+            });
+        });
+
+        it("should parse --flight-recorder flag", () => {
+            // Arrange
+            const args = ["init", "--flight-recorder"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode.type).toBe("init");
+            if (mode.type === "init") {
+                expect(mode.flightRecorder).toBe(true);
+                expect(mode.policy).toBe(false);
+            }
+        });
+
+        it("should parse --policy flag", () => {
+            // Arrange
+            const args = ["init", "--policy"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode.type).toBe("init");
+            if (mode.type === "init") {
+                expect(mode.policy).toBe(true);
+            }
+        });
+
+        it("should parse --no-flight-recorder flag", () => {
+            // Arrange
+            const args = ["init", "--no-flight-recorder"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode.type).toBe("init");
+            if (mode.type === "init") {
+                expect(mode.noFlightRecorder).toBe(true);
+            }
+        });
+
+        it("should parse --no-policy flag", () => {
+            // Arrange
+            const args = ["init", "--no-policy"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode.type).toBe("init");
+            if (mode.type === "init") {
+                expect(mode.noPolicy).toBe(true);
+            }
+        });
+
+        it("should parse multiple flags together", () => {
+            // Arrange
+            const args = ["init", "--flight-recorder", "--policy"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode.type).toBe("init");
+            if (mode.type === "init") {
+                expect(mode.flightRecorder).toBe(true);
+                expect(mode.policy).toBe(true);
+            }
+        });
+
+        it("should take precedence over AGENTSHELL_PASSTHROUGH=1", () => {
+            // Arrange
+            const args = ["init"];
+            // biome-ignore lint/style/useNamingConvention: env var name
+            const env = { AGENTSHELL_PASSTHROUGH: "1" };
+
+            // Act
+            const mode = resolveMode(args, env);
+
+            // Assert
+            expect(mode.type).toBe("init");
+        });
+    });
 });

@@ -28,13 +28,14 @@ function createMockTelemetryDeps(): TelemetryDeps & { written: string[] } {
 function createMockDeps(
     stdinPayload: unknown,
     overrides?: Partial<RecordDeps>,
-): RecordDeps & { stderr: string[]; telemetryDeps: TelemetryDeps & { written: string[] } } {
+): RecordDeps & {
+    stderr: string[];
+    telemetryDeps: TelemetryDeps & { written: string[] };
+} {
     const stderr: string[] = [];
     const telemetryDeps = createMockTelemetryDeps();
     return {
-        readStdin: vi
-            .fn()
-            .mockResolvedValue(JSON.stringify(stdinPayload)),
+        readStdin: vi.fn().mockResolvedValue(JSON.stringify(stdinPayload)),
         writeStderr: vi.fn().mockImplementation((msg: string) => {
             stderr.push(msg);
         }),
@@ -243,7 +244,10 @@ describe("handleRecord", () => {
     describe("given telemetry emission fails", () => {
         it("should log the error to stderr and exit gracefully", async () => {
             // Arrange
-            const payload = { toolName: "bash", toolArgs: JSON.stringify({ command: "ls" }) };
+            const payload = {
+                toolName: "bash",
+                toolArgs: JSON.stringify({ command: "ls" }),
+            };
             const deps = createMockDeps(payload);
             deps.telemetryDeps.appendFile = vi
                 .fn()

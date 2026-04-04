@@ -131,11 +131,7 @@ export async function resolveWriteEventsDir(
 async function writeEvent(
     eventsDir: string,
     sessionId: string,
-    event:
-        | ScriptEndEvent
-        | ShimErrorEvent
-        | PolicyDecisionEvent
-        | ToolUseEvent,
+    event: ScriptEndEvent | ShimErrorEvent | PolicyDecisionEvent | ToolUseEvent,
     deps: TelemetryDeps,
 ): Promise<void> {
     const filePath = join(eventsDir, `${sessionId}.jsonl`);
