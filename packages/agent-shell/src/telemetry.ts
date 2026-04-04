@@ -8,6 +8,7 @@ import type {
     PolicyDecisionEvent,
     ScriptEndEvent,
     ShimErrorEvent,
+    ToolUseEvent,
 } from "./types.js";
 import { SCHEMA_VERSION } from "./types.js";
 
@@ -130,7 +131,11 @@ export async function resolveWriteEventsDir(
 async function writeEvent(
     eventsDir: string,
     sessionId: string,
-    event: ScriptEndEvent | ShimErrorEvent | PolicyDecisionEvent,
+    event:
+        | ScriptEndEvent
+        | ShimErrorEvent
+        | PolicyDecisionEvent
+        | ToolUseEvent,
     deps: TelemetryDeps,
 ): Promise<void> {
     const filePath = join(eventsDir, `${sessionId}.jsonl`);
@@ -237,6 +242,44 @@ export async function emitPolicyDecisionEvent(
         command: options.command,
         decision: options.decision,
         matched_rule: options.matched_rule,
+        actor: detectActor(options.env),
+        timestamp: deps.now(),
+        env: capturedEnv,
+        tags,
+    };
+
+    await writeEvent(eventsDir, sessionId, event, depsWithProjectRoot);
+}
+
+export async function emitToolUseEvent(
+    options: {
+        tool_name: string;
+        command: string;
+        env: Record<string, string | undefined>;
+        projectRoot: string;
+    },
+    deps: TelemetryDeps,
+): Promise<void> {
+    const depsWithProjectRoot: TelemetryDeps = {
+        ...deps,
+        cwd: () => options.projectRoot,
+    };
+
+    const sessionId = resolveSessionId(options.env, deps);
+    const eventsDir = await resolveWriteEventsDir(
+        options.env,
+        depsWithProjectRoot,
+    );
+
+    const capturedEnv = captureEnv(options.env);
+    const tags = captureTags(options.env);
+
+    const event: ToolUseEvent = {
+        v: SCHEMA_VERSION,
+        session_id: sessionId,
+        event: "tool_use",
+        tool_name: options.tool_name,
+        command: options.command,
         actor: detectActor(options.env),
         timestamp: deps.now(),
         env: capturedEnv,

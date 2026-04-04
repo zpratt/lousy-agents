@@ -2,6 +2,14 @@ export type Mode =
     | { type: "passthrough"; args: string[] }
     | { type: "policy-check" }
     | { type: "policy-init"; model?: string }
+    | { type: "record" }
+    | {
+          type: "init";
+          flightRecorder: boolean;
+          policy: boolean;
+          noFlightRecorder: boolean;
+          noPolicy: boolean;
+      }
     | { type: "version" }
     | { type: "shim"; command: string }
     | { type: "log" }
@@ -26,6 +34,37 @@ function parsePolicyInitOptions(args: string[]): { model?: string } {
     return options;
 }
 
+function parseInitOptions(args: string[]): {
+    flightRecorder: boolean;
+    policy: boolean;
+    noFlightRecorder: boolean;
+    noPolicy: boolean;
+} {
+    const options = {
+        flightRecorder: false,
+        policy: false,
+        noFlightRecorder: false,
+        noPolicy: false,
+    };
+    for (const arg of args.slice(1)) {
+        switch (arg) {
+            case "--flight-recorder":
+                options.flightRecorder = true;
+                break;
+            case "--policy":
+                options.policy = true;
+                break;
+            case "--no-flight-recorder":
+                options.noFlightRecorder = true;
+                break;
+            case "--no-policy":
+                options.noPolicy = true;
+                break;
+        }
+    }
+    return options;
+}
+
 export function resolveMode(
     args: string[],
     env: Record<string, string | undefined>,
@@ -33,6 +72,11 @@ export function resolveMode(
     const firstArg = args[0];
 
     if (firstArg === "policy-check") return { type: "policy-check" };
+    if (firstArg === "record") return { type: "record" };
+    if (firstArg === "init") {
+        const options = parseInitOptions(args);
+        return { type: "init", ...options };
+    }
     if (firstArg === "policy" && args[1] === "--init") {
         const options = parsePolicyInitOptions(args);
         return { type: "policy-init", model: options.model };

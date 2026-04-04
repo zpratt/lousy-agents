@@ -7,6 +7,7 @@ import {
     PolicyDecisionEventSchema,
     SCHEMA_VERSION,
     ScriptEventSchema,
+    ToolUseEventSchema,
 } from "../src/types.js";
 
 const chance = new Chance();
@@ -607,6 +608,91 @@ describe("PolicyDecisionEventSchema strict mode", () => {
 
             // Act & Assert
             expect(() => PolicyDecisionEventSchema.parse(event)).toThrow();
+        });
+    });
+});
+
+function buildToolUseEvent(overrides: Record<string, unknown> = {}) {
+    return {
+        v: SCHEMA_VERSION,
+        session_id: chance.guid(),
+        event: "tool_use" as const,
+        tool_name: chance.pickone(["bash", "npm", "curl", "file_edit"]),
+        command: chance.word(),
+        actor: chance.word(),
+        timestamp: new Date().toISOString(),
+        env: {},
+        tags: {},
+        ...overrides,
+    };
+}
+
+describe("ToolUseEventSchema", () => {
+    describe("given a valid tool_use event", () => {
+        it("should parse successfully", () => {
+            // Arrange
+            const event = buildToolUseEvent();
+
+            // Act
+            const result = ToolUseEventSchema.parse(event);
+
+            // Assert
+            expect(result.event).toBe("tool_use");
+            expect(result.tool_name).toBe(event.tool_name);
+            expect(result.command).toBe(event.command);
+        });
+    });
+
+    describe("given a tool_use event with empty command", () => {
+        it("should parse successfully for non-terminal tools", () => {
+            // Arrange
+            const event = buildToolUseEvent({
+                tool_name: "file_edit",
+                command: "",
+            });
+
+            // Act
+            const result = ToolUseEventSchema.parse(event);
+
+            // Assert
+            expect(result.command).toBe("");
+        });
+    });
+
+    describe("given a tool_use event missing tool_name", () => {
+        it("should reject the event", () => {
+            // Arrange
+            const event = buildToolUseEvent();
+            const { tool_name: _, ...withoutToolName } = event;
+
+            // Act & Assert
+            expect(() => ToolUseEventSchema.parse(withoutToolName)).toThrow();
+        });
+    });
+
+    describe("given a tool_use event with extra unknown properties", () => {
+        it("should reject unrecognized fields", () => {
+            // Arrange
+            const event = {
+                ...buildToolUseEvent(),
+                extra_field: chance.word(),
+            };
+
+            // Act & Assert
+            expect(() => ToolUseEventSchema.parse(event)).toThrow();
+        });
+    });
+
+    describe("given a tool_use event parsed through the discriminated union", () => {
+        it("should parse successfully via ScriptEventSchema", () => {
+            // Arrange
+            const event = buildToolUseEvent();
+
+            // Act
+            const result = ScriptEventSchema.parse(event);
+
+            // Assert
+            expect(result.event).toBe("tool_use");
         });
     });
 });
