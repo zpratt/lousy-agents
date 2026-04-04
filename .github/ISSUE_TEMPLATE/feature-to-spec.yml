@@ -40,15 +40,64 @@ body:
     id: extra-instructions
     attributes:
       label: Extra Instructions
-      description: Specific prompt engineering for the agent. This will be posted as a comment to guide the bot.
+      # yamllint disable rule:line-length
+      description: >-
+        Specific prompt engineering for the agent.
+        This will be posted as a comment to guide the bot.
       value: |
-        1. Review ./instructions/spec.instructions.md for more details and use this as your guide for the feature specification.
-        2. Ensure you review all other repository instructions before starting work to understand engineering requirements.
-        3. Create your final spec output in the .github/specs directory and ensure requirements are captured in the EARS format.
-        4. Create a data flow diagram and sequence diagram to illustrate the feature's operation.
-        5. Break down the feature into manageable tasks with clear descriptions.
-        6. As you complete each task in the spec, mark the checkboxes as complete in the spec file using [x] notation.
-        7. If you need to make assumptions, ask questions on the issue.
-        8. Use the diagrams to inform your implementation plan.
+        ## Phase 1: Orient (do not create any files yet)
+
+        1. Read `.github/instructions/spec.instructions.md` — this is your
+           primary guide for the feature specification format and
+           expectations.
+        2. Read all other instruction files in the repository to understand
+           engineering standards, conventions, and constraints.
+        3. Identify any ambiguities, missing context, or assumptions you
+           would need to make. If any exist, post clarifying questions on
+           the issue and **stop until answered**. Do not proceed to Phase 2
+           while open questions remain.
+
+        ## Phase 2: Create
+
+        Produce all artifacts in `.github/specs/`. Work in this order —
+        each step feeds the next:
+
+        4. Write the feature specification with all requirements captured
+           in EARS format (Easy Approach to Requirements Syntax).
+        5. Create a data flow diagram and a sequence diagram (Mermaid
+           format) that illustrate the feature's operation and integration
+           points.
+        6. Using the diagrams as input, break the feature into an ordered
+           implementation plan of discrete tasks. Each task must have: a
+           clear description, acceptance criteria, and a checkbox
+           (`- [ ]`).
+        7. Mark each task checkbox (`[x]`) as you complete it within the
+           spec.
+
+        ## Phase 3: Validate (mandatory — run before finishing)
+
+        Execute the following loop. Exit when **no high or medium severity
+        findings remain**, or after **3 iterations**, whichever comes
+        first:
+
+        8. Generate a diff of your changes (`git diff`) and pass it to the
+           **reviewer agent**.
+        9. Feed the reviewer agent's output into the
+           **triaging-pr-reviews** skill.
+        10. Resolve every finding the skill surfaces according to its
+            severity guidance. Do not skip or defer findings — fix them in
+            the spec before re-running the loop.
+
+        ## Completion checklist (self-verify before finishing)
+
+        - [ ] All requirements are in EARS format
+        - [ ] Data flow diagram is present and accurate
+        - [ ] Sequence diagram is present and accurate
+        - [ ] Implementation plan tasks are ordered, described, and have
+              acceptance criteria
+        - [ ] No open assumptions remain undocumented
+        - [ ] Validate loop exited cleanly (no remaining high/medium
+              findings, or 3 iterations completed)
+      # yamllint enable rule:line-length
     validations:
       required: false
