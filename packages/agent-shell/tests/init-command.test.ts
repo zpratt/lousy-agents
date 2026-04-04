@@ -215,6 +215,33 @@ describe("handleInit", () => {
                 expect(config.hooks.preToolUse).toHaveLength(1);
             });
         });
+        describe("with conflicting --policy and --no-policy flags", () => {
+            it("should let --no-policy take precedence", async () => {
+                // Arrange
+                const flags = createDefaultFlags({
+                    policy: true,
+                    noPolicy: true,
+                    flightRecorder: true,
+                });
+                const deps = createMockDeps();
+
+                // Act
+                const ok = await handleInit(flags, deps);
+
+                // Assert
+                expect(ok).toBe(true);
+                const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
+                const hooksCall = writeFileCalls.find(([path]) =>
+                    (path as string).includes("hooks.json"),
+                );
+                expect(hooksCall).toBeDefined();
+                const config = JSON.parse(hooksCall?.[1] as string);
+                // --no-policy wins: no preToolUse hook
+                expect(config.hooks.preToolUse).toBeUndefined();
+                // --flight-recorder still applies
+                expect(config.hooks.postToolUse).toHaveLength(1);
+            });
+        });
     });
 
     describe("given hooks.json exists with all features configured", () => {
