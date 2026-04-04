@@ -47,7 +47,7 @@ body:
       value: |
         ## Phase 1: Orient (do not create any files yet)
 
-        1. Read `./instructions/spec.instructions.md` — this is your
+        1. Read `.github/instructions/spec.instructions.md` — this is your
            primary guide for the feature specification format and
            expectations.
         2. Read all other instruction files in the repository to understand
