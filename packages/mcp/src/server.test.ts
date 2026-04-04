@@ -619,7 +619,7 @@ jobs:
             const settings = JSON.parse(settingsContent);
             expect(settings.SessionStart).toBeDefined();
             expect(settings.SessionStart).toContain("nvm install");
-            expect(settings.SessionStart).toContain("npm ci");
+            expect(settings.SessionStart).toContain("npm ci --ignore-scripts");
 
             const docsContent = await readFile(
                 join(testDir, "CLAUDE.md"),
