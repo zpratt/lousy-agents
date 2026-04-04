@@ -531,4 +531,47 @@ describe("handleInit", () => {
             expect(deps.stdout.join("")).not.toContain("policy blocking");
         });
     });
+
+    describe("given TTY without prompt dependency", () => {
+        it("should auto-enable all missing features as fallback", async () => {
+            // Arrange
+            const flags = createDefaultFlags();
+            const deps = createMockDeps({
+                isTty: true,
+                prompt: undefined,
+            });
+
+            // Act
+            const ok = await handleInit(flags, deps);
+
+            // Assert
+            expect(ok).toBe(true);
+            expect(deps.writeFile).toHaveBeenCalled();
+            const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
+            const hooksCall = writeFileCalls.find(([path]) =>
+                (path as string).includes("hooks.json"),
+            );
+            expect(hooksCall).toBeDefined();
+            const config = JSON.parse(hooksCall?.[1] as string);
+            expect(config.hooks.preToolUse).toHaveLength(1);
+            expect(config.hooks.postToolUse).toHaveLength(1);
+        });
+    });
+
+    describe("given writeFile throws EACCES", () => {
+        it("should propagate the error to the caller", async () => {
+            // Arrange
+            const flags = createDefaultFlags({ flightRecorder: true });
+            const deps = createMockDeps({
+                writeFile: vi
+                    .fn()
+                    .mockRejectedValue(
+                        Object.assign(new Error("EACCES"), { code: "EACCES" }),
+                    ),
+            });
+
+            // Act & Assert
+            await expect(handleInit(flags, deps)).rejects.toThrow("EACCES");
+        });
+    });
 });

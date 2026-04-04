@@ -135,8 +135,17 @@ async function validatePathContainment(
         return false;
     }
 
+    // Canonicalize repoRoot first — if this fails, the containment check
+    // is impossible and we must abort.
+    let realRepoRoot: string;
     try {
-        const realRepoRoot = await deps.realpath(repoRoot);
+        realRepoRoot = await deps.realpath(repoRoot);
+    } catch {
+        // repoRoot is unreachable — cannot verify containment
+        return false;
+    }
+
+    try {
         const realPath = await deps.realpath(resolvedPath);
         if (!isWithinProjectRoot(realPath, realRepoRoot)) {
             deps.writeStderr(
@@ -148,7 +157,7 @@ async function validatePathContainment(
         if (!isPathNotFoundError(err)) {
             throw err;
         }
-        // Path doesn't exist yet, which is fine for new config files
+        // Target path doesn't exist yet, which is fine for new config files
     }
 
     return true;
@@ -174,8 +183,15 @@ async function writeConfigFile(
 
     // Post-mkdir containment recheck: verify the parent directory hasn't
     // been redirected via symlink created between the pre-check and mkdir.
+    let realRepoRoot: string;
     try {
-        const realRepoRoot = await deps.realpath(repoRoot);
+        realRepoRoot = await deps.realpath(repoRoot);
+    } catch {
+        // repoRoot is unreachable — cannot verify containment
+        return false;
+    }
+
+    try {
         const realParent = await deps.realpath(parentDir);
         if (!isWithinProjectRoot(realParent, realRepoRoot)) {
             deps.writeStderr(
