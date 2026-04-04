@@ -194,6 +194,26 @@ describe("handleInit", () => {
         });
     });
 
+    describe("given hooks.json exists but contains invalid JSON", () => {
+        it("should abort with an error instead of overwriting", async () => {
+            // Arrange
+            const flags = createDefaultFlags({ flightRecorder: true });
+            const deps = createMockDeps({
+                readFile: vi.fn().mockResolvedValue("not valid json{"),
+            });
+
+            // Act
+            await handleInit(flags, deps);
+
+            // Assert
+            expect(deps.stderr.join("")).toContain(
+                "failed to read existing hooks.json",
+            );
+            expect(process.exitCode).toBe(1);
+            expect(deps.writeFile).not.toHaveBeenCalled();
+        });
+    });
+
     describe("given hooks.json exists with only policy configured", () => {
         describe("with --flight-recorder flag", () => {
             it("should add flight recording while preserving policy", async () => {

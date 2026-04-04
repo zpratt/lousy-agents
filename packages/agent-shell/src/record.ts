@@ -54,8 +54,11 @@ function extractTerminalCommand(toolArgs: unknown): string {
         return "";
     }
 
-    // Step 4: must have `command` property
+    // Step 4: must have `command` property (reject prototype pollution keys)
     const obj = parsedArgs as Record<string, unknown>;
+    if (Object.hasOwn(obj, "__proto__") || Object.hasOwn(obj, "constructor")) {
+        return "";
+    }
     if (!Object.hasOwn(obj, "command")) {
         return "";
     }

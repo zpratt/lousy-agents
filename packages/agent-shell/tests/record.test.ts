@@ -189,6 +189,25 @@ describe("handleRecord", () => {
         });
     });
 
+    describe("given a terminal tool with __proto__ key in toolArgs", () => {
+        it("should emit a tool_use event with empty command", async () => {
+            // Arrange
+            const payload = {
+                toolName: "bash",
+                toolArgs: '{"__proto__": {"command": "evil"}, "command": "ls"}',
+            };
+            const deps = createMockDeps(payload);
+
+            // Act
+            await handleRecord(deps);
+
+            // Assert
+            expect(deps.telemetryDeps.written).toHaveLength(1);
+            const parsed = JSON.parse(deps.telemetryDeps.written[0]);
+            expect(parsed.command).toBe("");
+        });
+    });
+
     describe("given invalid JSON from stdin", () => {
         it("should write a diagnostic to stderr and set non-zero exit code", async () => {
             // Arrange

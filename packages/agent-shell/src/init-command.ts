@@ -52,19 +52,19 @@ function detectExistingFeatures(config: HooksConfig): DetectedFeatures {
 async function loadExistingHooksConfig(
     hooksPath: string,
     deps: Pick<InitDeps, "readFile" | "writeStderr">,
-): Promise<HooksConfig | null> {
+): Promise<{ config: HooksConfig | null; error: boolean }> {
     try {
         const raw = await deps.readFile(hooksPath, "utf-8");
         const parsed: unknown = JSON.parse(raw);
-        return HooksConfigSchema.parse(parsed);
+        return { config: HooksConfigSchema.parse(parsed), error: false };
     } catch (err) {
         if (isPathNotFoundError(err)) {
-            return null;
+            return { config: null, error: false };
         }
         deps.writeStderr(
             `agent-shell: failed to read existing hooks.json: ${sanitizeForStderr(err)}\n`,
         );
-        return null;
+        return { config: null, error: true };
     }
 }
 
@@ -104,14 +104,14 @@ function resolveFeatureSelections(
 }
 
 async function validatePathContainment(
-    filePath: string,
+    subpath: string,
     repoRoot: string,
     deps: Pick<InitDeps, "realpath" | "writeStderr">,
 ): Promise<boolean> {
-    const resolvedPath = resolve(repoRoot, filePath);
+    const resolvedPath = resolve(repoRoot, subpath);
     if (!isWithinProjectRoot(resolvedPath, repoRoot)) {
         deps.writeStderr(
-            `agent-shell: path ${filePath} resolves outside repository root, aborting\n`,
+            `agent-shell: path ${subpath} resolves outside repository root, aborting\n`,
         );
         return false;
     }
@@ -121,7 +121,7 @@ async function validatePathContainment(
         const realPath = await deps.realpath(resolvedPath);
         if (!isWithinProjectRoot(realPath, realRepoRoot)) {
             deps.writeStderr(
-                `agent-shell: path ${filePath} resolves outside repository root via symlink, aborting\n`,
+                `agent-shell: path ${subpath} resolves outside repository root via symlink, aborting\n`,
             );
             return false;
         }
@@ -144,11 +144,7 @@ async function writeConfigFile(
         "writeFile" | "mkdir" | "realpath" | "writeStdout" | "writeStderr"
     >,
 ): Promise<boolean> {
-    const valid = await validatePathContainment(
-        join(repoRoot, subpath),
-        repoRoot,
-        deps,
-    );
+    const valid = await validatePathContainment(subpath, repoRoot, deps);
     if (!valid) {
         return false;
     }
@@ -156,6 +152,24 @@ async function writeConfigFile(
     const filePath = join(repoRoot, subpath);
     const parentDir = join(repoRoot, HOOKS_PARENT);
     await deps.mkdir(parentDir, { recursive: true });
+
+    // Post-mkdir containment recheck: verify the parent directory hasn't
+    // been redirected via symlink created between the pre-check and mkdir.
+    try {
+        const realRepoRoot = await deps.realpath(repoRoot);
+        const realParent = await deps.realpath(parentDir);
+        if (!isWithinProjectRoot(realParent, realRepoRoot)) {
+            deps.writeStderr(
+                `agent-shell: parent directory resolves outside repository root after mkdir, aborting\n`,
+            );
+            return false;
+        }
+    } catch (err) {
+        if (!isPathNotFoundError(err)) {
+            throw err;
+        }
+    }
+
     await deps.writeFile(filePath, content);
     deps.writeStdout(`Wrote ${subpath}\n`);
     return true;
@@ -168,7 +182,13 @@ export async function handleInit(
     const repoRoot = deps.getRepositoryRoot();
     const hooksPath = join(repoRoot, HOOKS_SUBPATH);
 
-    const existingConfig = await loadExistingHooksConfig(hooksPath, deps);
+    const { config: existingConfig, error: loadError } =
+        await loadExistingHooksConfig(hooksPath, deps);
+
+    if (loadError) {
+        process.exitCode = 1;
+        return;
+    }
 
     const existing: DetectedFeatures = existingConfig
         ? detectExistingFeatures(existingConfig)
