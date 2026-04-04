@@ -1,6 +1,6 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 /**
@@ -17,7 +17,8 @@ export function resolveSdkPath(
     repoRoot: string,
     packageName: string,
 ): string | null {
-    if (!repoRoot) return null;
+    if (!repoRoot || !isAbsolute(repoRoot)) return null;
+    if (/^[./]/.test(packageName) || packageName.includes("..")) return null;
     try {
         const projectRequire = createRequire(resolve(repoRoot, "package.json"));
         const cjsResolved = projectRequire.resolve(packageName);
