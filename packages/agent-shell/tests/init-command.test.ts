@@ -465,6 +465,47 @@ describe("handleInit", () => {
         });
     });
 
+    describe("given hooks.json with powershell agent-shell hooks", () => {
+        it("should detect agent-shell hooks in powershell field", async () => {
+            // Arrange
+            const powershellConfig = {
+                version: 1,
+                hooks: {
+                    preToolUse: [
+                        {
+                            type: "command",
+                            powershell: "agent-shell policy-check",
+                            timeoutSec: 30,
+                        },
+                    ],
+                    postToolUse: [
+                        {
+                            type: "command",
+                            powershell: "agent-shell record",
+                            timeoutSec: 30,
+                        },
+                    ],
+                },
+            };
+            const flags = createDefaultFlags();
+            const deps = createMockDeps({
+                readFile: vi
+                    .fn()
+                    .mockResolvedValue(JSON.stringify(powershellConfig)),
+            });
+
+            // Act
+            const ok = await handleInit(flags, deps);
+
+            // Assert
+            expect(ok).toBe(true);
+            expect(deps.stdout.join("")).toContain(
+                "All features already configured",
+            );
+            expect(deps.writeFile).not.toHaveBeenCalled();
+        });
+    });
+
     describe("given hooks.json with sessionStart hooks", () => {
         it("should preserve sessionStart hooks when adding features", async () => {
             // Arrange
@@ -572,6 +613,79 @@ describe("handleInit", () => {
 
             // Act & Assert
             await expect(handleInit(flags, deps)).rejects.toThrow("EACCES");
+        });
+    });
+
+    describe("given policy.json already exists when enabling policy", () => {
+        it("should skip policy.json regeneration and print a message", async () => {
+            // Arrange
+            const flags = createDefaultFlags({ policy: true });
+            const existingPolicy = JSON.stringify({
+                allow: ["customized-rule *"],
+                deny: ["rm -rf *"],
+            });
+            const deps = createMockDeps({
+                readFile: vi.fn().mockImplementation(async (p: string) => {
+                    if ((p as string).includes("hooks.json")) {
+                        throw Object.assign(new Error("ENOENT"), {
+                            code: "ENOENT",
+                        });
+                    }
+                    if ((p as string).includes("policy.json")) {
+                        return existingPolicy;
+                    }
+                    throw Object.assign(new Error("ENOENT"), {
+                        code: "ENOENT",
+                    });
+                }),
+            });
+
+            // Act
+            const ok = await handleInit(flags, deps);
+
+            // Assert
+            expect(ok).toBe(true);
+            expect(deps.stdout.join("")).toContain(
+                "Policy already exists; skipping policy.json generation",
+            );
+            expect(deps.stdout.join("")).not.toContain("Scanning project");
+            // hooks.json should still be written
+            const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
+            const hooksCall = writeFileCalls.find(([path]) =>
+                (path as string).includes("hooks.json"),
+            );
+            expect(hooksCall).toBeDefined();
+            // policy.json should NOT be written
+            const policyCall = writeFileCalls.find(([path]) =>
+                (path as string).includes("policy.json"),
+            );
+            expect(policyCall).toBeUndefined();
+        });
+    });
+
+    describe("given realpath(repoRoot) fails", () => {
+        it("should print diagnostic stderr and return false", async () => {
+            // Arrange
+            const flags = createDefaultFlags({ flightRecorder: true });
+            const deps = createMockDeps({
+                realpath: vi.fn().mockImplementation(async (p: string) => {
+                    if (p === "/project") {
+                        throw Object.assign(new Error("ENOENT"), {
+                            code: "ENOENT",
+                        });
+                    }
+                    return p;
+                }),
+            });
+
+            // Act
+            const ok = await handleInit(flags, deps);
+
+            // Assert
+            expect(ok).toBe(false);
+            expect(deps.stderr.join("")).toContain(
+                "unreachable or cannot be canonicalized",
+            );
         });
     });
 });

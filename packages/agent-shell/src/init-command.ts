@@ -44,14 +44,20 @@ function hasHookCommand(
     if (!Array.isArray(hooks)) {
         return false;
     }
-    return hooks.some(
-        (hook) =>
-            typeof hook === "object" &&
-            hook !== null &&
+    return hooks.some((hook) => {
+        if (typeof hook !== "object" || hook === null) {
+            return false;
+        }
+        const bashMatch =
             "bash" in hook &&
             typeof hook.bash === "string" &&
-            hook.bash === expectedCommand,
-    );
+            hook.bash === expectedCommand;
+        const powershellMatch =
+            "powershell" in hook &&
+            typeof hook.powershell === "string" &&
+            hook.powershell === expectedCommand;
+        return bashMatch || powershellMatch;
+    });
 }
 
 function detectExistingFeatures(config: HooksConfig): DetectedFeatures {
@@ -141,7 +147,9 @@ async function validatePathContainment(
     try {
         realRepoRoot = await deps.realpath(repoRoot);
     } catch {
-        // repoRoot is unreachable — cannot verify containment
+        deps.writeStderr(
+            `agent-shell: repository root ${sanitizeForStderr(repoRoot)} is unreachable or cannot be canonicalized, aborting\n`,
+        );
         return false;
     }
 
@@ -187,7 +195,9 @@ async function writeConfigFile(
     try {
         realRepoRoot = await deps.realpath(repoRoot);
     } catch {
-        // repoRoot is unreachable — cannot verify containment
+        deps.writeStderr(
+            `agent-shell: repository root ${sanitizeForStderr(repoRoot)} is unreachable or cannot be canonicalized, aborting\n`,
+        );
         return false;
     }
 
@@ -325,21 +335,39 @@ export async function handleInit(
         return false;
     }
 
-    // Generate policy.json if policy is being enabled
+    // Generate policy.json if policy is being enabled and no policy file exists yet
     if (enablePolicy) {
-        deps.writeStdout("Scanning project...\n");
-        const scanResult = await scanProject(repoRoot);
-        const policy = generatePolicy(scanResult);
-        const policyContent = `${JSON.stringify(policy, null, 2)}\n`;
+        const policyPath = join(repoRoot, POLICY_SUBPATH);
+        let policyExists = false;
 
-        const policyWritten = await writeConfigFile(
-            repoRoot,
-            POLICY_SUBPATH,
-            policyContent,
-            deps,
-        );
-        if (!policyWritten) {
-            return false;
+        try {
+            await deps.readFile(policyPath, "utf-8");
+            policyExists = true;
+        } catch (error: unknown) {
+            if (!isPathNotFoundError(error)) {
+                throw error;
+            }
+        }
+
+        if (!policyExists) {
+            deps.writeStdout("Scanning project...\n");
+            const scanResult = await scanProject(repoRoot);
+            const policy = generatePolicy(scanResult);
+            const policyContent = `${JSON.stringify(policy, null, 2)}\n`;
+
+            const policyWritten = await writeConfigFile(
+                repoRoot,
+                POLICY_SUBPATH,
+                policyContent,
+                deps,
+            );
+            if (!policyWritten) {
+                return false;
+            }
+        } else {
+            deps.writeStdout(
+                "Policy already exists; skipping policy.json generation.\n",
+            );
         }
     }
 
