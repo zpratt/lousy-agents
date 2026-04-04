@@ -293,9 +293,9 @@ sequenceDiagram
     CLI->>User: Print summary of actions taken
 ```
 
-### Open Questions
+### Resolved Questions
 
-- [ ] Should the `init` command also configure `.npmrc` for script-shell recording, or should that remain in `lousy-agents copilot-setup`? (Recommend keeping `.npmrc` management in the CLI `copilot-setup` command for separation of concerns.)
+- [x] Should the `init` command also configure `.npmrc` for script-shell recording, or should that remain in `lousy-agents copilot-setup`? **Decision**: Keep `.npmrc` management in `copilot-setup`. The npm script-shell feature may be removed in the future in favor of hook-based flight recording and policy enforcement, which is the superior integration path.
 
 ---
 
