@@ -93,7 +93,7 @@ describe("handleInit", () => {
         });
 
         describe("with --flight-recorder flag", () => {
-            it("should enable only flight recording", async () => {
+            it("should enable only flight recording without adding policy", async () => {
                 // Arrange
                 const flags = createDefaultFlags({ flightRecorder: true });
                 const deps = createMockDeps();
@@ -109,13 +109,15 @@ describe("handleInit", () => {
                 expect(hooksCall).toBeDefined();
                 const config = JSON.parse(hooksCall?.[1] as string);
                 expect(config.hooks.postToolUse).toHaveLength(1);
-                // No policy flag, so no preToolUse (not already existing)
+                // Explicit flag mode: unspecified features are NOT added
+                expect(config.hooks.preToolUse).toBeUndefined();
                 expect(deps.stdout.join("")).toContain("flight recording");
+                expect(deps.stdout.join("")).not.toContain("policy blocking");
             });
         });
 
         describe("with --policy flag", () => {
-            it("should enable only policy blocking and scan project", async () => {
+            it("should enable only policy blocking without adding flight recording", async () => {
                 // Arrange
                 const flags = createDefaultFlags({ policy: true });
                 const deps = createMockDeps();
@@ -124,7 +126,17 @@ describe("handleInit", () => {
                 await handleInit(flags, deps);
 
                 // Assert
+                const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
+                const hooksCall = writeFileCalls.find(([path]) =>
+                    (path as string).includes("hooks.json"),
+                );
+                expect(hooksCall).toBeDefined();
+                const config = JSON.parse(hooksCall?.[1] as string);
+                expect(config.hooks.preToolUse).toHaveLength(1);
+                // Explicit flag mode: unspecified features are NOT added
+                expect(config.hooks.postToolUse).toBeUndefined();
                 expect(deps.stdout.join("")).toContain("policy blocking");
+                expect(deps.stdout.join("")).not.toContain("flight recording");
                 expect(deps.stdout.join("")).toContain("Scanning project");
             });
         });
@@ -335,6 +347,102 @@ describe("handleInit", () => {
             expect(deps.stderr.join("")).toContain(
                 "resolves outside repository root",
             );
+        });
+    });
+
+    describe("given hooks.json exists with non-agent-shell hooks", () => {
+        it("should not treat other hooks as agent-shell features", async () => {
+            // Arrange
+            const otherHooksConfig = {
+                version: 1,
+                hooks: {
+                    preToolUse: [
+                        {
+                            type: "command",
+                            bash: "some-other-tool check",
+                            timeoutSec: 10,
+                        },
+                    ],
+                    postToolUse: [
+                        {
+                            type: "command",
+                            bash: "another-tool log",
+                            timeoutSec: 10,
+                        },
+                    ],
+                },
+            };
+            const flags = createDefaultFlags({ flightRecorder: true });
+            const deps = createMockDeps({
+                readFile: vi
+                    .fn()
+                    .mockResolvedValue(JSON.stringify(otherHooksConfig)),
+            });
+
+            // Act
+            await handleInit(flags, deps);
+
+            // Assert
+            const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
+            const hooksCall = writeFileCalls.find(([path]) =>
+                (path as string).includes("hooks.json"),
+            );
+            expect(hooksCall).toBeDefined();
+            const config = JSON.parse(hooksCall?.[1] as string);
+            // Should preserve the existing hook AND add agent-shell record
+            expect(config.hooks.postToolUse).toHaveLength(2);
+            expect(config.hooks.postToolUse[0].bash).toBe("another-tool log");
+            expect(config.hooks.postToolUse[1].bash).toBe("agent-shell record");
+            // preToolUse should be preserved without adding agent-shell policy-check
+            expect(config.hooks.preToolUse).toHaveLength(1);
+            expect(config.hooks.preToolUse[0].bash).toBe(
+                "some-other-tool check",
+            );
+        });
+    });
+
+    describe("given hooks.json with sessionStart hooks", () => {
+        it("should preserve sessionStart hooks when adding features", async () => {
+            // Arrange
+            const configWithSessionStart = {
+                version: 1,
+                hooks: {
+                    sessionStart: [
+                        {
+                            type: "command",
+                            bash: "echo session started",
+                            timeoutSec: 5,
+                        },
+                    ],
+                },
+            };
+            const flags = createDefaultFlags({
+                flightRecorder: true,
+                policy: true,
+            });
+            const deps = createMockDeps({
+                readFile: vi
+                    .fn()
+                    .mockResolvedValue(JSON.stringify(configWithSessionStart)),
+            });
+
+            // Act
+            await handleInit(flags, deps);
+
+            // Assert
+            const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
+            const hooksCall = writeFileCalls.find(([path]) =>
+                (path as string).includes("hooks.json"),
+            );
+            const config = JSON.parse(hooksCall?.[1] as string);
+            // sessionStart should be preserved
+            expect(config.hooks.sessionStart).toHaveLength(1);
+            expect(config.hooks.sessionStart[0].bash).toBe(
+                "echo session started",
+            );
+            // New hooks should be added
+            expect(config.hooks.preToolUse).toHaveLength(1);
+            expect(config.hooks.postToolUse).toHaveLength(1);
         });
     });
 

@@ -1,10 +1,6 @@
 import { join, resolve } from "node:path";
 import { isPathNotFoundError, isWithinProjectRoot } from "./path-utils.js";
-import {
-    generateHooksConfig,
-    generatePolicy,
-    type HooksConfigOptions,
-} from "./policy-init.js";
+import { generatePolicy } from "./policy-init.js";
 import { scanProject } from "./project-scanner.js";
 import { sanitizeForStderr } from "./sanitize.js";
 import type { HooksConfig } from "./types.js";
@@ -38,14 +34,36 @@ interface DetectedFeatures {
     hasPostToolUse: boolean;
 }
 
+const AGENT_SHELL_POLICY_CHECK = "agent-shell policy-check";
+const AGENT_SHELL_RECORD = "agent-shell record";
+
+function hasHookCommand(
+    hooks: HooksConfig["hooks"]["preToolUse"],
+    expectedCommand: string,
+): boolean {
+    if (!Array.isArray(hooks)) {
+        return false;
+    }
+    return hooks.some(
+        (hook) =>
+            typeof hook === "object" &&
+            hook !== null &&
+            "bash" in hook &&
+            typeof hook.bash === "string" &&
+            hook.bash === expectedCommand,
+    );
+}
+
 function detectExistingFeatures(config: HooksConfig): DetectedFeatures {
     return {
-        hasPreToolUse:
-            Array.isArray(config.hooks.preToolUse) &&
-            config.hooks.preToolUse.length > 0,
-        hasPostToolUse:
-            Array.isArray(config.hooks.postToolUse) &&
-            config.hooks.postToolUse.length > 0,
+        hasPreToolUse: hasHookCommand(
+            config.hooks.preToolUse,
+            AGENT_SHELL_POLICY_CHECK,
+        ),
+        hasPostToolUse: hasHookCommand(
+            config.hooks.postToolUse,
+            AGENT_SHELL_RECORD,
+        ),
     };
 }
 
@@ -80,6 +98,7 @@ function hasExplicitFlags(flags: InitFlags): boolean {
 function resolveFeatureSelections(
     flags: InitFlags,
     existing: DetectedFeatures,
+    hasExplicit: boolean,
 ): { enableFlightRecorder: boolean; enablePolicy: boolean } {
     let enableFlightRecorder: boolean;
     let enablePolicy: boolean;
@@ -88,6 +107,9 @@ function resolveFeatureSelections(
         enableFlightRecorder = false;
     } else if (flags.flightRecorder) {
         enableFlightRecorder = true;
+    } else if (hasExplicit) {
+        // Explicit flags provided but this feature wasn't specified: keep existing state
+        enableFlightRecorder = false;
     } else {
         enableFlightRecorder = !existing.hasPostToolUse;
     }
@@ -96,6 +118,9 @@ function resolveFeatureSelections(
         enablePolicy = false;
     } else if (flags.policy) {
         enablePolicy = true;
+    } else if (hasExplicit) {
+        // Explicit flags provided but this feature wasn't specified: keep existing state
+        enablePolicy = false;
     } else {
         enablePolicy = !existing.hasPreToolUse;
     }
@@ -203,8 +228,8 @@ export async function handleInit(
     let enablePolicy: boolean;
 
     if (hasExplicitFlags(flags)) {
-        // Non-interactive: apply explicit flags
-        const selections = resolveFeatureSelections(flags, existing);
+        // Non-interactive: apply explicit flags only — don't add unspecified features
+        const selections = resolveFeatureSelections(flags, existing, true);
         enableFlightRecorder = selections.enableFlightRecorder;
         enablePolicy = selections.enablePolicy;
     } else if (!deps.isTty && deps.prompt === undefined) {
@@ -248,13 +273,37 @@ export async function handleInit(
         return;
     }
 
-    // Build the hooks config merging existing + new features
-    const hooksOptions: HooksConfigOptions = {
-        policyCheck: existing.hasPreToolUse || enablePolicy,
-        flightRecorder: existing.hasPostToolUse || enableFlightRecorder,
-    };
-    const hooksConfig = generateHooksConfig(hooksOptions);
-    const hooksContent = `${JSON.stringify(hooksConfig, null, 2)}\n`;
+    // Build the hooks config by merging agent-shell hooks into existing config,
+    // preserving any other hooks (sessionStart, sessionEnd, userPromptSubmitted, etc.)
+    const mergedConfig: HooksConfig = existingConfig
+        ? structuredClone(existingConfig)
+        : { version: 1, hooks: {} };
+
+    if (enablePolicy && !existing.hasPreToolUse) {
+        const policyHook = {
+            type: "command" as const,
+            bash: AGENT_SHELL_POLICY_CHECK,
+            timeoutSec: 30,
+        };
+        mergedConfig.hooks.preToolUse = [
+            ...(mergedConfig.hooks.preToolUse ?? []),
+            policyHook,
+        ];
+    }
+
+    if (enableFlightRecorder && !existing.hasPostToolUse) {
+        const recordHook = {
+            type: "command" as const,
+            bash: AGENT_SHELL_RECORD,
+            timeoutSec: 30,
+        };
+        mergedConfig.hooks.postToolUse = [
+            ...(mergedConfig.hooks.postToolUse ?? []),
+            recordHook,
+        ];
+    }
+
+    const hooksContent = `${JSON.stringify(mergedConfig, null, 2)}\n`;
 
     const hooksWritten = await writeConfigFile(
         repoRoot,

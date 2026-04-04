@@ -8,6 +8,7 @@ import {
     realpath,
     writeFile,
 } from "node:fs/promises";
+import { createInterface } from "node:readline";
 import { createGetRepositoryRoot } from "./git-utils.js";
 import { handleInit } from "./init-command.js";
 import { runLog } from "./log/index.js";
@@ -131,6 +132,33 @@ async function main(): Promise<void> {
                     undefined,
                     process.env,
                 );
+                const isTty = Boolean(process.stdin.isTTY);
+                const prompt = isTty
+                    ? async (message: string): Promise<boolean> => {
+                          const rl = createInterface({
+                              input: process.stdin,
+                              output: process.stdout,
+                          });
+                          try {
+                              return await new Promise<boolean>(
+                                  (resolvePrompt) => {
+                                      rl.question(
+                                          `${message} (y/N) `,
+                                          (answer) => {
+                                              resolvePrompt(
+                                                  answer
+                                                      .trim()
+                                                      .toLowerCase() === "y",
+                                              );
+                                          },
+                                      );
+                                  },
+                              );
+                          } finally {
+                              rl.close();
+                          }
+                      }
+                    : undefined;
                 await handleInit(
                     {
                         flightRecorder: mode.flightRecorder,
@@ -147,7 +175,8 @@ async function main(): Promise<void> {
                         mkdir: (path, opts) =>
                             mkdir(path, opts).then(() => undefined),
                         realpath: (path) => realpath(path),
-                        isTty: Boolean(process.stdin.isTTY),
+                        isTty,
+                        prompt,
                     },
                 );
                 process.exitCode = 0;
