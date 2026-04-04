@@ -51,19 +51,26 @@ so that I can **review a complete log of agent activity — not just npm scripts
 
 - When agent-shell receives a `postToolUse` hook payload on stdin, the system shall parse the JSON input and emit a `tool_use` telemetry event to the session JSONL file.
 - The `tool_use` event shall include the fields: `v`, `session_id`, `event` (literal `"tool_use"`), `tool_name`, `command` (the command string if the tool is a terminal tool, otherwise empty string), `actor`, `timestamp`, `env`, and `tags`.
-- When the `postToolUse` payload contains a terminal tool name (one of: `bash`, `zsh`, `ash`, `sh`) with a valid `toolArgs` containing a `command` field, the system shall populate the `command` field of the telemetry event with that command string.
+- When the `postToolUse` payload contains a terminal tool name (one of: `bash`, `zsh`, `ash`, `sh`) and `toolArgs` is a JSON-encoded string, the system shall parse `toolArgs` as JSON. When the parsed result is a non-null plain object containing a `command` string field, the system shall use that command string in the `command` field of the telemetry event.
+- When the `postToolUse` payload contains a terminal tool name but `toolArgs` is not a string, the system shall set `command` to an empty string and still emit the `tool_use` event (observation-only — no fail-closed behavior).
+- When the `postToolUse` payload contains a terminal tool name and `toolArgs` is a string but not valid JSON, the system shall set `command` to an empty string and still emit the `tool_use` event.
+- When the `postToolUse` payload contains a terminal tool name and `toolArgs` parses to a value that is not a non-null plain object, or the object does not contain a `command` string field, the system shall set `command` to an empty string and still emit the `tool_use` event.
 - When the `postToolUse` payload contains a non-terminal tool name, the system shall set the `command` field to an empty string and record the `tool_name` field with the tool's name.
-- If stdin contains data that is not valid JSON, then the system shall write a diagnostic message to stderr and exit with a non-zero status code without crashing.
-- If the `postToolUse` payload is missing the `toolName` field, then the system shall write a diagnostic message to stderr and skip telemetry emission.
+- When a terminal tool's `toolArgs.command` is an empty string, the system shall record the event with an empty `command` field (same as non-terminal tools).
+- If stdin contains data that is not valid JSON, then the system shall write a diagnostic message to stderr and set a non-zero exit code (using `process.exitCode`, not `process.exit()`). Note: the agent ignores this exit code, but a non-zero value signals failure for debugging.
+- If stdin input exceeds 1 MiB, then the system shall reject the input, write a diagnostic message to stderr, and set a non-zero exit code.
+- If the `postToolUse` payload is missing the `toolName` field or `toolName` is not a string, then the system shall write a diagnostic message to stderr and skip telemetry emission.
 - While telemetry emission fails (e.g., events directory not writable), the system shall log the error to stderr and exit gracefully without crashing.
 - The `tool_use` telemetry event shall be written to the same `.agent-shell/events/` directory and session JSONL file used by existing `script_end` and `policy_decision` events.
+- When displaying `tool_use` events in table format via `agent-shell log`, the system shall show `tool_name` in the SCRIPT column and `command` in the COMMAND column, with `-` for EXIT and DURATION.
+- The `--actor` and `--last` filters shall apply to `tool_use` events. The `--failures` and `--script` filters shall exclude `tool_use` events (they apply only to `script_end` events).
 
 #### Notes
 
 - The `postToolUse` hook contract follows the [Copilot hooks documentation](https://docs.github.com/en/copilot/reference/hooks-configuration#post-tool-use-hook)
 - The hook receives JSON on stdin with `toolName`, `toolArgs`, and `toolResult` fields
 - Unlike `preToolUse` (which returns allow/deny), `postToolUse` is observation-only — it records but does not influence agent behavior
-- The exit code of the `postToolUse` hook is ignored by the agent, so failures are non-blocking
+- The agent ignores the exit code of the `postToolUse` hook, so telemetry failures are non-blocking to the agent workflow
 
 ### Story 2: Initialize agent-shell with interactive setup
 
@@ -83,6 +90,7 @@ so that I can **set up all agent-shell features in one step without reading docu
 - While hooks.json already exists but is missing the flight recording hook, the system shall prompt the user: "Flight recording is not yet enabled. Would you like to add it?" with a default of "yes."
 - While hooks.json already exists but is missing the policy-check hook, the system shall prompt the user: "Policy-based command blocking is not yet enabled. Would you like to add it?" with a default of "yes."
 - When the user declines a feature prompt, the system shall skip that feature and continue to the next prompt.
+- If the resolved path for hooks.json or policy.json is outside the repository root (via symlink or directory traversal), then the system shall abort the write and display an error message. The system shall use `isWithinProjectRoot()` for containment checks.
 - The system shall print a summary of actions taken when initialization completes.
 
 #### Notes
@@ -102,7 +110,7 @@ so that I can **script agent-shell setup in CI or automation tooling**.
 - When the user runs `agent-shell init --flight-recorder`, the system shall enable flight recording without prompting.
 - When the user runs `agent-shell init --policy`, the system shall enable policy-based command blocking without prompting.
 - When the user runs `agent-shell init --flight-recorder --policy`, the system shall enable both features without prompting.
-- When the user runs `agent-shell init` with no flags in a non-interactive terminal (no TTY), the system shall default to enabling all features without prompting.
+- When the user runs `agent-shell init` with no flags in a non-interactive terminal (no TTY), the system shall default to enabling all features without prompting and shall print a message to stderr listing which features were auto-enabled.
 - If the user provides `--no-flight-recorder`, then the system shall skip flight recording setup.
 - If the user provides `--no-policy`, then the system shall skip policy setup.
 - When features are already configured, the system shall skip them and print a message indicating they are already present.
@@ -150,7 +158,7 @@ so that I can **use agent-shell subcommands (like `agent-shell record` and `agen
 - `zod` (existing) — Validate `postToolUse` hook input
 - `node:fs/promises` (existing) — Read/write hooks.json
 - `node:readline` (new, stdlib) — Interactive prompts for init command
-- `node:tty` (new, stdlib) — Detect interactive terminal for non-interactive fallback
+- TTY detection uses `process.stdin.isTTY` (no additional import needed)
 
 ### Data Model Changes
 
@@ -211,8 +219,10 @@ flowchart TB
     POST --> REC
     REC -->|"tool_use event"| EVENTS
 
-    INIT -->|"generates"| HOOKSJSON
-    INIT -->|"generates"| POLICY
+    INIT -->|"reads"| HOOKSJSON
+    INIT -->|"reads"| POLICY
+    INIT -->|"writes"| HOOKSJSON
+    INIT -->|"writes"| POLICY
     PC -->|"reads"| POLICY
 ```
 
@@ -285,7 +295,6 @@ sequenceDiagram
 
 ### Open Questions
 
-- [ ] Should `agent-shell record` also capture `toolResult` from the `postToolUse` payload, or is `toolName` and `command` sufficient for the initial implementation? (Recommend deferring `toolResult` capture to a future iteration to keep the event schema lean.)
 - [ ] Should the `init` command also configure `.npmrc` for script-shell recording, or should that remain in `lousy-agents copilot-setup`? (Recommend keeping `.npmrc` management in the CLI `copilot-setup` command for separation of concerns.)
 
 ---
@@ -365,9 +374,11 @@ sequenceDiagram
 
 **Requirements**:
 - When stdin contains valid JSON with a `toolName` string field, the handler shall emit a `tool_use` telemetry event
-- When the `toolName` is a terminal tool (`bash`, `zsh`, `ash`, `sh`) and `toolArgs` contains a JSON-encoded object with a `command` string, the handler shall use that command string in the event
+- When the `toolName` is a terminal tool (`bash`, `zsh`, `ash`, `sh`) and `toolArgs` is a JSON-encoded string that parses to a non-null plain object containing a `command` string field, the handler shall use that command string in the event
+- When the `toolName` is a terminal tool but `toolArgs` is not a string, not valid JSON, not a plain object, or missing a `command` string, the handler shall set `command` to an empty string and still emit the event
 - When the `toolName` is not a terminal tool, the handler shall set `command` to an empty string
-- If stdin is not valid JSON, then the handler shall write a diagnostic to stderr and exit without crashing
+- The handler shall reuse the existing `readStdin()` function from `index.ts` (which enforces a 1 MiB stdin limit) rather than implementing its own stdin reader
+- If stdin is not valid JSON, then the handler shall write a diagnostic to stderr and set a non-zero exit code
 - If `toolName` is missing or not a string, then the handler shall write a diagnostic to stderr and skip telemetry emission
 - If telemetry emission fails, then the handler shall log the error to stderr and exit gracefully
 
@@ -457,6 +468,7 @@ sequenceDiagram
 - `packages/agent-shell/tests/policy-init.test.ts`
 
 **Requirements**:
+- Update the `GeneratedHooksConfig` interface to include `postToolUse` as an optional array alongside `preToolUse`
 - `generateHooksConfig()` shall accept an options parameter: `{ flightRecorder?: boolean; policyCheck?: boolean }`
 - When `flightRecorder` is `true`, the generated config shall include a `postToolUse` hook entry with `bash: "agent-shell record"` and `timeoutSec: 30`
 - When `policyCheck` is `true`, the generated config shall include a `preToolUse` hook entry with `bash: "agent-shell policy-check"` and `timeoutSec: 30`
@@ -475,26 +487,27 @@ sequenceDiagram
 
 ---
 
-### Task 7: Implement `init` command handler
+### Task 7a: Implement init config detection and non-interactive mode
 
 **Depends on**: Tasks 4, 5, 6
 
-**Objective**: Create the `init` command handler that guides the user through enabling flight recording and policy enforcement, supporting both interactive and non-interactive modes.
+**Objective**: Create the init command handler core that detects existing configuration and supports non-interactive mode with CLI flags.
 
-**Context**: This is the user-facing entry point for the guided setup experience. It detects existing configuration, prompts for missing features, and writes/updates hooks.json and policy.json.
+**Context**: This is the foundation of the init command. It handles config file detection, feature flag parsing, and the non-interactive path. The interactive prompting layer (Task 7b) builds on top of this.
 
 **Affected files**:
 - `packages/agent-shell/src/init-command.ts` (new)
 - `packages/agent-shell/tests/init-command.test.ts` (new)
 
 **Requirements**:
-- When hooks.json does not exist, the handler shall prompt for flight recording and policy features (or use CLI flags in non-interactive mode)
-- When hooks.json exists, the handler shall detect which features are already configured and only prompt for missing ones
+- When hooks.json does not exist, the handler shall identify both flight recording and policy as missing features
+- When hooks.json exists, the handler shall parse it and detect which features (postToolUse, preToolUse) are already configured
 - When all features are already configured, the handler shall inform the user and exit successfully
-- When the user accepts a feature, the handler shall update the hooks config accordingly
+- When explicit flags are provided (`--flight-recorder`, `--policy`, `--no-flight-recorder`, `--no-policy`), the handler shall apply them without prompting
+- When running in a non-TTY environment with no explicit flags, the handler shall default to enabling all features and print a message to stderr listing which features were auto-enabled
 - When policy is enabled, the handler shall invoke the existing `scanProject()` and `generatePolicy()` flow
-- When running in a non-TTY environment with no explicit flags, the handler shall default to enabling all features
-- The handler shall accept dependency injection for prompting, file system operations, and stdout/stderr for testability
+- If the resolved path for hooks.json or policy.json is outside the repository root (via symlink or directory traversal), then the handler shall abort the write and display an error. Use `isWithinProjectRoot()` for containment checks
+- The handler shall accept dependency injection for file system operations, stdout/stderr, and repository root resolution for testability
 - The handler shall print a summary of actions taken upon completion
 
 **Verification**:
@@ -503,16 +516,48 @@ sequenceDiagram
 
 **Done when**:
 - [ ] All verification steps pass
-- [ ] Interactive prompts work for fresh and incremental setup
 - [ ] Non-interactive flags work for all feature combinations
 - [ ] Existing hooks.json configurations are detected correctly
+- [ ] Config file path containment is validated
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
+
+---
+
+### Task 7b: Implement interactive prompting for init command
+
+**Depends on**: Task 7a
+
+**Objective**: Add interactive prompting to the init command handler so users are guided through feature selection in TTY environments.
+
+**Context**: This layer adds the user-facing prompts on top of the config detection and non-interactive core from Task 7a.
+
+**Affected files**:
+- `packages/agent-shell/src/init-command.ts` (updated)
+- `packages/agent-shell/tests/init-command.test.ts` (updated)
+
+**Requirements**:
+- When hooks.json does not exist and running in a TTY, the handler shall prompt for flight recording and policy features
+- When hooks.json exists but is missing features, the handler shall prompt only for the missing features
+- When the user accepts a feature, the handler shall update the hooks config accordingly
+- When the user declines a feature, the handler shall skip it and continue to the next prompt
+- The prompting function shall be injectable for testability (accept a `prompt` dependency)
+- TTY detection shall use `process.stdin.isTTY` (no `node:tty` import needed)
+
+**Verification**:
+- [ ] `npm test packages/agent-shell/tests/init-command.test.ts` passes
+- [ ] `npx biome check packages/agent-shell/src/init-command.ts` passes
+
+**Done when**:
+- [ ] All verification steps pass
+- [ ] Interactive prompts work for fresh and incremental setup
+- [ ] Prompt dependency is injectable for testing
 - [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
 ### Task 8: Wire up `init` and `record` in main entry point
 
-**Depends on**: Tasks 3, 4, 7
+**Depends on**: Tasks 3, 4, 7b
 
 **Objective**: Connect the `init` and `record` modes to the main CLI entry point.
 
@@ -585,8 +630,9 @@ sequenceDiagram
 
 **Requirements**:
 - When querying events, `tool_use` events shall be included in results alongside `script_end`, `shim_error`, and `policy_decision` events
-- The display format for `tool_use` events shall show the `tool_name` and `command` (if present)
-- Existing filters (--actor, --last, --failures) shall apply to `tool_use` events where applicable
+- When displaying `tool_use` events in table format, `tool_name` shall appear in the SCRIPT column and `command` in the COMMAND column, with `-` for EXIT and DURATION columns
+- The `--actor` and `--last` filters shall apply to `tool_use` events
+- The `--failures` and `--script` filters shall exclude `tool_use` events (they apply only to `script_end` events)
 - The `--json` output mode shall include `tool_use` events in their full schema
 
 **Verification**:
