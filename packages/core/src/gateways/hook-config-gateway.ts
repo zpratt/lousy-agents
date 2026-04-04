@@ -30,7 +30,7 @@ const HOOK_CONFIG_PATHS: ReadonlyArray<{
     platform: "copilot" | "claude";
 }> = [
     {
-        relativePath: join(".github", "copilot", "hooks.json"),
+        relativePath: join(".github", "hooks", "agent-shell", "hooks.json"),
         platform: "copilot",
     },
     {

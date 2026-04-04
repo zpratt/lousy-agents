@@ -458,7 +458,7 @@ describe("handlePolicyInit", () => {
             expect(policy.deny).toBeDefined();
         });
 
-        it("should write hooks.json to the correct location", async () => {
+        it("should write hooks.json co-located with policy.json in .github/hooks/agent-shell/", async () => {
             const output: string[] = [];
             const deps: PolicyInitDeps = {
                 getRepositoryRoot: () => testDir,
@@ -482,7 +482,7 @@ describe("handlePolicyInit", () => {
             await handlePolicyInit(deps);
 
             const hooksContent = await readFile(
-                join(testDir, ".github", "copilot", "hooks.json"),
+                join(testDir, ".github", "hooks", "agent-shell", "hooks.json"),
                 "utf-8",
             );
             const hooks = JSON.parse(hooksContent);
@@ -527,7 +527,7 @@ describe("handlePolicyInit", () => {
                 version: 1,
                 hooks: { sessionStart: [] },
             });
-            const hooksDir = join(testDir, ".github", "copilot");
+            const hooksDir = join(testDir, ".github", "hooks", "agent-shell");
             await mkdir(hooksDir, { recursive: true });
             const { writeFile } = await import("node:fs/promises");
             await writeFile(join(hooksDir, "hooks.json"), existingContent);

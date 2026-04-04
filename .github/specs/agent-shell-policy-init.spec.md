@@ -44,9 +44,9 @@ so that I can **immediately start using policy-based command blocking without ma
 
 - When the user runs `agent-shell policy --init` in a git repository, the system shall scan the project to discover npm scripts from `package.json`, run commands from GitHub Actions workflow files, and tasks from `mise.toml`.
 - When scanning is complete, the system shall generate a `policy.json` file at `.github/hooks/agent-shell/policy.json` containing an allow list derived from discovered commands and a deny list of commonly dangerous patterns.
-- When scanning is complete, the system shall generate a `hooks.json` file at `.github/copilot/hooks.json` containing a preToolUse hook entry that invokes `agent-shell policy-check`.
+- When scanning is complete, the system shall generate a `hooks.json` file at `.github/hooks/agent-shell/hooks.json` containing a preToolUse hook entry that invokes `agent-shell policy-check`.
 - If `.github/hooks/agent-shell/policy.json` already exists, then the system shall skip writing the policy file and inform the user.
-- If `.github/copilot/hooks.json` already exists, then the system shall skip writing the hooks file and inform the user.
+- If `.github/hooks/agent-shell/hooks.json` already exists, then the system shall skip writing the hooks file and inform the user.
 - When the files are generated, the system shall print the proposed policy and hook configuration to stdout for user review.
 - While the `@github/copilot-sdk` is available and authenticated, the system shall use AI-powered analysis to enhance the discovered allow list with additional suggestions.
 - If the `@github/copilot-sdk` is not available or fails to connect, then the system shall fall back to static file analysis without error.
