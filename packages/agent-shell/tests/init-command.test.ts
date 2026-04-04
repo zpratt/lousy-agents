@@ -183,6 +183,32 @@ describe("handleInit", () => {
                 expect(deps.stdout.join("")).toContain("policy blocking");
             });
         });
+        describe("with conflicting --flight-recorder and --no-flight-recorder flags", () => {
+            it("should let --no-flight-recorder take precedence", async () => {
+                // Arrange
+                const flags = createDefaultFlags({
+                    flightRecorder: true,
+                    noFlightRecorder: true,
+                    policy: true,
+                });
+                const deps = createMockDeps();
+
+                // Act
+                await handleInit(flags, deps);
+
+                // Assert
+                const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
+                const hooksCall = writeFileCalls.find(([path]) =>
+                    (path as string).includes("hooks.json"),
+                );
+                expect(hooksCall).toBeDefined();
+                const config = JSON.parse(hooksCall?.[1] as string);
+                // --no-flight-recorder wins: no postToolUse hook
+                expect(config.hooks.postToolUse).toBeUndefined();
+                // --policy still applies
+                expect(config.hooks.preToolUse).toHaveLength(1);
+            });
+        });
     });
 
     describe("given hooks.json exists with all features configured", () => {
@@ -215,13 +241,13 @@ describe("handleInit", () => {
             });
 
             // Act
-            await handleInit(flags, deps);
+            const ok = await handleInit(flags, deps);
 
             // Assert
+            expect(ok).toBe(false);
             expect(deps.stderr.join("")).toContain(
                 "failed to read existing hooks.json",
             );
-            expect(process.exitCode).toBe(1);
             expect(deps.writeFile).not.toHaveBeenCalled();
         });
     });
@@ -328,7 +354,7 @@ describe("handleInit", () => {
     });
 
     describe("given path containment violation", () => {
-        it("should abort when hooks.json resolves outside repository root", async () => {
+        it("should abort and return false when hooks.json resolves outside repository root", async () => {
             // Arrange
             const flags = createDefaultFlags({ flightRecorder: true });
             const deps = createMockDeps({
@@ -341,9 +367,10 @@ describe("handleInit", () => {
             });
 
             // Act
-            await handleInit(flags, deps);
+            const ok = await handleInit(flags, deps);
 
             // Assert
+            expect(ok).toBe(false);
             expect(deps.stderr.join("")).toContain(
                 "resolves outside repository root",
             );

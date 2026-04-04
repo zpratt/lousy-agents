@@ -95,34 +95,28 @@ function hasExplicitFlags(flags: InitFlags): boolean {
     );
 }
 
-function resolveFeatureSelections(
-    flags: InitFlags,
-    existing: DetectedFeatures,
-    hasExplicit: boolean,
-): { enableFlightRecorder: boolean; enablePolicy: boolean } {
+/**
+ * Resolves feature selections in explicit-flag mode.
+ * Only features with an explicit --flag are enabled; unspecified features
+ * are not added (existing hooks are preserved via config merge).
+ */
+function resolveExplicitFlagSelections(flags: InitFlags): {
+    enableFlightRecorder: boolean;
+    enablePolicy: boolean;
+} {
     let enableFlightRecorder: boolean;
     let enablePolicy: boolean;
 
     if (flags.noFlightRecorder) {
         enableFlightRecorder = false;
-    } else if (flags.flightRecorder) {
-        enableFlightRecorder = true;
-    } else if (hasExplicit) {
-        // Explicit flags provided but this feature wasn't specified: keep existing state
-        enableFlightRecorder = false;
     } else {
-        enableFlightRecorder = !existing.hasPostToolUse;
+        enableFlightRecorder = flags.flightRecorder;
     }
 
     if (flags.noPolicy) {
         enablePolicy = false;
-    } else if (flags.policy) {
-        enablePolicy = true;
-    } else if (hasExplicit) {
-        // Explicit flags provided but this feature wasn't specified: keep existing state
-        enablePolicy = false;
     } else {
-        enablePolicy = !existing.hasPreToolUse;
+        enablePolicy = flags.policy;
     }
 
     return { enableFlightRecorder, enablePolicy };
@@ -203,7 +197,7 @@ async function writeConfigFile(
 export async function handleInit(
     flags: InitFlags,
     deps: InitDeps,
-): Promise<void> {
+): Promise<boolean> {
     const repoRoot = deps.getRepositoryRoot();
     const hooksPath = join(repoRoot, HOOKS_SUBPATH);
 
@@ -211,8 +205,7 @@ export async function handleInit(
         await loadExistingHooksConfig(hooksPath, deps);
 
     if (loadError) {
-        process.exitCode = 1;
-        return;
+        return false;
     }
 
     const existing: DetectedFeatures = existingConfig
@@ -221,7 +214,7 @@ export async function handleInit(
 
     if (existing.hasPreToolUse && existing.hasPostToolUse) {
         deps.writeStdout("All features already configured in hooks.json\n");
-        return;
+        return true;
     }
 
     let enableFlightRecorder: boolean;
@@ -229,7 +222,7 @@ export async function handleInit(
 
     if (hasExplicitFlags(flags)) {
         // Non-interactive: apply explicit flags only — don't add unspecified features
-        const selections = resolveFeatureSelections(flags, existing, true);
+        const selections = resolveExplicitFlagSelections(flags);
         enableFlightRecorder = selections.enableFlightRecorder;
         enablePolicy = selections.enablePolicy;
     } else if (!deps.isTty && deps.prompt === undefined) {
@@ -270,7 +263,7 @@ export async function handleInit(
 
     if (!enableFlightRecorder && !enablePolicy) {
         deps.writeStdout("No features selected, nothing to do.\n");
-        return;
+        return true;
     }
 
     // Build the hooks config by merging agent-shell hooks into existing config,
@@ -313,7 +306,7 @@ export async function handleInit(
     );
 
     if (!hooksWritten) {
-        return;
+        return false;
     }
 
     // Generate policy.json if policy is being enabled
@@ -332,4 +325,5 @@ export async function handleInit(
     if (enablePolicy) actions.push("policy blocking");
 
     deps.writeStdout(`\nEnabled: ${actions.join(", ")}\n`);
+    return true;
 }

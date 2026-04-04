@@ -159,7 +159,7 @@ async function main(): Promise<void> {
                           }
                       }
                     : undefined;
-                await handleInit(
+                const ok = await handleInit(
                     {
                         flightRecorder: mode.flightRecorder,
                         policy: mode.policy,
@@ -179,7 +179,7 @@ async function main(): Promise<void> {
                         prompt,
                     },
                 );
-                process.exitCode = 0;
+                process.exitCode = ok ? 0 : 1;
             } catch (err) {
                 process.stderr.write(
                     `agent-shell: init error: ${sanitizeForStderr(err)}\n`,
