@@ -413,6 +413,40 @@ describe("handleInit", () => {
         });
     });
 
+    describe("given post-mkdir symlink attack on parent directory", () => {
+        it("should abort when parent directory resolves outside repo root after mkdir", async () => {
+            // Arrange
+            const flags = createDefaultFlags({ flightRecorder: true });
+            let mkdirCalled = false;
+            const deps = createMockDeps({
+                mkdir: vi.fn().mockImplementation(async () => {
+                    mkdirCalled = true;
+                }),
+                realpath: vi.fn().mockImplementation(async (p: string) => {
+                    // After mkdir, the parent directory is a symlink to outside
+                    if (
+                        mkdirCalled &&
+                        (p as string).includes("agent-shell") &&
+                        !(p as string).includes(".json")
+                    ) {
+                        return "/outside/evil-dir";
+                    }
+                    return p;
+                }),
+            });
+
+            // Act
+            const ok = await handleInit(flags, deps);
+
+            // Assert
+            expect(ok).toBe(false);
+            expect(deps.stderr.join("")).toContain(
+                "parent directory resolves outside repository root after mkdir",
+            );
+            expect(deps.writeFile).not.toHaveBeenCalled();
+        });
+    });
+
     describe("given hooks.json exists with non-agent-shell hooks", () => {
         it("should not treat other hooks as agent-shell features", async () => {
             // Arrange
