@@ -132,7 +132,7 @@ async function main(): Promise<void> {
             try {
                 if (mode.unknownArgs.length > 0) {
                     process.stderr.write(
-                        `agent-shell: unknown flag(s): ${mode.unknownArgs.join(", ")}\n`,
+                        `agent-shell: unknown flag(s): ${mode.unknownArgs.map(sanitizeForStderr).join(", ")}\n`,
                     );
                     process.exitCode = 1;
                     return;
