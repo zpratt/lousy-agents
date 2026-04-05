@@ -225,6 +225,50 @@ describe("handleRecord", () => {
         });
     });
 
+    describe("given a terminal tool with prototype key in toolArgs", () => {
+        it("should emit a tool_use event with empty command", async () => {
+            // Arrange
+            const payload = {
+                toolName: "bash",
+                toolArgs:
+                    '{"prototype": {"command": "evil"}, "command": "ls"}',
+            };
+            const deps = createMockDeps(payload);
+
+            // Act
+            await handleRecord(deps);
+
+            // Assert
+            expect(deps.telemetryDeps.written).toHaveLength(1);
+            const parsed = JSON.parse(deps.telemetryDeps.written[0]);
+            expect(parsed.command).toBe("");
+        });
+    });
+
+    describe("given getRepositoryRoot throws", () => {
+        it("should write a diagnostic to stderr and return false", async () => {
+            // Arrange
+            const payload = {
+                toolName: "bash",
+                toolArgs: JSON.stringify({ command: "ls" }),
+            };
+            const deps = createMockDeps(payload);
+            deps.getRepositoryRoot = vi
+                .fn()
+                .mockImplementation(() => {
+                    throw new Error("not a git repo");
+                });
+
+            // Act
+            const result = await handleRecord(deps);
+
+            // Assert
+            expect(deps.stderr.join("")).toContain("telemetry write error");
+            expect(result).toBe(false);
+            expect(deps.telemetryDeps.written).toHaveLength(0);
+        });
+    });
+
     describe("given invalid JSON from stdin", () => {
         it("should write a diagnostic to stderr and return false", async () => {
             // Arrange
@@ -250,12 +294,13 @@ describe("handleRecord", () => {
             const deps = createMockDeps(payload);
 
             // Act
-            await handleRecord(deps);
+            const result = await handleRecord(deps);
 
             // Assert
             expect(deps.stderr.join("")).toContain(
                 "missing or invalid toolName",
             );
+            expect(result).toBe(false);
             expect(deps.telemetryDeps.written).toHaveLength(0);
         });
     });
@@ -267,12 +312,13 @@ describe("handleRecord", () => {
             const deps = createMockDeps(payload);
 
             // Act
-            await handleRecord(deps);
+            const result = await handleRecord(deps);
 
             // Assert
             expect(deps.stderr.join("")).toContain(
                 "missing or invalid toolName",
             );
+            expect(result).toBe(false);
             expect(deps.telemetryDeps.written).toHaveLength(0);
         });
     });
@@ -314,6 +360,27 @@ describe("handleRecord", () => {
             // Assert
             expect(deps.stderr.join("")).toContain("failed to read stdin");
             expect(result).toBe(false);
+        });
+    });
+
+    describe("given a terminal tool with command exceeding MAX_COMMAND_BYTES", () => {
+        it("should truncate the command to 4096 characters", async () => {
+            // Arrange
+            const longCommand = "a".repeat(5000);
+            const payload = {
+                toolName: "bash",
+                toolArgs: JSON.stringify({ command: longCommand }),
+            };
+            const deps = createMockDeps(payload);
+
+            // Act
+            await handleRecord(deps);
+
+            // Assert
+            expect(deps.telemetryDeps.written).toHaveLength(1);
+            const parsed = JSON.parse(deps.telemetryDeps.written[0]);
+            expect(parsed.command).toHaveLength(4096);
+            expect(parsed.command).toBe(longCommand.slice(0, 4096));
         });
     });
 

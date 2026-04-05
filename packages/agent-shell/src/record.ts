@@ -14,6 +14,8 @@ export interface RecordDeps {
 
 const TERMINAL_TOOLS = new Set(["bash", "zsh", "ash", "sh"]);
 
+const MAX_COMMAND_BYTES = 4096;
+
 const HookInputSchema = z.object({
     toolName: z.string().max(1024),
     toolArgs: z.unknown().optional(),
@@ -56,7 +58,11 @@ function extractTerminalCommand(toolArgs: unknown): string {
 
     // Step 4: must have `command` property (reject prototype pollution keys)
     const obj = parsedArgs as Record<string, unknown>;
-    if (Object.hasOwn(obj, "__proto__") || Object.hasOwn(obj, "constructor")) {
+    if (
+        Object.hasOwn(obj, "__proto__") ||
+        Object.hasOwn(obj, "constructor") ||
+        Object.hasOwn(obj, "prototype")
+    ) {
         return "";
     }
     if (!Object.hasOwn(obj, "command")) {
@@ -68,7 +74,9 @@ function extractTerminalCommand(toolArgs: unknown): string {
         return "";
     }
 
-    return obj.command;
+    return obj.command.length > MAX_COMMAND_BYTES
+        ? obj.command.slice(0, MAX_COMMAND_BYTES)
+        : obj.command;
 }
 
 export async function handleRecord(deps: RecordDeps): Promise<boolean> {
