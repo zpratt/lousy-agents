@@ -26,6 +26,8 @@ agent-shell --version
 
 > **Note:** `agent-shell init` sets up Copilot hooks and policy files, but npm script execution recording is configured separately. To record npm script runs and emit `script_end` events, set npm's `script-shell` to `agent-shell` (for example by adding `script-shell=agent-shell` to your project's `.npmrc`).
 
+<!-- -->
+
 > **Why global?** agent-shell is configured as npm's `script-shell` and as a Copilot hook command, so it must be available _before_ `npm ci` or `npm install` runs. A local dev dependency creates a circular dependency. Installing globally keeps it on `PATH` independent of `node_modules`.
 
 ## How It Works

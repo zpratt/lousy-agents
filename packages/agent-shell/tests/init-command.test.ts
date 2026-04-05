@@ -109,6 +109,14 @@ describe("handleInit", () => {
                 expect(deps.stderr.join("")).toContain("flight recording");
                 expect(deps.stderr.join("")).toContain("policy blocking");
                 expect(deps.writeFile).toHaveBeenCalled();
+                const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
+                const hooksCall = writeFileCalls.find(([path]) =>
+                    (path as string).includes("hooks.json"),
+                );
+                expect(hooksCall).toBeDefined();
+                const config = JSON.parse(hooksCall?.[1] as string);
+                expect(config.hooks.preToolUse).toHaveLength(1);
+                expect(config.hooks.postToolUse).toHaveLength(1);
             });
         });
 
@@ -850,6 +858,85 @@ describe("handleInit", () => {
                         throw Object.assign(new Error("ENOENT"), {
                             code: "ENOENT",
                         });
+                    }
+                    return p;
+                }),
+            });
+
+            // Act
+            const ok = await handleInit(flags, deps);
+
+            // Assert
+            expect(ok).toBe(false);
+            expect(deps.stderr.join("")).toContain(
+                "unreachable or cannot be canonicalized",
+            );
+        });
+    });
+
+    describe("given realpath throws EACCES on target file path", () => {
+        it("should propagate the error from validatePathContainment", async () => {
+            // Arrange
+            const flags = createDefaultFlags({ flightRecorder: true });
+            const deps = createMockDeps({
+                realpath: vi.fn().mockImplementation(async (p: string) => {
+                    if ((p as string).includes("hooks.json")) {
+                        throw Object.assign(new Error("EACCES"), {
+                            code: "EACCES",
+                        });
+                    }
+                    return p;
+                }),
+            });
+
+            // Act & Assert
+            await expect(handleInit(flags, deps)).rejects.toThrow("EACCES");
+        });
+    });
+
+    describe("given realpath throws EACCES on parent dir after mkdir", () => {
+        it("should propagate the error from writeConfigFile post-mkdir check", async () => {
+            // Arrange
+            const flags = createDefaultFlags({ flightRecorder: true });
+            let mkdirCalled = false;
+            const deps = createMockDeps({
+                mkdir: vi.fn().mockImplementation(async () => {
+                    mkdirCalled = true;
+                }),
+                realpath: vi.fn().mockImplementation(async (p: string) => {
+                    if (
+                        mkdirCalled &&
+                        (p as string).includes("agent-shell") &&
+                        !(p as string).includes(".json")
+                    ) {
+                        throw Object.assign(new Error("EACCES"), {
+                            code: "EACCES",
+                        });
+                    }
+                    return p;
+                }),
+            });
+
+            // Act & Assert
+            await expect(handleInit(flags, deps)).rejects.toThrow("EACCES");
+        });
+    });
+
+    describe("given realpath(repoRoot) fails only in writeConfigFile post-mkdir", () => {
+        it("should return false with diagnostic when second repoRoot canonicalization fails", async () => {
+            // Arrange — first realpath(/project) succeeds in validatePathContainment,
+            // second realpath(/project) fails in writeConfigFile post-mkdir check
+            const flags = createDefaultFlags({ flightRecorder: true });
+            let repoRootCallCount = 0;
+            const deps = createMockDeps({
+                realpath: vi.fn().mockImplementation(async (p: string) => {
+                    if (p === "/project") {
+                        repoRootCallCount++;
+                        if (repoRootCallCount > 1) {
+                            throw Object.assign(new Error("ENOENT"), {
+                                code: "ENOENT",
+                            });
+                        }
                     }
                     return p;
                 }),
