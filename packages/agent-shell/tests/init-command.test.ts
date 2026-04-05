@@ -73,6 +73,19 @@ const HOOKS_CONFIG_POLICY_ONLY = {
     },
 };
 
+const HOOKS_CONFIG_FLIGHT_RECORDER_ONLY = {
+    version: 1,
+    hooks: {
+        postToolUse: [
+            {
+                type: "command",
+                bash: "agent-shell record",
+                timeoutSec: 30,
+            },
+        ],
+    },
+};
+
 describe("handleInit", () => {
     describe("given hooks.json does not exist", () => {
         describe("with non-TTY and no explicit flags", () => {
@@ -323,6 +336,30 @@ describe("handleInit", () => {
                         .fn()
                         .mockResolvedValue(
                             JSON.stringify(HOOKS_CONFIG_POLICY_ONLY),
+                        ),
+                });
+
+                // Act
+                const ok = await handleInit(flags, deps);
+
+                // Assert
+                expect(ok).toBe(true);
+                expect(deps.stdout.join("")).toContain("already configured");
+                expect(deps.writeFile).not.toHaveBeenCalled();
+            });
+        });
+    });
+
+    describe("given hooks.json exists with only flight recording configured", () => {
+        describe("with --flight-recorder flag (already configured)", () => {
+            it("should detect no-op and skip writing", async () => {
+                // Arrange
+                const flags = createDefaultFlags({ flightRecorder: true });
+                const deps = createMockDeps({
+                    readFile: vi
+                        .fn()
+                        .mockResolvedValue(
+                            JSON.stringify(HOOKS_CONFIG_FLIGHT_RECORDER_ONLY),
                         ),
                 });
 
