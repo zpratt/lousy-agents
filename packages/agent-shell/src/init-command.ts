@@ -4,7 +4,7 @@ import { generatePolicy } from "./policy-init.js";
 import type { ProjectScanResult } from "./project-scanner.js";
 import { sanitizeForStderr } from "./sanitize.js";
 import type { HooksConfig } from "./types.js";
-import { HooksConfigSchema } from "./types.js";
+import { HooksConfigSchema, PolicyConfigSchema } from "./types.js";
 
 const HOOKS_SUBPATH = ".github/hooks/agent-shell/hooks.json";
 const POLICY_SUBPATH = ".github/hooks/agent-shell/policy.json";
@@ -65,38 +65,48 @@ function hasHookCommand(
     });
 }
 
+export type PolicyPatchResult =
+    | { status: "patched"; content: string }
+    | { status: "unchanged" }
+    | { status: "invalid"; reason: string };
+
 /**
  * Ensures agent-shell's own commands are in an existing policy.json allow list.
- * Returns the patched JSON string if changes were needed, or null if all entries
- * are already present. Preserves all existing user rules.
+ * Returns a discriminated union:
+ * - `patched` with new content when entries were added
+ * - `unchanged` when all entries are already present
+ * - `invalid` when the file cannot be parsed or fails schema validation
  */
-export function ensureAgentShellAllowed(content: string): string | null {
+export function ensureAgentShellAllowed(content: string): PolicyPatchResult {
     let parsed: unknown;
     try {
         parsed = JSON.parse(content);
     } catch {
-        // Corrupted policy — don't attempt to patch
-        return null;
+        return { status: "invalid", reason: "JSON parse error" };
     }
 
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-        return null;
+    const result = PolicyConfigSchema.safeParse(parsed);
+    if (!result.success) {
+        return { status: "invalid", reason: "policy schema validation failed" };
     }
 
-    const policy = parsed as Record<string, unknown>;
-    const allow = Array.isArray(policy.allow) ? [...policy.allow] : [];
+    const policy = result.data;
+    const allow = policy.allow ? [...policy.allow] : [];
 
     const missing = AGENT_SHELL_ALLOW_ENTRIES.filter(
         (entry) => !allow.includes(entry),
     );
 
     if (missing.length === 0) {
-        return null;
+        return { status: "unchanged" };
     }
 
     allow.push(...missing);
     const patched = { ...policy, allow };
-    return `${JSON.stringify(patched, null, 2)}\n`;
+    return {
+        status: "patched",
+        content: `${JSON.stringify(patched, null, 2)}\n`,
+    };
 }
 
 function detectExistingFeatures(config: HooksConfig): DetectedFeatures {
@@ -419,21 +429,45 @@ export async function handleInit(
             }
         } else {
             // Ensure agent-shell commands are in the existing allow list
-            const patched = ensureAgentShellAllowed(existingContent);
-            if (patched !== null) {
-                const policyWritten = await writeConfigFile(
-                    repoRoot,
-                    POLICY_SUBPATH,
-                    patched,
-                    deps,
-                );
-                if (!policyWritten) {
-                    return false;
+            const patchResult = ensureAgentShellAllowed(existingContent);
+            switch (patchResult.status) {
+                case "patched": {
+                    const policyWritten = await writeConfigFile(
+                        repoRoot,
+                        POLICY_SUBPATH,
+                        patchResult.content,
+                        deps,
+                    );
+                    if (!policyWritten) {
+                        return false;
+                    }
+                    break;
                 }
-            } else {
-                deps.writeStdout(
-                    "Policy already exists with agent-shell rules; skipping policy.json generation.\n",
-                );
+                case "unchanged":
+                    deps.writeStdout(
+                        "Policy already exists with agent-shell rules; skipping policy.json generation.\n",
+                    );
+                    break;
+                case "invalid":
+                    deps.writeStderr(
+                        `agent-shell: existing policy.json is invalid (${patchResult.reason}), regenerating\n`,
+                    );
+                    deps.writeStdout("Scanning project...\n");
+                    {
+                        const scanResult = await deps.scanProject(repoRoot);
+                        const policy = generatePolicy(scanResult);
+                        const policyContent = `${JSON.stringify(policy, null, 2)}\n`;
+                        const policyWritten = await writeConfigFile(
+                            repoRoot,
+                            POLICY_SUBPATH,
+                            policyContent,
+                            deps,
+                        );
+                        if (!policyWritten) {
+                            return false;
+                        }
+                    }
+                    break;
             }
         }
     }

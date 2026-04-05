@@ -810,7 +810,7 @@ describe("handleInit", () => {
                 (path as string).includes("policy.json"),
             );
             expect(policyCall).toBeDefined();
-            const patchedPolicy = JSON.parse(policyCall![1] as string);
+            const patchedPolicy = JSON.parse(policyCall?.[1] as string);
             expect(patchedPolicy.allow).toContain("agent-shell policy-check");
             expect(patchedPolicy.allow).toContain("agent-shell record");
             // Preserves existing user rules
@@ -886,6 +886,76 @@ describe("handleInit", () => {
 
             // Act & Assert
             await expect(handleInit(flags, deps)).rejects.toThrow("EACCES");
+        });
+    });
+
+    describe("given corrupted policy.json when enabling policy", () => {
+        it("should warn on stderr and regenerate policy", async () => {
+            // Arrange
+            const flags = createDefaultFlags({ policy: true });
+            const deps = createMockDeps({
+                readFile: vi.fn().mockImplementation(async (p: string) => {
+                    if ((p as string).includes("hooks.json")) {
+                        throw Object.assign(new Error("ENOENT"), {
+                            code: "ENOENT",
+                        });
+                    }
+                    if ((p as string).includes("policy.json")) {
+                        return "{broken json";
+                    }
+                    throw Object.assign(new Error("ENOENT"), {
+                        code: "ENOENT",
+                    });
+                }),
+            });
+
+            // Act
+            const ok = await handleInit(flags, deps);
+
+            // Assert
+            expect(ok).toBe(true);
+            expect(deps.stderr.join("")).toContain("invalid");
+            expect(deps.stderr.join("")).toContain("regenerating");
+            // policy.json should be written with regenerated content
+            const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
+            const policyCall = writeFileCalls.find(([path]) =>
+                (path as string).includes("policy.json"),
+            );
+            expect(policyCall).toBeDefined();
+        });
+
+        it("should regenerate when schema validation fails on existing policy", async () => {
+            // Arrange
+            const flags = createDefaultFlags({ policy: true });
+            const invalidPolicy = JSON.stringify({
+                allow: ["npm test"],
+                deny: ["rm -rf *"],
+                unknownField: "should fail strict schema",
+            });
+            const deps = createMockDeps({
+                readFile: vi.fn().mockImplementation(async (p: string) => {
+                    if ((p as string).includes("hooks.json")) {
+                        throw Object.assign(new Error("ENOENT"), {
+                            code: "ENOENT",
+                        });
+                    }
+                    if ((p as string).includes("policy.json")) {
+                        return invalidPolicy;
+                    }
+                    throw Object.assign(new Error("ENOENT"), {
+                        code: "ENOENT",
+                    });
+                }),
+            });
+
+            // Act
+            const ok = await handleInit(flags, deps);
+
+            // Assert
+            expect(ok).toBe(true);
+            expect(deps.stderr.join("")).toContain("invalid");
+            expect(deps.stderr.join("")).toContain("regenerating");
+            expect(deps.stdout.join("")).toContain("Scanning project");
         });
     });
 
@@ -996,7 +1066,7 @@ describe("handleInit", () => {
 });
 
 describe("ensureAgentShellAllowed", () => {
-    it("should return null when both entries already present", () => {
+    it("should return unchanged when both entries already present", () => {
         const content = JSON.stringify({
             allow: [
                 "agent-shell policy-check",
@@ -1005,49 +1075,73 @@ describe("ensureAgentShellAllowed", () => {
             ],
             deny: ["rm -rf *"],
         });
-        expect(ensureAgentShellAllowed(content)).toBeNull();
+        const result = ensureAgentShellAllowed(content);
+        expect(result.status).toBe("unchanged");
     });
 
-    it("should add missing agent-shell record entry", () => {
+    it("should return patched with missing agent-shell record entry", () => {
         const content = JSON.stringify({
             allow: ["agent-shell policy-check", "npm test"],
             deny: ["rm -rf *"],
         });
         const result = ensureAgentShellAllowed(content);
-        expect(result).not.toBeNull();
-        const parsed = JSON.parse(result as string);
+        expect(result.status).toBe("patched");
+        if (result.status !== "patched") return;
+        const parsed = JSON.parse(result.content);
         expect(parsed.allow).toContain("agent-shell record");
         expect(parsed.allow).toContain("agent-shell policy-check");
         expect(parsed.allow).toContain("npm test");
         expect(parsed.deny).toEqual(["rm -rf *"]);
     });
 
-    it("should add both entries when allow list has neither", () => {
+    it("should return patched with both entries when allow list has neither", () => {
         const content = JSON.stringify({
             allow: ["npm test"],
             deny: ["rm -rf *"],
         });
         const result = ensureAgentShellAllowed(content);
-        expect(result).not.toBeNull();
-        const parsed = JSON.parse(result as string);
+        expect(result.status).toBe("patched");
+        if (result.status !== "patched") return;
+        const parsed = JSON.parse(result.content);
         expect(parsed.allow).toContain("agent-shell policy-check");
         expect(parsed.allow).toContain("agent-shell record");
     });
 
-    it("should return null for corrupted JSON", () => {
-        expect(ensureAgentShellAllowed("{broken")).toBeNull();
+    it("should return invalid for corrupted JSON", () => {
+        const result = ensureAgentShellAllowed("{broken");
+        expect(result.status).toBe("invalid");
+        if (result.status === "invalid") {
+            expect(result.reason).toContain("JSON parse error");
+        }
     });
 
-    it("should return null for non-object JSON", () => {
-        expect(ensureAgentShellAllowed('"just a string"')).toBeNull();
-        expect(ensureAgentShellAllowed("[]")).toBeNull();
+    it("should return invalid for non-object JSON", () => {
+        expect(ensureAgentShellAllowed('"just a string"').status).toBe(
+            "invalid",
+        );
+        expect(ensureAgentShellAllowed("[]").status).toBe("invalid");
     });
 
-    it("should handle missing allow field by creating it", () => {
+    it("should return invalid for schema-violating content", () => {
+        // Has extra fields that strict() rejects
+        const content = JSON.stringify({
+            allow: ["npm test"],
+            deny: ["rm -rf *"],
+            unknownField: true,
+        });
+        const result = ensureAgentShellAllowed(content);
+        expect(result.status).toBe("invalid");
+        if (result.status === "invalid") {
+            expect(result.reason).toContain("schema validation failed");
+        }
+    });
+
+    it("should return patched when allow field is missing", () => {
         const content = JSON.stringify({ deny: ["rm -rf *"] });
         const result = ensureAgentShellAllowed(content);
-        expect(result).not.toBeNull();
-        const parsed = JSON.parse(result as string);
+        expect(result.status).toBe("patched");
+        if (result.status !== "patched") return;
+        const parsed = JSON.parse(result.content);
         expect(parsed.allow).toContain("agent-shell policy-check");
         expect(parsed.allow).toContain("agent-shell record");
         expect(parsed.deny).toEqual(["rm -rf *"]);
