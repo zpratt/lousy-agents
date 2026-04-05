@@ -76,9 +76,18 @@ function extractTerminalCommand(toolArgs: unknown): string {
 
     // Truncate to MAX_COMMAND_BYTES using byte-aware slicing (matching env-capture.ts pattern)
     if (Buffer.byteLength(obj.command, "utf-8") > MAX_COMMAND_BYTES) {
-        return Buffer.from(obj.command, "utf-8")
-            .subarray(0, MAX_COMMAND_BYTES)
-            .toString("utf-8");
+        // Codepoint-aware truncation: stop before exceeding the byte limit.
+        // for...of iterates Unicode codepoints, so surrogate pairs are handled
+        // correctly and we never truncate mid-sequence.
+        let byteCount = 0;
+        let truncated = "";
+        for (const ch of obj.command) {
+            const charBytes = Buffer.byteLength(ch, "utf-8");
+            if (byteCount + charBytes > MAX_COMMAND_BYTES) break;
+            byteCount += charBytes;
+            truncated += ch;
+        }
+        return truncated;
     }
 
     return obj.command;

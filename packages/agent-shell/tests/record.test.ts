@@ -423,6 +423,28 @@ describe("handleRecord", () => {
         });
     });
 
+    describe("given a terminal tool with 3-byte command chars that split at the truncation boundary", () => {
+        it("should truncate at a valid codepoint boundary without exceeding MAX_COMMAND_BYTES", async () => {
+            // Arrange — '€' is 3 UTF-8 bytes; 1366 chars = 4098 bytes (2 bytes over limit)
+            // This specifically exercises the split-sequence case that raw Buffer.subarray mishandles
+            const euro = "€"; // 3 bytes in UTF-8
+            const longCommand = euro.repeat(1366); // 4098 bytes
+            const payload = {
+                toolName: "bash",
+                toolArgs: JSON.stringify({ command: longCommand }),
+            };
+            const deps = createMockDeps(payload);
+
+            // Act
+            await handleRecord(deps);
+
+            // Assert
+            expect(deps.telemetryDeps.written).toHaveLength(1);
+            const parsed = JSON.parse(deps.telemetryDeps.written[0]);
+            expect(Buffer.byteLength(parsed.command, "utf-8")).toBeLessThanOrEqual(4096);
+        });
+    });
+
     describe("given all terminal tool variants", () => {
         for (const tool of ["bash", "zsh", "ash", "sh"]) {
             it(`should extract command for ${tool}`, async () => {
