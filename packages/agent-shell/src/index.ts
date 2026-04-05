@@ -119,6 +119,8 @@ async function main(): Promise<void> {
                     telemetryDeps: createDefaultDeps(),
                     getRepositoryRoot,
                 });
+                // Observation-only: always exit 0 regardless of parse/emit errors.
+                // postToolUse hooks must not block agent operations.
                 process.exitCode = 0;
             } catch (err) {
                 process.stderr.write(

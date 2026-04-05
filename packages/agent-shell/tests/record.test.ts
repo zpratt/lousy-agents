@@ -59,9 +59,10 @@ describe("handleRecord", () => {
             const deps = createMockDeps(payload);
 
             // Act
-            await handleRecord(deps);
+            const result = await handleRecord(deps);
 
             // Assert
+            expect(result).toBe(true);
             expect(deps.telemetryDeps.written).toHaveLength(1);
             const parsed = JSON.parse(deps.telemetryDeps.written[0]);
             expect(parsed.event).toBe("tool_use");
@@ -225,19 +226,19 @@ describe("handleRecord", () => {
     });
 
     describe("given invalid JSON from stdin", () => {
-        it("should write a diagnostic to stderr without setting exit code", async () => {
+        it("should write a diagnostic to stderr and return false", async () => {
             // Arrange
             const deps = createMockDeps({});
             deps.readStdin = vi.fn().mockResolvedValue("not valid json{");
 
             // Act
-            await handleRecord(deps);
+            const result = await handleRecord(deps);
 
             // Assert
             expect(deps.stderr.join("")).toContain(
                 "failed to parse stdin as JSON",
             );
-            expect(process.exitCode).toBeUndefined();
+            expect(result).toBe(false);
             expect(deps.telemetryDeps.written).toHaveLength(0);
         });
     });
@@ -277,7 +278,7 @@ describe("handleRecord", () => {
     });
 
     describe("given telemetry emission fails", () => {
-        it("should log the error to stderr and exit gracefully", async () => {
+        it("should log the error to stderr and return false", async () => {
             // Arrange
             const payload = {
                 toolName: "bash",
@@ -289,16 +290,16 @@ describe("handleRecord", () => {
                 .mockRejectedValue(new Error("disk full"));
 
             // Act
-            await handleRecord(deps);
+            const result = await handleRecord(deps);
 
             // Assert
             expect(deps.stderr.join("")).toContain("telemetry write error");
-            expect(process.exitCode).toBeUndefined();
+            expect(result).toBe(false);
         });
     });
 
     describe("given stdin read fails", () => {
-        it("should write a diagnostic to stderr without setting exit code", async () => {
+        it("should write a diagnostic to stderr and return false", async () => {
             // Arrange
             const deps = createMockDeps({});
             deps.readStdin = vi
@@ -308,11 +309,11 @@ describe("handleRecord", () => {
                 );
 
             // Act
-            await handleRecord(deps);
+            const result = await handleRecord(deps);
 
             // Assert
             expect(deps.stderr.join("")).toContain("failed to read stdin");
-            expect(process.exitCode).toBeUndefined();
+            expect(result).toBe(false);
         });
     });
 

@@ -71,7 +71,7 @@ function extractTerminalCommand(toolArgs: unknown): string {
     return obj.command;
 }
 
-export async function handleRecord(deps: RecordDeps): Promise<void> {
+export async function handleRecord(deps: RecordDeps): Promise<boolean> {
     let rawStdin: string;
     try {
         rawStdin = await deps.readStdin();
@@ -79,7 +79,7 @@ export async function handleRecord(deps: RecordDeps): Promise<void> {
         deps.writeStderr(
             `agent-shell: failed to read stdin: ${sanitizeForStderr(err)}\n`,
         );
-        return;
+        return false;
     }
 
     let input: unknown;
@@ -87,7 +87,7 @@ export async function handleRecord(deps: RecordDeps): Promise<void> {
         input = JSON.parse(rawStdin);
     } catch {
         deps.writeStderr("agent-shell: failed to parse stdin as JSON\n");
-        return;
+        return false;
     }
 
     const hookResult = HookInputSchema.safeParse(input);
@@ -96,7 +96,7 @@ export async function handleRecord(deps: RecordDeps): Promise<void> {
         deps.writeStderr(
             "agent-shell: missing or invalid toolName field, skipping telemetry\n",
         );
-        return;
+        return false;
     }
 
     const { toolName, toolArgs } = hookResult.data;
@@ -120,5 +120,8 @@ export async function handleRecord(deps: RecordDeps): Promise<void> {
         deps.writeStderr(
             `agent-shell: telemetry write error: ${sanitizeForStderr(err)}\n`,
         );
+        return false;
     }
+
+    return true;
 }
