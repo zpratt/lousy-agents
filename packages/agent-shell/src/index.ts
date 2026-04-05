@@ -130,6 +130,13 @@ async function main(): Promise<void> {
         }
         case "init": {
             try {
+                if (mode.unknownArgs.length > 0) {
+                    process.stderr.write(
+                        `agent-shell: unknown flag(s): ${mode.unknownArgs.join(", ")}\n`,
+                    );
+                    process.exitCode = 1;
+                    return;
+                }
                 const getRepositoryRoot = createGetRepositoryRoot(
                     undefined,
                     process.env,

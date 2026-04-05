@@ -493,6 +493,7 @@ describe("resolveMode", () => {
                 policy: false,
                 noFlightRecorder: false,
                 noPolicy: false,
+                unknownArgs: [],
             });
         });
 
@@ -579,6 +580,39 @@ describe("resolveMode", () => {
 
             // Assert
             expect(mode.type).toBe("init");
+        });
+
+        it("should collect unknown flags in unknownArgs", () => {
+            // Arrange
+            const args = ["init", "--flightrecorder", "--unknown"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode.type).toBe("init");
+            if (mode.type === "init") {
+                expect(mode.unknownArgs).toEqual([
+                    "--flightrecorder",
+                    "--unknown",
+                ]);
+                expect(mode.flightRecorder).toBe(false);
+            }
+        });
+
+        it("should separate known and unknown flags", () => {
+            // Arrange
+            const args = ["init", "--policy", "--typo"];
+
+            // Act
+            const mode = resolveMode(args, {});
+
+            // Assert
+            expect(mode.type).toBe("init");
+            if (mode.type === "init") {
+                expect(mode.policy).toBe(true);
+                expect(mode.unknownArgs).toEqual(["--typo"]);
+            }
         });
     });
 });

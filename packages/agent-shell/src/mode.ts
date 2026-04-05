@@ -9,6 +9,7 @@ export type Mode =
           policy: boolean;
           noFlightRecorder: boolean;
           noPolicy: boolean;
+          unknownArgs: string[];
       }
     | { type: "version" }
     | { type: "shim"; command: string }
@@ -39,12 +40,14 @@ function parseInitOptions(args: string[]): {
     policy: boolean;
     noFlightRecorder: boolean;
     noPolicy: boolean;
+    unknownArgs: string[];
 } {
     const options = {
         flightRecorder: false,
         policy: false,
         noFlightRecorder: false,
         noPolicy: false,
+        unknownArgs: [] as string[],
     };
     for (const arg of args.slice(1)) {
         switch (arg) {
@@ -59,6 +62,9 @@ function parseInitOptions(args: string[]): {
                 break;
             case "--no-policy":
                 options.noPolicy = true;
+                break;
+            default:
+                options.unknownArgs.push(arg);
                 break;
         }
     }
