@@ -36,9 +36,9 @@ interface GeneratedHooksConfig {
     };
 }
 
-// Exact-match entries (no wildcard) are listed first for agent-shell's own
-// commands to prevent the preToolUse hook from blocking its sibling hooks.
-// Wildcard entries (ending with *) follow for common read-only git commands.
+// Exact-match entries for agent-shell's own commands prevent the preToolUse
+// hook from blocking its sibling hooks. Wildcard entries (ending with *) cover
+// common read-only git commands. The final allow list is sorted alphabetically.
 const DEFAULT_SAFE_COMMANDS = [
     "agent-shell policy-check",
     "agent-shell record",

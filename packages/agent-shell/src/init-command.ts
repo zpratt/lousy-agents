@@ -37,6 +37,10 @@ interface DetectedFeatures {
 
 const AGENT_SHELL_POLICY_CHECK = "agent-shell policy-check";
 const AGENT_SHELL_RECORD = "agent-shell record";
+const AGENT_SHELL_ALLOW_ENTRIES = [
+    AGENT_SHELL_POLICY_CHECK,
+    AGENT_SHELL_RECORD,
+];
 
 function hasHookCommand(
     hooks: HooksConfig["hooks"]["preToolUse"],
@@ -59,6 +63,40 @@ function hasHookCommand(
             hook.powershell === expectedCommand;
         return bashMatch || powershellMatch;
     });
+}
+
+/**
+ * Ensures agent-shell's own commands are in an existing policy.json allow list.
+ * Returns the patched JSON string if changes were needed, or null if all entries
+ * are already present. Preserves all existing user rules.
+ */
+export function ensureAgentShellAllowed(content: string): string | null {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(content);
+    } catch {
+        // Corrupted policy — don't attempt to patch
+        return null;
+    }
+
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+        return null;
+    }
+
+    const policy = parsed as Record<string, unknown>;
+    const allow = Array.isArray(policy.allow) ? [...policy.allow] : [];
+
+    const missing = AGENT_SHELL_ALLOW_ENTRIES.filter(
+        (entry) => !allow.includes(entry),
+    );
+
+    if (missing.length === 0) {
+        return null;
+    }
+
+    allow.push(...missing);
+    const patched = { ...policy, allow };
+    return `${JSON.stringify(patched, null, 2)}\n`;
 }
 
 function detectExistingFeatures(config: HooksConfig): DetectedFeatures {
@@ -349,21 +387,22 @@ export async function handleInit(
         return false;
     }
 
-    // Generate policy.json if policy is being enabled and no policy file exists yet
+    // Generate policy.json if policy is being enabled and no policy file exists yet.
+    // If the file already exists, ensure agent-shell's own commands are in the allow list
+    // so that the preToolUse hook doesn't block the sibling postToolUse hook.
     if (enablePolicy) {
         const policyPath = join(repoRoot, POLICY_SUBPATH);
-        let policyExists = false;
+        let existingContent: string | null = null;
 
         try {
-            await deps.readFile(policyPath, "utf-8");
-            policyExists = true;
+            existingContent = await deps.readFile(policyPath, "utf-8");
         } catch (error: unknown) {
             if (!isPathNotFoundError(error)) {
                 throw error;
             }
         }
 
-        if (!policyExists) {
+        if (existingContent === null) {
             deps.writeStdout("Scanning project...\n");
             const scanResult = await deps.scanProject(repoRoot);
             const policy = generatePolicy(scanResult);
@@ -379,9 +418,23 @@ export async function handleInit(
                 return false;
             }
         } else {
-            deps.writeStdout(
-                "Policy already exists; skipping policy.json generation.\n",
-            );
+            // Ensure agent-shell commands are in the existing allow list
+            const patched = ensureAgentShellAllowed(existingContent);
+            if (patched !== null) {
+                const policyWritten = await writeConfigFile(
+                    repoRoot,
+                    POLICY_SUBPATH,
+                    patched,
+                    deps,
+                );
+                if (!policyWritten) {
+                    return false;
+                }
+            } else {
+                deps.writeStdout(
+                    "Policy already exists with agent-shell rules; skipping policy.json generation.\n",
+                );
+            }
         }
     }
 
