@@ -57,8 +57,8 @@ so that I can **review a complete log of agent activity — not just npm scripts
 - When the `postToolUse` payload contains a terminal tool name and `toolArgs` parses to a value that is not a non-null plain object, or the object does not contain a `command` string field, the system shall set `command` to an empty string and still emit the `tool_use` event.
 - When the `postToolUse` payload contains a non-terminal tool name, the system shall set the `command` field to an empty string and record the `tool_name` field with the tool's name.
 - When a terminal tool's `toolArgs.command` is an empty string, the system shall record the event with an empty `command` field (same as non-terminal tools).
-- If stdin contains data that is not valid JSON, then the system shall write a diagnostic message to stderr and set a non-zero exit code (using `process.exitCode`, not `process.exit()`). Note: the agent ignores this exit code, but a non-zero value signals failure for debugging.
-- If stdin input exceeds 1 MiB, then the system shall reject the input, write a diagnostic message to stderr, and set a non-zero exit code.
+- If stdin contains data that is not valid JSON, then the system shall write a diagnostic message to stderr and exit gracefully without emitting telemetry.
+- If stdin input exceeds 1 MiB, then the system shall reject the input, write a diagnostic message to stderr, and exit gracefully without emitting telemetry.
 - If the `postToolUse` payload is missing the `toolName` field or `toolName` is not a string, then the system shall write a diagnostic message to stderr and skip telemetry emission.
 - While telemetry emission fails (e.g., events directory not writable), the system shall log the error to stderr and exit gracefully without crashing.
 - The `tool_use` telemetry event shall be written to the same `.agent-shell/events/` directory and session JSONL file used by existing `script_end` and `policy_decision` events.
@@ -84,7 +84,7 @@ so that I can **set up all agent-shell features in one step without reading docu
 - When hooks.json does not exist, the system shall prompt the user: "Enable flight recording to capture all agent tool usage?" with a default of "yes."
 - When the user accepts flight recording, the system shall generate a hooks.json that includes a `postToolUse` hook entry for `agent-shell record`.
 - When hooks.json does not exist, the system shall prompt the user: "Enable policy-based command blocking?" with a default of "yes."
-- When the user accepts policy blocking, the system shall run the existing `policy --init` flow to scan the project and generate policy.json, and add a `preToolUse` hook entry for `agent-shell policy-check` to the hooks.json.
+- When the user accepts policy blocking, the system shall scan the project using `scanProject()` and generate policy.json using `generatePolicy()`, and add a `preToolUse` hook entry for `agent-shell policy-check` to the hooks.json.
 - When hooks.json already exists, the system shall inspect the existing configuration and identify features that are not yet enabled (e.g., flight recording is missing, or policy-check is missing).
 - While hooks.json already exists and contains both `postToolUse` (flight recording) and `preToolUse` (policy-check) entries for agent-shell, the system shall inform the user that all features are already configured and exit successfully.
 - While hooks.json already exists but is missing the flight recording hook, the system shall prompt the user: "Flight recording is not yet enabled. Would you like to add it?" with a default of "yes."
