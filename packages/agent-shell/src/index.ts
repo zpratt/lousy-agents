@@ -107,11 +107,11 @@ async function main(): Promise<void> {
             return;
         }
         case "record": {
+            const getRepositoryRoot = createGetRepositoryRoot(
+                undefined,
+                process.env,
+            );
             try {
-                const getRepositoryRoot = createGetRepositoryRoot(
-                    undefined,
-                    process.env,
-                );
                 await handleRecord({
                     readStdin: () => readStdin(),
                     writeStderr: (data) => process.stderr.write(data),
@@ -119,15 +119,16 @@ async function main(): Promise<void> {
                     telemetryDeps: createDefaultDeps(),
                     getRepositoryRoot,
                 });
-                // Observation-only: always exit 0 regardless of parse/emit errors.
-                // postToolUse hooks must not block agent operations.
-                process.exitCode = 0;
             } catch (err) {
+                // Log unexpected exceptions but don't change exit code
                 process.stderr.write(
                     `agent-shell: record error: ${sanitizeForStderr(err)}\n`,
                 );
-                process.exitCode = 1;
             }
+            // Observation-only: always exit 0 regardless of parse/emit errors.
+            // postToolUse hooks must not block agent operations and the agent
+            // ignores the exit code anyway.
+            process.exitCode = 0;
             return;
         }
         case "init": {
