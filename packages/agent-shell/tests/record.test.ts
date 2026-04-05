@@ -230,8 +230,7 @@ describe("handleRecord", () => {
             // Arrange
             const payload = {
                 toolName: "bash",
-                toolArgs:
-                    '{"prototype": {"command": "evil"}, "command": "ls"}',
+                toolArgs: '{"prototype": {"command": "evil"}, "command": "ls"}',
             };
             const deps = createMockDeps(payload);
 
@@ -253,11 +252,9 @@ describe("handleRecord", () => {
                 toolArgs: JSON.stringify({ command: "ls" }),
             };
             const deps = createMockDeps(payload);
-            deps.getRepositoryRoot = vi
-                .fn()
-                .mockImplementation(() => {
-                    throw new Error("not a git repo");
-                });
+            deps.getRepositoryRoot = vi.fn().mockImplementation(() => {
+                throw new Error("not a git repo");
+            });
 
             // Act
             const result = await handleRecord(deps);
@@ -419,7 +416,9 @@ describe("handleRecord", () => {
             expect(deps.telemetryDeps.written).toHaveLength(1);
             const parsed = JSON.parse(deps.telemetryDeps.written[0]);
             // Byte-aware truncation: 4096 bytes / 4 bytes per emoji = 1024 emojis max
-            expect(Buffer.byteLength(parsed.command, "utf-8")).toBeLessThanOrEqual(4096);
+            expect(
+                Buffer.byteLength(parsed.command, "utf-8"),
+            ).toBeLessThanOrEqual(4096);
         });
     });
 
@@ -441,7 +440,9 @@ describe("handleRecord", () => {
             // Assert
             expect(deps.telemetryDeps.written).toHaveLength(1);
             const parsed = JSON.parse(deps.telemetryDeps.written[0]);
-            expect(Buffer.byteLength(parsed.command, "utf-8")).toBeLessThanOrEqual(4096);
+            expect(
+                Buffer.byteLength(parsed.command, "utf-8"),
+            ).toBeLessThanOrEqual(4096);
         });
     });
 
