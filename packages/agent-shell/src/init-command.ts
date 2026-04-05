@@ -1,7 +1,7 @@
 import { join, resolve } from "node:path";
 import { isPathNotFoundError, isWithinProjectRoot } from "./path-utils.js";
 import { generatePolicy } from "./policy-init.js";
-import { scanProject } from "./project-scanner.js";
+import type { ProjectScanResult } from "./project-scanner.js";
 import { sanitizeForStderr } from "./sanitize.js";
 import type { HooksConfig } from "./types.js";
 import { HooksConfigSchema } from "./types.js";
@@ -18,6 +18,7 @@ export interface InitDeps {
     writeFile: (path: string, content: string) => Promise<void>;
     mkdir: (path: string, opts: { recursive: boolean }) => Promise<void>;
     realpath: (path: string) => Promise<string>;
+    scanProject: (dir: string) => Promise<ProjectScanResult>;
     isTty: boolean;
     prompt?: (message: string) => Promise<boolean>;
 }
@@ -364,7 +365,7 @@ export async function handleInit(
 
         if (!policyExists) {
             deps.writeStdout("Scanning project...\n");
-            const scanResult = await scanProject(repoRoot);
+            const scanResult = await deps.scanProject(repoRoot);
             const policy = generatePolicy(scanResult);
             const policyContent = `${JSON.stringify(policy, null, 2)}\n`;
 

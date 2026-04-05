@@ -15,6 +15,7 @@ import { runLog } from "./log/index.js";
 import { resolveMode } from "./mode.js";
 import { handlePolicyCheck } from "./policy-check.js";
 import { handlePolicyInit } from "./policy-init.js";
+import { scanProject } from "./project-scanner.js";
 import { handleRecord } from "./record.js";
 import { sanitizeForStderr } from "./sanitize.js";
 import type { ShimResult } from "./shim.js";
@@ -175,6 +176,7 @@ async function main(): Promise<void> {
                         mkdir: (path, opts) =>
                             mkdir(path, opts).then(() => undefined),
                         realpath: (path) => realpath(path),
+                        scanProject: (dir) => scanProject(dir),
                         isTty,
                         prompt,
                     },

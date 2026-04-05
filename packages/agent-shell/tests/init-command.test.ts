@@ -33,6 +33,12 @@ function createMockDeps(
         writeFile: vi.fn().mockResolvedValue(undefined),
         mkdir: vi.fn().mockResolvedValue(undefined),
         realpath: vi.fn().mockImplementation(async (p: string) => p),
+        scanProject: vi.fn().mockResolvedValue({
+            scripts: [],
+            workflowCommands: [],
+            miseTasks: [],
+            languages: [],
+        }),
         isTty: false,
         stdout,
         stderr,
@@ -285,6 +291,30 @@ describe("handleInit", () => {
             const flags = createDefaultFlags({ flightRecorder: true });
             const deps = createMockDeps({
                 readFile: vi.fn().mockResolvedValue("not valid json{"),
+            });
+
+            // Act
+            const ok = await handleInit(flags, deps);
+
+            // Assert
+            expect(ok).toBe(false);
+            expect(deps.stderr.join("")).toContain(
+                "failed to read existing hooks.json",
+            );
+            expect(deps.writeFile).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("given hooks.json exists with valid JSON but invalid schema", () => {
+        it("should abort with an error instead of overwriting", async () => {
+            // Arrange — version 2 is not valid per HooksConfigSchema
+            const flags = createDefaultFlags({ flightRecorder: true });
+            const deps = createMockDeps({
+                readFile: vi
+                    .fn()
+                    .mockResolvedValue(
+                        JSON.stringify({ version: 2, hooks: {} }),
+                    ),
             });
 
             // Act
@@ -780,6 +810,33 @@ describe("handleInit", () => {
                 (path as string).includes("policy.json"),
             );
             expect(policyCall).toBeUndefined();
+        });
+    });
+
+    describe("given policy.json readFile throws EACCES during existence check", () => {
+        it("should propagate the error", async () => {
+            // Arrange
+            const flags = createDefaultFlags({ policy: true });
+            const deps = createMockDeps({
+                readFile: vi.fn().mockImplementation(async (p: string) => {
+                    if ((p as string).includes("hooks.json")) {
+                        throw Object.assign(new Error("ENOENT"), {
+                            code: "ENOENT",
+                        });
+                    }
+                    if ((p as string).includes("policy.json")) {
+                        throw Object.assign(new Error("EACCES"), {
+                            code: "EACCES",
+                        });
+                    }
+                    throw Object.assign(new Error("ENOENT"), {
+                        code: "ENOENT",
+                    });
+                }),
+            });
+
+            // Act & Assert
+            await expect(handleInit(flags, deps)).rejects.toThrow("EACCES");
         });
     });
 
