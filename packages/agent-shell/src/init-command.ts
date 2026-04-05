@@ -450,7 +450,7 @@ export async function handleInit(
                     break;
                 case "invalid":
                     deps.writeStderr(
-                        `agent-shell: existing policy.json is invalid (${patchResult.reason}), regenerating\n`,
+                        `agent-shell: existing policy.json is invalid (${sanitizeForStderr(patchResult.reason)}), regenerating\n`,
                     );
                     deps.writeStdout("Scanning project...\n");
                     {
@@ -468,6 +468,12 @@ export async function handleInit(
                         }
                     }
                     break;
+                default: {
+                    const _exhaustive: never = patchResult;
+                    throw new Error(
+                        `Unhandled policy patch status: ${(_exhaustive as PolicyPatchResult).status}`,
+                    );
+                }
             }
         }
     }

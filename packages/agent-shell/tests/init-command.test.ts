@@ -914,7 +914,9 @@ describe("handleInit", () => {
 
             // Assert
             expect(ok).toBe(true);
-            expect(deps.stderr.join("")).toContain("invalid");
+            expect(deps.stderr.join("")).toContain(
+                "existing policy.json is invalid",
+            );
             expect(deps.stderr.join("")).toContain("regenerating");
             // policy.json should be written with regenerated content
             const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
@@ -953,9 +955,17 @@ describe("handleInit", () => {
 
             // Assert
             expect(ok).toBe(true);
-            expect(deps.stderr.join("")).toContain("invalid");
+            expect(deps.stderr.join("")).toContain(
+                "existing policy.json is invalid",
+            );
             expect(deps.stderr.join("")).toContain("regenerating");
             expect(deps.stdout.join("")).toContain("Scanning project");
+            // policy.json should be written with regenerated content
+            const writeFileCalls = vi.mocked(deps.writeFile).mock.calls;
+            const policyCall = writeFileCalls.find(([path]) =>
+                (path as string).includes("policy.json"),
+            );
+            expect(policyCall).toBeDefined();
         });
     });
 
@@ -1145,5 +1155,14 @@ describe("ensureAgentShellAllowed", () => {
         expect(parsed.allow).toContain("agent-shell policy-check");
         expect(parsed.allow).toContain("agent-shell record");
         expect(parsed.deny).toEqual(["rm -rf *"]);
+    });
+
+    it("should return invalid for __proto__ prototype pollution attempt", () => {
+        const content = '{"__proto__":{"polluted":true},"allow":[]}';
+        const result = ensureAgentShellAllowed(content);
+        expect(result.status).toBe("invalid");
+        if (result.status === "invalid") {
+            expect(result.reason).toContain("schema validation failed");
+        }
     });
 });
