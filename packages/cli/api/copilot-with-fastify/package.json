@@ -21,7 +21,7 @@
         "fastify": "5.8.4",
         "kysely": "0.28.14",
         "pino": "10.3.1",
-        "postgres": "3.4.8",
+        "postgres": "3.4.9",
         "zod": "4.3.6"
     },
     "devDependencies": {
