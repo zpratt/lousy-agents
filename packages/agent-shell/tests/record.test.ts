@@ -89,6 +89,26 @@ describe("handleRecord", () => {
         });
     });
 
+    describe("given a terminal tool with undefined toolArgs", () => {
+        it("should emit a tool_use event with empty command", async () => {
+            // Arrange - omit toolArgs entirely (undefined)
+            const payload = {
+                toolName: "bash",
+            };
+            const deps = createMockDeps(payload);
+
+            // Act
+            const result = await handleRecord(deps);
+
+            // Assert
+            expect(result).toBe(true);
+            expect(deps.telemetryDeps.written).toHaveLength(1);
+            const parsed = JSON.parse(deps.telemetryDeps.written[0]);
+            expect(parsed.tool_name).toBe("bash");
+            expect(parsed.command).toBe("");
+        });
+    });
+
     describe("given a terminal tool with non-string toolArgs", () => {
         it("should emit a tool_use event with empty command", async () => {
             // Arrange
