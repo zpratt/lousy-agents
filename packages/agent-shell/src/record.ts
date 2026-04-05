@@ -74,9 +74,14 @@ function extractTerminalCommand(toolArgs: unknown): string {
         return "";
     }
 
-    return obj.command.length > MAX_COMMAND_BYTES
-        ? obj.command.slice(0, MAX_COMMAND_BYTES)
-        : obj.command;
+    // Truncate to MAX_COMMAND_BYTES using byte-aware slicing (matching env-capture.ts pattern)
+    if (Buffer.byteLength(obj.command, "utf-8") > MAX_COMMAND_BYTES) {
+        return Buffer.from(obj.command, "utf-8")
+            .subarray(0, MAX_COMMAND_BYTES)
+            .toString("utf-8");
+    }
+
+    return obj.command;
 }
 
 export async function handleRecord(deps: RecordDeps): Promise<boolean> {

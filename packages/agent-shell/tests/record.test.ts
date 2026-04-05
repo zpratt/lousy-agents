@@ -323,6 +323,24 @@ describe("handleRecord", () => {
         });
     });
 
+    describe("given toolName exceeds 1024 characters", () => {
+        it("should write a diagnostic to stderr and skip telemetry", async () => {
+            // Arrange
+            const payload = { toolName: "a".repeat(1025) };
+            const deps = createMockDeps(payload);
+
+            // Act
+            const result = await handleRecord(deps);
+
+            // Assert
+            expect(deps.stderr.join("")).toContain(
+                "missing or invalid toolName",
+            );
+            expect(result).toBe(false);
+            expect(deps.telemetryDeps.written).toHaveLength(0);
+        });
+    });
+
     describe("given telemetry emission fails", () => {
         it("should log the error to stderr and return false", async () => {
             // Arrange
@@ -364,8 +382,8 @@ describe("handleRecord", () => {
     });
 
     describe("given a terminal tool with command exceeding MAX_COMMAND_BYTES", () => {
-        it("should truncate the command to 4096 characters", async () => {
-            // Arrange
+        it("should truncate the command to 4096 bytes", async () => {
+            // Arrange — use multi-byte chars to verify byte-aware truncation
             const longCommand = "a".repeat(5000);
             const payload = {
                 toolName: "bash",
@@ -380,7 +398,28 @@ describe("handleRecord", () => {
             expect(deps.telemetryDeps.written).toHaveLength(1);
             const parsed = JSON.parse(deps.telemetryDeps.written[0]);
             expect(parsed.command).toHaveLength(4096);
-            expect(parsed.command).toBe(longCommand.slice(0, 4096));
+        });
+    });
+
+    describe("given a terminal tool with multi-byte command exceeding MAX_COMMAND_BYTES", () => {
+        it("should truncate at byte boundary, not character count", async () => {
+            // Arrange — each emoji is 4 UTF-8 bytes; 1025 = 4100 bytes > 4096
+            const emoji = "\uD83D\uDE00"; // 😀 = 4 bytes in UTF-8
+            const longCommand = emoji.repeat(1025);
+            const payload = {
+                toolName: "bash",
+                toolArgs: JSON.stringify({ command: longCommand }),
+            };
+            const deps = createMockDeps(payload);
+
+            // Act
+            await handleRecord(deps);
+
+            // Assert
+            expect(deps.telemetryDeps.written).toHaveLength(1);
+            const parsed = JSON.parse(deps.telemetryDeps.written[0]);
+            // Byte-aware truncation: 4096 bytes / 4 bytes per emoji = 1024 emojis max
+            expect(Buffer.byteLength(parsed.command, "utf-8")).toBeLessThanOrEqual(4096);
         });
     });
 
