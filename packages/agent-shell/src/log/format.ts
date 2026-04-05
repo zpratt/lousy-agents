@@ -44,7 +44,11 @@ export function formatEventsTable(events: ScriptEvent[]): string {
     const rows = events.map((event) => {
         const timestamp = formatTimestamp(event.timestamp);
         const script =
-            event.event === "script_end" ? (event.script ?? "-") : "-";
+            event.event === "script_end"
+                ? (event.script ?? "-")
+                : event.event === "tool_use"
+                  ? event.tool_name
+                  : "-";
         const actor = event.actor;
         const exitCode =
             event.event === "script_end" ? String(event.exit_code) : "-";

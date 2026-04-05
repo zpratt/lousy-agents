@@ -1,12 +1,22 @@
 // biome-ignore-all lint/style/useNamingConvention: TelemetryDeps interface matches domain terminology
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir, readFile, realpath } from "node:fs/promises";
+import {
+    appendFile,
+    mkdir,
+    readFile,
+    realpath,
+    writeFile,
+} from "node:fs/promises";
+import { createInterface } from "node:readline";
 import { createGetRepositoryRoot } from "./git-utils.js";
+import { handleInit } from "./init-command.js";
 import { runLog } from "./log/index.js";
 import { resolveMode } from "./mode.js";
 import { handlePolicyCheck } from "./policy-check.js";
 import { handlePolicyInit } from "./policy-init.js";
+import { scanProject } from "./project-scanner.js";
+import { handleRecord } from "./record.js";
 import { sanitizeForStderr } from "./sanitize.js";
 import type { ShimResult } from "./shim.js";
 import { runShim } from "./shim.js";
@@ -16,10 +26,12 @@ import { emitScriptEndEvent, emitShimErrorEvent } from "./telemetry.js";
 const VERSION = "0.1.0";
 
 const USAGE = `Usage: agent-shell -c <command>
+       agent-shell init [--flight-recorder] [--policy] [--no-flight-recorder] [--no-policy]
+       agent-shell record
        agent-shell policy-check
        agent-shell policy --init [--model=<model>]
-       agent-shell --version
        agent-shell log
+       agent-shell --version
 
 Environment:
   AGENTSHELL_PASSTHROUGH=1  Bypass instrumentation
@@ -89,6 +101,104 @@ async function main(): Promise<void> {
             } catch (err) {
                 process.stderr.write(
                     `agent-shell: policy init error: ${sanitizeForStderr(err)}\n`,
+                );
+                process.exitCode = 1;
+            }
+            return;
+        }
+        case "record": {
+            const getRepositoryRoot = createGetRepositoryRoot(
+                undefined,
+                process.env,
+            );
+            try {
+                await handleRecord({
+                    readStdin: () => readStdin(),
+                    writeStderr: (data) => process.stderr.write(data),
+                    env: process.env,
+                    telemetryDeps: createDefaultDeps(),
+                    getRepositoryRoot,
+                });
+            } catch (err) {
+                // Log unexpected exceptions but don't change exit code
+                process.stderr.write(
+                    `agent-shell: record error: ${sanitizeForStderr(err)}\n`,
+                );
+            }
+            // Observation-only: always exit 0 regardless of parse/emit errors.
+            // postToolUse hooks must not block agent operations and the agent
+            // ignores the exit code anyway.
+            process.exitCode = 0;
+            return;
+        }
+        case "init": {
+            try {
+                if (mode.unknownArgs.length > 0) {
+                    process.stderr.write(
+                        `agent-shell: unknown flag(s): ${mode.unknownArgs.map(sanitizeForStderr).join(", ")}\n`,
+                    );
+                    process.exitCode = 1;
+                    return;
+                }
+                const getRepositoryRoot = createGetRepositoryRoot(
+                    undefined,
+                    process.env,
+                );
+                const isTty = Boolean(process.stdin.isTTY);
+                const prompt = isTty
+                    ? async (message: string): Promise<boolean> => {
+                          const rl = createInterface({
+                              input: process.stdin,
+                              output: process.stdout,
+                          });
+                          try {
+                              return await new Promise<boolean>(
+                                  (resolvePrompt) => {
+                                      rl.question(
+                                          `${message} (Y/n) `,
+                                          (answer) => {
+                                              const trimmed = answer
+                                                  .trim()
+                                                  .toLowerCase();
+                                              resolvePrompt(
+                                                  trimmed === "" ||
+                                                      trimmed === "y" ||
+                                                      trimmed === "yes",
+                                              );
+                                          },
+                                      );
+                                  },
+                              );
+                          } finally {
+                              rl.close();
+                          }
+                      }
+                    : undefined;
+                const ok = await handleInit(
+                    {
+                        flightRecorder: mode.flightRecorder,
+                        policy: mode.policy,
+                        noFlightRecorder: mode.noFlightRecorder,
+                        noPolicy: mode.noPolicy,
+                    },
+                    {
+                        getRepositoryRoot,
+                        writeStdout: (data) => process.stdout.write(data),
+                        writeStderr: (data) => process.stderr.write(data),
+                        readFile: (path, encoding) => readFile(path, encoding),
+                        writeFile: (path, content) => writeFile(path, content),
+                        mkdir: (path, opts) =>
+                            mkdir(path, opts).then(() => undefined),
+                        realpath: (path) => realpath(path),
+                        scanProject: (dir) => scanProject(dir),
+                        isTty,
+                        prompt,
+                    },
+                );
+                process.exitCode = ok ? 0 : 1;
+            } catch (err) {
+                process.stderr.write(
+                    `agent-shell: init error: ${sanitizeForStderr(err)}\n`,
                 );
                 process.exitCode = 1;
             }
