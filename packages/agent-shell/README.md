@@ -114,7 +114,7 @@ The `record` handler reads the JSON payload from Copilot's `postToolUse` hook vi
 
 ## Telemetry Schema (v1)
 
-Each event produces one JSON line. There are three event types:
+Each event produces one JSON line. There are four event types:
 
 ### `script_end` Event
 
@@ -165,6 +165,44 @@ Recorded by the `postToolUse` hook when an agent uses any tool:
 ```
 
 For non-terminal tools (file edits, searches, etc.), `command` is an empty string and `tool_name` identifies the tool (e.g., `file_edit`, `curl`).
+
+### `policy_decision` Event
+
+Recorded when the `preToolUse` policy-check hook evaluates a command:
+
+```json
+{
+  "v": 1,
+  "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "event": "policy_decision",
+  "decision": "deny",
+  "matched_rule": "rm -rf *",
+  "command": "rm -rf /",
+  "actor": "copilot",
+  "timestamp": "2026-03-08T14:32:01.000Z",
+  "env": {
+    "CI": "true"
+  },
+  "tags": {}
+}
+```
+
+### `shim_error` Event
+
+Recorded when agent-shell encounters an internal error (e.g., failed to parse npm context):
+
+```json
+{
+  "v": 1,
+  "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "event": "shim_error",
+  "command": "",
+  "actor": "copilot",
+  "timestamp": "2026-03-08T14:32:01.000Z",
+  "env": {},
+  "tags": {}
+}
+```
 
 ### Field Reference
 

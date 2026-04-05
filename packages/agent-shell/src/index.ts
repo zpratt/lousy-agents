@@ -144,12 +144,15 @@ async function main(): Promise<void> {
                               return await new Promise<boolean>(
                                   (resolvePrompt) => {
                                       rl.question(
-                                          `${message} (y/N) `,
+                                          `${message} (Y/n) `,
                                           (answer) => {
+                                              const trimmed = answer
+                                                  .trim()
+                                                  .toLowerCase();
                                               resolvePrompt(
-                                                  answer
-                                                      .trim()
-                                                      .toLowerCase() === "y",
+                                                  trimmed === "" ||
+                                                      trimmed === "y" ||
+                                                      trimmed === "yes",
                                               );
                                           },
                                       );
