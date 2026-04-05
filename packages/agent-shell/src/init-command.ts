@@ -249,8 +249,21 @@ export async function handleInit(
     if (hasExplicitFlags(flags)) {
         // Non-interactive: apply explicit flags only — don't add unspecified features
         const selections = resolveExplicitFlagSelections(flags);
-        enableFlightRecorder = selections.enableFlightRecorder;
-        enablePolicy = selections.enablePolicy;
+        enableFlightRecorder =
+            selections.enableFlightRecorder && !existing.hasPostToolUse;
+        enablePolicy = selections.enablePolicy && !existing.hasPreToolUse;
+
+        // If the user requested features but they're all already configured, report no-op
+        if (
+            !enableFlightRecorder &&
+            !enablePolicy &&
+            (selections.enableFlightRecorder || selections.enablePolicy)
+        ) {
+            deps.writeStdout(
+                "Requested features already configured in hooks.json; nothing to do\n",
+            );
+            return true;
+        }
     } else if (!deps.isTty && deps.prompt === undefined) {
         // Non-TTY with no explicit flags: default to enabling all missing features
         const missing: string[] = [];

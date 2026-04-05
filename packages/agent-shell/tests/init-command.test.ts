@@ -313,6 +313,28 @@ describe("handleInit", () => {
                 expect(config.hooks.postToolUse).toHaveLength(1);
             });
         });
+
+        describe("with --policy flag (already configured)", () => {
+            it("should detect no-op and skip writing", async () => {
+                // Arrange
+                const flags = createDefaultFlags({ policy: true });
+                const deps = createMockDeps({
+                    readFile: vi
+                        .fn()
+                        .mockResolvedValue(
+                            JSON.stringify(HOOKS_CONFIG_POLICY_ONLY),
+                        ),
+                });
+
+                // Act
+                const ok = await handleInit(flags, deps);
+
+                // Assert
+                expect(ok).toBe(true);
+                expect(deps.stdout.join("")).toContain("already configured");
+                expect(deps.writeFile).not.toHaveBeenCalled();
+            });
+        });
     });
 
     describe("given interactive mode with prompt dependency", () => {
