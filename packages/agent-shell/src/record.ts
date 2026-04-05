@@ -15,7 +15,7 @@ export interface RecordDeps {
 const TERMINAL_TOOLS = new Set(["bash", "zsh", "ash", "sh"]);
 
 const HookInputSchema = z.object({
-    toolName: z.string(),
+    toolName: z.string().max(1024),
     toolArgs: z.unknown().optional(),
 });
 
@@ -79,7 +79,6 @@ export async function handleRecord(deps: RecordDeps): Promise<void> {
         deps.writeStderr(
             `agent-shell: failed to read stdin: ${sanitizeForStderr(err)}\n`,
         );
-        process.exitCode = 1;
         return;
     }
 
@@ -88,7 +87,6 @@ export async function handleRecord(deps: RecordDeps): Promise<void> {
         input = JSON.parse(rawStdin);
     } catch {
         deps.writeStderr("agent-shell: failed to parse stdin as JSON\n");
-        process.exitCode = 1;
         return;
     }
 

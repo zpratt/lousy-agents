@@ -1,6 +1,6 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
 import Chance from "chance";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { RecordDeps } from "../src/record.js";
 import { handleRecord } from "../src/record.js";
 import type { TelemetryDeps } from "../src/telemetry.js";
@@ -46,10 +46,6 @@ function createMockDeps(
         ...overrides,
     };
 }
-
-afterEach(() => {
-    process.exitCode = undefined;
-});
 
 describe("handleRecord", () => {
     describe("given a terminal tool with valid toolArgs containing a command", () => {
@@ -208,8 +204,28 @@ describe("handleRecord", () => {
         });
     });
 
+    describe("given a terminal tool with constructor key in toolArgs", () => {
+        it("should emit a tool_use event with empty command", async () => {
+            // Arrange
+            const payload = {
+                toolName: "bash",
+                toolArgs:
+                    '{"constructor": {"command": "evil"}, "command": "ls"}',
+            };
+            const deps = createMockDeps(payload);
+
+            // Act
+            await handleRecord(deps);
+
+            // Assert
+            expect(deps.telemetryDeps.written).toHaveLength(1);
+            const parsed = JSON.parse(deps.telemetryDeps.written[0]);
+            expect(parsed.command).toBe("");
+        });
+    });
+
     describe("given invalid JSON from stdin", () => {
-        it("should write a diagnostic to stderr and set non-zero exit code", async () => {
+        it("should write a diagnostic to stderr without setting exit code", async () => {
             // Arrange
             const deps = createMockDeps({});
             deps.readStdin = vi.fn().mockResolvedValue("not valid json{");
@@ -221,7 +237,7 @@ describe("handleRecord", () => {
             expect(deps.stderr.join("")).toContain(
                 "failed to parse stdin as JSON",
             );
-            expect(process.exitCode).toBe(1);
+            expect(process.exitCode).toBeUndefined();
             expect(deps.telemetryDeps.written).toHaveLength(0);
         });
     });
@@ -282,7 +298,7 @@ describe("handleRecord", () => {
     });
 
     describe("given stdin read fails", () => {
-        it("should write a diagnostic to stderr and set non-zero exit code", async () => {
+        it("should write a diagnostic to stderr without setting exit code", async () => {
             // Arrange
             const deps = createMockDeps({});
             deps.readStdin = vi
@@ -296,7 +312,7 @@ describe("handleRecord", () => {
 
             // Assert
             expect(deps.stderr.join("")).toContain("failed to read stdin");
-            expect(process.exitCode).toBe(1);
+            expect(process.exitCode).toBeUndefined();
         });
     });
 

@@ -119,6 +119,7 @@ async function main(): Promise<void> {
                     telemetryDeps: createDefaultDeps(),
                     getRepositoryRoot,
                 });
+                process.exitCode = 0;
             } catch (err) {
                 process.stderr.write(
                     `agent-shell: record error: ${sanitizeForStderr(err)}\n`,
