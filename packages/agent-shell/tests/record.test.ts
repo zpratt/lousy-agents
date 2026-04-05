@@ -127,6 +127,46 @@ describe("handleRecord", () => {
         });
     });
 
+    describe("given a terminal tool with toolArgs that is the JSON string 'null'", () => {
+        it("should emit a tool_use event with empty command", async () => {
+            // Arrange
+            const payload = {
+                toolName: "bash",
+                toolArgs: "null",
+            };
+            const deps = createMockDeps(payload);
+
+            // Act
+            const result = await handleRecord(deps);
+
+            // Assert
+            expect(result).toBe(true);
+            expect(deps.telemetryDeps.written).toHaveLength(1);
+            const parsed = JSON.parse(deps.telemetryDeps.written[0]);
+            expect(parsed.command).toBe("");
+        });
+    });
+
+    describe("given a terminal tool with toolArgs explicitly set to null", () => {
+        it("should emit a tool_use event with empty command", async () => {
+            // Arrange
+            const payload = {
+                toolName: "bash",
+                toolArgs: null,
+            };
+            const deps = createMockDeps(payload);
+
+            // Act
+            const result = await handleRecord(deps);
+
+            // Assert
+            expect(result).toBe(true);
+            expect(deps.telemetryDeps.written).toHaveLength(1);
+            const parsed = JSON.parse(deps.telemetryDeps.written[0]);
+            expect(parsed.command).toBe("");
+        });
+    });
+
     describe("given a terminal tool with toolArgs that is an array", () => {
         it("should emit a tool_use event with empty command", async () => {
             // Arrange
