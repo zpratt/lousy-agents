@@ -86,6 +86,21 @@ describe("generatePolicy", () => {
             expect(policy.deny.length).toBeGreaterThan(0);
         });
 
+        it("should include agent-shell commands as exact-match allow rules", () => {
+            const scanResult: ProjectScanResult = {
+                scripts: [],
+                workflowCommands: [],
+                miseTasks: [],
+                languages: [],
+            };
+
+            const policy = generatePolicy(scanResult);
+
+            expect(policy.allow).toContain("agent-shell policy-check");
+            expect(policy.allow).toContain("agent-shell record");
+            expect(policy.allow).not.toContain("agent-shell *");
+        });
+
         it("should not include overly broad wildcard defaults", () => {
             const scanResult: ProjectScanResult = {
                 scripts: [],
@@ -394,15 +409,72 @@ describe("generatePolicy", () => {
 });
 
 describe("generateHooksConfig", () => {
-    it("should return a valid hooks configuration", () => {
-        const config = generateHooksConfig();
+    describe("given no options (backward compatibility)", () => {
+        it("should default to policyCheck only", () => {
+            // Arrange & Act
+            const config = generateHooksConfig();
 
-        expect(config.version).toBe(1);
-        expect(config.hooks.preToolUse).toHaveLength(1);
-        expect(config.hooks.preToolUse?.[0]?.type).toBe("command");
-        expect(config.hooks.preToolUse?.[0]?.bash).toBe(
-            "agent-shell policy-check",
-        );
+            // Assert
+            expect(config.version).toBe(1);
+            expect(config.hooks.preToolUse).toHaveLength(1);
+            expect(config.hooks.preToolUse?.[0]?.type).toBe("command");
+            expect(config.hooks.preToolUse?.[0]?.bash).toBe(
+                "agent-shell policy-check",
+            );
+            expect(config.hooks.postToolUse).toBeUndefined();
+        });
+    });
+
+    describe("given both policyCheck and flightRecorder enabled", () => {
+        it("should include both preToolUse and postToolUse hooks", () => {
+            // Arrange & Act
+            const config = generateHooksConfig({
+                policyCheck: true,
+                flightRecorder: true,
+            });
+
+            // Assert
+            expect(config.hooks.preToolUse).toHaveLength(1);
+            expect(config.hooks.preToolUse?.[0]?.bash).toBe(
+                "agent-shell policy-check",
+            );
+            expect(config.hooks.postToolUse).toHaveLength(1);
+            expect(config.hooks.postToolUse?.[0]?.bash).toBe(
+                "agent-shell record",
+            );
+            expect(config.hooks.postToolUse?.[0]?.timeoutSec).toBe(30);
+        });
+    });
+
+    describe("given only flightRecorder enabled", () => {
+        it("should include postToolUse but not preToolUse", () => {
+            // Arrange & Act
+            const config = generateHooksConfig({
+                policyCheck: false,
+                flightRecorder: true,
+            });
+
+            // Assert
+            expect(config.hooks.preToolUse).toBeUndefined();
+            expect(config.hooks.postToolUse).toHaveLength(1);
+            expect(config.hooks.postToolUse?.[0]?.bash).toBe(
+                "agent-shell record",
+            );
+        });
+    });
+
+    describe("given neither flag enabled", () => {
+        it("should return an empty hooks object", () => {
+            // Arrange & Act
+            const config = generateHooksConfig({
+                policyCheck: false,
+                flightRecorder: false,
+            });
+
+            // Assert
+            expect(config.hooks.preToolUse).toBeUndefined();
+            expect(config.hooks.postToolUse).toBeUndefined();
+        });
     });
 });
 

@@ -7,6 +7,7 @@ import {
     emitPolicyDecisionEvent,
     emitScriptEndEvent,
     emitShimErrorEvent,
+    emitToolUseEvent,
     resolveSessionId,
     resolveWriteEventsDir,
 } from "../src/telemetry.js";
@@ -14,6 +15,7 @@ import {
     PolicyDecisionEventSchema,
     ScriptEndEventSchema,
     ShimErrorEventSchema,
+    ToolUseEventSchema,
 } from "../src/types.js";
 
 const chance = new Chance();
@@ -752,6 +754,121 @@ describe("policy decision event emission", () => {
             expect(parsed.actor).toBe("human");
             expect(parsed.env).toBeDefined();
             expect(parsed.tags).toBeDefined();
+        });
+    });
+});
+
+describe("emitToolUseEvent", () => {
+    describe("given a valid tool_use event", () => {
+        it("should write a tool_use event to the session JSONL file", async () => {
+            // Arrange
+            const toolName = chance.pickone(["bash", "npm", "curl"]);
+            const command = chance.word();
+            const sessionId = chance.guid();
+            const env = { AGENTSHELL_SESSION_ID: sessionId };
+            const deps = createMockDeps();
+
+            // Act
+            await emitToolUseEvent(
+                {
+                    tool_name: toolName,
+                    command,
+                    env,
+                    projectRoot: "/project",
+                },
+                deps,
+            );
+
+            // Assert
+            expect(deps.written).toHaveLength(1);
+            const parsed = JSON.parse(deps.written[0]);
+            const validated = ToolUseEventSchema.parse(parsed);
+            expect(validated.event).toBe("tool_use");
+            expect(validated.tool_name).toBe(toolName);
+            expect(validated.command).toBe(command);
+            expect(validated.session_id).toBe(sessionId);
+        });
+    });
+
+    describe("given a non-terminal tool with empty command", () => {
+        it("should write the event with an empty command string", async () => {
+            // Arrange
+            const toolName = "file_edit";
+            const env = { AGENTSHELL_SESSION_ID: chance.guid() };
+            const deps = createMockDeps();
+
+            // Act
+            await emitToolUseEvent(
+                {
+                    tool_name: toolName,
+                    command: "",
+                    env,
+                    projectRoot: "/project",
+                },
+                deps,
+            );
+
+            // Assert
+            expect(deps.written).toHaveLength(1);
+            const parsed = JSON.parse(deps.written[0]);
+            expect(parsed.tool_name).toBe("file_edit");
+            expect(parsed.command).toBe("");
+        });
+    });
+
+    describe("given environment variables and tags", () => {
+        it("should capture env and tags consistently with other emitters", async () => {
+            // Arrange
+            const tagKey = chance.word();
+            const tagValue = chance.word();
+            const env = {
+                AGENTSHELL_SESSION_ID: chance.guid(),
+                [`AGENTSHELL_TAG_${tagKey}`]: tagValue,
+                npm_package_name: chance.word(),
+            };
+            const deps = createMockDeps();
+
+            // Act
+            await emitToolUseEvent(
+                {
+                    tool_name: "bash",
+                    command: chance.word(),
+                    env,
+                    projectRoot: "/project",
+                },
+                deps,
+            );
+
+            // Assert
+            const parsed = JSON.parse(deps.written[0]);
+            expect(parsed.tags[tagKey]).toBe(tagValue);
+            expect(parsed.env.npm_package_name).toBe(env.npm_package_name);
+        });
+    });
+
+    describe("given a projectRoot override", () => {
+        it("should use the projectRoot for events directory resolution", async () => {
+            // Arrange
+            const projectRoot = "/custom/project";
+            const env = { AGENTSHELL_SESSION_ID: chance.guid() };
+            const deps = createMockDeps();
+
+            // Act
+            await emitToolUseEvent(
+                {
+                    tool_name: "bash",
+                    command: chance.word(),
+                    env,
+                    projectRoot,
+                },
+                deps,
+            );
+
+            // Assert
+            expect(deps.mkdir).toHaveBeenCalledWith(
+                expect.stringContaining(projectRoot),
+                { recursive: true },
+            );
         });
     });
 });

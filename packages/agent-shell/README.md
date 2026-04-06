@@ -2,9 +2,9 @@
 
 ![agent-shell demo](https://raw.githubusercontent.com/zpratt/lousy-agents/main/media/agent-shell.gif)
 
-A flight recorder for npm script execution.
+A flight recorder for AI agent tool usage and npm script execution.
 
-agent-shell is an npm `script-shell` shim that independently records what scripts ran, who initiated them, and whether they succeeded — producing structured JSONL telemetry. It sits below the agent at the npm script-shell level, providing an audit trail that doesn't depend on agent self-reports.
+agent-shell records structured JSONL telemetry for both npm script execution (via `script-shell` shim) and AI agent tool usage (via Copilot lifecycle hooks). It provides an audit trail that doesn't depend on agent self-reports.
 
 ## Quick Start
 
@@ -12,20 +12,23 @@ agent-shell is an npm `script-shell` shim that independently records what script
 # Install globally
 npm install -g @lousy-agents/agent-shell
 
-# Configure npm to use agent-shell as the script shell
-echo 'script-shell=agent-shell' >> .npmrc
+# Initialize hooks and policy (interactive)
+agent-shell init
 
 # Add event storage to .gitignore
 echo '.agent-shell/' >> .gitignore
 
 # Verify it's working
 agent-shell --version
-
-# Run any npm script — events are recorded automatically
-npm test
 ```
 
-> **Why global?** agent-shell is configured as npm's `script-shell`, so it must be available _before_ `npm ci` or `npm install` runs. A local dev dependency creates a circular dependency: npm needs agent-shell to execute the install script, but agent-shell isn't available until the install completes. Installing globally keeps the shim on `PATH` independent of `node_modules`.
+`agent-shell init` detects your project, prompts for which features to enable (flight recording, policy blocking), and writes the Copilot hook configuration and policy files.
+
+> **Note:** `agent-shell init` sets up Copilot hooks and policy files, but npm script execution recording is configured separately. To record npm script runs and emit `script_end` events, set npm's `script-shell` to `agent-shell` (for example by adding `script-shell=agent-shell` to your project's `.npmrc`).
+
+<!-- -->
+
+> **Why global?** agent-shell is configured as npm's `script-shell` and as a Copilot hook command, so it must be available _before_ `npm ci` or `npm install` runs. A local dev dependency creates a circular dependency. Installing globally keeps it on `PATH` independent of `node_modules`.
 
 ## How It Works
 
@@ -38,9 +41,84 @@ When npm runs a script (e.g., `npm test`), it invokes the configured `script-she
 
 Scripts behave identically — same output, same exit codes, same signals. agent-shell adds observability without changing behavior.
 
+## Setup with `agent-shell init`
+
+The `init` subcommand is the recommended way to configure agent-shell for your project. It detects existing configuration and guides you through enabling features.
+
+### Interactive Mode (TTY)
+
+```bash
+agent-shell init
+```
+
+When run in a terminal, `init` prompts for each feature:
+
+- **Flight recording** — Records all agent tool usage via `postToolUse` hook
+- **Policy blocking** — Evaluates commands against allow/deny rules via `preToolUse` hook
+
+If `hooks.json` already exists, only missing features are prompted.
+
+### Non-Interactive Mode (CI / Flags)
+
+```bash
+# Enable specific features
+agent-shell init --flight-recorder
+agent-shell init --policy
+agent-shell init --flight-recorder --policy
+
+# Disable specific features
+agent-shell init --no-flight-recorder
+agent-shell init --no-policy
+```
+
+In a non-TTY environment with no explicit flags, all missing features are auto-enabled with a message to stderr.
+
+### What It Generates
+
+| File | Description |
+| ------ | ------------- |
+| `.github/hooks/agent-shell/hooks.json` | Copilot hook configuration with selected features |
+| `.github/hooks/agent-shell/policy.json` | Allow/deny policy (only when policy is enabled) |
+
+## Flight Recording with `agent-shell record`
+
+The `record` subcommand is a `postToolUse` hook handler that records every tool invocation as a `tool_use` telemetry event. It captures tool usage that happens outside npm scripts — file edits, code searches, API calls, and more.
+
+### Copilot Hook Configuration
+
+When both flight recording and policy are enabled, `hooks.json` looks like this:
+
+```json
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "type": "command",
+        "bash": "agent-shell policy-check",
+        "timeoutSec": 30
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "bash": "agent-shell record",
+        "timeoutSec": 30
+      }
+    ]
+  }
+}
+```
+
+The `record` handler reads the JSON payload from Copilot's `postToolUse` hook via stdin. For terminal tools (`bash`, `zsh`, `ash`, `sh`), it extracts the command string from `toolArgs`. For non-terminal tools, the command is recorded as an empty string.
+
 ## Telemetry Schema (v1)
 
-Each script execution produces one JSON line:
+Each event produces one JSON line. There are four event types:
+
+### `script_end` Event
+
+Recorded when an npm script completes:
 
 ```json
 {
@@ -66,14 +144,75 @@ Each script execution produces one JSON line:
 }
 ```
 
+### `tool_use` Event
+
+Recorded by the `postToolUse` hook when an agent uses any tool:
+
+```json
+{
+  "v": 1,
+  "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "event": "tool_use",
+  "tool_name": "bash",
+  "command": "npm test",
+  "actor": "copilot",
+  "timestamp": "2026-03-08T14:32:01.000Z",
+  "env": {
+    "CI": "true"
+  },
+  "tags": {}
+}
+```
+
+For non-terminal tools (file edits, searches, etc.), `command` is an empty string and `tool_name` identifies the tool (e.g., `file_edit`, `curl`).
+
+### `policy_decision` Event
+
+Recorded when the `preToolUse` policy-check hook evaluates a command:
+
+```json
+{
+  "v": 1,
+  "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "event": "policy_decision",
+  "decision": "deny",
+  "matched_rule": "rm -rf *",
+  "command": "rm -rf /",
+  "actor": "copilot",
+  "timestamp": "2026-03-08T14:32:01.000Z",
+  "env": {
+    "CI": "true"
+  },
+  "tags": {}
+}
+```
+
+### `shim_error` Event
+
+Recorded when agent-shell encounters an internal error (e.g., failed to parse npm context):
+
+```json
+{
+  "v": 1,
+  "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "event": "shim_error",
+  "command": "",
+  "actor": "copilot",
+  "timestamp": "2026-03-08T14:32:01.000Z",
+  "env": {},
+  "tags": {}
+}
+```
+
 ### Field Reference
 
 | Field | Type | Description |
 | ------- | ------ | ------------- |
 | `v` | number | Schema version (always `1`) |
 | `session_id` | string | UUID identifying the session |
-| `event` | string | `script_end` or `shim_error` |
-| `script` | string? | npm lifecycle event name (e.g., `test`, `build`) |
+| `event` | string | `script_end`, `tool_use`, `shim_error`, or `policy_decision` |
+| `script` | string? | npm lifecycle event name (e.g., `test`, `build`) — `script_end` only |
+| `tool_name` | string? | Tool identifier (e.g., `bash`, `file_edit`) — `tool_use` only |
 | `command` | string | The actual command executed |
 | `package` | string? | Package name from `package.json` |
 | `package_version` | string? | Package version |
@@ -103,7 +242,7 @@ agent-shell classifies who initiated each script execution:
 
 ## Querying Events
 
-Use the `log` subcommand to query execution history:
+Use the `log` subcommand to query execution history. Both `script_end` and `tool_use` events are included in results:
 
 ```bash
 # Show events from the most recent session
@@ -112,13 +251,13 @@ agent-shell log
 # Show events from the last 2 hours
 agent-shell log --last 2h
 
-# Show only failures
+# Show only failures (script_end events with non-zero exit)
 agent-shell log --failures
 
 # Filter by actor
 agent-shell log --actor claude-code
 
-# Filter by script name
+# Filter by script name (script_end events only)
 agent-shell log --script test
 
 # Combine filters
@@ -170,7 +309,7 @@ Patterns support `*` wildcards for prefix, suffix, and infix matching (e.g., `np
 
 ### Copilot Hook Configuration
 
-Add the following to `.github/hooks/agent-shell/hooks.json` to use policy-check as a pre-tool-use hook:
+Add the following to `.github/hooks/agent-shell/hooks.json`, or use `agent-shell init` to generate it automatically:
 
 ```json
 {
@@ -181,6 +320,13 @@ Add the following to `.github/hooks/agent-shell/hooks.json` to use policy-check 
         "type": "command",
         "timeoutSec": 30,
         "bash": "agent-shell policy-check"
+      }
+    ],
+    "postToolUse": [
+      {
+        "type": "command",
+        "timeoutSec": 30,
+        "bash": "agent-shell record"
       }
     ]
   }

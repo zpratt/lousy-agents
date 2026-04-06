@@ -745,3 +745,162 @@ describe("session listing", () => {
         expect(result).toEqual([]);
     });
 });
+
+function buildToolUseEvent(
+    overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+    return {
+        v: 1,
+        session_id: chance.guid(),
+        event: "tool_use",
+        tool_name: chance.pickone(["bash", "file_edit", "curl"]),
+        command: chance.word(),
+        actor: chance.word(),
+        timestamp: new Date().toISOString(),
+        env: {},
+        tags: {},
+        ...overrides,
+    };
+}
+
+describe("tool_use event querying", () => {
+    describe("given a JSONL file with tool_use events", () => {
+        it("should include tool_use events in query results", async () => {
+            // Arrange
+            const actor = chance.word();
+            const toolEvent = buildToolUseEvent({ actor });
+            const scriptEvent = buildScriptEndEvent({ actor });
+            const deps = createMockDeps({
+                "session.jsonl": {
+                    lines: [
+                        JSON.stringify(toolEvent),
+                        JSON.stringify(scriptEvent),
+                    ],
+                    mtimeMs: Date.now(),
+                },
+            });
+
+            // Act
+            const result = await queryEvents("/events", { actor }, deps);
+
+            // Assert
+            expect(result.events).toHaveLength(2);
+            expect(result.events[0].event).toBe("tool_use");
+            expect(result.events[1].event).toBe("script_end");
+        });
+    });
+
+    describe("given --failures filter", () => {
+        it("should exclude tool_use events", async () => {
+            // Arrange
+            const toolEvent = buildToolUseEvent();
+            const failedScript = buildScriptEndEvent({ exit_code: 1 });
+            const deps = createMockDeps({
+                "session.jsonl": {
+                    lines: [
+                        JSON.stringify(toolEvent),
+                        JSON.stringify(failedScript),
+                    ],
+                    mtimeMs: Date.now(),
+                },
+            });
+
+            // Act
+            const result = await queryEvents(
+                "/events",
+                { failures: true },
+                deps,
+            );
+
+            // Assert
+            expect(result.events).toHaveLength(1);
+            expect(result.events[0].event).toBe("script_end");
+        });
+    });
+
+    describe("given --script filter", () => {
+        it("should exclude tool_use events", async () => {
+            // Arrange
+            const scriptName = chance.word();
+            const toolEvent = buildToolUseEvent();
+            const scriptEvent = buildScriptEndEvent({ script: scriptName });
+            const deps = createMockDeps({
+                "session.jsonl": {
+                    lines: [
+                        JSON.stringify(toolEvent),
+                        JSON.stringify(scriptEvent),
+                    ],
+                    mtimeMs: Date.now(),
+                },
+            });
+
+            // Act
+            const result = await queryEvents(
+                "/events",
+                { script: scriptName },
+                deps,
+            );
+
+            // Assert
+            expect(result.events).toHaveLength(1);
+            expect(result.events[0].event).toBe("script_end");
+        });
+    });
+
+    describe("given --actor filter", () => {
+        it("should include matching tool_use events", async () => {
+            // Arrange
+            const actor = chance.word();
+            const matchingTool = buildToolUseEvent({ actor });
+            const nonMatchingTool = buildToolUseEvent({
+                actor: chance.word(),
+            });
+            const deps = createMockDeps({
+                "session.jsonl": {
+                    lines: [
+                        JSON.stringify(matchingTool),
+                        JSON.stringify(nonMatchingTool),
+                    ],
+                    mtimeMs: Date.now(),
+                },
+            });
+
+            // Act
+            const result = await queryEvents("/events", { actor }, deps);
+
+            // Assert
+            expect(result.events).toHaveLength(1);
+            expect(result.events[0].event).toBe("tool_use");
+        });
+    });
+
+    describe("given --last filter", () => {
+        it("should include recent tool_use events and exclude old ones", async () => {
+            // Arrange
+            const recentTimestamp = new Date().toISOString();
+            const oldTimestamp = new Date(
+                Date.now() - 2 * 60 * 60 * 1000,
+            ).toISOString();
+            const recentTool = buildToolUseEvent({
+                timestamp: recentTimestamp,
+            });
+            const oldTool = buildToolUseEvent({ timestamp: oldTimestamp });
+            const deps = createMockDeps({
+                "session.jsonl": {
+                    lines: [
+                        JSON.stringify(recentTool),
+                        JSON.stringify(oldTool),
+                    ],
+                    mtimeMs: Date.now(),
+                },
+            });
+
+            // Act
+            const result = await queryEvents("/events", { last: "1h" }, deps);
+
+            // Assert
+            expect(result.events).toHaveLength(1);
+            expect(result.events[0].timestamp).toBe(recentTimestamp);
+        });
+    });
+});

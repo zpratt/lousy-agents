@@ -28,10 +28,20 @@ interface GeneratedHooksConfig {
             bash: string;
             timeoutSec?: number;
         }>;
+        postToolUse?: Array<{
+            type: "command";
+            bash: string;
+            timeoutSec?: number;
+        }>;
     };
 }
 
+// Exact-match entries for agent-shell's own commands prevent the preToolUse
+// hook from blocking its sibling hooks. Wildcard entries (ending with *) cover
+// common read-only git commands. The final allow list is sorted alphabetically.
 const DEFAULT_SAFE_COMMANDS = [
+    "agent-shell policy-check",
+    "agent-shell record",
     "git status *",
     "git diff *",
     "git log *",
@@ -161,23 +171,50 @@ export function generatePolicy(scanResult: ProjectScanResult): GeneratedPolicy {
     };
 }
 
+export interface HooksConfigOptions {
+    flightRecorder?: boolean;
+    policyCheck?: boolean;
+}
+
 /**
  * Generates the Copilot hooks.json configuration with agent-shell
- * policy-check as a preToolUse hook.
+ * hooks based on the provided feature flags.
+ * Defaults to policyCheck only for backward compatibility.
  */
-export function generateHooksConfig(): GeneratedHooksConfig {
-    return {
-        version: 1,
-        hooks: {
-            preToolUse: [
-                {
-                    type: "command",
-                    bash: "agent-shell policy-check",
-                    timeoutSec: 30,
-                },
-            ],
-        },
+export function generateHooksConfig(
+    options: HooksConfigOptions = {},
+): GeneratedHooksConfig {
+    const { flightRecorder, policyCheck } = {
+        policyCheck: true,
+        ...options,
     };
+
+    const config: GeneratedHooksConfig = {
+        version: 1,
+        hooks: {},
+    };
+
+    if (policyCheck) {
+        config.hooks.preToolUse = [
+            {
+                type: "command",
+                bash: "agent-shell policy-check",
+                timeoutSec: 30,
+            },
+        ];
+    }
+
+    if (flightRecorder) {
+        config.hooks.postToolUse = [
+            {
+                type: "command",
+                bash: "agent-shell record",
+                timeoutSec: 30,
+            },
+        ];
+    }
+
+    return config;
 }
 
 /**
