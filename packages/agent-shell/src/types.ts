@@ -42,10 +42,19 @@ export const PolicyDecisionEventSchema = z
     })
     .strict();
 
+export const ToolUseEventSchema = z
+    .object({
+        ...baseFields,
+        event: z.literal("tool_use"),
+        tool_name: z.string(),
+    })
+    .strict();
+
 export const ScriptEventSchema = z.discriminatedUnion("event", [
     ScriptEndEventSchema,
     ShimErrorEventSchema,
     PolicyDecisionEventSchema,
+    ToolUseEventSchema,
 ]);
 
 const MAX_POLICY_RULES = 10_000;
@@ -122,6 +131,7 @@ export const HooksConfigSchema = z
 export type ScriptEndEvent = z.infer<typeof ScriptEndEventSchema>;
 export type ShimErrorEvent = z.infer<typeof ShimErrorEventSchema>;
 export type PolicyDecisionEvent = z.infer<typeof PolicyDecisionEventSchema>;
+export type ToolUseEvent = z.infer<typeof ToolUseEventSchema>;
 export type ScriptEvent = z.infer<typeof ScriptEventSchema>;
 export type PolicyConfig = z.infer<typeof PolicyConfigSchema>;
 export type HooksConfig = z.infer<typeof HooksConfigSchema>;

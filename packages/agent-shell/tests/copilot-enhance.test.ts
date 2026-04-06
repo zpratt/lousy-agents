@@ -170,6 +170,26 @@ describe("readProjectFileSafe", () => {
                 );
             }
         });
+
+        it("does not split multi-byte UTF-8 sequences at the boundary", async () => {
+            // Build a file that forces the truncation point to land inside a
+            // 3-byte character (€ = 0xE2 0x82 0xAC). Fill to 102_399 bytes
+            // (1 byte short of the limit) with ASCII, then append enough €
+            // characters to exceed the limit.
+            const asciiPad = "A".repeat(102_399);
+            const multiByteContent = `${asciiPad}${"€".repeat(100)}`;
+            await writeFile(join(tempDir, "multibyte.txt"), multiByteContent);
+
+            const result = await readProjectFileSafe(tempDir, "multibyte.txt");
+
+            expect("content" in result && result.truncated).toBe(true);
+            if ("content" in result) {
+                const bytes = Buffer.byteLength(result.content, "utf-8");
+                expect(bytes).toBeLessThanOrEqual(102_400);
+                // Must not contain U+FFFD replacement character
+                expect(result.content).not.toContain("\uFFFD");
+            }
+        });
     });
 
     describe("given a symlink pointing outside the repo root", () => {

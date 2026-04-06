@@ -51,9 +51,17 @@ function truncateValue(value: string): { value: string; truncated: boolean } {
         return { value, truncated: false };
     }
 
-    const buf = Buffer.from(value, "utf-8");
-    const sliced = buf.subarray(0, MAX_VALUE_BYTES).toString("utf-8");
-    return { value: `${sliced}${TRUNCATION_SUFFIX}`, truncated: true };
+    // Codepoint-aware truncation: iterate Unicode codepoints to prevent
+    // splitting multi-byte UTF-8 sequences at arbitrary byte boundaries
+    let byteCount = 0;
+    let truncated = "";
+    for (const ch of value) {
+        const charBytes = Buffer.byteLength(ch, "utf-8");
+        if (byteCount + charBytes > MAX_VALUE_BYTES) break;
+        byteCount += charBytes;
+        truncated += ch;
+    }
+    return { value: `${truncated}${TRUNCATION_SUFFIX}`, truncated: true };
 }
 
 export function captureEnv(

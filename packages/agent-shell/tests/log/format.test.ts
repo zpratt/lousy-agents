@@ -12,6 +12,7 @@ import type {
     ScriptEndEvent,
     ScriptEvent,
     ShimErrorEvent,
+    ToolUseEvent,
 } from "../../src/types.js";
 
 const chance = new Chance();
@@ -428,5 +429,119 @@ describe("log argument parsing", () => {
         expect(result.errors).toEqual(
             expect.arrayContaining([expect.stringContaining("--script")]),
         );
+    });
+});
+
+function buildToolUseEvent(
+    overrides: Partial<ToolUseEvent> = {},
+): ToolUseEvent {
+    return {
+        v: 1,
+        session_id: chance.guid(),
+        event: "tool_use",
+        tool_name: chance.pickone(["bash", "file_edit", "curl"]),
+        command: chance.word(),
+        actor: chance.word(),
+        timestamp: new Date().toISOString(),
+        env: {},
+        tags: {},
+        ...overrides,
+    };
+}
+
+describe("tool_use event formatting", () => {
+    it("should display tool_name in the SCRIPT column", () => {
+        // Arrange
+        const toolName = "bash";
+        const event: ScriptEvent = buildToolUseEvent({
+            tool_name: toolName,
+            command: "npm test",
+            timestamp: "2026-03-08T14:32:01.123Z",
+        });
+
+        // Act
+        const result = formatEventsTable([event]);
+
+        // Assert
+        const lines = result.split("\n");
+        const dataLine = lines[1];
+        expect(dataLine).toContain(toolName);
+        expect(dataLine).toContain("npm test");
+    });
+
+    it("should show '-' for EXIT and DURATION columns on tool_use events", () => {
+        // Arrange
+        const actor = "agent";
+        const event: ScriptEvent = buildToolUseEvent({
+            tool_name: "file_edit",
+            actor,
+            timestamp: "2026-03-08T14:32:01.123Z",
+            command: "edit-file",
+        });
+
+        // Act
+        const result = formatEventsTable([event]);
+
+        // Assert
+        const lines = result.split("\n");
+        const dataLine = lines[1];
+        // After ACTOR column (file_edit + actor), EXIT and DURATION should be "-"
+        // Column layout: TIMESTAMP(21) SCRIPT(9) ACTOR(13) EXIT(6) DURATION(10) COMMAND
+        // Extract EXIT column (position 43, length 6) and DURATION (position 49, length 10)
+        const exitField = dataLine.slice(43, 49).trim();
+        const durationField = dataLine.slice(49, 59).trim();
+        expect(exitField).toBe("-");
+        expect(durationField).toBe("-");
+    });
+
+    it("should include tool_use events in JSON output", () => {
+        // Arrange
+        const toolUseEvent: ScriptEvent = buildToolUseEvent();
+        const scriptEndEvent: ScriptEvent = buildScriptEndEvent();
+
+        // Act
+        const result = formatEventsJson([toolUseEvent, scriptEndEvent]);
+
+        // Assert
+        const parsed = JSON.parse(result);
+        expect(parsed).toHaveLength(2);
+        expect(parsed[0].event).toBe("tool_use");
+        expect(parsed[1].event).toBe("script_end");
+    });
+
+    it("should display tool_use events alongside script_end events in table", () => {
+        // Arrange
+        const toolEvent: ScriptEvent = buildToolUseEvent({
+            tool_name: "curl",
+            command: "",
+            timestamp: "2026-03-08T14:32:01.123Z",
+        });
+        const scriptEvent: ScriptEvent = buildScriptEndEvent({
+            timestamp: "2026-03-08T14:32:02.123Z",
+        });
+
+        // Act
+        const result = formatEventsTable([toolEvent, scriptEvent]);
+
+        // Assert
+        const lines = result.split("\n");
+        expect(lines).toHaveLength(3); // header + 2 data rows
+        expect(lines[1]).toContain("curl");
+    });
+
+    it("should sanitize control characters in tool_name for terminal safety", () => {
+        // Arrange — tool_name with escape sequence that could clear terminal
+        const event: ScriptEvent = buildToolUseEvent({
+            tool_name: "bash\x1b[2J",
+            command: "npm test",
+            timestamp: "2026-03-08T14:32:01.123Z",
+        });
+
+        // Act
+        const result = formatEventsTable([event]);
+
+        // Assert — escape sequence should be escaped, not raw
+        expect(result).not.toContain("\x1b[2J");
+        expect(result).toContain("bash\\x1b[2J");
     });
 });
