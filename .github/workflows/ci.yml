@@ -31,7 +31,7 @@ jobs:
 
       - name: Setup mise
         # v3.6.1
-        uses: jdx/mise-action@d93325ba61f24ca3ee5ac7d689cf8bdefdd2f354
+        uses: jdx/mise-action@1c992c2b17638065c8d3f9973853aeea39f52576
         with:
           github_token: ${{ github.token }}
 
@@ -67,7 +67,7 @@ jobs:
 
       - name: Setup mise
         # v3.6.1
-        uses: jdx/mise-action@d93325ba61f24ca3ee5ac7d689cf8bdefdd2f354
+        uses: jdx/mise-action@1c992c2b17638065c8d3f9973853aeea39f52576
         with:
           github_token: ${{ github.token }}
 
@@ -230,7 +230,7 @@ jobs:
 
       - name: Setup mise
         # v3.6.1
-        uses: jdx/mise-action@d93325ba61f24ca3ee5ac7d689cf8bdefdd2f354
+        uses: jdx/mise-action@1c992c2b17638065c8d3f9973853aeea39f52576
         with:
           github_token: ${{ github.token }}
 
