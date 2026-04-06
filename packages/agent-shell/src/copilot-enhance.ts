@@ -40,6 +40,37 @@ export function resolveSafePath(
 }
 
 /**
+ * Finds the largest byte offset ≤ maxBytes that falls on a clean UTF-8
+ * codepoint boundary within the given buffer.
+ *
+ * Prevents splitting multi-byte sequences when truncating raw buffers.
+ */
+function findUtf8Boundary(buf: Buffer, maxBytes: number): number {
+    if (maxBytes >= buf.length) return buf.length;
+    if (maxBytes === 0) return 0;
+
+    // Check the byte at the cut point (first excluded byte).
+    // If it's not a continuation byte (10xxxxxx), maxBytes is already a
+    // clean boundary — the previous character ended before this position.
+    if ((buf[maxBytes] & 0xc0) !== 0x80) {
+        return maxBytes;
+    }
+
+    // The first excluded byte is a continuation byte, so we're splitting
+    // a multi-byte character. Walk backwards to find the start byte.
+    let boundary = maxBytes;
+    while (boundary > 0 && (buf[boundary - 1] & 0xc0) === 0x80) {
+        boundary--;
+    }
+    // boundary-1 is now the start byte of the incomplete character.
+    // Exclude it since its full sequence extends past maxBytes.
+    if (boundary > 0) {
+        boundary--;
+    }
+    return boundary;
+}
+
+/**
  * Reads a project file safely, enforcing path traversal protection
  * and byte-level truncation. Extracted for testability.
  */
@@ -54,6 +85,7 @@ export async function readProjectFileSafe(
     if (safePath === null) {
         return { error: "Path is outside the repository" };
     }
+    let fileBuffer: Buffer;
     try {
         const root = repoRoot.replace(/\/+$/, "") || "/";
         const [realRoot, realPath] = await Promise.all([
@@ -64,18 +96,22 @@ export async function readProjectFileSafe(
         if (!realPath.startsWith(realPrefix) && realPath !== realRoot) {
             return { error: "Path is outside the repository" };
         }
-        const fileBuffer = await readFile(realPath);
-        const isTruncated = fileBuffer.length > MAX_FILE_READ_BYTES;
-        const limitedBuffer = isTruncated
-            ? fileBuffer.subarray(0, MAX_FILE_READ_BYTES)
-            : fileBuffer;
-        return {
-            content: limitedBuffer.toString("utf-8"),
-            truncated: isTruncated,
-        };
+        fileBuffer = await readFile(realPath);
     } catch {
         return { error: "File not found or unreadable" };
     }
+
+    // Buffer processing outside I/O catch — programming bugs in
+    // findUtf8Boundary propagate instead of being silently swallowed.
+    if (fileBuffer.length <= MAX_FILE_READ_BYTES) {
+        return { content: fileBuffer.toString("utf-8"), truncated: false };
+    }
+
+    const boundary = findUtf8Boundary(fileBuffer, MAX_FILE_READ_BYTES);
+    return {
+        content: fileBuffer.subarray(0, boundary).toString("utf-8"),
+        truncated: true,
+    };
 }
 
 /**
