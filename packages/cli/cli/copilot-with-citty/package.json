@@ -20,7 +20,7 @@
     },
     "devDependencies": {
         "@biomejs/biome": "2.4.10",
-        "@lousy-agents/mcp": "5.9.2",
+        "@lousy-agents/mcp": "5.9.3",
         "@modelcontextprotocol/server-sequential-thinking": "2025.12.18",
         "@types/node": "24.12.2",
         "@upstash/context7-mcp": "2.1.7",
