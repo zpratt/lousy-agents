@@ -47,7 +47,7 @@
         "@rspack/core": "1.7.10",
         "@types/chance": "1.1.7",
         "@types/mdast": "4.0.4",
-        "@types/node": "25.5.2",
+        "@types/node": "25.6.0",
         "@upstash/context7-mcp": "2.1.7",
         "chance": "1.1.13",
         "fast-check": "4.6.0",
