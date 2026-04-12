@@ -57,7 +57,7 @@ describe("Claude Setup Use Cases", () => {
                 // Assert
                 expect(hooks).toHaveLength(2);
                 expect(hooks[0].command).toBe("mise install");
-                expect(hooks[1].command).toBe("npm ci");
+                expect(hooks[1].command).toBe("npm ci --ignore-scripts");
             });
         });
 
@@ -285,7 +285,7 @@ describe("Claude Setup Use Cases", () => {
 
                 // Assert
                 expect(hooks).toHaveLength(1);
-                expect(hooks[0].command).toBe("npm ci");
+                expect(hooks[0].command).toBe("npm ci --ignore-scripts");
                 expect(hooks[0].description).toContain("Node.js dependencies");
                 expect(hooks[0].description).toContain("package-lock.json");
             });
@@ -311,7 +311,9 @@ describe("Claude Setup Use Cases", () => {
 
                 // Assert
                 expect(hooks).toHaveLength(1);
-                expect(hooks[0].command).toBe("yarn install --frozen-lockfile");
+                expect(hooks[0].command).toBe(
+                    "yarn install --frozen-lockfile --ignore-scripts",
+                );
                 expect(hooks[0].description).toContain("Node.js dependencies");
             });
         });
@@ -336,7 +338,9 @@ describe("Claude Setup Use Cases", () => {
 
                 // Assert
                 expect(hooks).toHaveLength(1);
-                expect(hooks[0].command).toBe("pnpm install --frozen-lockfile");
+                expect(hooks[0].command).toBe(
+                    "pnpm install --frozen-lockfile --ignore-scripts",
+                );
             });
         });
 
@@ -441,7 +445,7 @@ describe("Claude Setup Use Cases", () => {
                 // Assert
                 expect(hooks).toHaveLength(2);
                 expect(hooks[0].command).toBe("nvm install");
-                expect(hooks[1].command).toBe("npm ci");
+                expect(hooks[1].command).toBe("npm ci --ignore-scripts");
             });
         });
 
@@ -501,7 +505,7 @@ describe("Claude Setup Use Cases", () => {
                         description: "Install Node.js",
                     },
                     {
-                        command: "npm ci",
+                        command: "npm ci --ignore-scripts",
                         description: "Install dependencies",
                     },
                 ];
@@ -510,7 +514,10 @@ describe("Claude Setup Use Cases", () => {
                 const merged = mergeClaudeSettings(null, hooks);
 
                 // Assert
-                expect(merged.SessionStart).toEqual(["nvm install", "npm ci"]);
+                expect(merged.SessionStart).toEqual([
+                    "nvm install",
+                    "npm ci --ignore-scripts",
+                ]);
             });
         });
 
@@ -547,7 +554,7 @@ describe("Claude Setup Use Cases", () => {
                         command: "nvm install", // duplicate
                     },
                     {
-                        command: "npm ci", // new
+                        command: "npm ci --ignore-scripts", // new
                     },
                 ];
 
@@ -555,7 +562,10 @@ describe("Claude Setup Use Cases", () => {
                 const merged = mergeClaudeSettings(existing, hooks);
 
                 // Assert - verify exact order: tool-generated commands first, duplicates removed
-                expect(merged.SessionStart).toEqual(["nvm install", "npm ci"]);
+                expect(merged.SessionStart).toEqual([
+                    "nvm install",
+                    "npm ci --ignore-scripts",
+                ]);
             });
         });
 
@@ -610,7 +620,7 @@ describe("Claude Setup Use Cases", () => {
                 // Arrange
                 const existing: ClaudeSettings = {
                     // biome-ignore lint/style/useNamingConvention: SessionStart is the Claude Code API property name
-                    SessionStart: ["npm ci"],
+                    SessionStart: ["npm ci --ignore-scripts"],
                 };
                 const hooks = [
                     {
@@ -618,7 +628,7 @@ describe("Claude Setup Use Cases", () => {
                         description: "Install Node via nvm",
                     },
                     {
-                        command: "npm ci",
+                        command: "npm ci --ignore-scripts",
                         description: "Install dependencies",
                     },
                 ];
@@ -627,7 +637,10 @@ describe("Claude Setup Use Cases", () => {
                 const merged = mergeClaudeSettings(existing, hooks);
 
                 // Assert - verify runtime (nvm) before dependencies (npm ci), no duplication
-                expect(merged.SessionStart).toEqual(["nvm install", "npm ci"]);
+                expect(merged.SessionStart).toEqual([
+                    "nvm install",
+                    "npm ci --ignore-scripts",
+                ]);
             });
         });
     });
@@ -739,7 +752,7 @@ describe("Claude Setup Use Cases", () => {
                         description: "Install Node.js from .nvmrc",
                     },
                     {
-                        command: "npm ci",
+                        command: "npm ci --ignore-scripts",
                         description: "Install Node.js dependencies",
                     },
                 ];
@@ -754,7 +767,7 @@ describe("Claude Setup Use Cases", () => {
                 expect(section).toContain("### SessionStart Hooks");
                 expect(section).toContain("```bash");
                 expect(section).toContain("nvm install");
-                expect(section).toContain("npm ci");
+                expect(section).toContain("npm ci --ignore-scripts");
                 expect(section).toContain("*Install Node.js from .nvmrc*");
                 expect(section).toContain("*Install Node.js dependencies*");
             });

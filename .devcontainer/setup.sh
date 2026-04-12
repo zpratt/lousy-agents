@@ -44,7 +44,7 @@ if ! command -v bd >/dev/null 2>&1; then
   exit 1
 fi
 
-npm ci
+npm ci --ignore-scripts
 
 claude mcp add --transport stdio context7 npx @upstash/context7-mcp
 claude mcp add --transport stdio sequential-thinking npx @modelcontextprotocol/server-sequential-thinking
