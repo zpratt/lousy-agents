@@ -1,7 +1,7 @@
 import { isAbsolute, join } from "node:path";
-import { isPathNotFoundError, isWithinProjectRoot } from "./path-utils.js";
-import { SHELL_METACHAR_PATTERN } from "./sanitize.js";
-import { type PolicyConfig, PolicyConfigSchema } from "./types.js";
+import { type PolicyConfig, PolicyConfigSchema } from "../entities/types.js";
+import { isPathNotFoundError, isWithinProjectRoot } from "../lib/path-utils.js";
+import { SHELL_METACHAR_PATTERN } from "../lib/sanitize.js";
 
 export interface PolicyDeps {
     realpath: (path: string) => Promise<string>;

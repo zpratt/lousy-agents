@@ -1,8 +1,12 @@
 // biome-ignore-all lint/style/useNamingConvention: env var names use SCREAMING_SNAKE_CASE
 import Chance from "chance";
 import { describe, expect, it, vi } from "vitest";
-import { evaluatePolicy, loadPolicy, type PolicyDeps } from "../src/policy.js";
-import type { PolicyConfig } from "../src/types.js";
+import type { PolicyConfig } from "../src/entities/types.js";
+import {
+    evaluatePolicy,
+    loadPolicy,
+    type PolicyDeps,
+} from "../src/use-cases/policy.js";
 
 const chance = new Chance();
 

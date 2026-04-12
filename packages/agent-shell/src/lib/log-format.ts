@@ -1,6 +1,6 @@
-import { sanitizeOutput } from "../sanitize.js";
-import type { ScriptEvent } from "../types.js";
-import type { SessionSummary } from "./query.js";
+import type { ScriptEvent } from "../entities/types.js";
+import type { SessionSummary } from "../gateways/log-query.js";
+import { sanitizeOutput } from "./sanitize.js";
 
 function formatDuration(ms: number): string {
     if (ms < 1000) return `${Math.round(ms)}ms`;

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { isPathNotFoundError, isWithinProjectRoot } from "../src/path-utils.js";
+import {
+    isPathNotFoundError,
+    isWithinProjectRoot,
+} from "../src/lib/path-utils.js";
 
 describe("isWithinProjectRoot", () => {
     describe("given a path that is the project root itself", () => {

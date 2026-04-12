@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
     readProjectFileSafe,
     resolveSafePath,
-} from "../src/copilot-enhance.js";
+} from "../src/use-cases/copilot-enhance.js";
 
 describe("resolveSafePath", () => {
     const repoRoot = "/home/user/project";

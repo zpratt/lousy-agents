@@ -33,7 +33,12 @@ packages/
 │   ├── lib/                   # Layer 3: MCP-specific helpers
 │   ├── server.ts              # Layer 4: MCP server setup
 │   └── mcp-server.ts          # Layer 4: MCP process entry point
-└── agent-shell/src/           # Standalone published package with a simpler runtime structure
+└── agent-shell/src/
+    ├── entities/              # Layer 1: Domain schemas and types
+    ├── use-cases/             # Layer 2: Command handlers and orchestration
+    ├── gateways/              # Layer 3: External system adapters (telemetry, git, filesystem)
+    ├── lib/                   # Layer 3: Shared utilities (sanitization, path validation)
+    └── index.ts               # Layer 4: Composition root
 ```
 
 ## Layer 1: Entities

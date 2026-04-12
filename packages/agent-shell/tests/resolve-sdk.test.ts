@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resolveSdkPath } from "../src/resolve-sdk.js";
+import { resolveSdkPath } from "../src/gateways/resolve-sdk.js";
 
 describe("resolveSdkPath", () => {
     let tempDir: string;

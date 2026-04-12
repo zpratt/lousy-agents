@@ -1,8 +1,8 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
 import { z } from "zod/v4";
-import { sanitizeForStderr } from "./sanitize.js";
-import type { TelemetryDeps } from "./telemetry.js";
-import { emitToolUseEvent } from "./telemetry.js";
+import type { TelemetryDeps } from "../gateways/telemetry.js";
+import { emitToolUseEvent } from "../gateways/telemetry.js";
+import { sanitizeForStderr } from "../lib/sanitize.js";
 
 export interface RecordDeps {
     readStdin: () => Promise<string>;

@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import type { InitDeps, InitFlags } from "../src/init-command.js";
-import { ensureAgentShellAllowed, handleInit } from "../src/init-command.js";
+import type { InitDeps, InitFlags } from "../src/use-cases/init-command.js";
+import {
+    ensureAgentShellAllowed,
+    handleInit,
+} from "../src/use-cases/init-command.js";
 
 function createDefaultFlags(overrides?: Partial<InitFlags>): InitFlags {
     return {

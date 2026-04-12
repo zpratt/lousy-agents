@@ -1,11 +1,11 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
 import { z } from "zod/v4";
+import type { PolicyConfig } from "../entities/types.js";
+import type { TelemetryDeps } from "../gateways/telemetry.js";
+import { emitPolicyDecisionEvent } from "../gateways/telemetry.js";
+import { sanitizeForStderr } from "../lib/sanitize.js";
 import type { PolicyDeps } from "./policy.js";
 import { evaluatePolicy, loadPolicy } from "./policy.js";
-import { sanitizeForStderr } from "./sanitize.js";
-import type { TelemetryDeps } from "./telemetry.js";
-import { emitPolicyDecisionEvent } from "./telemetry.js";
-import type { PolicyConfig } from "./types.js";
 
 export interface PolicyCheckDeps {
     readStdin: () => Promise<string>;

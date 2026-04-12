@@ -1,8 +1,8 @@
 import Chance from "chance";
 import { describe, expect, it, vi } from "vitest";
-import { resolveMode } from "../src/mode.js";
-import type { ShimResult } from "../src/shim.js";
-import { runShim } from "../src/shim.js";
+import type { ShimResult } from "../src/gateways/shim.js";
+import { runShim } from "../src/gateways/shim.js";
+import { resolveMode } from "../src/lib/mode.js";
 
 const chance = new Chance();
 

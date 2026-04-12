@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { ProjectScanResult } from "../src/gateways/project-scanner.js";
 import {
     buildAnalysisPrompt,
     buildSystemMessage,
-} from "../src/copilot-prompt.js";
-import type { ProjectScanResult } from "../src/project-scanner.js";
+} from "../src/use-cases/copilot-prompt.js";
 
 function createEmptyScanResult(): ProjectScanResult {
     return {

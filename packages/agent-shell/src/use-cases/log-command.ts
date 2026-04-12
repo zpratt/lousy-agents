@@ -1,18 +1,18 @@
 import { createReadStream } from "node:fs";
 import { readdir, realpath, stat } from "node:fs/promises";
 import { createInterface } from "node:readline";
-import {
-    formatEventsJson,
-    formatEventsTable,
-    formatSessionsTable,
-} from "./format.js";
-import type { QueryDeps } from "./query.js";
+import type { QueryDeps } from "../gateways/log-query.js";
 import {
     listSessions,
     parseDuration,
     queryEvents,
     resolveReadEventsDir,
-} from "./query.js";
+} from "../gateways/log-query.js";
+import {
+    formatEventsJson,
+    formatEventsTable,
+    formatSessionsTable,
+} from "../lib/log-format.js";
 
 export interface LogOptions {
     last?: string;

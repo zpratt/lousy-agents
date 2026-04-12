@@ -11,19 +11,22 @@ import {
     writeFile,
 } from "node:fs/promises";
 import { createInterface } from "node:readline";
-import { createGetRepositoryRoot } from "./git-utils.js";
-import { handleInit } from "./init-command.js";
-import { runLog } from "./log/index.js";
-import { resolveMode } from "./mode.js";
-import { handlePolicyCheck } from "./policy-check.js";
-import { handlePolicyInit } from "./policy-init.js";
-import { scanProject } from "./project-scanner.js";
-import { handleRecord } from "./record.js";
-import { sanitizeForStderr } from "./sanitize.js";
-import type { ShimResult } from "./shim.js";
-import { runShim } from "./shim.js";
-import type { TelemetryDeps } from "./telemetry.js";
-import { emitScriptEndEvent, emitShimErrorEvent } from "./telemetry.js";
+import { createGetRepositoryRoot } from "./gateways/git-utils.js";
+import { scanProject } from "./gateways/project-scanner.js";
+import type { ShimResult } from "./gateways/shim.js";
+import { runShim } from "./gateways/shim.js";
+import type { TelemetryDeps } from "./gateways/telemetry.js";
+import {
+    emitScriptEndEvent,
+    emitShimErrorEvent,
+} from "./gateways/telemetry.js";
+import { resolveMode } from "./lib/mode.js";
+import { sanitizeForStderr } from "./lib/sanitize.js";
+import { handleInit } from "./use-cases/init-command.js";
+import { runLog } from "./use-cases/log-command.js";
+import { handlePolicyCheck } from "./use-cases/policy-check.js";
+import { handlePolicyInit } from "./use-cases/policy-init.js";
+import { handleRecord } from "./use-cases/record.js";
 
 const VERSION = "0.1.0";
 

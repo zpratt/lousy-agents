@@ -1,8 +1,8 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
 import { join, resolve } from "node:path";
-import { isPathNotFoundError, isWithinProjectRoot } from "../path-utils.js";
-import type { ScriptEvent } from "../types.js";
-import { ScriptEventSchema } from "../types.js";
+import type { ScriptEvent } from "../entities/types.js";
+import { ScriptEventSchema } from "../entities/types.js";
+import { isPathNotFoundError, isWithinProjectRoot } from "../lib/path-utils.js";
 
 export interface QueryDeps {
     readdir: (path: string) => Promise<string[]>;
