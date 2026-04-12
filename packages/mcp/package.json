@@ -9,7 +9,7 @@
         "directory": "packages/mcp"
     },
     "author": "zpratt",
-    "license": "MIT",
+    "license": "BSD-2-Clause-Patent",
     "bugs": {
         "url": "https://github.com/zpratt/lousy-agents/issues"
     },
