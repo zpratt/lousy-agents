@@ -1,8 +1,14 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
 import Chance from "chance";
 import { describe, expect, it, vi } from "vitest";
-import type { ShimResult } from "../src/shim.js";
-import type { TelemetryDeps } from "../src/telemetry.js";
+import {
+    PolicyDecisionEventSchema,
+    ScriptEndEventSchema,
+    ShimErrorEventSchema,
+    ToolUseEventSchema,
+} from "../src/entities/types.js";
+import type { ShimResult } from "../src/gateways/shim.js";
+import type { TelemetryDeps } from "../src/gateways/telemetry.js";
 import {
     emitPolicyDecisionEvent,
     emitScriptEndEvent,
@@ -10,13 +16,7 @@ import {
     emitToolUseEvent,
     resolveSessionId,
     resolveWriteEventsDir,
-} from "../src/telemetry.js";
-import {
-    PolicyDecisionEventSchema,
-    ScriptEndEventSchema,
-    ShimErrorEventSchema,
-    ToolUseEventSchema,
-} from "../src/types.js";
+} from "../src/gateways/telemetry.js";
 
 const chance = new Chance();
 

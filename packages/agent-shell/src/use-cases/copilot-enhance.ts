@@ -1,10 +1,10 @@
 import { readFile, realpath } from "node:fs/promises";
 import { normalize, resolve } from "node:path";
 import { z } from "zod/v4";
+import type { ProjectScanResult } from "../gateways/project-scanner.js";
+import { resolveSdkPath } from "../gateways/resolve-sdk.js";
+import { isSafeCommand, sanitizeForStderr } from "../lib/sanitize.js";
 import { buildAnalysisPrompt, buildSystemMessage } from "./copilot-prompt.js";
-import type { ProjectScanResult } from "./project-scanner.js";
-import { resolveSdkPath } from "./resolve-sdk.js";
-import { isSafeCommand, sanitizeForStderr } from "./sanitize.js";
 
 const DEFAULT_MODEL = "claude-sonnet-4-6";
 

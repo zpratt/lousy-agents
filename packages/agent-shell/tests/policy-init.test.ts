@@ -3,13 +3,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { ProjectScanResult } from "../src/gateways/project-scanner.js";
 import {
     generateHooksConfig,
     generatePolicy,
     handlePolicyInit,
     type PolicyInitDeps,
-} from "../src/policy-init.js";
-import type { ProjectScanResult } from "../src/project-scanner.js";
+} from "../src/use-cases/policy-init.js";
 
 const chance = new Chance();
 

@@ -1,12 +1,15 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { enhanceWithCopilot } from "./copilot-enhance.js";
-import { type ProjectScanResult, scanProject } from "./project-scanner.js";
+import {
+    type ProjectScanResult,
+    scanProject,
+} from "../gateways/project-scanner.js";
 import {
     isSafeCommand,
     SHELL_METACHAR_PATTERN,
     sanitizeOutput,
-} from "./sanitize.js";
+} from "../lib/sanitize.js";
+import { enhanceWithCopilot } from "./copilot-enhance.js";
 
 export interface PolicyInitDeps {
     getRepositoryRoot: () => string;

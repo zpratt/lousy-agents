@@ -1,5 +1,5 @@
-import type { ProjectScanResult } from "./project-scanner.js";
-import { sanitizePromptValue } from "./sanitize.js";
+import type { ProjectScanResult } from "../gateways/project-scanner.js";
+import { sanitizePromptValue } from "../lib/sanitize.js";
 
 function formatScriptsSummary(scripts: ProjectScanResult["scripts"]): string {
     return scripts

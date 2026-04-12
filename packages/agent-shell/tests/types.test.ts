@@ -8,7 +8,7 @@ import {
     SCHEMA_VERSION,
     ScriptEventSchema,
     ToolUseEventSchema,
-} from "../src/types.js";
+} from "../src/entities/types.js";
 
 const chance = new Chance();
 

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { scanProject } from "../src/project-scanner.js";
+import { scanProject } from "../src/gateways/project-scanner.js";
 
 const chance = new Chance();
 

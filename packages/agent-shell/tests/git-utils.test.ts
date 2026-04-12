@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
     createGetRepositoryRoot,
     type GitCommandExecutor,
-} from "../src/git-utils.js";
+} from "../src/gateways/git-utils.js";
 
 const chance = new Chance();
 

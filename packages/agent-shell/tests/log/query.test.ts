@@ -1,13 +1,13 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
 import Chance from "chance";
 import { describe, expect, it, vi } from "vitest";
-import type { QueryDeps } from "../../src/log/query.js";
+import type { QueryDeps } from "../../src/gateways/log-query.js";
 import {
     listSessions,
     parseDuration,
     queryEvents,
     resolveReadEventsDir,
-} from "../../src/log/query.js";
+} from "../../src/gateways/log-query.js";
 
 const chance = new Chance();
 

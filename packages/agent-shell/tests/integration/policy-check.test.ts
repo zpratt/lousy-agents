@@ -1,12 +1,12 @@
 // biome-ignore-all lint/style/useNamingConvention: hook contract uses camelCase field names
 import Chance from "chance";
 import { describe, expect, it, vi } from "vitest";
-import type { PolicyDeps } from "../../src/policy.js";
+import type { TelemetryDeps } from "../../src/gateways/telemetry.js";
+import type { PolicyDeps } from "../../src/use-cases/policy.js";
 import {
     handlePolicyCheck,
     type PolicyCheckDeps,
-} from "../../src/policy-check.js";
-import type { TelemetryDeps } from "../../src/telemetry.js";
+} from "../../src/use-cases/policy-check.js";
 
 const chance = new Chance();
 

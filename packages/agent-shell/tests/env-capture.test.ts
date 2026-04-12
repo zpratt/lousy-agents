@@ -1,7 +1,7 @@
 // biome-ignore-all lint/style/useNamingConvention: environment variable names use snake_case
 import Chance from "chance";
 import { describe, expect, it } from "vitest";
-import { captureEnv, captureTags } from "../src/env-capture.js";
+import { captureEnv, captureTags } from "../src/lib/env-capture.js";
 
 const chance = new Chance();
 

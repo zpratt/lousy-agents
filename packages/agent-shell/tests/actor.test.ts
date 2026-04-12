@@ -1,7 +1,7 @@
 // biome-ignore-all lint/style/useNamingConvention: env var names use UPPER_SNAKE_CASE
 import Chance from "chance";
 import { describe, expect, it } from "vitest";
-import { detectActor } from "../src/actor.js";
+import { detectActor } from "../src/lib/actor.js";
 
 const chance = new Chance();
 
