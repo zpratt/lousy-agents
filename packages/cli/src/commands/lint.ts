@@ -1,127 +1,13 @@
 /**
  * CLI command for linting agent skills, custom agents, and instruction files.
- * Discovers targets, validates frontmatter/quality, and reports diagnostics.
+ * Delegates to the lint package facade and handles CLI display concerns.
  */
 
-import { resolve } from "node:path";
-import type {
-    LintDiagnostic,
-    LintOutput,
-} from "@lousy-agents/core/entities/lint.js";
-import type { LintRulesConfig } from "@lousy-agents/core/entities/lint-rules.js";
-import {
-    createFormatter,
-    type LintFormatType,
-} from "@lousy-agents/core/formatters/index.js";
-import { createAgentLintGateway } from "@lousy-agents/core/gateways/agent-lint-gateway.js";
-import { createHookConfigGateway } from "@lousy-agents/core/gateways/hook-config-gateway.js";
-import { createInstructionFileDiscoveryGateway } from "@lousy-agents/core/gateways/instruction-file-discovery-gateway.js";
-import { createMarkdownAstGateway } from "@lousy-agents/core/gateways/markdown-ast-gateway.js";
-import { createFeedbackLoopCommandsGateway } from "@lousy-agents/core/gateways/script-discovery-gateway.js";
-import { createSkillLintGateway } from "@lousy-agents/core/gateways/skill-lint-gateway.js";
-import { loadLintConfig } from "@lousy-agents/core/lib/lint-config.js";
-import { AnalyzeInstructionQualityUseCase } from "@lousy-agents/core/use-cases/analyze-instruction-quality.js";
-import { applySeverityFilter } from "@lousy-agents/core/use-cases/apply-severity-filter.js";
-import type { LintAgentFrontmatterOutput } from "@lousy-agents/core/use-cases/lint-agent-frontmatter.js";
-import { LintAgentFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-agent-frontmatter.js";
-import type { LintHookConfigOutput } from "@lousy-agents/core/use-cases/lint-hook-config.js";
-import { LintHookConfigUseCase } from "@lousy-agents/core/use-cases/lint-hook-config.js";
-import type { LintSkillFrontmatterOutput } from "@lousy-agents/core/use-cases/lint-skill-frontmatter.js";
-import { LintSkillFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-skill-frontmatter.js";
+import type { LintFormatType, LintOutput } from "@lousy-agents/lint";
+import { createFormatter, runLint } from "@lousy-agents/lint";
 import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
-import { z } from "zod";
-
-/** Schema for validating target directory */
-const TargetDirSchema = z.string().min(1, "Target directory is required");
-
-/**
- * Validates the target directory.
- * Checks for path traversal attempts before resolution.
- */
-function validateTargetDir(targetDir: string): string {
-    const parsed = TargetDirSchema.parse(targetDir);
-
-    // Check for path traversal attempts in raw input before resolution
-    if (parsed.includes("..")) {
-        throw new Error(
-            `Invalid target directory (path traversal detected): ${targetDir}`,
-        );
-    }
-
-    return resolve(parsed);
-}
-
-/**
- * Converts skill lint output to unified LintOutput.
- */
-function skillOutputToLintOutput(
-    output: LintSkillFrontmatterOutput,
-): LintOutput {
-    const diagnostics: LintDiagnostic[] = [];
-
-    for (const result of output.results) {
-        for (const d of result.diagnostics) {
-            diagnostics.push({
-                filePath: result.filePath,
-                line: d.line,
-                severity: d.severity,
-                message: d.message,
-                field: d.field,
-                ruleId: d.ruleId,
-                target: "skill",
-            });
-        }
-    }
-
-    return {
-        diagnostics,
-        target: "skill",
-        filesAnalyzed: output.results.map((r) => r.filePath),
-        summary: {
-            totalFiles: output.totalSkills,
-            totalErrors: output.totalErrors,
-            totalWarnings: output.totalWarnings,
-            totalInfos: 0,
-        },
-    };
-}
-
-/**
- * Converts agent lint output to unified LintOutput.
- */
-function agentOutputToLintOutput(
-    output: LintAgentFrontmatterOutput,
-): LintOutput {
-    const diagnostics: LintDiagnostic[] = [];
-
-    for (const result of output.results) {
-        for (const d of result.diagnostics) {
-            diagnostics.push({
-                filePath: result.filePath,
-                line: d.line,
-                severity: d.severity,
-                message: d.message,
-                field: d.field,
-                ruleId: d.ruleId,
-                target: "agent",
-            });
-        }
-    }
-
-    return {
-        diagnostics,
-        target: "agent",
-        filesAnalyzed: output.results.map((r) => r.filePath),
-        summary: {
-            totalFiles: output.totalAgents,
-            totalErrors: output.totalErrors,
-            totalWarnings: output.totalWarnings,
-            totalInfos: 0,
-        },
-    };
-}
 
 /**
  * Formats and displays a LintOutput using consola.
@@ -159,106 +45,6 @@ function displayLintOutput(output: LintOutput, label: string): void {
             consola.info(`${prefix}${fieldInfo}: ${d.message}`);
         }
     }
-}
-
-/**
- * Runs skill linting.
- */
-async function lintSkills(targetDir: string): Promise<LintOutput> {
-    const gateway = createSkillLintGateway();
-    const useCase = new LintSkillFrontmatterUseCase(gateway);
-    const output = await useCase.execute({ targetDir });
-    return skillOutputToLintOutput(output);
-}
-
-/**
- * Runs agent linting.
- */
-async function lintAgents(targetDir: string): Promise<LintOutput> {
-    const gateway = createAgentLintGateway();
-    const useCase = new LintAgentFrontmatterUseCase(gateway);
-    const output = await useCase.execute({ targetDir });
-    return agentOutputToLintOutput(output);
-}
-
-/**
- * Converts hook lint output to unified LintOutput.
- */
-function hookOutputToLintOutput(output: LintHookConfigOutput): LintOutput {
-    const diagnostics: LintDiagnostic[] = [];
-
-    for (const result of output.results) {
-        for (const d of result.diagnostics) {
-            diagnostics.push({
-                filePath: result.filePath,
-                line: d.line,
-                severity: d.severity,
-                message: d.message,
-                field: d.field,
-                ruleId: d.ruleId,
-                target: "hook",
-            });
-        }
-    }
-
-    return {
-        diagnostics,
-        target: "hook",
-        filesAnalyzed: output.results.map((r) => r.filePath),
-        summary: {
-            totalFiles: output.totalFiles,
-            totalErrors: output.totalErrors,
-            totalWarnings: output.totalWarnings,
-            totalInfos: 0,
-        },
-    };
-}
-
-/**
- * Runs hook configuration linting.
- */
-async function lintHooks(targetDir: string): Promise<LintOutput> {
-    const gateway = createHookConfigGateway();
-    const useCase = new LintHookConfigUseCase(gateway);
-    const output = await useCase.execute({ targetDir });
-    return hookOutputToLintOutput(output);
-}
-
-/**
- * Runs instruction quality analysis.
- */
-async function lintInstructions(targetDir: string): Promise<LintOutput> {
-    const discoveryGateway = createInstructionFileDiscoveryGateway();
-    const astGateway = createMarkdownAstGateway();
-    const commandsGateway = createFeedbackLoopCommandsGateway();
-
-    const useCase = new AnalyzeInstructionQualityUseCase(
-        discoveryGateway,
-        astGateway,
-        commandsGateway,
-    );
-
-    const output = await useCase.execute({ targetDir });
-
-    const filesAnalyzed = output.result.discoveredFiles.map((f) => f.filePath);
-
-    return {
-        diagnostics: output.diagnostics,
-        target: "instruction",
-        filesAnalyzed,
-        qualityResult: output.result,
-        summary: {
-            totalFiles: filesAnalyzed.length,
-            totalErrors: output.diagnostics.filter(
-                (d) => d.severity === "error",
-            ).length,
-            totalWarnings: output.diagnostics.filter(
-                (d) => d.severity === "warning",
-            ).length,
-            totalInfos: output.diagnostics.filter((d) => d.severity === "info")
-                .length,
-        },
-    };
 }
 
 /**
@@ -334,19 +120,6 @@ export const lintCommand = defineCommand({
                 ? context.data.targetDir
                 : process.cwd();
 
-        const targetDir = validateTargetDir(rawTargetDir);
-
-        let rulesConfig: LintRulesConfig;
-        try {
-            rulesConfig = await loadLintConfig(targetDir);
-        } catch (error) {
-            const message =
-                error instanceof Error ? error.message : String(error);
-            consola.error(`Failed to load lint configuration: ${message}`);
-            process.exitCode = 1;
-            return;
-        }
-
         const lintSkillsFlag =
             context.args?.skills === true || context.data?.skills === true;
         const lintAgentsFlag =
@@ -357,59 +130,48 @@ export const lintCommand = defineCommand({
             context.args?.instructions === true ||
             context.data?.instructions === true;
 
-        const noFlagProvided =
-            !lintSkillsFlag &&
-            !lintAgentsFlag &&
-            !lintHooksFlag &&
-            !lintInstructionsFlag;
+        const rawFormat =
+            typeof context.args?.format === "string"
+                ? context.args.format
+                : typeof context.data?.format === "string"
+                  ? context.data.format
+                  : "human";
+        const validFormats = new Set<LintFormatType>([
+            "human",
+            "json",
+            "rdjsonl",
+        ]);
+        function isLintFormatType(value: string): value is LintFormatType {
+            return validFormats.has(value as LintFormatType);
+        }
+        const format: LintFormatType = isLintFormatType(rawFormat)
+            ? rawFormat
+            : "human";
 
-        const formatValue =
-            (context.args?.format as string) ??
-            (context.data?.format as string) ??
-            "human";
-        const format = (
-            ["human", "json", "rdjsonl"].includes(formatValue)
-                ? formatValue
-                : "human"
-        ) as LintFormatType;
+        let result: Awaited<ReturnType<typeof runLint>>;
+        try {
+            result = await runLint({
+                directory: rawTargetDir,
+                targets: {
+                    skills: lintSkillsFlag,
+                    agents: lintAgentsFlag,
+                    hooks: lintHooksFlag,
+                    instructions: lintInstructionsFlag,
+                },
+            });
+        } catch (error) {
+            const message =
+                error instanceof Error ? error.message : String(error);
+            consola.error(`Lint failed: ${message}`);
+            process.exitCode = 1;
+            return;
+        }
 
-        let totalErrors = 0;
+        const { outputs, hasErrors } = result;
+
         let totalWarnings = 0;
-        const allOutputs: LintOutput[] = [];
-
-        if (noFlagProvided || lintSkillsFlag) {
-            const rawOutput = await lintSkills(targetDir);
-            const skillOutput = applySeverityFilter(rawOutput, rulesConfig);
-            allOutputs.push(skillOutput);
-            totalErrors += skillOutput.summary.totalErrors;
-            totalWarnings += skillOutput.summary.totalWarnings;
-        }
-
-        if (noFlagProvided || lintAgentsFlag) {
-            const rawOutput = await lintAgents(targetDir);
-            const agentOutput = applySeverityFilter(rawOutput, rulesConfig);
-            allOutputs.push(agentOutput);
-            totalErrors += agentOutput.summary.totalErrors;
-            totalWarnings += agentOutput.summary.totalWarnings;
-        }
-
-        if (noFlagProvided || lintHooksFlag) {
-            const rawOutput = await lintHooks(targetDir);
-            const hookOutput = applySeverityFilter(rawOutput, rulesConfig);
-            allOutputs.push(hookOutput);
-            totalErrors += hookOutput.summary.totalErrors;
-            totalWarnings += hookOutput.summary.totalWarnings;
-        }
-
-        if (noFlagProvided || lintInstructionsFlag) {
-            const rawOutput = await lintInstructions(targetDir);
-            const instructionOutput = applySeverityFilter(
-                rawOutput,
-                rulesConfig,
-            );
-            allOutputs.push(instructionOutput);
-            totalErrors += instructionOutput.summary.totalErrors;
-            totalWarnings += instructionOutput.summary.totalWarnings;
+        for (const output of outputs) {
+            totalWarnings += output.summary.totalWarnings;
         }
 
         const targetLabels: Record<string, string> = {
@@ -421,12 +183,12 @@ export const lintCommand = defineCommand({
 
         if (format !== "human") {
             const formatter = createFormatter(format);
-            const formatted = formatter.format(allOutputs);
+            const formatted = formatter.format(outputs);
             if (formatted) {
                 process.stdout.write(`${formatted}\n`);
             }
         } else {
-            for (const output of allOutputs) {
+            for (const output of outputs) {
                 const label = targetLabels[output.target] ?? output.target;
                 if (output.target === "instruction") {
                     displayInstructionQuality(output);
@@ -436,10 +198,14 @@ export const lintCommand = defineCommand({
             }
         }
 
-        if (totalErrors > 0) {
+        if (hasErrors) {
             process.exitCode = 1;
 
             if (format === "human") {
+                const totalErrors = outputs.reduce(
+                    (sum, o) => sum + o.summary.totalErrors,
+                    0,
+                );
                 consola.error(
                     `lint failed: ${totalErrors} error(s), ${totalWarnings} warning(s)`,
                 );
@@ -452,7 +218,7 @@ export const lintCommand = defineCommand({
             if (totalWarnings > 0) {
                 consola.warn(`Lint passed with ${totalWarnings} warning(s)`);
             } else {
-                const targets = allOutputs
+                const targets = outputs
                     .map((o) => targetLabels[o.target] ?? o.target)
                     .join(", ");
                 consola.success(`All ${targets} passed lint checks`);

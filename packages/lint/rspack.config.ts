@@ -1,18 +1,12 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import rspack, { type Configuration } from "@rspack/core";
+import type { Configuration } from "@rspack/core";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const config: Configuration = {
-    plugins: [
-        new rspack.optimize.LimitChunkCountPlugin({
-            maxChunks: 1,
-        }),
-    ],
     mode: "production",
     target: "node",
-    devtool: false,
     entry: {
         index: "./src/index.ts",
     },
@@ -36,7 +30,6 @@ const config: Configuration = {
         },
         alias: {
             "@lousy-agents/core": resolve(__dirname, "../core/src"),
-            "@lousy-agents/lint": resolve(__dirname, "../lint/src"),
         },
     },
     module: {
@@ -57,16 +50,13 @@ const config: Configuration = {
                         },
                         target: "es2022",
                     },
-                    minify: true,
                 },
                 type: "javascript/auto",
             },
         ],
     },
     optimization: {
-        minimize: true,
-        usedExports: true,
-        sideEffects: true,
+        minimize: false,
         splitChunks: false,
     },
     externalsType: "module",

@@ -48,6 +48,7 @@
         "zod": "4.3.6"
     },
     "devDependencies": {
-        "@lousy-agents/core": "*"
+        "@lousy-agents/core": "*",
+        "@lousy-agents/lint": "*"
     }
 }

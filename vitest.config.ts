@@ -21,6 +21,7 @@ export default defineConfig({
     resolve: {
         alias: {
             "@lousy-agents/core": resolve(__dirname, "./packages/core/src"),
+            "@lousy-agents/lint": resolve(__dirname, "./packages/lint/src"),
         },
     },
 });

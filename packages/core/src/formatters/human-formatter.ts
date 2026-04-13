@@ -16,7 +16,7 @@ const SEVERITY_ICONS: Record<LintSeverity, string> = {
  * Formats lint output for human-readable console display.
  */
 export class HumanFormatter implements LintFormatter {
-    format(outputs: LintOutput[]): string {
+    format(outputs: readonly LintOutput[]): string {
         const lines: string[] = [];
 
         for (const output of outputs) {
