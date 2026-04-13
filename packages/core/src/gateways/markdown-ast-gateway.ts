@@ -94,13 +94,7 @@ export class RemarkMarkdownAstGateway implements MarkdownAstGateway {
 
         for (let i = codeBlockNodeIndex + 1; i < endIndex; i++) {
             const sibling = ast.children[i];
-            const text = extractTextFromNode(
-                sibling as {
-                    type: string;
-                    children?: unknown[];
-                    value?: string;
-                },
-            );
+            const text = extractTextFromNode(sibling);
             const lowerText = text.toLowerCase();
 
             for (const keyword of keywords) {

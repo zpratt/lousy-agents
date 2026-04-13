@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { LintOptions, LintResult } from "./lint.js";
+import type { LintOptions } from "./lint.js";
 import { runLint } from "./lint.js";
 
 const chance = new Chance();

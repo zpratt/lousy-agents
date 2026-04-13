@@ -187,8 +187,7 @@ export class OctokitRulesetGateway implements RulesetGateway {
             throw new Error("Not authenticated");
         }
         try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- RulesetPayload uses wide string types for enforcement/target that Octokit narrows
-            await (this.octokit.rest.repos.createRepoRuleset as any)({
+            await this.octokit.rest.repos.createRepoRuleset({
                 owner,
                 repo,
                 ...payload,

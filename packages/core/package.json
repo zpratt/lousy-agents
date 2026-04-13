@@ -1,7 +1,8 @@
 {
     "name": "@lousy-agents/core",
     "version": "1.0.2",
-    "description": "Programmatic lint API for validating AI coding assistant configurations — skills, agents, hooks, and instructions",
+    "private": true,
+    "description": "Shared entities, use cases, gateways, and formatters for the Lousy Agents workspace",
     "type": "module",
     "repository": {
         "type": "git",
@@ -14,37 +15,14 @@
         "url": "https://github.com/zpratt/lousy-agents/issues"
     },
     "homepage": "https://github.com/zpratt/lousy-agents/tree/main/packages/core#readme",
-    "keywords": [
-        "lint",
-        "ai",
-        "copilot",
-        "github-copilot",
-        "coding-assistant",
-        "skills",
-        "agents",
-        "instructions"
-    ],
-    "publishConfig": {
-        "access": "public",
-        "provenance": true
-    },
-    "files": [
-        "dist"
-    ],
     "exports": {
-        ".": {
-            "types": "./dist/index.d.ts",
-            "default": "./dist/index.js"
-        },
+        ".": "./src/index.ts",
         "./lint.js": "./src/lint.ts",
         "./entities/*": "./src/entities/*",
         "./use-cases/*": "./src/use-cases/*",
         "./gateways/*": "./src/gateways/*",
         "./formatters/*": "./src/formatters/*",
         "./lib/*": "./src/lib/*"
-    },
-    "scripts": {
-        "build": "tsc --project tsconfig.build.json"
     },
     "dependencies": {
         "@github-actions-workflow-ts/lib": "2.4.0",

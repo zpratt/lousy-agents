@@ -471,14 +471,7 @@ export class AnalyzeInstructionQualityUseCase {
         // Use AST to extract paragraph text
         if (structure.ast.children) {
             for (const child of structure.ast.children) {
-                this.collectText(
-                    child as {
-                        type: string;
-                        children?: unknown[];
-                        value?: string;
-                    },
-                    parts,
-                );
+                this.collectText(child, parts);
             }
         }
 

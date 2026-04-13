@@ -12,11 +12,7 @@
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z } from "zod";
-import type {
-    LintDiagnostic,
-    LintOutput,
-    LintTarget,
-} from "./entities/lint.js";
+import type { LintDiagnostic, LintOutput } from "./entities/lint.js";
 import type { LintRulesConfig } from "./entities/lint-rules.js";
 import { createAgentLintGateway } from "./gateways/agent-lint-gateway.js";
 import { createHookConfigGateway } from "./gateways/hook-config-gateway.js";
@@ -289,7 +285,7 @@ async function lintInstructions(targetDir: string): Promise<LintOutput> {
  *
  * @example
  * ```typescript
- * import { runLint } from '@lousy-agents/core';
+ * import { runLint } from '@lousy-agents/lint';
  *
  * const result = await runLint({ directory: '/path/to/project' });
  * console.log(result.hasErrors);
