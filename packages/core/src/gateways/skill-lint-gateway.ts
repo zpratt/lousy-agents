@@ -48,6 +48,10 @@ export class FileSystemSkillLintGateway implements SkillLintGateway {
         const skills: DiscoveredSkillFile[] = [];
 
         for (const entry of entries) {
+            if (entry.isSymbolicLink()) {
+                continue;
+            }
+
             if (!entry.isDirectory()) {
                 continue;
             }
