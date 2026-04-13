@@ -6,6 +6,12 @@
         [
             "@semantic-release/npm",
             {
+                "pkgRoot": "packages/lint"
+            }
+        ],
+        [
+            "@semantic-release/npm",
+            {
                 "pkgRoot": "packages/cli"
             }
         ],

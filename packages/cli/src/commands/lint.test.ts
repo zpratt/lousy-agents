@@ -408,19 +408,23 @@ describe("lint command", () => {
     });
 
     describe("when target directory contains path traversal", () => {
-        it("should reject the directory", async () => {
-            // Act & Assert
-            await expect(
-                lintCommand.run({
-                    rawArgs: [],
-                    args: { _: [], skills: true },
-                    cmd: lintCommand,
-                    data: {
-                        targetDir: "/tmp/../etc/passwd",
-                        skills: true,
-                    },
-                }),
-            ).rejects.toThrow("path traversal");
+        it("should set exit code to 1 and not throw", async () => {
+            // Arrange
+            process.exitCode = 0;
+
+            // Act
+            await lintCommand.run({
+                rawArgs: [],
+                args: { _: [], skills: true },
+                cmd: lintCommand,
+                data: {
+                    targetDir: "/tmp/../etc/passwd",
+                    skills: true,
+                },
+            });
+
+            // Assert
+            expect(process.exitCode).toBe(1);
         });
     });
 

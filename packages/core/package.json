@@ -17,6 +17,7 @@
     "homepage": "https://github.com/zpratt/lousy-agents/tree/main/packages/core#readme",
     "exports": {
         ".": "./src/index.ts",
+        "./lint.js": "./src/lint.ts",
         "./entities/*": "./src/entities/*",
         "./use-cases/*": "./src/use-cases/*",
         "./gateways/*": "./src/gateways/*",
