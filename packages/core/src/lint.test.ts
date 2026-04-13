@@ -4,7 +4,7 @@
  * and provides a clean abstraction over internal lint infrastructure.
  */
 
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
@@ -120,7 +120,7 @@ describe("runLint", () => {
     });
 
     describe("given a non-existent directory", () => {
-        it("rejects with a validation error", async () => {
+        it("rejects with a descriptive error about the missing directory", async () => {
             // Arrange
             const nonExistent = join(
                 tmpdir(),
@@ -128,7 +128,39 @@ describe("runLint", () => {
             );
 
             // Act & Assert
-            await expect(runLint({ directory: nonExistent })).rejects.toThrow();
+            await expect(runLint({ directory: nonExistent })).rejects.toThrow(
+                "Directory does not exist",
+            );
+        });
+    });
+
+    describe("given a directory whose parent has restricted permissions", () => {
+        it("propagates the permission error instead of masking it", async () => {
+            // Arrange — create parent, then child, then restrict parent.
+            // lstat on the child requires execute permission on the parent.
+            const parentDir = join(
+                tmpdir(),
+                `restricted-parent-${chance.hash({ length: 8 })}`,
+            );
+            const childDir = join(parentDir, "child");
+            await mkdir(childDir, { recursive: true });
+
+            try {
+                await chmod(parentDir, 0o000);
+
+                // Act & Assert — lstat should fail with EACCES, not ENOENT.
+                // The error must propagate rather than being masked as
+                // "does not exist".
+                await expect(
+                    runLint({ directory: childDir }),
+                ).rejects.toSatisfy((error: Error) => {
+                    return !error.message.includes("does not exist");
+                });
+            } finally {
+                // Cleanup — restore permissions so rm works
+                await chmod(parentDir, 0o755);
+                await rm(parentDir, { recursive: true, force: true });
+            }
         });
     });
 

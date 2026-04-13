@@ -49,12 +49,12 @@ const LintOptionsSchema = z.object({
 /**
  * Options for the public lint API.
  *
- * @property directory - Absolute path to the project directory to lint.
+ * @property directory - Path to the project directory to lint (absolute or relative).
  * @property targets - Optional selection of which lint targets to run.
  *   When omitted or when all flags are false, all targets are linted.
  */
 export interface LintOptions {
-    /** Absolute path to the project directory to lint. */
+    /** Path to the project directory to lint (absolute or relative). */
     readonly directory: string;
     /** Optional selection of which lint targets to run. */
     readonly targets?: {
@@ -105,8 +105,15 @@ async function validateDirectory(directory: string): Promise<string> {
     let stats: Awaited<ReturnType<typeof lstat>>;
     try {
         stats = await lstat(resolved);
-    } catch {
-        throw new Error(`Directory does not exist: ${directory}`);
+    } catch (error: unknown) {
+        if (
+            error instanceof Error &&
+            "code" in error &&
+            error.code === "ENOENT"
+        ) {
+            throw new Error(`Directory does not exist: ${directory}`);
+        }
+        throw error;
     }
 
     if (stats.isSymbolicLink()) {
