@@ -23,6 +23,7 @@ export type {
     InstructionFileFormat,
     InstructionQualityResult,
     InstructionSuggestion,
+    ParsingError,
 } from "@lousy-agents/core/entities/instruction-quality.js";
 // ── Consumer-facing result types ─────────────────────────────────────
 export type {
