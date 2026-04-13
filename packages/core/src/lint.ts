@@ -9,7 +9,7 @@
  * public interface.
  */
 
-import { stat } from "node:fs/promises";
+import { lstat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z } from "zod";
 import type { LintDiagnostic, LintOutput } from "./entities/lint.js";
@@ -83,7 +83,18 @@ export interface LintResult {
  * Rejects path traversal, verifies existence, and ensures it is a directory.
  */
 async function validateDirectory(directory: string): Promise<string> {
-    if (directory.includes("..")) {
+    // Reject null bytes which some platforms accept as path terminators
+    if (directory.includes("\0")) {
+        throw new Error(
+            `Invalid directory path (null byte detected): ${directory}`,
+        );
+    }
+
+    // Reject paths containing ".." path segments (traversal).
+    // Split on path separators and check segments to avoid false positives
+    // on legitimate names like "data..v2".
+    const rawSegments = directory.split(/[\\/]/);
+    if (rawSegments.includes("..")) {
         throw new Error(
             `Invalid directory path (path traversal detected): ${directory}`,
         );
@@ -91,11 +102,15 @@ async function validateDirectory(directory: string): Promise<string> {
 
     const resolved = resolve(directory);
 
-    let stats: Awaited<ReturnType<typeof stat>>;
+    let stats: Awaited<ReturnType<typeof lstat>>;
     try {
-        stats = await stat(resolved);
+        stats = await lstat(resolved);
     } catch {
         throw new Error(`Directory does not exist: ${directory}`);
+    }
+
+    if (stats.isSymbolicLink()) {
+        throw new Error(`Path is a symbolic link: ${directory}`);
     }
 
     if (!stats.isDirectory()) {

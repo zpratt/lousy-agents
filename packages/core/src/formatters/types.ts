@@ -8,7 +8,7 @@ import type { LintOutput } from "../entities/lint.js";
  * A formatter that renders lint outputs to a string.
  */
 export interface LintFormatter {
-    format(outputs: LintOutput[]): string;
+    format(outputs: readonly LintOutput[]): string;
 }
 
 /** Supported output format values */

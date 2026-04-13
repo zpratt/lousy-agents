@@ -40,9 +40,6 @@
     "scripts": {
         "build": "rspack build --config rspack.config.ts && cp src/index.d.ts dist/index.d.ts"
     },
-    "dependencies": {
-        "zod": "4.3.6"
-    },
     "devDependencies": {
         "@lousy-agents/core": "*"
     }

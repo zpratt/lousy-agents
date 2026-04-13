@@ -173,7 +173,7 @@ export type LintFormatType = "human" | "json" | "rdjsonl";
 
 /** A formatter that renders lint outputs to a string. */
 export interface LintFormatter {
-    format(outputs: LintOutput[]): string;
+    format(outputs: readonly LintOutput[]): string;
 }
 
 /**
