@@ -6,8 +6,6 @@
  * module — the only place that instantiates concrete implementations.
  */
 
-import { lstat } from "node:fs/promises";
-import { resolve } from "node:path";
 import type {
     LintDiagnostic,
     LintOutput,
@@ -26,9 +24,12 @@ import { applySeverityFilter } from "@lousy-agents/core/use-cases/apply-severity
 import { LintAgentFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-agent-frontmatter.js";
 import { LintHookConfigUseCase } from "@lousy-agents/core/use-cases/lint-hook-config.js";
 import { LintSkillFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-skill-frontmatter.js";
-import { z } from "zod";
+import { ZodError, z } from "zod";
+import {
+    LintValidationError,
+    validateDirectory,
+} from "./validate-directory.js";
 
-/** Zod schema for runtime validation of LintOptions */
 const LintTargetsSchema = z
     .object({
         skills: z.boolean().optional(),
@@ -39,10 +40,12 @@ const LintTargetsSchema = z
     .strict()
     .optional();
 
-const LintOptionsSchema = z.object({
-    directory: z.string().min(1, "directory must not be empty"),
-    targets: LintTargetsSchema,
-});
+const LintOptionsSchema = z
+    .object({
+        directory: z.string().min(1, "directory must not be empty"),
+        targets: LintTargetsSchema,
+    })
+    .strict();
 
 /**
  * Options for the public lint API.
@@ -52,9 +55,7 @@ const LintOptionsSchema = z.object({
  *   When omitted or when all flags are false, all targets are linted.
  */
 export interface LintOptions {
-    /** Path to the project directory to lint (absolute or relative). */
     readonly directory: string;
-    /** Optional selection of which lint targets to run. */
     readonly targets?: {
         readonly skills?: boolean;
         readonly agents?: boolean;
@@ -70,66 +71,10 @@ export interface LintOptions {
  * @property hasErrors - True if any target produced error-severity diagnostics.
  */
 export interface LintResult {
-    /** Array of lint results, one per target that was run. */
     readonly outputs: readonly LintOutput[];
-    /** True if any target produced error-severity diagnostics. */
     readonly hasErrors: boolean;
 }
 
-/**
- * Validates the directory path for safety.
- * Rejects path traversal, verifies existence, and ensures it is a directory.
- */
-async function validateDirectory(directory: string): Promise<string> {
-    // Reject null bytes which some platforms accept as path terminators
-    if (directory.includes("\0")) {
-        throw new Error(
-            `Invalid directory path (null byte detected): ${directory}`,
-        );
-    }
-
-    // Reject paths containing ".." path segments (traversal).
-    // Split on path separators and check segments to avoid false positives
-    // on legitimate names like "data..v2".
-    const rawSegments = directory.split(/[\\/]/);
-    if (rawSegments.includes("..")) {
-        throw new Error(
-            `Invalid directory path (path traversal detected): ${directory}`,
-        );
-    }
-
-    const resolved = resolve(directory);
-
-    let stats: Awaited<ReturnType<typeof lstat>>;
-    try {
-        stats = await lstat(resolved);
-    } catch (error: unknown) {
-        if (
-            error instanceof Error &&
-            "code" in error &&
-            error.code === "ENOENT"
-        ) {
-            throw new Error(`Directory does not exist: ${directory}`);
-        }
-        throw error;
-    }
-
-    if (stats.isSymbolicLink()) {
-        throw new Error(`Path is a symbolic link: ${directory}`);
-    }
-
-    if (!stats.isDirectory()) {
-        throw new Error(`Path is not a directory: ${directory}`);
-    }
-
-    return resolved;
-}
-
-/**
- * Shape shared by all use-case lint outputs.
- * Each has a `results` array (entries with `filePath` and `diagnostics`)
- * plus summary counters.
- */
 interface UseCaseLintOutput {
     readonly results: ReadonlyArray<{
         readonly filePath: string;
@@ -145,10 +90,7 @@ interface UseCaseLintOutput {
     readonly totalWarnings: number;
 }
 
-/**
- * Converts a use-case lint output to the unified LintOutput shape.
- * Computes `totalInfos` from actual diagnostics rather than hardcoding 0.
- */
+/** Converts a use-case lint output to the unified LintOutput shape. */
 function toLintOutput(
     output: UseCaseLintOutput,
     target: LintOutput["target"],
@@ -183,9 +125,6 @@ function toLintOutput(
     };
 }
 
-/**
- * Runs skill linting against the target directory.
- */
 async function lintSkills(targetDir: string): Promise<LintOutput> {
     const gateway = createSkillLintGateway();
     const useCase = new LintSkillFrontmatterUseCase(gateway);
@@ -193,9 +132,6 @@ async function lintSkills(targetDir: string): Promise<LintOutput> {
     return toLintOutput(output, "skill", output.totalSkills);
 }
 
-/**
- * Runs agent linting against the target directory.
- */
 async function lintAgents(targetDir: string): Promise<LintOutput> {
     const gateway = createAgentLintGateway();
     const useCase = new LintAgentFrontmatterUseCase(gateway);
@@ -203,9 +139,6 @@ async function lintAgents(targetDir: string): Promise<LintOutput> {
     return toLintOutput(output, "agent", output.totalAgents);
 }
 
-/**
- * Runs hook configuration linting against the target directory.
- */
 async function lintHooks(targetDir: string): Promise<LintOutput> {
     const gateway = createHookConfigGateway();
     const useCase = new LintHookConfigUseCase(gateway);
@@ -213,9 +146,6 @@ async function lintHooks(targetDir: string): Promise<LintOutput> {
     return toLintOutput(output, "hook", output.totalFiles);
 }
 
-/**
- * Runs instruction quality analysis against the target directory.
- */
 async function lintInstructions(targetDir: string): Promise<LintOutput> {
     const discoveryGateway = createInstructionFileDiscoveryGateway();
     const astGateway = createMarkdownAstGateway();
@@ -250,6 +180,29 @@ async function lintInstructions(targetDir: string): Promise<LintOutput> {
     };
 }
 
+type TargetKey = keyof NonNullable<LintOptions["targets"]>;
+
+interface LintTargetDefinition {
+    readonly key: TargetKey;
+    readonly execute: (targetDir: string) => Promise<LintOutput>;
+}
+
+const LINT_TARGETS: readonly LintTargetDefinition[] = [
+    { key: "skills", execute: lintSkills },
+    { key: "agents", execute: lintAgents },
+    { key: "hooks", execute: lintHooks },
+    { key: "instructions", execute: lintInstructions },
+];
+
+function isTargetEnabled(
+    key: TargetKey,
+    targets: LintOptions["targets"],
+): boolean {
+    if (!targets) return true;
+    const hasAnyEnabled = Object.values(targets).some(Boolean);
+    return !hasAnyEnabled || targets[key] === true;
+}
+
 /**
  * Run lint checks on a project directory.
  *
@@ -267,56 +220,52 @@ async function lintInstructions(targetDir: string): Promise<LintOutput> {
  * console.log(result.outputs);
  * ```
  *
- * @throws {Error} If directory is empty, contains path traversal, does not exist, or is not a directory.
- * @throws {Error} If lint configuration file has syntax errors or validation failures.
+ * @throws {LintValidationError} If directory validation, schema validation, or lint configuration validation fails.
  */
 export async function runLint(options: LintOptions): Promise<LintResult> {
-    const parsed = LintOptionsSchema.parse(options);
+    let parsed: z.infer<typeof LintOptionsSchema>;
+    try {
+        parsed = LintOptionsSchema.parse(options);
+    } catch (error: unknown) {
+        if (error instanceof ZodError) {
+            throw new LintValidationError(
+                error.issues.map((e) => e.message).join("; "),
+            );
+        }
+        throw error;
+    }
 
     const targetDir = await validateDirectory(parsed.directory);
 
-    const rulesConfig: LintRulesConfig = await loadLintConfig(targetDir);
-
-    const targets = parsed.targets;
-    const noFlagProvided =
-        !targets?.skills &&
-        !targets?.agents &&
-        !targets?.hooks &&
-        !targets?.instructions;
-
-    const allOutputs: LintOutput[] = [];
-    let totalErrors = 0;
-
-    if (noFlagProvided || targets?.skills) {
-        const rawOutput = await lintSkills(targetDir);
-        const filtered = applySeverityFilter(rawOutput, rulesConfig);
-        allOutputs.push(filtered);
-        totalErrors += filtered.summary.totalErrors;
+    let rulesConfig: LintRulesConfig;
+    try {
+        rulesConfig = await loadLintConfig(targetDir);
+    } catch (error: unknown) {
+        if (error instanceof ZodError) {
+            throw new LintValidationError(
+                `Invalid lint configuration: ${error.issues.map((e) => e.message).join("; ")}`,
+            );
+        }
+        throw error;
     }
 
-    if (noFlagProvided || targets?.agents) {
-        const rawOutput = await lintAgents(targetDir);
-        const filtered = applySeverityFilter(rawOutput, rulesConfig);
-        allOutputs.push(filtered);
-        totalErrors += filtered.summary.totalErrors;
+    const enabledTargets = LINT_TARGETS.filter((t) =>
+        isTargetEnabled(t.key, parsed.targets),
+    );
+
+    const outputs: LintOutput[] = [];
+    for (const target of enabledTargets) {
+        const rawOutput = await target.execute(targetDir);
+        outputs.push(applySeverityFilter(rawOutput, rulesConfig));
     }
 
-    if (noFlagProvided || targets?.hooks) {
-        const rawOutput = await lintHooks(targetDir);
-        const filtered = applySeverityFilter(rawOutput, rulesConfig);
-        allOutputs.push(filtered);
-        totalErrors += filtered.summary.totalErrors;
-    }
-
-    if (noFlagProvided || targets?.instructions) {
-        const rawOutput = await lintInstructions(targetDir);
-        const filtered = applySeverityFilter(rawOutput, rulesConfig);
-        allOutputs.push(filtered);
-        totalErrors += filtered.summary.totalErrors;
-    }
+    const totalErrors = outputs.reduce(
+        (sum, output) => sum + output.summary.totalErrors,
+        0,
+    );
 
     return {
-        outputs: allOutputs,
+        outputs,
         hasErrors: totalErrors > 0,
     };
 }

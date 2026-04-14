@@ -145,6 +145,17 @@ export interface LintResult {
 // ── Public API ───────────────────────────────────────────────────────
 
 /**
+ * Thrown when user-supplied directory input fails validation.
+ *
+ * Consumers can catch this type to distinguish user-input errors
+ * (bad path, missing directory) from system-level errors (EACCES, EMFILE).
+ */
+export declare class LintValidationError extends Error {
+    constructor(message: string);
+    readonly name: "LintValidationError";
+}
+
+/**
  * Run lint checks on a project directory.
  *
  * Orchestrates all lint targets (skills, agents, hooks, instructions),
@@ -161,8 +172,7 @@ export interface LintResult {
  * console.log(result.outputs);
  * ```
  *
- * @throws {Error} If directory is empty, contains path traversal, does not exist, or is not a directory.
- * @throws {Error} If lint configuration file has syntax errors or validation failures.
+ * @throws {LintValidationError} If directory is empty, contains control characters, path traversal, does not exist, is not a directory, options contain unknown/invalid properties, or lint configuration is invalid.
  */
 export declare function runLint(options: LintOptions): Promise<LintResult>;
 

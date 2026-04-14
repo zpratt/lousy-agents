@@ -38,7 +38,7 @@
         }
     },
     "scripts": {
-        "build": "rspack build --config rspack.config.ts && cp src/index.d.ts dist/index.d.ts"
+        "build": "rspack build --config rspack.config.ts && node -e \"require('node:fs').copyFileSync('src/index.d.ts', 'dist/index.d.ts')\""
     },
     "devDependencies": {
         "@lousy-agents/core": "*"

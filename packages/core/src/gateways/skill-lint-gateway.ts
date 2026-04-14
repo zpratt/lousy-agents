@@ -3,7 +3,7 @@
  * Discovers skill files and parses YAML frontmatter.
  */
 
-import { readdir, readFile } from "node:fs/promises";
+import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import type {
@@ -11,7 +11,10 @@ import type {
     ParsedFrontmatter,
 } from "../entities/skill.js";
 import type { SkillLintGateway } from "../use-cases/lint-skill-frontmatter.js";
-import { fileExists } from "./file-system-utils.js";
+import { readFileNoFollow } from "./file-system-utils.js";
+
+/** Maximum skill file size: 1 MB */
+const MAX_SKILL_FILE_BYTES = 1_048_576;
 
 /**
  * Skill directory locations to search for SKILL.md files.
@@ -40,11 +43,38 @@ export class FileSystemSkillLintGateway implements SkillLintGateway {
     private async discoverSkillsInDir(
         skillsDir: string,
     ): Promise<DiscoveredSkillFile[]> {
-        if (!(await fileExists(skillsDir))) {
+        let dirStats: Awaited<ReturnType<typeof lstat>>;
+        try {
+            dirStats = await lstat(skillsDir);
+        } catch (error: unknown) {
+            if (
+                error instanceof Error &&
+                "code" in error &&
+                (error.code === "ENOENT" || error.code === "ENOTDIR")
+            ) {
+                return [];
+            }
+            throw error;
+        }
+
+        if (dirStats.isSymbolicLink() || !dirStats.isDirectory()) {
             return [];
         }
 
-        const entries = await readdir(skillsDir, { withFileTypes: true });
+        let entries: import("node:fs").Dirent[];
+        try {
+            entries = await readdir(skillsDir, { withFileTypes: true });
+        } catch (error: unknown) {
+            if (
+                error instanceof Error &&
+                "code" in error &&
+                (error.code === "ENOENT" || error.code === "ENOTDIR")
+            ) {
+                return [];
+            }
+            throw error;
+        }
+
         const skills: DiscoveredSkillFile[] = [];
 
         for (const entry of entries) {
@@ -62,7 +92,25 @@ export class FileSystemSkillLintGateway implements SkillLintGateway {
 
             const skillFilePath = join(skillsDir, entry.name, "SKILL.md");
 
-            if (await fileExists(skillFilePath)) {
+            let skillStat: Awaited<ReturnType<typeof lstat>> | null;
+            try {
+                skillStat = await lstat(skillFilePath);
+            } catch (error: unknown) {
+                if (
+                    error instanceof Error &&
+                    "code" in error &&
+                    (error.code === "ENOENT" || error.code === "ENOTDIR")
+                ) {
+                    skillStat = null;
+                } else {
+                    throw error;
+                }
+            }
+            if (
+                skillStat &&
+                !skillStat.isSymbolicLink() &&
+                skillStat.isFile()
+            ) {
                 skills.push({
                     filePath: skillFilePath,
                     skillName: entry.name,
@@ -74,7 +122,7 @@ export class FileSystemSkillLintGateway implements SkillLintGateway {
     }
 
     async readSkillFileContent(filePath: string): Promise<string> {
-        return readFile(filePath, "utf-8");
+        return readFileNoFollow(filePath, MAX_SKILL_FILE_BYTES);
     }
 
     parseFrontmatter(content: string): ParsedFrontmatter | null {

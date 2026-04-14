@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import Chance from "chance";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { RemarkMarkdownAstGateway } from "./markdown-ast-gateway.js";
+
+const chance = new Chance();
 
 describe("RemarkMarkdownAstGateway", () => {
     const gateway = new RemarkMarkdownAstGateway();
@@ -63,6 +69,69 @@ describe("RemarkMarkdownAstGateway", () => {
                 expect(result.headings).toHaveLength(0);
                 expect(result.codeBlocks).toHaveLength(0);
                 expect(result.inlineCodes).toHaveLength(0);
+            });
+        });
+    });
+
+    describe("parseFile", () => {
+        let testDir: string;
+
+        beforeEach(async () => {
+            testDir = join(
+                tmpdir(),
+                `md-ast-test-${chance.hash({ length: 8 })}`,
+            );
+            await mkdir(testDir, { recursive: true });
+        });
+
+        afterEach(async () => {
+            await rm(testDir, { recursive: true, force: true });
+        });
+
+        describe("given a valid markdown file", () => {
+            it("should parse the file and return structure", async () => {
+                // Arrange
+                const filePath = join(testDir, "test.md");
+                await writeFile(filePath, "# Title\n\nSome content\n");
+
+                // Act
+                const result = await gateway.parseFile(filePath);
+
+                // Assert
+                expect(result.headings).toHaveLength(1);
+                expect(result.headings[0].text).toBe("Title");
+            });
+        });
+
+        describe("given a symbolic link file", () => {
+            it.skipIf(process.platform === "win32")(
+                "should reject with an error identifying the symlink",
+                async () => {
+                    // Arrange
+                    const realFile = join(testDir, "real.md");
+                    const linkFile = join(testDir, "link.md");
+                    await writeFile(realFile, "# Title\n");
+                    await symlink(realFile, linkFile);
+
+                    // Act & Assert
+                    await expect(gateway.parseFile(linkFile)).rejects.toThrow(
+                        "Symlinks are not allowed",
+                    );
+                },
+            );
+        });
+
+        describe("given a file exceeding the size limit", () => {
+            it("should reject with a size limit error", async () => {
+                // Arrange — write a file just over 1 MB
+                const filePath = join(testDir, "huge.md");
+                const oversizeContent = "x".repeat(1_048_576 + 1);
+                await writeFile(filePath, oversizeContent);
+
+                // Act & Assert
+                await expect(gateway.parseFile(filePath)).rejects.toThrow(
+                    "exceeds size limit",
+                );
             });
         });
     });

@@ -4,7 +4,11 @@
  */
 
 import type { LintFormatType, LintOutput } from "@lousy-agents/lint";
-import { createFormatter, runLint } from "@lousy-agents/lint";
+import {
+    createFormatter,
+    LintValidationError,
+    runLint,
+} from "@lousy-agents/lint";
 import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
@@ -160,11 +164,12 @@ export const lintCommand = defineCommand({
                 },
             });
         } catch (error) {
-            const message =
-                error instanceof Error ? error.message : String(error);
-            consola.error(`Lint failed: ${message}`);
-            process.exitCode = 1;
-            return;
+            if (error instanceof LintValidationError) {
+                consola.error(`Lint failed: ${error.message}`);
+                process.exitCode = 1;
+                return;
+            }
+            throw error;
         }
 
         const { outputs, hasErrors } = result;
