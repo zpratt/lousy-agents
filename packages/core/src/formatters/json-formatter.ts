@@ -10,7 +10,7 @@ import type { LintFormatter } from "./types.js";
  * Formats lint output as a JSON string.
  */
 export class JsonFormatter implements LintFormatter {
-    format(outputs: LintOutput[]): string {
+    format(outputs: readonly LintOutput[]): string {
         const allDiagnostics = outputs.flatMap((o) => o.diagnostics);
         return JSON.stringify(allDiagnostics, null, 2);
     }

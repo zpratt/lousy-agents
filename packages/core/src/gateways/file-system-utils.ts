@@ -2,7 +2,8 @@
  * Shared file system utilities for gateways.
  */
 
-import { access, lstat, realpath, stat } from "node:fs/promises";
+import { constants } from "node:fs";
+import { access, lstat, open, realpath, stat } from "node:fs/promises";
 import { join, relative, resolve, sep } from "node:path";
 
 /**
@@ -116,5 +117,61 @@ export async function assertFileSizeWithinLimit(
         throw new Error(
             `${context} exceeds size limit (${fileStats.size} bytes > ${maxBytes} bytes)`,
         );
+    }
+}
+
+/**
+ * Reads a file atomically with symlink and size protection.
+ *
+ * Uses `O_NOFOLLOW` (where available) to atomically reject symlinks at
+ * the kernel level, eliminating the TOCTOU window between `lstat()` and
+ * `readFile()`. Falls back to `lstat()` on platforms without `O_NOFOLLOW`.
+ * Validates file size via `fstat()` on the opened file descriptor so the
+ * size check and the read operate on the same inode.
+ */
+export async function readFileNoFollow(
+    filePath: string,
+    maxBytes: number,
+): Promise<string> {
+    const hasNoFollow =
+        typeof constants.O_NOFOLLOW === "number" && constants.O_NOFOLLOW !== 0;
+
+    const safePath = JSON.stringify(filePath);
+
+    let fh: Awaited<ReturnType<typeof open>>;
+    if (hasNoFollow) {
+        try {
+            fh = await open(
+                filePath,
+                constants.O_RDONLY | constants.O_NOFOLLOW,
+            );
+        } catch (error: unknown) {
+            if (
+                error instanceof Error &&
+                "code" in error &&
+                error.code === "ELOOP"
+            ) {
+                throw new Error(`Symlinks are not allowed: ${safePath}`);
+            }
+            throw error;
+        }
+    } else {
+        const stats = await lstat(filePath);
+        if (stats.isSymbolicLink()) {
+            throw new Error(`Symlinks are not allowed: ${safePath}`);
+        }
+        fh = await open(filePath, constants.O_RDONLY);
+    }
+
+    try {
+        const fdStats = await fh.stat();
+        if (fdStats.size > maxBytes) {
+            throw new Error(
+                `File ${safePath} exceeds size limit (${fdStats.size} bytes > ${maxBytes} bytes)`,
+            );
+        }
+        return await fh.readFile("utf-8");
+    } finally {
+        await fh.close();
     }
 }

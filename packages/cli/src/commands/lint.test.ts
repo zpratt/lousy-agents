@@ -409,18 +409,19 @@ describe("lint command", () => {
 
     describe("when target directory contains path traversal", () => {
         it("should reject the directory", async () => {
-            // Act & Assert
-            await expect(
-                lintCommand.run({
-                    rawArgs: [],
-                    args: { _: [], skills: true },
-                    cmd: lintCommand,
-                    data: {
-                        targetDir: "/tmp/../etc/passwd",
-                        skills: true,
-                    },
-                }),
-            ).rejects.toThrow("path traversal");
+            // Act
+            await lintCommand.run({
+                rawArgs: [],
+                args: { _: [], skills: true },
+                cmd: lintCommand,
+                data: {
+                    targetDir: "/tmp/../etc/passwd",
+                    skills: true,
+                },
+            });
+
+            // Assert — CLI handles validation errors gracefully: logs error and sets exit code
+            expect(process.exitCode).toBe(1);
         });
     });
 

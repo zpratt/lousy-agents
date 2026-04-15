@@ -48,7 +48,7 @@ function mapSeverity(severity: string): "ERROR" | "WARNING" | "INFO" {
  * Formats lint output as JSON Lines for reviewdog.
  */
 export class RdjsonlFormatter implements LintFormatter {
-    format(outputs: LintOutput[]): string {
+    format(outputs: readonly LintOutput[]): string {
         const lines: string[] = [];
 
         for (const output of outputs) {

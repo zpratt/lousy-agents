@@ -204,6 +204,41 @@ describe("SkillLintGateway", () => {
                 expect(result).toEqual([]);
             });
         });
+        describe("given a skills directory that is a symbolic link", () => {
+            it.skipIf(process.platform === "win32")(
+                "should skip the symlinked directory and return no skills",
+                async () => {
+                    // Arrange — create a real skills dir, populate it, then symlink it
+                    const realSkillsDir = join(testDir, "real-skills");
+                    const skillDir = join(realSkillsDir, "my-skill");
+                    await mkdir(skillDir, { recursive: true });
+                    await writeFile(
+                        join(skillDir, "SKILL.md"),
+                        "---\nname: my-skill\n---\n",
+                    );
+
+                    // Create .github with symlink to the real skills dir
+                    const githubDir = join(testDir, ".github");
+                    await mkdir(githubDir, { recursive: true });
+
+                    const { symlink, rm: rmFs } = await import(
+                        "node:fs/promises"
+                    );
+                    const symlinkPath = join(githubDir, "skills");
+                    try {
+                        await symlink(realSkillsDir, symlinkPath);
+
+                        // Act
+                        const result = await gateway.discoverSkills(testDir);
+
+                        // Assert — symlinked skills directory is silently skipped
+                        expect(result).toEqual([]);
+                    } finally {
+                        await rmFs(symlinkPath, { force: true });
+                    }
+                },
+            );
+        });
     });
 
     describe("readSkillFileContent", () => {
@@ -220,6 +255,49 @@ describe("SkillLintGateway", () => {
 
                 // Assert
                 expect(result).toBe(content);
+            });
+        });
+
+        describe("given a symbolic link file path", () => {
+            it.skipIf(process.platform === "win32")(
+                "should reject with an error identifying the symlink",
+                async () => {
+                    // Arrange — create a real file and a symlink pointing to it
+                    const { symlink, rm: rmFs } = await import(
+                        "node:fs/promises"
+                    );
+                    const realFile = join(testDir, "real-SKILL.md");
+                    const linkFile = join(testDir, "SKILL.md");
+                    await writeFile(
+                        realFile,
+                        "---\nname: test\ndescription: A test skill\n---\n",
+                    );
+
+                    try {
+                        await symlink(realFile, linkFile);
+
+                        // Act & Assert
+                        await expect(
+                            gateway.readSkillFileContent(linkFile),
+                        ).rejects.toThrow("Symlinks are not allowed");
+                    } finally {
+                        await rmFs(linkFile, { force: true });
+                    }
+                },
+            );
+        });
+
+        describe("given a file exceeding the size limit", () => {
+            it("should reject with a size limit error", async () => {
+                // Arrange — write a file just over 1 MB
+                const filePath = join(testDir, "SKILL.md");
+                const oversizeContent = "x".repeat(1_048_576 + 1);
+                await writeFile(filePath, oversizeContent);
+
+                // Act & Assert
+                await expect(
+                    gateway.readSkillFileContent(filePath),
+                ).rejects.toThrow("exceeds size limit");
             });
         });
     });

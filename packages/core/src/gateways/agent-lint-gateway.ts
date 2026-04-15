@@ -3,7 +3,7 @@
  * Discovers agent files and parses YAML frontmatter.
  */
 
-import { lstat, readdir, readFile } from "node:fs/promises";
+import { lstat, readdir } from "node:fs/promises";
 import { basename, join, relative, resolve, sep } from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { ParsedFrontmatter } from "../entities/skill.js";
@@ -11,7 +11,10 @@ import type {
     AgentLintGateway,
     DiscoveredAgentFile,
 } from "../use-cases/lint-agent-frontmatter.js";
-import { fileExists } from "./file-system-utils.js";
+import { readFileNoFollow } from "./file-system-utils.js";
+
+/** Maximum agent file size: 1 MB */
+const MAX_AGENT_FILE_BYTES = 1_048_576;
 
 /**
  * File system implementation of the agent lint gateway.
@@ -20,7 +23,21 @@ export class FileSystemAgentLintGateway implements AgentLintGateway {
     async discoverAgents(targetDir: string): Promise<DiscoveredAgentFile[]> {
         const agentsDir = join(targetDir, ".github", "agents");
 
-        if (!(await fileExists(agentsDir))) {
+        let agentsDirStats: Awaited<ReturnType<typeof lstat>>;
+        try {
+            agentsDirStats = await lstat(agentsDir);
+        } catch (error: unknown) {
+            if (
+                error instanceof Error &&
+                "code" in error &&
+                (error.code === "ENOENT" || error.code === "ENOTDIR")
+            ) {
+                return [];
+            }
+            throw error;
+        }
+
+        if (agentsDirStats.isSymbolicLink() || !agentsDirStats.isDirectory()) {
             return [];
         }
 
@@ -76,11 +93,7 @@ export class FileSystemAgentLintGateway implements AgentLintGateway {
     }
 
     async readAgentFileContent(filePath: string): Promise<string> {
-        const stats = await lstat(filePath);
-        if (stats.isSymbolicLink()) {
-            throw new Error(`Symlinks are not allowed: ${filePath}`);
-        }
-        return readFile(filePath, "utf-8");
+        return readFileNoFollow(filePath, MAX_AGENT_FILE_BYTES);
     }
 
     parseFrontmatter(content: string): ParsedFrontmatter | null {

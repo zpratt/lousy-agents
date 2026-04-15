@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
@@ -215,6 +215,45 @@ describe("FileSystemAgentLintGateway", () => {
 
             // Assert
             expect(content).toBe(expectedContent);
+        });
+
+        describe("given a symbolic link file", () => {
+            it.skipIf(process.platform === "win32")(
+                "should reject with an error identifying the symlink",
+                async () => {
+                    // Arrange
+                    const agentsDir = join(testDir, ".github", "agents");
+                    await mkdir(agentsDir, { recursive: true });
+                    const realFile = join(agentsDir, "real-agent.md");
+                    const linkFile = join(agentsDir, "link-agent.md");
+                    await writeFile(
+                        realFile,
+                        "---\nname: test\ndescription: test\n---\n",
+                    );
+                    await symlink(realFile, linkFile);
+
+                    // Act & Assert
+                    await expect(
+                        gateway.readAgentFileContent(linkFile),
+                    ).rejects.toThrow("Symlinks are not allowed");
+                },
+            );
+        });
+
+        describe("given a file exceeding the size limit", () => {
+            it("should reject with a size limit error", async () => {
+                // Arrange — write a file just over 1 MB
+                const agentsDir = join(testDir, ".github", "agents");
+                await mkdir(agentsDir, { recursive: true });
+                const filePath = join(agentsDir, "huge-agent.md");
+                const oversizeContent = "x".repeat(1_048_576 + 1);
+                await writeFile(filePath, oversizeContent);
+
+                // Act & Assert
+                await expect(
+                    gateway.readAgentFileContent(filePath),
+                ).rejects.toThrow("exceeds size limit");
+            });
         });
     });
 });

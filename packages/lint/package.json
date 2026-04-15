@@ -1,0 +1,46 @@
+{
+    "name": "@lousy-agents/lint",
+    "version": "1.0.2",
+    "description": "Programmatic lint API for validating AI coding assistant configurations — skills, agents, hooks, and instructions",
+    "type": "module",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/zpratt/lousy-agents.git",
+        "directory": "packages/lint"
+    },
+    "author": "zpratt",
+    "license": "BSD-2-Clause-Patent",
+    "bugs": {
+        "url": "https://github.com/zpratt/lousy-agents/issues"
+    },
+    "homepage": "https://github.com/zpratt/lousy-agents/tree/main/packages/lint#readme",
+    "keywords": [
+        "lint",
+        "ai",
+        "copilot",
+        "github-copilot",
+        "coding-assistant",
+        "skills",
+        "agents",
+        "instructions"
+    ],
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
+    "files": [
+        "dist"
+    ],
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        }
+    },
+    "scripts": {
+        "build": "rspack build --config rspack.config.ts && node -e \"require('node:fs').copyFileSync('src/index.d.ts', 'dist/index.d.ts')\""
+    },
+    "devDependencies": {
+        "@lousy-agents/core": "*"
+    }
+}

@@ -3,7 +3,6 @@
  * Extracts structural features like headings, code blocks, and paragraphs.
  */
 
-import { readFile } from "node:fs/promises";
 import type { Code, Heading, InlineCode } from "mdast";
 import { remark } from "remark";
 import { visit } from "unist-util-visit";
@@ -14,6 +13,10 @@ import type {
     MarkdownInlineCode,
     MarkdownStructure,
 } from "../use-cases/analyze-instruction-quality.js";
+import { readFileNoFollow } from "./file-system-utils.js";
+
+/** Maximum instruction file size: 1 MB */
+const MAX_INSTRUCTION_FILE_BYTES = 1_048_576;
 
 // Re-export types for consumers that need them
 export type {
@@ -29,7 +32,10 @@ export type {
  */
 export class RemarkMarkdownAstGateway implements MarkdownAstGateway {
     async parseFile(filePath: string): Promise<MarkdownStructure> {
-        const content = await readFile(filePath, "utf-8");
+        const content = await readFileNoFollow(
+            filePath,
+            MAX_INSTRUCTION_FILE_BYTES,
+        );
         return this.parseContent(content);
     }
 

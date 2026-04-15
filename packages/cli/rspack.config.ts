@@ -37,6 +37,7 @@ const config: Configuration = {
         },
         alias: {
             "@lousy-agents/core": resolve(__dirname, "../core/src"),
+            "@lousy-agents/lint": resolve(__dirname, "../lint/src"),
         },
     },
     module: {

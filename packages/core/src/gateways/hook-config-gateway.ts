@@ -3,15 +3,10 @@
  * Discovers hook config files for GitHub Copilot and Claude Code.
  */
 
-import { lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { DiscoveredHookFile, HookPlatform } from "../entities/hook.js";
 import type { HookConfigLintGateway } from "../use-cases/lint-hook-config.js";
-import {
-    assertFileSizeWithinLimit,
-    fileExists,
-    resolveSafePath,
-} from "./file-system-utils.js";
+import { readFileNoFollow, resolveSafePath } from "./file-system-utils.js";
 
 /** Maximum hook config file size: 1 MB */
 const MAX_CONFIG_FILE_BYTES = 1_048_576;
@@ -57,30 +52,56 @@ export class FileSystemHookConfigGateway implements HookConfigLintGateway {
                     targetDir,
                     config.relativePath,
                 );
-            } catch {
-                continue;
+            } catch (error: unknown) {
+                if (
+                    error instanceof Error &&
+                    "code" in error &&
+                    (error.code === "ENOENT" || error.code === "ENOTDIR")
+                ) {
+                    continue;
+                }
+                if (
+                    error instanceof Error &&
+                    (error.message.startsWith(
+                        "Resolved path is outside target directory:",
+                    ) ||
+                        error.message.startsWith(
+                            "Path contains symbolic link:",
+                        ))
+                ) {
+                    continue;
+                }
+                throw error;
             }
 
-            if (!(await fileExists(safePath))) {
-                continue;
-            }
-
-            const stats = await lstat(safePath);
-            if (stats.isSymbolicLink()) {
-                continue;
-            }
-
+            let content: string;
             try {
-                await assertFileSizeWithinLimit(
+                content = await readFileNoFollow(
                     safePath,
                     MAX_CONFIG_FILE_BYTES,
-                    `Hook config ${config.relativePath}`,
                 );
-            } catch {
-                continue;
+            } catch (error: unknown) {
+                if (
+                    error instanceof Error &&
+                    "code" in error &&
+                    (error.code === "ENOENT" || error.code === "ENOTDIR")
+                ) {
+                    continue;
+                }
+                if (
+                    error instanceof Error &&
+                    error.message.startsWith("Symlinks are not allowed")
+                ) {
+                    continue;
+                }
+                if (
+                    error instanceof Error &&
+                    error.message.includes("exceeds size limit")
+                ) {
+                    continue;
+                }
+                throw error;
             }
-
-            const content = await readFile(safePath, "utf-8");
 
             if (this.mayContainHookSection(content, config.platform)) {
                 discovered.push({
@@ -94,16 +115,7 @@ export class FileSystemHookConfigGateway implements HookConfigLintGateway {
     }
 
     async readFileContent(filePath: string): Promise<string> {
-        const stats = await lstat(filePath);
-        if (stats.isSymbolicLink()) {
-            throw new Error(`Symlinks are not allowed: ${filePath}`);
-        }
-        await assertFileSizeWithinLimit(
-            filePath,
-            MAX_CONFIG_FILE_BYTES,
-            `Hook config ${filePath}`,
-        );
-        return readFile(filePath, "utf-8");
+        return readFileNoFollow(filePath, MAX_CONFIG_FILE_BYTES);
     }
 
     /**
