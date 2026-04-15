@@ -31,13 +31,13 @@ so that I can **validate user-provided skill definitions in my web app without a
 - When `lintContent` is called with a `skills` input that omits the `name` field, the lint API shall reject with a `LintValidationError`.
 - The `name` field shall match `^[a-zA-Z0-9][a-zA-Z0-9._-]{0,254}$` (no path separators, no control characters, no Unicode bidirectional overrides). If the `name` field fails format validation, then the lint API shall reject with a `LintValidationError`.
 - When the skill content is an empty string, the lint API shall return diagnostics indicating missing frontmatter.
-- If the skill content contains control characters (ASCII C0 0x00–0x1F except tab 0x09 and newline 0x0A, DEL 0x7F, C1 0x80–0x9F, Unicode line/paragraph separators 0x2028–0x2029, and bidirectional overrides 0x202A–0x202E, 0x2066–0x2069), then the lint API shall reject with a `LintValidationError`.
-- When linting a skill from string content, the `skill/name-mismatch` rule shall not produce diagnostics regardless of the relationship between the input `name` and the frontmatter `name` field.
+- If the skill content contains control characters (ASCII C0 0x00–0x1F except tab 0x09, newline 0x0A, and carriage return 0x0D; DEL 0x7F; C1 0x80–0x9F; Unicode line/paragraph separators 0x2028–0x2029; and bidirectional overrides 0x202A–0x202E, 0x2066–0x2069), then the lint API shall reject with a `LintValidationError`.
+- When linting a skill from string content, the in-memory gateway shall set `skillName` to match the parsed frontmatter `name` field so that the `skill/name-mismatch` rule shall not produce diagnostics regardless of the relationship between the input `name` and the frontmatter `name` field.
 
 #### Notes
 
 - The `name` field serves as a virtual filename for diagnostics (e.g., `my-skill.md:3 [name]: ...`).
-- The control character validation range aligns with the existing `containsControlCharacters()` in `validate-directory.ts` for consistency across the lint package.
+- The control character ranges (C1, DEL, bidi overrides, line/paragraph separators) are drawn from the existing `containsControlCharacters()` in `validate-directory.ts`. Unlike directory path validation, content validation additionally exempts tab (0x09), newline (0x0A), and carriage return (0x0D) because these are valid in file content.
 
 ---
 
@@ -52,7 +52,8 @@ so that I can **validate user-provided agent definitions in my web app**.
 - When `lintContent` is called with an `agents` input containing a `name` and `content` string, the lint API shall analyze the content and return `LintResult` with agent diagnostics.
 - When the agent content has no YAML frontmatter, the lint API shall return an error diagnostic at line 1.
 - If the `name` field is an empty string or does not match the `^[a-zA-Z0-9][a-zA-Z0-9._-]{0,254}$` format, then the lint API shall reject with a `LintValidationError`.
-- When linting an agent from string content, the `agent/name-mismatch` rule shall not produce diagnostics regardless of the relationship between the input `name` and the frontmatter `name` field.
+- If the agent content contains control characters (same range as Story 1), then the lint API shall reject with a `LintValidationError`.
+- When linting an agent from string content, the in-memory gateway shall set `agentName` to match the parsed frontmatter `name` field so that the `agent/name-mismatch` rule shall not produce diagnostics.
 
 #### Notes
 
@@ -72,6 +73,7 @@ so that I can **preview instruction quality analysis without saving a file to di
 - When `lintContent` is called with an `instructions` input containing a `name`, `content` string, and `format` specifier, the lint API shall analyze the content and return `LintResult` with instruction quality diagnostics.
 - When the instruction content is valid markdown with structural headings and code blocks, the lint API shall return a quality score and suggestions.
 - If the `format` field is not a valid `InstructionFileFormat`, then the lint API shall reject with a `LintValidationError`.
+- If the instruction content contains control characters (same range as Story 1), then the lint API shall reject with a `LintValidationError`.
 
 #### Notes
 
@@ -91,6 +93,7 @@ so that I can **validate hook configurations interactively**.
 - When `lintContent` is called with a `hooks` input containing a `name`, `content` string, and `platform` specifier (`"copilot"` or `"claude"`), the lint API shall analyze the content and return `LintResult` with hook diagnostics.
 - If the hook content is not valid JSON, then the lint API shall return a diagnostic with rule ID `hook/invalid-json`.
 - If the `platform` field is not `"copilot"` or `"claude"`, then the lint API shall reject with a `LintValidationError`.
+- If the hook content contains control characters (same range as Story 1), then the lint API shall reject with a `LintValidationError`.
 
 ---
 
@@ -104,6 +107,7 @@ so that I can **validate a complete set of agent artifacts at once**.
 
 - When `lintContent` is called with multiple target arrays (e.g., both `skills` and `agents`), the lint API shall return separate `LintOutput` entries for each target.
 - When `lintContent` is called with no inputs (all arrays empty or omitted), the lint API shall reject with a `LintValidationError`.
+- If any target array contains duplicate `name` values, the lint API shall reject with a `LintValidationError`.
 - The `LintResult.hasErrors` shall be true if any target produced error-severity diagnostics.
 
 ---
@@ -116,8 +120,8 @@ so that I can **protect my web app from denial-of-service via oversized payloads
 
 #### Acceptance Criteria
 
-- If a single content string exceeds 1 MB (1,048,576 bytes in UTF-8), then the lint API shall reject with a `LintValidationError`.
-- The total combined size of all content strings across all targets shall not exceed 10 MB (10,485,760 bytes). If the combined size exceeds 10 MB, the lint API shall reject with a `LintValidationError`.
+- If a single content string exceeds 1 MB (1,048,576 bytes measured using `new TextEncoder().encode(content).byteLength` for browser compatibility, or `Buffer.byteLength(content, 'utf8')` in Node.js), then the lint API shall reject with a `LintValidationError`.
+- The total combined size of all content strings across all targets shall not exceed 10 MB (10,485,760 bytes, same measurement method). If the combined size exceeds 10 MB, the lint API shall reject with a `LintValidationError`.
 - The lint API shall enforce a maximum of 100 items across all target arrays combined per call.
 
 ---
@@ -258,7 +262,7 @@ sequenceDiagram
 
 The existing use cases accept gateway interfaces (ports) via constructor injection. The string input API creates **in-memory gateway implementations** in `packages/core/src/gateways/` (alongside the existing filesystem gateways) that serve content from the provided strings instead of reading from disk:
 
-1. **InMemorySkillLintGateway** (`packages/core/src/gateways/in-memory-skill-lint-gateway.ts`) implements `SkillLintGateway` — `discoverSkills()` returns entries from the input array; `readSkillFileContent()` returns the corresponding string; `parseFrontmatter()` delegates to the same YAML parsing logic. To suppress `skill/name-mismatch` diagnostics, `dirName` is set to match the parsed frontmatter `name` field (or to the input `name` if frontmatter is missing/unparseable).
+1. **InMemorySkillLintGateway** (`packages/core/src/gateways/in-memory-skill-lint-gateway.ts`) implements `SkillLintGateway` — `discoverSkills()` returns entries from the input array; `readSkillFileContent()` returns the corresponding string; `parseFrontmatter()` delegates to the same YAML parsing logic. To suppress `skill/name-mismatch` diagnostics, `skillName` is set to match the parsed frontmatter `name` field (or to the input `name` if frontmatter is missing/unparseable).
 2. **InMemoryAgentLintGateway** (`packages/core/src/gateways/in-memory-agent-lint-gateway.ts`) implements `AgentLintGateway` — same pattern. Sets `agentName` to match the parsed frontmatter `name` to suppress `agent/name-mismatch`.
 3. **InMemoryHookConfigGateway** (`packages/core/src/gateways/in-memory-hook-config-gateway.ts`) implements `HookConfigLintGateway` — `discoverHookFiles()` returns entries from input; `readFileContent()` returns the string.
 4. **InMemoryInstructionDiscoveryGateway** (`packages/core/src/gateways/in-memory-instruction-gateways.ts`) implements `InstructionFileDiscoveryGateway` — returns discovered files from input array.
@@ -274,7 +278,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 ### Open Questions
 
 - [x] Should `lintContent` accept a `rules` override parameter? — Deferred to future work. Use `DEFAULT_LINT_RULES` for the initial implementation.
-- [x] Should skill name-to-directory validation be skipped? — Yes. The in-memory gateway sets `dirName` to match the parsed frontmatter `name` field, so the `skill/name-mismatch` rule never fires. If frontmatter is missing or unparseable, `dirName` falls back to the input `name`.
+- [x] Should skill name-to-directory validation be skipped? — Yes. The in-memory gateway sets `skillName` to match the parsed frontmatter `name` field, so the `skill/name-mismatch` rule never fires. If frontmatter is missing or unparseable, `skillName` falls back to the input `name`.
 - [x] Should agent name-to-filename validation be skipped? — Yes. Same approach: `agentName` is set to match the parsed frontmatter `name` field.
 
 ---
@@ -303,6 +307,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 - When all input arrays are empty or omitted, the lint API shall reject with a `LintValidationError` (Story 5).
 - If a `hooks` input has an invalid `platform` value, then the lint API shall reject with a `LintValidationError` (Story 4).
 - If an `instructions` input has an invalid `format` value, then the lint API shall reject with a `LintValidationError` (Story 3).
+- If any target array contains duplicate `name` values, the lint API shall reject with a `LintValidationError` (Story 5).
 
 **Verification**:
 - [ ] `npm test packages/lint/src/validate-content.test.ts` passes
@@ -312,6 +317,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 - [ ] All verification steps pass
 - [ ] No new errors in affected files
 - [ ] Acceptance criteria from Stories 1–6 (input validation paths) satisfied
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -319,9 +325,9 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 
 **Objective**: Create in-memory gateways for skill and agent lint that implement existing use-case port interfaces using provided string content.
 
-**Context**: These gateways enable the skill and agent use cases to operate on string inputs without filesystem access. They handle the `name-mismatch` suppression by setting `dirName`/`agentName` to match parsed frontmatter.
+**Context**: These gateways enable the skill and agent use cases to operate on string inputs without filesystem access. They handle the `name-mismatch` suppression by setting `skillName`/`agentName` to match parsed frontmatter.
 
-**Depends on**: Task 1
+**Depends on**: None (can run in parallel with Task 1)
 
 **Affected files**:
 - `packages/core/src/gateways/in-memory-skill-lint-gateway.ts` (new)
@@ -347,6 +353,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 - [ ] All verification steps pass
 - [ ] No new errors in affected files
 - [ ] Each in-memory gateway correctly implements its port interface
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -356,8 +363,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 
 **Context**: These gateways complete the set of in-memory adapters needed for all lint targets. The instruction gateways are simpler because they don't need name-mismatch handling.
 
-**Depends on**: Task 1
-
+**Depends on**: None (can run in parallel with Task 1)
 **Affected files**:
 - `packages/core/src/gateways/in-memory-hook-config-gateway.ts` (new)
 - `packages/core/src/gateways/in-memory-hook-config-gateway.test.ts` (new)
@@ -380,6 +386,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 - [ ] All verification steps pass
 - [ ] No new errors in affected files
 - [ ] Each in-memory gateway correctly implements its port interface
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -412,6 +419,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 - [ ] All verification steps pass
 - [ ] No new errors in affected files
 - [ ] Acceptance criteria from Stories 1–5 satisfied
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -443,6 +451,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 - [ ] All verification steps pass
 - [ ] No new errors in affected files
 - [ ] Public API surface includes both `runLint` and `lintContent`
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
@@ -475,6 +484,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 - [ ] No new errors in affected files
 - [ ] `mise run ci` exits 0
 - [ ] Documentation accurately describes the new API
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
 
