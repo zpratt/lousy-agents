@@ -394,9 +394,9 @@ describe("Log query integration", { timeout: 30_000 }, () => {
             const eventsDir = defaultEventsDir(tmpDir);
             const sessionId = chance.guid();
 
-            const matchCommand = `echo ${chance.word()}`;
-            const wrongActorCommand = `echo ${chance.word()}`;
-            const successCommand = `echo ${chance.word()}`;
+            const matchCommand = `echo match-${chance.guid()}`;
+            const wrongActorCommand = `echo wrong-actor-${chance.guid()}`;
+            const successCommand = `echo success-${chance.guid()}`;
 
             const matchingEvent = makeScriptEndEvent({
                 session_id: sessionId,
