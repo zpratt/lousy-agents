@@ -37,6 +37,7 @@ so that I can **validate user-provided skill definitions in my web app without a
 
 - The `name` field serves as the canonical logical skill identifier for lint rule comparisons (corresponding to the skill's parent directory name in filesystem mode), and is also used as the `filePath` in diagnostics (e.g., `my-skill:3 [name]: ...`) and as `skillName` in the discovered skill entry.
 - The `skill/name-mismatch` rule may fire if the input `name` does not match the frontmatter `name` field, which is correct behavior — the user can fix the mismatch in their content.
+- **Avoid file extensions in `name`**: names like `my-skill.md` will cause confusing `skill/name-mismatch` errors when frontmatter has `name: my-skill`, because the comparison is literal string equality. Use the logical identifier (e.g., `my-skill`) instead.
 - The control character validation utility is extracted to `packages/core/src/lib/control-chars.ts` and reused by both `validate-content.ts` and `validate-directory.ts`.
 
 ---
@@ -57,6 +58,7 @@ so that I can **validate user-provided agent definitions in my web app**.
 #### Notes
 
 - The `name` field is used as `agentName` in the discovered agent entry, matching the semantics of agent filename stems (without the `.md` or `.agent.md` extension). The `agent/name-mismatch` rule may fire if the input `name` does not match the frontmatter `name` field.
+- **Avoid file extensions in `name`**: names like `my-agent.md` will cause confusing `agent/name-mismatch` errors when frontmatter has `name: my-agent`, because the comparison is literal string equality. Use the logical identifier (e.g., `my-agent`) instead.
 - The same `name` format validation applies across all target types.
 
 ---
@@ -72,12 +74,15 @@ so that I can **preview instruction quality analysis without saving a file to di
 - When `lintContent` is called with an `instructions` input containing a `name`, `content` string, and `format` specifier, the lint API shall analyze the content and return `LintResult` with instruction quality diagnostics.
 - When the instruction content is valid markdown with structural headings and code blocks, the lint API shall return a quality score and suggestions.
 - If the `format` field is not a valid `InstructionFileFormat`, then the lint API shall reject with a `LintValidationError`.
+- If the instruction content is an empty string, the lint API shall return an analysis result with an empty `MarkdownStructure` (no headings, no code blocks), zero `overallQualityScore`, and empty `commandScores`. No error diagnostic is produced — an empty instruction is structurally valid but receives a zero quality score.
 - If the instruction content contains control characters (same range as Story 1), then the lint API shall reject with a `LintValidationError`.
 
 #### Notes
 
 - Feedback loop command discovery is not possible without a project directory. The use case shall use an empty command list in string mode.
-- Quality scoring still works because it analyzes structural context, execution clarity, and loop completeness within the provided content.
+- With no commands to score, the `overallQualityScore` will be 0 and `commandScores` will be empty. This is expected — the quality score measures how well the instruction documents mandatory feedback loop commands, not structural quality. Structural analysis (headings, code blocks) is still reflected in per-file `MarkdownStructure` data available in the analysis output.
+- A future enhancement could accept a `commands` parameter in `LintContentOptions` to enable command-quality scoring in string mode.
+- The `name` field is used as `filePath` in `DiscoveredInstructionFile` and as the lookup key in `InMemoryMarkdownAstGateway`. Both gateways must use the raw `name` as-is — no path prefixes or synthetic paths.
 
 ---
 
@@ -93,6 +98,10 @@ so that I can **validate hook configurations interactively**.
 - If the hook content is not valid JSON, then the lint API shall return a diagnostic with rule ID `hook/invalid-json`.
 - If the `platform` field is not `"copilot"` or `"claude"`, then the lint API shall reject with a `LintValidationError`.
 - If the hook content contains control characters (same range as Story 1), then the lint API shall reject with a `LintValidationError`.
+
+#### Notes
+
+- The `name` field is used as `filePath` in the discovered hook file entry and as the lookup key for content retrieval. Both must use the raw `name` as-is.
 
 ---
 
@@ -146,7 +155,7 @@ so that I can **protect my web app from denial-of-service via oversized payloads
 - `packages/core/src/gateways/in-memory-instruction-gateways.ts` (new) — In-memory instruction discovery and feedback loop commands gateways
 - `packages/core/src/gateways/in-memory-markdown-ast-gateway.ts` (new) — In-memory markdown AST gateway (replaces filesystem `parseFile()` with content-map lookup)
 
-**Note**: No use-case files are modified. All adaptation is in gateway implementations. The existing use cases operate identically on in-memory content because they depend on gateway port interfaces, not concrete filesystem implementations.
+**Note**: No use-case files are modified in this spec. All adaptation is in gateway implementations. The existing use cases operate identically on in-memory content because they depend on gateway port interfaces, not concrete filesystem implementations. If future work requires conditional scoring when commands are empty (see Open Questions), the use case would need modification — that would be a separate spec.
 
 ### Dependencies
 
@@ -270,7 +279,7 @@ The existing use cases accept gateway interfaces (ports) via constructor injecti
 3. **InMemoryHookConfigGateway** (`packages/core/src/gateways/in-memory-hook-config-gateway.ts`) implements `HookConfigLintGateway` — `discoverHookFiles()` returns entries from input; `readFileContent()` returns the string.
 4. **InMemoryInstructionDiscoveryGateway** (`packages/core/src/gateways/in-memory-instruction-gateways.ts`) implements `InstructionFileDiscoveryGateway` — returns discovered files from input array.
 5. **InMemoryFeedbackLoopCommandsGateway** (same file) implements `FeedbackLoopCommandsGateway` — returns an empty command list (no project directory to scan).
-6. **InMemoryMarkdownAstGateway** (`packages/core/src/gateways/in-memory-markdown-ast-gateway.ts`) implements `MarkdownAstGateway` — `parseFile(filePath)` looks up the content string by name from the input map and delegates to `parseContent()` (which reuses the same remark-based parsing logic from `RemarkMarkdownAstGateway`). This is necessary because `AnalyzeInstructionQualityUseCase` calls `astGateway.parseFile(filePath)` and the filesystem gateway's `parseFile()` reads from disk via `readFileNoFollow()`, which won't work for in-memory inputs.
+6. **InMemoryMarkdownAstGateway** (`packages/core/src/gateways/in-memory-markdown-ast-gateway.ts`) extends `RemarkMarkdownAstGateway` and overrides only `parseFile(filePath)` to look up the content string by name from the input map and delegate to the inherited `parseContent()`. This is necessary because `AnalyzeInstructionQualityUseCase` calls `astGateway.parseFile(filePath)` and the parent class's `parseFile()` reads from disk via `readFileNoFollow()`, which won't work for in-memory inputs. The `parseContent()` and `findConditionalKeywordsInProximity()` methods are inherited unchanged.
 
 This approach requires zero changes to use-case business logic. The use cases are unaware they are operating on in-memory content vs. filesystem content.
 
@@ -282,6 +291,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 
 - [x] Should `lintContent` accept a `rules` override parameter? — Deferred to future work. Use `DEFAULT_LINT_RULES` for the initial implementation.
 - [x] Should `skill/name-mismatch` and `agent/name-mismatch` rules be suppressed in string mode? — No. The in-memory gateway sets `skillName`/`agentName` to the user-supplied input `name`. If the user's content has a frontmatter `name` that differs from the input `name`, the mismatch rule fires correctly and provides useful feedback. No business logic manipulation in the gateway layer.
+- [x] Should instruction `overallQualityScore` be adjusted when no commands are available? — No (for this spec). With no feedback loop commands, the quality score is 0. This is expected behavior — the score specifically measures command documentation quality. A future spec could add a `commands` parameter to `LintContentOptions` or modify the use case to compute a structural-only score when commands are empty.
 
 ---
 
@@ -419,7 +429,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 - The `InMemoryHookConfigGateway` shall implement `HookConfigLintGateway` and return content from the provided string inputs.
 - The `InMemoryInstructionDiscoveryGateway` shall implement `InstructionFileDiscoveryGateway` and return discovered files from the provided string inputs.
 - The `InMemoryFeedbackLoopCommandsGateway` shall implement `FeedbackLoopCommandsGateway` and return an empty command list.
-- The `InMemoryMarkdownAstGateway` shall implement `MarkdownAstGateway`. Its `parseFile(filePath)` method shall look up the content string by name from the input map and delegate to `parseContent()`. The `parseContent()` and `findConditionalKeywordsInProximity()` methods shall reuse the same remark-based parsing logic as `RemarkMarkdownAstGateway`.
+- The `InMemoryMarkdownAstGateway` shall extend `RemarkMarkdownAstGateway` and override only `parseFile(filePath)` to look up the content string by name from the input map and delegate to the inherited `parseContent()`. The `parseContent()` and `findConditionalKeywordsInProximity()` methods are inherited from the parent class — no code duplication required.
 - When `readFileContent` or `parseFile` is called with an unknown name, the gateway shall throw an error.
 
 **Verification**:
