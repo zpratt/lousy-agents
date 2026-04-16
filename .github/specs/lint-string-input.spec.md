@@ -2,7 +2,7 @@
 
 ## Problem Statement
 
-The `@lousy-agents/lint` public API currently requires a filesystem directory path to discover and analyze skill, agent, instruction, and hook configuration files. This makes it unusable in browser-based environments (e.g., interactive web apps or playgrounds) where users want to paste or type content and receive immediate lint feedback without a backing filesystem. A new API entry point is needed that accepts string content directly, enabling browser-hosted lint experiences.
+The `@lousy-agents/lint` public API currently requires a filesystem directory path to discover and analyze skill, agent, instruction, and hook configuration files. This makes it unusable in browser-based environments (e.g., interactive web apps or playgrounds) where users want to paste or type content and receive immediate lint feedback without a backing filesystem. A new API entry point is needed that accepts string content directly. This spec delivers the source-level foundation (no `node:*` transitive imports in the `lintContent` code path); browser-specific bundling and export map configuration is a follow-on task (see Future Considerations).
 
 ## Personas
 
@@ -72,9 +72,9 @@ so that I can **preview instruction quality analysis without saving a file to di
 #### Acceptance Criteria
 
 - When `lintContent` is called with an `instructions` input containing a `name`, `content` string, and `format` specifier, the lint API shall analyze the content and return `LintResult` with instruction quality diagnostics.
-- When the instruction content is valid markdown containing at least one structural heading and at least one fenced code block, the lint API shall return an instruction analysis whose `qualityResult.structure.headings` array is non-empty, whose `qualityResult.structure.codeBlocks` array is non-empty, whose `qualityResult.overallQualityScore` is `0` (no commands to score in string mode), whose `qualityResult.commandScores` array is empty, and whose `qualityResult.suggestions` field is present (may be empty).
+- When the instruction content is valid markdown containing at least one structural heading and at least one fenced code block, the lint API shall return an instruction `LintOutput` whose `qualityResult` is defined, whose `qualityResult.overallQualityScore` is `0` (no commands to score in string mode), whose `qualityResult.commandScores` array is empty, whose `qualityResult.suggestions` field is present (may be empty), and whose `qualityResult.discoveredFiles` contains the input file.
 - If the `format` field is not a valid `InstructionFileFormat`, then the lint API shall reject with a `LintValidationError`.
-- If the instruction content is an empty string, the lint API shall return an analysis result with an empty `MarkdownStructure` (no headings, no code blocks), zero `overallQualityScore`, and empty `commandScores`. No error diagnostic is produced — an empty instruction is structurally valid but receives a zero quality score.
+- If the instruction content is an empty string, the lint API shall return an instruction `LintOutput` whose `qualityResult` has zero `overallQualityScore`, empty `commandScores`, and the input file in `discoveredFiles`. No error diagnostic is produced — an empty instruction is structurally valid but receives a zero quality score.
 - If the instruction content contains control characters (same range as Story 1), then the lint API shall reject with a `LintValidationError`.
 
 #### Notes
@@ -357,7 +357,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 **Requirements**:
 - When `lintContent` is called with a content string exceeding 1 MB, the lint API shall reject with a `LintValidationError` (Story 6).
 - If a content string contains control characters (using the shared `createControlCharValidator` from `packages/core/src/lib/control-chars.ts` with tab/LF/CR exemptions), then the lint API shall reject with a `LintValidationError` (Story 1).
-- The validation function shall check the per-item 1 MB size limit before scanning for control characters. The 10 MB aggregate size check shall execute before any per-item control character scans. (This ensures O(1) size checks short-circuit before O(n) character scans.)
+- The validation function shall check the per-item 1 MB size limit before scanning for control characters. The 10 MB aggregate size check shall execute before any per-item control character scans. Size measurement via `TextEncoder` is O(n) — implementations may use `content.length` (O(1) in V8) as a fast preliminary filter since UTF-8 byte length is always ≥ UTF-16 code unit count. This ordering ensures oversized inputs are rejected before the more expensive per-character control character scan runs.
 - When a `name` field is empty or does not match `^[a-zA-Z0-9][a-zA-Z0-9._-]{0,254}$`, the lint API shall reject with a `LintValidationError` (Stories 1, 2).
 - When the total combined size of all content strings exceeds 10 MB, the lint API shall reject with a `LintValidationError` (Story 6).
 - When the total item count across all targets exceeds 100, the lint API shall reject with a `LintValidationError` (Story 6).
@@ -527,6 +527,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 - [ ] `npx biome check packages/lint/src/index.ts` passes
 - [ ] Existing `runLint` tests still pass: `npm test packages/lint/`
 - [ ] New `lintContent` exports are importable from the built package
+- [ ] The transitive import graph from `lint-content.ts` contains zero `node:*` module imports (verify via a test or static analysis script that traces imports from `lint-content.ts` and asserts none resolve to `node:fs`, `node:path`, `node:fs/promises`, or any other `node:*` built-in)
 
 **Done when**:
 - [ ] All verification steps pass
