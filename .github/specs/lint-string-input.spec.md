@@ -4,6 +4,36 @@
 
 The `@lousy-agents/lint` public API currently requires a filesystem directory path to discover and analyze skill, agent, instruction, and hook configuration files. This makes it unusable in browser-based environments (e.g., interactive web apps or playgrounds) where users want to paste or type content and receive immediate lint feedback without a backing filesystem. A new API entry point is needed that accepts string content directly. This spec delivers the source-level foundation (no `node:*` transitive imports in the `lintContent` code path); browser-specific bundling and export map configuration is a follow-on task (see Future Considerations).
 
+## API Overview
+
+```typescript
+import { lintContent, type LintResult } from "@lousy-agents/lint";
+
+const result: LintResult = await lintContent({
+  skills: [
+    { name: "my-skill", content: "---\nname: my-skill\n---\n# My Skill\n\nDoes something useful." },
+  ],
+  agents: [
+    { name: "my-agent", content: "---\nname: my-agent\n---\n# My Agent" },
+  ],
+  instructions: [
+    { name: "CLAUDE", content: "# Instructions\n\n```bash\nnpm test\n```", format: "claude" },
+  ],
+  hooks: [
+    { name: "hooks", content: '{"hooks":{}}', platform: "copilot" },
+  ],
+});
+
+// result.diagnostics — all lint diagnostics across all targets
+// result.skills[0].diagnostics — per-skill diagnostics
+```
+
+> **Note:** `lintContent()` has zero `node:*` transitive imports in the
+> browser-compatible code path. Bundler configuration for browser targets
+> (ESM export map, polyfills) is a follow-on task; see Future Considerations.
+
+---
+
 ## Personas
 
 | Persona | Impact | Notes |
