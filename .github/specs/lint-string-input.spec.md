@@ -32,12 +32,12 @@ so that I can **validate user-provided skill definitions in my web app without a
 - The `name` field shall match `^[a-zA-Z0-9][a-zA-Z0-9._-]{0,254}$` (no path separators, no control characters, no Unicode bidirectional overrides). If the `name` field fails format validation, then the lint API shall reject with a `LintValidationError`.
 - When the skill content is an empty string, the lint API shall return diagnostics indicating missing frontmatter.
 - If the skill content contains control characters (ASCII C0 0x00–0x1F except tab 0x09, newline 0x0A, and carriage return 0x0D; DEL 0x7F; C1 0x80–0x9F; Unicode line/paragraph separators 0x2028–0x2029; and bidirectional overrides 0x202A–0x202E, 0x2066–0x2069), then the lint API shall reject with a `LintValidationError`.
-- When linting a skill from string content, the in-memory gateway shall set `skillName` to match the parsed frontmatter `name` field so that the `skill/name-mismatch` rule shall not produce diagnostics regardless of the relationship between the input `name` and the frontmatter `name` field.
 
 #### Notes
 
-- The `name` field serves as a virtual filename for diagnostics (e.g., `my-skill.md:3 [name]: ...`).
-- The control character ranges (C1, DEL, bidi overrides, line/paragraph separators) are drawn from the existing `containsControlCharacters()` in `validate-directory.ts`. Unlike directory path validation, content validation additionally exempts tab (0x09), newline (0x0A), and carriage return (0x0D) because these are valid in file content.
+- The `name` field serves as a virtual filename for diagnostics (e.g., `my-skill.md:3 [name]: ...`) and is used as `skillName` in the discovered skill entry.
+- The `skill/name-mismatch` rule may fire if the input `name` does not match the frontmatter `name` field, which is correct behavior — the user can fix the mismatch in their content.
+- The control character validation utility is extracted to `packages/core/src/lib/control-chars.ts` and reused by both `validate-content.ts` and `validate-directory.ts`.
 
 ---
 
@@ -53,11 +53,10 @@ so that I can **validate user-provided agent definitions in my web app**.
 - When the agent content has no YAML frontmatter, the lint API shall return an error diagnostic at line 1.
 - If the `name` field is an empty string or does not match the `^[a-zA-Z0-9][a-zA-Z0-9._-]{0,254}$` format, then the lint API shall reject with a `LintValidationError`.
 - If the agent content contains control characters (same range as Story 1), then the lint API shall reject with a `LintValidationError`.
-- When linting an agent from string content, the in-memory gateway shall set `agentName` to match the parsed frontmatter `name` field so that the `agent/name-mismatch` rule shall not produce diagnostics.
 
 #### Notes
 
-- Agent name-to-filename matching validation is skipped in string mode since there is no real filename.
+- The `name` field is used as `agentName` in the discovered agent entry. The `agent/name-mismatch` rule may fire if the input `name` does not match the frontmatter `name` field.
 - The same `name` format validation applies across all target types.
 
 ---
@@ -138,6 +137,7 @@ so that I can **protect my web app from denial-of-service via oversized payloads
 - `packages/lint/src/validate-content.test.ts` (new) — Tests for input validation
 - `packages/lint/src/index.ts` — Export `lintContent` and `LintContentOptions` types
 - `packages/lint/src/index.d.ts` — Add type declarations for `lintContent` API
+- `packages/core/src/lib/control-chars.ts` (new) — Parameterised control character validator shared by `validate-content.ts` and `validate-directory.ts`
 - `packages/core/src/gateways/in-memory-skill-lint-gateway.ts` (new) — In-memory skill lint gateway
 - `packages/core/src/gateways/in-memory-agent-lint-gateway.ts` (new) — In-memory agent lint gateway
 - `packages/core/src/gateways/in-memory-hook-config-gateway.ts` (new) — In-memory hook config gateway
@@ -244,7 +244,7 @@ sequenceDiagram
     LC->>SUC: new LintSkillFrontmatterUseCase(SGW)
     LC->>SUC: execute({ targetDir: "<in-memory>" })
     SUC->>SGW: discoverSkills("<in-memory>")
-    SGW-->>SUC: [{ filePath: name, skillName: frontmatter-name }]
+    SGW-->>SUC: [{ filePath: name, skillName: name }]
     loop For each skill
         SUC->>SGW: readSkillFileContent(filePath)
         SGW-->>SUC: content string
@@ -262,8 +262,8 @@ sequenceDiagram
 
 The existing use cases accept gateway interfaces (ports) via constructor injection. The string input API creates **in-memory gateway implementations** in `packages/core/src/gateways/` (alongside the existing filesystem gateways) that serve content from the provided strings instead of reading from disk:
 
-1. **InMemorySkillLintGateway** (`packages/core/src/gateways/in-memory-skill-lint-gateway.ts`) implements `SkillLintGateway` — `discoverSkills()` returns entries from the input array; `readSkillFileContent()` returns the corresponding string; `parseFrontmatter()` delegates to the same YAML parsing logic. To suppress `skill/name-mismatch` diagnostics, `skillName` is set to match the parsed frontmatter `name` field (or to the input `name` if frontmatter is missing/unparseable).
-2. **InMemoryAgentLintGateway** (`packages/core/src/gateways/in-memory-agent-lint-gateway.ts`) implements `AgentLintGateway` — same pattern. Sets `agentName` to match the parsed frontmatter `name` to suppress `agent/name-mismatch`.
+1. **InMemorySkillLintGateway** (`packages/core/src/gateways/in-memory-skill-lint-gateway.ts`) implements `SkillLintGateway` — `discoverSkills()` returns entries with `skillName` set to the user-supplied input `name` (no frontmatter parsing at discovery time); `readSkillFileContent()` returns the corresponding string. If YAML frontmatter parsing throws during `discoverSkills()`, the gateway shall catch the error and use the input `name` as the fallback so `discoverSkills()` never throws for bad content.
+2. **InMemoryAgentLintGateway** (`packages/core/src/gateways/in-memory-agent-lint-gateway.ts`) implements `AgentLintGateway` — same pattern. `agentName` is set to the user-supplied input `name`.
 3. **InMemoryHookConfigGateway** (`packages/core/src/gateways/in-memory-hook-config-gateway.ts`) implements `HookConfigLintGateway` — `discoverHookFiles()` returns entries from input; `readFileContent()` returns the string.
 4. **InMemoryInstructionDiscoveryGateway** (`packages/core/src/gateways/in-memory-instruction-gateways.ts`) implements `InstructionFileDiscoveryGateway` — returns discovered files from input array.
 5. **InMemoryFeedbackLoopCommandsGateway** (same file) implements `FeedbackLoopCommandsGateway` — returns an empty command list (no project directory to scan).
@@ -278,8 +278,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 ### Open Questions
 
 - [x] Should `lintContent` accept a `rules` override parameter? — Deferred to future work. Use `DEFAULT_LINT_RULES` for the initial implementation.
-- [x] Should skill name-to-directory validation be skipped? — Yes. The in-memory gateway sets `skillName` to match the parsed frontmatter `name` field, so the `skill/name-mismatch` rule never fires. If frontmatter is missing or unparseable, `skillName` falls back to the input `name`.
-- [x] Should agent name-to-filename validation be skipped? — Yes. Same approach: `agentName` is set to match the parsed frontmatter `name` field.
+- [x] Should `skill/name-mismatch` and `agent/name-mismatch` rules be suppressed in string mode? — No. The in-memory gateway sets `skillName`/`agentName` to the user-supplied input `name`. If the user's content has a frontmatter `name` that differs from the input `name`, the mismatch rule fires correctly and provides useful feedback. No business logic manipulation in the gateway layer.
 
 ---
 
@@ -288,11 +287,43 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 > Each task should be completable in a single coding agent session.
 > Tasks are sequenced by dependency. Complete in order unless noted.
 
+### Task 0: Extract shared control character validator
+
+**Objective**: Extract a parameterised `createControlCharValidator(exemptions?)` utility to `packages/core/src/lib/control-chars.ts` and update `validate-directory.ts` to import it.
+
+**Context**: This prevents duplicate security-critical character-detection logic. Both `validate-directory.ts` (no exemptions) and the new `validate-content.ts` (exempts tab/LF/CR) configure the same validator with different exemption sets. One implementation, one patch surface.
+
+**Affected files**:
+- `packages/core/src/lib/control-chars.ts` (new)
+- `packages/core/src/lib/control-chars.test.ts` (new)
+- `packages/lint/src/validate-directory.ts` — update to import from `control-chars.ts`
+
+**Requirements**:
+- The `createControlCharValidator(exemptions?: ReadonlySet<number>)` function shall return a `(s: string) => boolean` that returns `true` if `s` contains any control character not in the exemption set.
+- The character set shall cover: ASCII C0 (0x00–0x1F), DEL (0x7F), C1 (0x80–0x9F), Unicode line/paragraph separators (0x2028–0x2029), and bidirectional overrides (0x202A–0x202E, 0x2066–0x2069).
+- Because Biome's `noControlCharactersInRegex` rule prevents regex literals for these ranges, the implementation shall use `charCodeAt()`.
+- The existing `containsControlCharacters()` in `validate-directory.ts` shall delegate to `createControlCharValidator(new Set())` (no exemptions) so observable behavior is unchanged.
+
+**Verification**:
+- [ ] `npm test packages/core/src/lib/control-chars.test.ts` passes
+- [ ] `npx biome check packages/core/src/lib/control-chars.ts` passes
+- [ ] `npm test packages/lint/` passes (no regression in `validate-directory.ts`)
+
+**Done when**:
+- [ ] All verification steps pass
+- [ ] No new errors in affected files
+- [ ] `validate-directory.ts` imports from `control-chars.ts`
+- [ ] Code follows patterns in `.github/copilot-instructions.md`
+
+---
+
 ### Task 1: Add content input validation module
 
 **Objective**: Create `validate-content.ts` with Zod schemas and validation logic for string inputs.
 
-**Context**: This module validates `LintContentOptions` before content reaches use cases. It enforces size limits, control character rejection, name format validation, and item count limits.
+**Context**: This module validates `LintContentOptions` before content reaches use cases. It enforces size limits, control character rejection, name format validation, and item count limits. It imports `createControlCharValidator` from Task 0.
+
+**Depends on**: Task 0
 
 **Affected files**:
 - `packages/lint/src/validate-content.ts` (new)
@@ -300,7 +331,8 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 
 **Requirements**:
 - When `lintContent` is called with a content string exceeding 1 MB, the lint API shall reject with a `LintValidationError` (Story 6).
-- If a content string contains control characters (aligned with the character set in `validate-directory.ts:containsControlCharacters()`), then the lint API shall reject with a `LintValidationError` (Story 1).
+- If a content string contains control characters (using the shared `createControlCharValidator` from `packages/core/src/lib/control-chars.ts` with tab/LF/CR exemptions), then the lint API shall reject with a `LintValidationError` (Story 1).
+- The validation function shall check the per-item 1 MB size limit before scanning for control characters. The 10 MB aggregate size check shall execute before any per-item control character scans. (This ensures O(1) size checks short-circuit before O(n) character scans.)
 - When a `name` field is empty or does not match `^[a-zA-Z0-9][a-zA-Z0-9._-]{0,254}$`, the lint API shall reject with a `LintValidationError` (Stories 1, 2).
 - When the total combined size of all content strings exceeds 10 MB, the lint API shall reject with a `LintValidationError` (Story 6).
 - When the total item count across all targets exceeds 100, the lint API shall reject with a `LintValidationError` (Story 6).
@@ -325,7 +357,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 
 **Objective**: Create in-memory gateways for skill and agent lint that implement existing use-case port interfaces using provided string content.
 
-**Context**: These gateways enable the skill and agent use cases to operate on string inputs without filesystem access. They handle the `name-mismatch` suppression by setting `skillName`/`agentName` to match parsed frontmatter.
+**Context**: These gateways enable the skill and agent use cases to operate on string inputs without filesystem access. They populate `skillName`/`agentName` with the user-supplied input `name` — no frontmatter manipulation. The `skill/name-mismatch` and `agent/name-mismatch` rules may fire if the user's content frontmatter name differs from the input `name`, which is correct and useful behavior.
 
 **Depends on**: None (can run in parallel with Task 1)
 
@@ -338,10 +370,10 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 **Requirements**:
 - The `InMemorySkillLintGateway` shall implement `SkillLintGateway` and return content from the provided string inputs.
 - The `InMemoryAgentLintGateway` shall implement `AgentLintGateway` and return content from the provided string inputs.
+- The `discoverSkills()` method shall set `skillName` to the user-supplied input `name` (not the parsed frontmatter `name`).
+- The `discoverAgents()` method shall set `agentName` to the user-supplied input `name` (not the parsed frontmatter `name`).
 - When `readSkillFileContent` or `readAgentFileContent` is called with an unknown name, the gateway shall throw an error.
-- The YAML frontmatter parsing logic shall reuse the same parsing approach as the filesystem gateways.
-- The skill gateway shall set `skillName` to the parsed frontmatter `name` field to suppress `skill/name-mismatch` diagnostics.
-- The agent gateway shall set `agentName` to the parsed frontmatter `name` field to suppress `agent/name-mismatch` diagnostics.
+- If YAML frontmatter parsing throws during `discoverSkills()` or `discoverAgents()`, the gateway shall catch the exception and return the entry with the user-supplied input `name` as the fallback, so that `discoverSkills()` and `discoverAgents()` never throw for malformed content.
 
 **Verification**:
 - [ ] `npm test packages/core/src/gateways/in-memory-skill-lint-gateway.test.ts` passes
@@ -396,7 +428,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 
 **Context**: This is the main entry point for string-based linting. It mirrors the structure of `runLint` but uses in-memory gateways instead of filesystem gateways.
 
-**Depends on**: Task 1, Task 2a, Task 2b
+**Depends on**: Task 0, Task 1, Task 2a, Task 2b
 
 **Affected files**:
 - `packages/lint/src/lint-content.ts` (new)
@@ -500,7 +532,6 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 ## Future Considerations
 
 - Accept an optional `rules: LintRulesConfig` parameter in `lintContent` for custom severity overrides
-- Investigate suppressing or auto-disabling rules that depend on filesystem context (e.g., `skill/name-mismatch`, `agent/name-mismatch`) when using string input mode, as an alternative to the `skillName`/`agentName` matching approach
 - Add a browser-optimized bundle (ESM, tree-shakeable) of the lint package
 - Support streaming content input for real-time linting as users type
 - Add `--stdin` flag to the CLI that reads content from stdin and delegates to `lintContent`
