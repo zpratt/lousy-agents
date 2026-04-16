@@ -29,7 +29,7 @@ so that I can **validate user-provided skill definitions in my web app without a
 
 - When `lintContent` is called with a `skills` input containing a `name` and `content` string, the lint API shall analyze the content and return `LintResult` with skill diagnostics.
 - When `lintContent` is called with a `skills` input that omits the `name` field, the lint API shall reject with a `LintValidationError`.
-- The `name` field shall match `^[a-zA-Z0-9][a-zA-Z0-9._-]{0,254}$` (no path separators, no control characters, no Unicode bidirectional overrides). If the `name` field fails format validation, then the lint API shall reject with a `LintValidationError`.
+- If the `name` field is an empty string or does not match the `^[a-zA-Z0-9][a-zA-Z0-9._-]{0,254}$` format (no path separators, no control characters, no Unicode bidirectional overrides), then the lint API shall reject with a `LintValidationError`.
 - When the skill content is an empty string, the lint API shall return diagnostics indicating missing frontmatter.
 - If the skill content contains control characters (ASCII C0 0x00–0x1F except tab 0x09, newline 0x0A, and carriage return 0x0D; DEL 0x7F; C1 0x80–0x9F; Unicode line/paragraph separators 0x2028–0x2029; and bidirectional overrides 0x202A–0x202E, 0x2066–0x2069), then the lint API shall reject with a `LintValidationError`.
 
@@ -72,7 +72,7 @@ so that I can **preview instruction quality analysis without saving a file to di
 #### Acceptance Criteria
 
 - When `lintContent` is called with an `instructions` input containing a `name`, `content` string, and `format` specifier, the lint API shall analyze the content and return `LintResult` with instruction quality diagnostics.
-- When the instruction content is valid markdown with structural headings and code blocks, the lint API shall return a quality score and suggestions.
+- When the instruction content is valid markdown containing at least one structural heading and at least one fenced code block, the lint API shall return an instruction analysis whose `qualityResult.structure.headings` array is non-empty, whose `qualityResult.structure.codeBlocks` array is non-empty, whose `qualityResult.overallQualityScore` is `0` (no commands to score in string mode), whose `qualityResult.commandScores` array is empty, and whose `qualityResult.suggestions` field is present (may be empty).
 - If the `format` field is not a valid `InstructionFileFormat`, then the lint API shall reject with a `LintValidationError`.
 - If the instruction content is an empty string, the lint API shall return an analysis result with an empty `MarkdownStructure` (no headings, no code blocks), zero `overallQualityScore`, and empty `commandScores`. No error diagnostic is produced — an empty instruction is structurally valid but receives a zero quality score.
 - If the instruction content contains control characters (same range as Story 1), then the lint API shall reject with a `LintValidationError`.
@@ -443,11 +443,11 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 - `packages/core/src/gateways/in-memory-markdown-ast-gateway.test.ts` (new)
 
 **Requirements**:
-- Before creating `InMemoryMarkdownAstGateway`, extract the `parseContent()` and `findConditionalKeywordsInProximity()` logic from `RemarkMarkdownAstGateway` into shared pure functions in `packages/core/src/lib/remark-parser.ts`. This module shall have no `node:*` imports. Both `RemarkMarkdownAstGateway` and `InMemoryMarkdownAstGateway` shall delegate to these functions.
+- Before creating `InMemoryMarkdownAstGateway`, extract the `parseContent()` and `findConditionalKeywordsInProximity()` logic from `RemarkMarkdownAstGateway` into shared pure functions in `packages/core/src/lib/remark-parser.ts`. The extracted conditional-keyword helper shall keep the descriptive name `findConditionalKeywordsInProximity` (or another descriptive non-`Impl` name). This module shall have no `node:*` imports. Both `RemarkMarkdownAstGateway` and `InMemoryMarkdownAstGateway` shall delegate to these functions.
 - The `InMemoryHookConfigGateway` shall implement `HookConfigLintGateway` and return content from the provided string inputs.
 - The `InMemoryInstructionDiscoveryGateway` shall implement `InstructionFileDiscoveryGateway` and return discovered files from the provided string inputs.
 - The `InMemoryFeedbackLoopCommandsGateway` shall implement `FeedbackLoopCommandsGateway` and return an empty command list.
-- The `InMemoryMarkdownAstGateway` shall implement `MarkdownAstGateway` directly (not extend `RemarkMarkdownAstGateway`). Its `parseFile(filePath)` method shall look up the content string by name from the input map and delegate to the shared `parseMarkdownContent()` function from `remark-parser.ts`. Its `parseContent()` and `findConditionalKeywordsInProximity()` methods shall also delegate to the shared functions.
+- The `InMemoryMarkdownAstGateway` shall implement `MarkdownAstGateway` directly (not extend `RemarkMarkdownAstGateway`). Its `parseFile(filePath)` method shall look up the content string by name from the input map and delegate to the shared `parseMarkdownContent()` function from `remark-parser.ts`. Its `parseContent()` and `findConditionalKeywordsInProximity()` methods shall also delegate to the corresponding shared functions exported from `remark-parser.ts`.
 - When `readFileContent` or `parseFile` is called with an unknown name, the gateway shall throw an error.
 
 **Verification**:
