@@ -133,8 +133,10 @@ so that I can **protect my web app from denial-of-service via oversized payloads
 
 - `packages/lint/src/lint-content.ts` (new) — New composition root for string-based linting
 - `packages/lint/src/lint-content.test.ts` (new) — Tests for the new API
+- `packages/lint/src/errors.ts` (new) — `LintValidationError` extracted from `validate-directory.ts` with zero Node.js dependencies
 - `packages/lint/src/validate-content.ts` (new) — Input validation for string content
 - `packages/lint/src/validate-content.test.ts` (new) — Tests for input validation
+- `packages/lint/src/validate-directory.ts` — Updated to import `LintValidationError` from `errors.ts`
 - `packages/lint/src/index.ts` — Export `lintContent` and `LintContentOptions` types
 - `packages/lint/src/index.d.ts` — Add type declarations for `lintContent` API
 - `packages/core/src/lib/control-chars.ts` (new) — Parameterised control character validator shared by `validate-content.ts` and `validate-directory.ts`
@@ -287,22 +289,25 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 > Each task should be completable in a single coding agent session.
 > Tasks are sequenced by dependency. Complete in order unless noted.
 
-### Task 0: Extract shared control character validator
+### Task 0: Extract shared control character validator and `LintValidationError`
 
-**Objective**: Extract a parameterised `createControlCharValidator(exemptions?)` utility to `packages/core/src/lib/control-chars.ts` and update `validate-directory.ts` to import it.
+**Objective**: Extract `createControlCharValidator(exemptions?)` to `packages/core/src/lib/control-chars.ts`, extract `LintValidationError` to `packages/lint/src/errors.ts`, and update `validate-directory.ts` to import both.
 
-**Context**: This prevents duplicate security-critical character-detection logic. Both `validate-directory.ts` (no exemptions) and the new `validate-content.ts` (exempts tab/LF/CR) configure the same validator with different exemption sets. One implementation, one patch surface.
+**Context**: Two shared prerequisites for the string-input API. (1) The control character validator prevents duplicate security-critical detection logic — both `validate-directory.ts` (no exemptions) and the new `validate-content.ts` (exempts tab/LF/CR) configure the same validator with different exemption sets. One implementation, one patch surface. (2) `LintValidationError` must move to a Node.js-free `errors.ts` so `validate-content.ts` can import it without pulling `node:fs/promises` into the browser bundle — which would void the primary value of the feature.
 
 **Affected files**:
 - `packages/core/src/lib/control-chars.ts` (new)
 - `packages/core/src/lib/control-chars.test.ts` (new)
-- `packages/lint/src/validate-directory.ts` — update to import from `control-chars.ts`
+- `packages/lint/src/errors.ts` (new) — `LintValidationError` with zero Node.js dependencies
+- `packages/lint/src/validate-directory.ts` — update to import `LintValidationError` from `errors.ts` and `createControlCharValidator` from `control-chars.ts`
 
 **Requirements**:
 - The `createControlCharValidator(exemptions?: ReadonlySet<number>)` function shall return a `(s: string) => boolean` that returns `true` if `s` contains any control character not in the exemption set.
 - The character set shall cover: ASCII C0 (0x00–0x1F), DEL (0x7F), C1 (0x80–0x9F), Unicode line/paragraph separators (0x2028–0x2029), and bidirectional overrides (0x202A–0x202E, 0x2066–0x2069).
 - Because Biome's `noControlCharactersInRegex` rule prevents regex literals for these ranges, the implementation shall use `charCodeAt()`.
 - The existing `containsControlCharacters()` in `validate-directory.ts` shall delegate to `createControlCharValidator(new Set())` (no exemptions) so observable behavior is unchanged.
+- `errors.ts` shall export `LintValidationError extends Error` with no imports from `node:*` modules.
+- `validate-directory.ts` shall import `LintValidationError` from `./errors.js`; all existing tests shall continue to pass without modification.
 
 **Verification**:
 - [ ] `npm test packages/core/src/lib/control-chars.test.ts` passes
@@ -313,7 +318,8 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 **Done when**:
 - [ ] All verification steps pass
 - [ ] No new errors in affected files
-- [ ] `validate-directory.ts` imports from `control-chars.ts`
+- [ ] `validate-directory.ts` imports `LintValidationError` from `errors.ts` and `createControlCharValidator` from `control-chars.ts`
+- [ ] `errors.ts` has no `node:*` imports
 - [ ] Test cases cover all six detection branches including bidi-override range
 - [ ] Code follows patterns in `.github/copilot-instructions.md`
 
@@ -323,7 +329,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 
 **Objective**: Create `validate-content.ts` with Zod schemas and validation logic for string inputs.
 
-**Context**: This module validates `LintContentOptions` before content reaches use cases. It enforces size limits, control character rejection, name format validation, and item count limits. It imports `createControlCharValidator` from Task 0.
+**Context**: This module validates `LintContentOptions` before content reaches use cases. It enforces size limits, control character rejection, name format validation, and item count limits. It imports `createControlCharValidator` from Task 0 and `LintValidationError` from `errors.ts` (also from Task 0) — no Node.js dependencies enter this module.
 
 **Depends on**: Task 0
 
@@ -374,6 +380,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 - The `InMemoryAgentLintGateway` shall implement `AgentLintGateway` and return content from the provided string inputs.
 - The `discoverSkills()` method shall set `skillName` to the user-supplied input `name` (not the parsed frontmatter `name`). No YAML parsing occurs in `discoverSkills()` — discovery is a pure map over the input array.
 - The `discoverAgents()` method shall set `agentName` to the user-supplied input `name` (not the parsed frontmatter `name`). Same — no YAML parsing in `discoverAgents()`.
+- The `parseFrontmatter(content)` method shall be implemented using the same YAML-parsing logic as the filesystem gateways (`skill-lint-gateway.ts` / `agent-lint-gateway.ts`).
 - When `readSkillFileContent` or `readAgentFileContent` is called with an unknown name, the gateway shall throw an error.
 
 **Note**: YAML frontmatter exceptions during `parseFrontmatter()` are already handled inside the use case's existing try/catch at the per-skill/per-agent processing loop. No additional try/catch is needed in the gateways.
