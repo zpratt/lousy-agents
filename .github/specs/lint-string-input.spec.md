@@ -244,9 +244,9 @@ sequenceDiagram
     LC->>SUC: new LintSkillFrontmatterUseCase(SGW)
     LC->>SUC: execute({ targetDir: "<in-memory>" })
     SUC->>SGW: discoverSkills("<in-memory>")
-    SGW-->>SUC: [{ filePath: name, dirName: frontmatter-name }]
+    SGW-->>SUC: [{ filePath: name, skillName: frontmatter-name }]
     loop For each skill
-        SUC->>SGW: readSkillFileContent(name)
+        SUC->>SGW: readSkillFileContent(filePath)
         SGW-->>SUC: content string
         SUC->>SUC: parseFrontmatter + validate
     end
@@ -340,7 +340,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 - The `InMemoryAgentLintGateway` shall implement `AgentLintGateway` and return content from the provided string inputs.
 - When `readSkillFileContent` or `readAgentFileContent` is called with an unknown name, the gateway shall throw an error.
 - The YAML frontmatter parsing logic shall reuse the same parsing approach as the filesystem gateways.
-- The skill gateway shall set `dirName` to the parsed frontmatter `name` field to suppress `skill/name-mismatch` diagnostics.
+- The skill gateway shall set `skillName` to the parsed frontmatter `name` field to suppress `skill/name-mismatch` diagnostics.
 - The agent gateway shall set `agentName` to the parsed frontmatter `name` field to suppress `agent/name-mismatch` diagnostics.
 
 **Verification**:
@@ -500,7 +500,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 ## Future Considerations
 
 - Accept an optional `rules: LintRulesConfig` parameter in `lintContent` for custom severity overrides
-- Investigate suppressing or auto-disabling rules that depend on filesystem context (e.g., `skill/name-mismatch`, `agent/name-mismatch`) when using string input mode, as an alternative to the `dirName`/`agentName` matching approach
+- Investigate suppressing or auto-disabling rules that depend on filesystem context (e.g., `skill/name-mismatch`, `agent/name-mismatch`) when using string input mode, as an alternative to the `skillName`/`agentName` matching approach
 - Add a browser-optimized bundle (ESM, tree-shakeable) of the lint package
 - Support streaming content input for real-time linting as users type
 - Add `--stdin` flag to the CLI that reads content from stdin and delegates to `lintContent`
