@@ -80,7 +80,7 @@ so that I can **preview instruction quality analysis without saving a file to di
 #### Notes
 
 - Feedback loop command discovery is not possible without a project directory. The use case shall use an empty command list in string mode.
-- With no commands to score, the `overallQualityScore` will be 0 and `commandScores` will be empty. This is expected — the quality score measures how well the instruction documents mandatory feedback loop commands, not structural quality. Structural analysis (headings, code blocks) is still reflected in per-file `MarkdownStructure` data available in the analysis output.
+- With no commands to score, the `overallQualityScore` will be 0 and `commandScores` will be empty. This is expected — the quality score measures how well the instruction documents mandatory feedback loop commands, not structural quality. Structural analysis (headings, code blocks) is performed internally by the use case but is not surfaced in `InstructionQualityResult` or `LintOutput`. A future spec could expose per-file `MarkdownStructure` in the output if consumers need it.
 - A future enhancement could accept a `commands` parameter in `LintContentOptions` to enable command-quality scoring in string mode.
 - The `name` field is used as `filePath` in `DiscoveredInstructionFile` and as the lookup key in `InMemoryMarkdownAstGateway`. Both gateways must use the raw `name` as-is — no path prefixes or synthetic paths.
 
@@ -270,7 +270,7 @@ sequenceDiagram
     end
     SUC-->>LC: LintSkillFrontmatterOutput
 
-    LC->>LC: toLintOutput(output, "skill", count)
+    LC->>LC: buildLintOutput(output, "skill", count)
     LC->>Filter: applySeverityFilter(output, DEFAULT_LINT_RULES)
     Filter-->>LC: filtered LintOutput
     LC-->>WebApp: LintResult { outputs, hasErrors }
@@ -483,6 +483,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 - `packages/lint/src/lint-content.test.ts` (new)
 
 **Requirements**:
+- **Import restriction**: `lint-content.ts` MUST NOT import from `./lint.js` or any module that transitively imports `node:*` built-ins. The `LintOutput` construction logic (converting use-case output to `LintOutput`) must be implemented directly in `lint-content.ts` or extracted to a shared `node:*`-free module. If extracted, the shared module must be listed in Affected files.
 - The `lintContent` function shall pass a non-empty sentinel string (e.g., `"<in-memory>"`) as `targetDir` to all use-case `execute()` calls. This satisfies the `!input.targetDir` guard in each use case without implying a real directory. In-memory gateways shall ignore the `targetDir` parameter.
 - When `lintContent` is called with valid skill inputs, the lint API shall return `LintResult` with skill diagnostics (Story 1).
 - When `lintContent` is called with valid agent inputs, the lint API shall return `LintResult` with agent diagnostics (Story 2).
@@ -515,6 +516,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 **Affected files**:
 - `packages/lint/src/index.ts`
 - `packages/lint/src/index.d.ts`
+- `packages/lint/src/lint-content.no-node-imports.test.ts` (new) — static import graph test
 
 **Requirements**:
 - The `lintContent` function shall be exported from `@lousy-agents/lint`.
@@ -527,7 +529,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 - [ ] `npx biome check packages/lint/src/index.ts` passes
 - [ ] Existing `runLint` tests still pass: `npm test packages/lint/`
 - [ ] New `lintContent` exports are importable from the built package
-- [ ] The transitive import graph from `lint-content.ts` contains zero `node:*` module imports (verify via a test or static analysis script that traces imports from `lint-content.ts` and asserts none resolve to `node:fs`, `node:path`, `node:fs/promises`, or any other `node:*` built-in)
+- [ ] `npm test packages/lint/src/lint-content.no-node-imports.test.ts` passes — this test statically asserts that the transitive import graph from `lint-content.ts` contains zero `node:*` module imports (e.g., by recursively resolving imports from `lint-content.ts` and asserting none resolve to `node:fs`, `node:path`, `node:fs/promises`, or any other `node:*` built-in)
 
 **Done when**:
 - [ ] All verification steps pass
