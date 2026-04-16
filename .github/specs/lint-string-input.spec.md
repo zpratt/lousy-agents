@@ -308,11 +308,13 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 - [ ] `npm test packages/core/src/lib/control-chars.test.ts` passes
 - [ ] `npx biome check packages/core/src/lib/control-chars.ts` passes
 - [ ] `npm test packages/lint/` passes (no regression in `validate-directory.ts`)
+- [ ] Test file contains boundary-value assertions for all six detection branches: `\x00` (ASCII C0), `\x7F` (DEL), `\x80` (C1), `\u2028` (line separator), `\u202A` (bidi override), `\u2066` (bidi isolate)
 
 **Done when**:
 - [ ] All verification steps pass
 - [ ] No new errors in affected files
 - [ ] `validate-directory.ts` imports from `control-chars.ts`
+- [ ] Test cases cover all six detection branches including bidi-override range
 - [ ] Code follows patterns in `.github/copilot-instructions.md`
 
 ---
@@ -370,10 +372,11 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 **Requirements**:
 - The `InMemorySkillLintGateway` shall implement `SkillLintGateway` and return content from the provided string inputs.
 - The `InMemoryAgentLintGateway` shall implement `AgentLintGateway` and return content from the provided string inputs.
-- The `discoverSkills()` method shall set `skillName` to the user-supplied input `name` (not the parsed frontmatter `name`).
-- The `discoverAgents()` method shall set `agentName` to the user-supplied input `name` (not the parsed frontmatter `name`).
+- The `discoverSkills()` method shall set `skillName` to the user-supplied input `name` (not the parsed frontmatter `name`). No YAML parsing occurs in `discoverSkills()` — discovery is a pure map over the input array.
+- The `discoverAgents()` method shall set `agentName` to the user-supplied input `name` (not the parsed frontmatter `name`). Same — no YAML parsing in `discoverAgents()`.
 - When `readSkillFileContent` or `readAgentFileContent` is called with an unknown name, the gateway shall throw an error.
-- If YAML frontmatter parsing throws during `discoverSkills()` or `discoverAgents()`, the gateway shall catch the exception and return the entry with the user-supplied input `name` as the fallback, so that `discoverSkills()` and `discoverAgents()` never throw for malformed content.
+
+**Note**: YAML frontmatter exceptions during `parseFrontmatter()` are already handled inside the use case's existing try/catch at the per-skill/per-agent processing loop. No additional try/catch is needed in the gateways.
 
 **Verification**:
 - [ ] `npm test packages/core/src/gateways/in-memory-skill-lint-gateway.test.ts` passes
