@@ -95,6 +95,7 @@ so that I can **validate hook configurations interactively**.
 #### Acceptance Criteria
 
 - When `lintContent` is called with a `hooks` input containing a `name`, `content` string, and `platform` specifier (`"copilot"` or `"claude"`), the lint API shall analyze the content and return `LintResult` with hook diagnostics.
+- If the `name` field is an empty string or does not match the `^[a-zA-Z0-9][a-zA-Z0-9._-]{0,254}$` format, then the lint API shall reject with a `LintValidationError`.
 - If the hook content is not valid JSON, then the lint API shall return a diagnostic with rule ID `hook/invalid-json`.
 - If the `platform` field is not `"copilot"` or `"claude"`, then the lint API shall reject with a `LintValidationError`.
 - If the hook content contains control characters (same range as Story 1), then the lint API shall reject with a `LintValidationError`.
@@ -149,11 +150,16 @@ so that I can **protect my web app from denial-of-service via oversized payloads
 - `packages/lint/src/index.ts` — Export `lintContent` and `LintContentOptions` types
 - `packages/lint/src/index.d.ts` — Add type declarations for `lintContent` API
 - `packages/core/src/lib/control-chars.ts` (new) — Parameterised control character validator shared by `validate-content.ts` and `validate-directory.ts`
+- `packages/core/src/lib/parse-frontmatter.ts` (new) — Shared YAML frontmatter parser extracted from skill/agent gateways
+- `packages/core/src/lib/remark-parser.ts` (new) — Shared remark-based `parseContent()` and `findConditionalKeywordsInProximity()` functions extracted from `RemarkMarkdownAstGateway`
+- `packages/core/src/gateways/skill-lint-gateway.ts` — Updated to delegate `parseFrontmatter()` to shared utility
+- `packages/core/src/gateways/agent-lint-gateway.ts` — Updated to delegate `parseFrontmatter()` to shared utility
+- `packages/core/src/gateways/markdown-ast-gateway.ts` — Updated to delegate to `remark-parser.ts` functions
 - `packages/core/src/gateways/in-memory-skill-lint-gateway.ts` (new) — In-memory skill lint gateway
 - `packages/core/src/gateways/in-memory-agent-lint-gateway.ts` (new) — In-memory agent lint gateway
 - `packages/core/src/gateways/in-memory-hook-config-gateway.ts` (new) — In-memory hook config gateway
 - `packages/core/src/gateways/in-memory-instruction-gateways.ts` (new) — In-memory instruction discovery and feedback loop commands gateways
-- `packages/core/src/gateways/in-memory-markdown-ast-gateway.ts` (new) — In-memory markdown AST gateway (replaces filesystem `parseFile()` with content-map lookup)
+- `packages/core/src/gateways/in-memory-markdown-ast-gateway.ts` (new) — In-memory markdown AST gateway (implements `MarkdownAstGateway` via composition, no `node:fs` dependency)
 
 **Note**: No use-case files are modified in this spec. All adaptation is in gateway implementations. The existing use cases operate identically on in-memory content because they depend on gateway port interfaces, not concrete filesystem implementations. If future work requires conditional scoring when commands are empty (see Open Questions), the use case would need modification — that would be a separate spec.
 
@@ -279,7 +285,7 @@ The existing use cases accept gateway interfaces (ports) via constructor injecti
 3. **InMemoryHookConfigGateway** (`packages/core/src/gateways/in-memory-hook-config-gateway.ts`) implements `HookConfigLintGateway` — `discoverHookFiles()` returns entries from input; `readFileContent()` returns the string.
 4. **InMemoryInstructionDiscoveryGateway** (`packages/core/src/gateways/in-memory-instruction-gateways.ts`) implements `InstructionFileDiscoveryGateway` — returns discovered files from input array.
 5. **InMemoryFeedbackLoopCommandsGateway** (same file) implements `FeedbackLoopCommandsGateway` — returns an empty command list (no project directory to scan).
-6. **InMemoryMarkdownAstGateway** (`packages/core/src/gateways/in-memory-markdown-ast-gateway.ts`) extends `RemarkMarkdownAstGateway` and overrides only `parseFile(filePath)` to look up the content string by name from the input map and delegate to the inherited `parseContent()`. This is necessary because `AnalyzeInstructionQualityUseCase` calls `astGateway.parseFile(filePath)` and the parent class's `parseFile()` reads from disk via `readFileNoFollow()`, which won't work for in-memory inputs. The `parseContent()` and `findConditionalKeywordsInProximity()` methods are inherited unchanged.
+6. **InMemoryMarkdownAstGateway** (`packages/core/src/gateways/in-memory-markdown-ast-gateway.ts`) implements `MarkdownAstGateway` directly. Its `parseFile(filePath)` method looks up the content string by name from the input map and delegates to shared remark-based parsing functions extracted to `packages/core/src/lib/remark-parser.ts`. This is necessary because `AnalyzeInstructionQualityUseCase` calls `astGateway.parseFile(filePath)` and the filesystem gateway's `parseFile()` reads from disk via `readFileNoFollow()`, which won't work for in-memory inputs. **Composition (not inheritance)** is used to avoid transitively importing `node:fs/promises` from `RemarkMarkdownAstGateway` into the browser bundle. Both `RemarkMarkdownAstGateway` and `InMemoryMarkdownAstGateway` delegate to the same extracted parsing functions.
 
 This approach requires zero changes to use-case business logic. The use cases are unaware they are operating on in-memory content vs. filesystem content.
 
@@ -381,22 +387,30 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 **Depends on**: None (can run in parallel with Task 1)
 
 **Affected files**:
+- `packages/core/src/lib/parse-frontmatter.ts` (new) — shared `parseFrontmatter(content: string): ParsedFrontmatter | null` function
+- `packages/core/src/lib/parse-frontmatter.test.ts` (new) — tests for extracted function
+- `packages/core/src/gateways/skill-lint-gateway.ts` — updated to delegate `parseFrontmatter()` to the shared utility
+- `packages/core/src/gateways/agent-lint-gateway.ts` — updated to delegate `parseFrontmatter()` to the shared utility
 - `packages/core/src/gateways/in-memory-skill-lint-gateway.ts` (new)
 - `packages/core/src/gateways/in-memory-skill-lint-gateway.test.ts` (new)
 - `packages/core/src/gateways/in-memory-agent-lint-gateway.ts` (new)
 - `packages/core/src/gateways/in-memory-agent-lint-gateway.test.ts` (new)
 
 **Requirements**:
+- Before creating the in-memory gateways, extract the shared `parseFrontmatter(content: string): ParsedFrontmatter | null` logic from the filesystem gateways into `packages/core/src/lib/parse-frontmatter.ts`. Both filesystem gateways (`skill-lint-gateway.ts`, `agent-lint-gateway.ts`) and both in-memory gateways shall delegate to this function. This prevents 4 copies of YAML frontmatter parsing logic.
 - The `InMemorySkillLintGateway` shall implement `SkillLintGateway` and return content from the provided string inputs.
 - The `InMemoryAgentLintGateway` shall implement `AgentLintGateway` and return content from the provided string inputs.
 - The `discoverSkills()` method shall set `skillName` to the user-supplied input `name` (not the parsed frontmatter `name`), where `name` is the canonical logical skill identifier matching existing rule semantics for skill directory names and therefore shall not include a file extension. No YAML parsing occurs in `discoverSkills()` — discovery is a pure map over the input array.
 - The `discoverAgents()` method shall set `agentName` to the user-supplied input `name` (not the parsed frontmatter `name`), where `name` is the canonical logical agent identifier matching existing rule semantics for agent filename stems and therefore shall not include a file extension. Same — no YAML parsing in `discoverAgents()`.
-- The `parseFrontmatter(content)` method shall be implemented using the same YAML-parsing logic as the filesystem gateways (`skill-lint-gateway.ts` / `agent-lint-gateway.ts`).
+- The `parseFrontmatter(content)` method in each in-memory gateway shall delegate to the shared `parseFrontmatter` utility from `packages/core/src/lib/parse-frontmatter.ts`.
 - When `readSkillFileContent` or `readAgentFileContent` is called with an unknown name, the gateway shall throw an error.
 
 **Note**: For the string-input API, callers supply the canonical logical `name` used by lint rules, not a display filename such as `my-skill.md` or `my-agent.md`. For skills, `name` corresponds to the parent directory name (e.g., `my-skill`). For agents, `name` corresponds to the filename stem without the `.md` or `.agent.md` extension (e.g., `my-agent`). YAML frontmatter exceptions during `parseFrontmatter()` are already handled inside the use case's existing try/catch at the per-skill/per-agent processing loop. No additional try/catch is needed in the gateways.
 
 **Verification**:
+- [ ] `npm test packages/core/src/lib/parse-frontmatter.test.ts` passes
+- [ ] `npm test packages/core/src/gateways/skill-lint-gateway.test.ts` passes (no regression)
+- [ ] `npm test packages/core/src/gateways/agent-lint-gateway.test.ts` passes (no regression)
 - [ ] `npm test packages/core/src/gateways/in-memory-skill-lint-gateway.test.ts` passes
 - [ ] `npm test packages/core/src/gateways/in-memory-agent-lint-gateway.test.ts` passes
 - [ ] `npx biome check packages/core/src/gateways/in-memory-skill-lint-gateway.ts` passes
@@ -414,10 +428,13 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 
 **Objective**: Create in-memory gateways for hook config, instruction discovery, markdown AST parsing, and feedback loop commands.
 
-**Context**: These gateways complete the set of in-memory adapters needed for all lint targets. The `InMemoryMarkdownAstGateway` is required because `AnalyzeInstructionQualityUseCase` calls `astGateway.parseFile(filePath)` and the filesystem gateway's `parseFile()` reads from disk. The in-memory gateway looks up content by name from the input map and delegates to `parseContent()`.
+**Context**: These gateways complete the set of in-memory adapters needed for all lint targets. The `InMemoryMarkdownAstGateway` is required because `AnalyzeInstructionQualityUseCase` calls `astGateway.parseFile(filePath)` and the filesystem gateway's `parseFile()` reads from disk. The in-memory gateway uses **composition (not inheritance)** — it implements `MarkdownAstGateway` directly and delegates to shared remark-based parsing functions extracted from `RemarkMarkdownAstGateway`. This avoids transitively importing `node:fs/promises` into the browser bundle.
 
 **Depends on**: None (can run in parallel with Task 1)
 **Affected files**:
+- `packages/core/src/lib/remark-parser.ts` (new) — shared `parseMarkdownContent()` and `findConditionalKeywordsInProximityImpl()` functions with no `node:fs` dependency
+- `packages/core/src/lib/remark-parser.test.ts` (new) — tests for extracted functions
+- `packages/core/src/gateways/markdown-ast-gateway.ts` — updated to delegate to `remark-parser.ts`
 - `packages/core/src/gateways/in-memory-hook-config-gateway.ts` (new)
 - `packages/core/src/gateways/in-memory-hook-config-gateway.test.ts` (new)
 - `packages/core/src/gateways/in-memory-instruction-gateways.ts` (new)
@@ -426,19 +443,24 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 - `packages/core/src/gateways/in-memory-markdown-ast-gateway.test.ts` (new)
 
 **Requirements**:
+- Before creating `InMemoryMarkdownAstGateway`, extract the `parseContent()` and `findConditionalKeywordsInProximity()` logic from `RemarkMarkdownAstGateway` into shared pure functions in `packages/core/src/lib/remark-parser.ts`. This module shall have no `node:*` imports. Both `RemarkMarkdownAstGateway` and `InMemoryMarkdownAstGateway` shall delegate to these functions.
 - The `InMemoryHookConfigGateway` shall implement `HookConfigLintGateway` and return content from the provided string inputs.
 - The `InMemoryInstructionDiscoveryGateway` shall implement `InstructionFileDiscoveryGateway` and return discovered files from the provided string inputs.
 - The `InMemoryFeedbackLoopCommandsGateway` shall implement `FeedbackLoopCommandsGateway` and return an empty command list.
-- The `InMemoryMarkdownAstGateway` shall extend `RemarkMarkdownAstGateway` and override only `parseFile(filePath)` to look up the content string by name from the input map and delegate to the inherited `parseContent()`. The `parseContent()` and `findConditionalKeywordsInProximity()` methods are inherited from the parent class — no code duplication required.
+- The `InMemoryMarkdownAstGateway` shall implement `MarkdownAstGateway` directly (not extend `RemarkMarkdownAstGateway`). Its `parseFile(filePath)` method shall look up the content string by name from the input map and delegate to the shared `parseMarkdownContent()` function from `remark-parser.ts`. Its `parseContent()` and `findConditionalKeywordsInProximity()` methods shall also delegate to the shared functions.
 - When `readFileContent` or `parseFile` is called with an unknown name, the gateway shall throw an error.
 
 **Verification**:
+- [ ] `npm test packages/core/src/lib/remark-parser.test.ts` passes
 - [ ] `npm test packages/core/src/gateways/in-memory-hook-config-gateway.test.ts` passes
 - [ ] `npm test packages/core/src/gateways/in-memory-instruction-gateways.test.ts` passes
 - [ ] `npm test packages/core/src/gateways/in-memory-markdown-ast-gateway.test.ts` passes
+- [ ] `npm test packages/core/src/gateways/markdown-ast-gateway.test.ts` passes (no regression)
+- [ ] `npx biome check packages/core/src/lib/remark-parser.ts` passes
 - [ ] `npx biome check packages/core/src/gateways/in-memory-hook-config-gateway.ts` passes
 - [ ] `npx biome check packages/core/src/gateways/in-memory-instruction-gateways.ts` passes
 - [ ] `npx biome check packages/core/src/gateways/in-memory-markdown-ast-gateway.ts` passes
+- [ ] `remark-parser.ts` has no `node:*` imports
 
 **Done when**:
 - [ ] All verification steps pass
@@ -461,6 +483,7 @@ Without a project directory, there is no `lousy-agents.config.json` to load. The
 - `packages/lint/src/lint-content.test.ts` (new)
 
 **Requirements**:
+- The `lintContent` function shall pass a non-empty sentinel string (e.g., `"<in-memory>"`) as `targetDir` to all use-case `execute()` calls. This satisfies the `!input.targetDir` guard in each use case without implying a real directory. In-memory gateways shall ignore the `targetDir` parameter.
 - When `lintContent` is called with valid skill inputs, the lint API shall return `LintResult` with skill diagnostics (Story 1).
 - When `lintContent` is called with valid agent inputs, the lint API shall return `LintResult` with agent diagnostics (Story 2).
 - When `lintContent` is called with valid instruction inputs, the lint API shall return `LintResult` with instruction quality diagnostics (Story 3).
