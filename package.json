@@ -51,7 +51,7 @@
         "@types/node": "25.6.0",
         "@upstash/context7-mcp": "2.1.8",
         "chance": "1.1.13",
-        "fast-check": "4.6.0",
+        "fast-check": "4.7.0",
         "testcontainers": "11.14.0",
         "tsx": "4.21.0",
         "typescript": "6.0.3",
