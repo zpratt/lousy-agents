@@ -3,7 +3,7 @@
     "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04@sha256:4bcb1b466771b1ba1ea110e2a27daea2f6093f9527fb75ee59703ec89b5561cb",
     "features": {
         "ghcr.io/devcontainers/features/node:1.7.1": {
-            "version": "24.14.1"
+            "version": "24.15.0"
         },
         "ghcr.io/devcontainers/features/github-cli:1.1.0": {
             "version": "latest"
