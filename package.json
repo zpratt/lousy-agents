@@ -44,8 +44,8 @@
     "devDependencies": {
         "@biomejs/biome": "2.4.12",
         "@modelcontextprotocol/server-sequential-thinking": "2025.12.18",
-        "@rspack/cli": "1.7.11",
-        "@rspack/core": "1.7.11",
+        "@rspack/cli": "2.0.0",
+        "@rspack/core": "2.0.0",
         "@types/chance": "1.1.7",
         "@types/mdast": "4.0.4",
         "@types/node": "25.6.0",
