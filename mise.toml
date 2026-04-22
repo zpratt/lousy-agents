@@ -13,7 +13,7 @@ enter = "mise i -q && npm i"
 [tools]
 actionlint = "1.7.12"
 jq = "1.8.1"
-markdownlint-cli2 = "0.22.0"
+markdownlint-cli2 = "0.22.1"
 pipx = "latest"
 "pipx:check-jsonschema" = "0.37.1"
 shellcheck = "0.11.0"
