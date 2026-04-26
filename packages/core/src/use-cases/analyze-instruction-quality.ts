@@ -138,9 +138,15 @@ export class AnalyzeInstructionQualityUseCase {
             throw new Error("Target directory is required");
         }
 
-        const headingPatterns = input.headingPatterns ?? [
-            ...DEFAULT_STRUCTURAL_HEADING_PATTERNS,
-        ];
+        const seenLower = new Set<string>();
+        const headingPatterns = (
+            input.headingPatterns ?? [...DEFAULT_STRUCTURAL_HEADING_PATTERNS]
+        ).filter((p) => {
+            const lower = p.toLowerCase();
+            if (seenLower.has(lower)) return false;
+            seenLower.add(lower);
+            return true;
+        });
 
         if (headingPatterns.length > MAX_HEADING_PATTERNS) {
             throw new Error(

@@ -1324,5 +1324,29 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                 "headingPatterns must contain at most 50 entries",
             );
         });
+
+        it("does not throw when 51 entries are all duplicates of the same pattern", async () => {
+            // Arrange — 51 copies of "Commands" dedup to 1 unique pattern
+            const discoveryGateway = createMockDiscoveryGateway([]);
+            const astGateway = createMockAstGateway();
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+            const duplicatePatterns = Array.from(
+                { length: 51 },
+                () => "Commands",
+            );
+
+            // Act & Assert - should not throw; effective unique count is 1
+            await expect(
+                useCase.execute({
+                    targetDir: "/repo",
+                    headingPatterns: duplicatePatterns,
+                }),
+            ).resolves.toBeDefined();
+        });
     });
 });
