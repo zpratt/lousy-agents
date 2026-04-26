@@ -29,15 +29,17 @@ export const AgentSkillFrontmatterSchema = z.object({
         .optional(),
     metadata: z.record(z.string(), z.string()).optional(),
     "allowed-tools": z.string().optional(),
+    "argument-hint": z.string().optional(),
 });
 
-const RECOMMENDED_FIELDS = ["allowed-tools"] as const;
+const RECOMMENDED_FIELDS = ["allowed-tools", "argument-hint"] as const;
 
 const RECOMMENDED_FIELD_RULE_IDS: Record<
     (typeof RECOMMENDED_FIELDS)[number],
     string
 > = {
     "allowed-tools": "skill/missing-allowed-tools",
+    "argument-hint": "skill/missing-argument-hint",
 } as const;
 
 export interface SkillLintGateway {
