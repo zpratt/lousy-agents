@@ -68,11 +68,12 @@ so that I can **ensure coding agents have the context they need to follow struct
 New exported constant in `instruction-quality.ts`:
 
 ```typescript
-export const HEADING_PATTERN_DESCRIPTIONS: Readonly<Record<string, string>> = {
-    "Validation": "...",
-    "Verification": "...",
-    // ... one entry per DEFAULT_STRUCTURAL_HEADING_PATTERNS item
-};
+export const HEADING_PATTERN_DESCRIPTIONS: ReadonlyMap<string, string> =
+    new Map<string, string>([
+        ["Validation", "..."],
+        ["Verification", "..."],
+        // ... one entry per DEFAULT_STRUCTURAL_HEADING_PATTERNS item
+    ]);
 ```
 
 New rule ID surfaced in `LintDiagnostic.ruleId`: `"instruction/missing-structural-heading"`
