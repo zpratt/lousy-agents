@@ -195,11 +195,11 @@ sequenceDiagram
 - All acceptance criteria from Story 1 must have corresponding test coverage.
 
 **Verification**:
-- [x] `npm test packages/core/src/use-cases/analyze-instruction-quality.test.ts` passes with 16 tests (11 existing + 5 new)
+- [x] `npm test packages/core/src/use-cases/analyze-instruction-quality.test.ts` passes with 19 tests (11 existing + 8 new)
 
 **Done when**:
 - [x] All verification steps pass
-- [x] New tests cover: all headings missing, partial headings, all headings present, case-insensitive matching, message includes description
+- [x] New tests cover: all headings missing, partial headings, all headings present, case-insensitive matching, message includes description, Validation Suite supersession, duplicate patterns deduplication, non-canonical casing lookup
 
 ---
 

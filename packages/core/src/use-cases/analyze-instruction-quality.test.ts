@@ -1055,4 +1055,88 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             expect(hasValidationSuiteWarning).toBe(false);
         });
     });
+
+    describe("given duplicate heading patterns in the input", () => {
+        it("emits each missing-heading diagnostic only once", async () => {
+            // Arrange
+            const filePath = "/repo/AGENTS.md";
+            const files: DiscoveredInstructionFile[] = [
+                { filePath, format: "agents-md" },
+            ];
+
+            const structure: MarkdownStructure = {
+                headings: [],
+                codeBlocks: [],
+                inlineCodes: [],
+                ast: { type: "root", children: [] } as unknown as Root,
+            };
+
+            const discoveryGateway = createMockDiscoveryGateway(files);
+            const astGateway = createMockAstGateway(
+                new Map([[filePath, structure]]),
+            );
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act - pass the same pattern twice
+            const output = await useCase.execute({
+                targetDir: "/repo",
+                headingPatterns: ["Commands", "Commands"],
+            });
+
+            // Assert - only one diagnostic is emitted for the duplicated pattern
+            const missingHeadingDiags = output.diagnostics.filter(
+                (d) => d.ruleId === "instruction/missing-structural-heading",
+            );
+            expect(missingHeadingDiags).toHaveLength(1);
+            expect(missingHeadingDiags[0].message).toContain("'Commands'");
+        });
+    });
+
+    describe("given heading patterns with non-canonical casing", () => {
+        it("still returns a specific description for known patterns", async () => {
+            // Arrange
+            const filePath = "/repo/AGENTS.md";
+            const files: DiscoveredInstructionFile[] = [
+                { filePath, format: "agents-md" },
+            ];
+
+            const structure: MarkdownStructure = {
+                headings: [],
+                codeBlocks: [],
+                inlineCodes: [],
+                ast: { type: "root", children: [] } as unknown as Root,
+            };
+
+            const discoveryGateway = createMockDiscoveryGateway(files);
+            const astGateway = createMockAstGateway(
+                new Map([[filePath, structure]]),
+            );
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act - lowercase "commands" instead of the canonical "Commands"
+            const output = await useCase.execute({
+                targetDir: "/repo",
+                headingPatterns: ["commands"],
+            });
+
+            // Assert - the message contains the specific description, not the generic fallback
+            const diag = output.diagnostics.find(
+                (d) => d.ruleId === "instruction/missing-structural-heading",
+            );
+            expect(diag).toBeDefined();
+            expect(diag?.message).toContain(
+                "Agents need this section to know which commands and tools are available in the project.",
+            );
+        });
+    });
 });

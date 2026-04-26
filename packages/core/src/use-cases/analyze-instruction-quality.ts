@@ -634,7 +634,26 @@ export class AnalyzeInstructionQualityUseCase {
             h.text.toLowerCase(),
         );
 
-        for (const pattern of headingPatterns) {
+        // Deduplicate patterns (case-insensitively) to prevent duplicate diagnostics
+        // when the caller supplies the same pattern more than once.
+        const seenLower = new Set<string>();
+        const uniquePatterns = headingPatterns.filter((p) => {
+            const lower = p.toLowerCase();
+            if (seenLower.has(lower)) {
+                return false;
+            }
+            seenLower.add(lower);
+            return true;
+        });
+
+        // Build a lowercase-keyed lookup for descriptions so the map remains valid
+        // even when callers provide headingPatterns with non-canonical casing.
+        const descriptionsByLower = new Map<string, string>();
+        for (const [key, value] of HEADING_PATTERN_DESCRIPTIONS) {
+            descriptionsByLower.set(key.toLowerCase(), value);
+        }
+
+        for (const pattern of uniquePatterns) {
             const patternLower = pattern.toLowerCase();
             const hasHeading = fileHeadingTexts.some((text) => {
                 if (!text.includes(patternLower)) {
@@ -644,7 +663,7 @@ export class AnalyzeInstructionQualityUseCase {
                 // a longer, more-specific pattern that starts with the shorter one.
                 // E.g., a "Validation Suite" heading satisfies "Validation Suite" but
                 // should NOT also satisfy "Validation".
-                const supersededByMoreSpecific = headingPatterns.some(
+                const supersededByMoreSpecific = uniquePatterns.some(
                     (other) =>
                         other !== pattern &&
                         other.toLowerCase().startsWith(patternLower) &&
@@ -654,7 +673,7 @@ export class AnalyzeInstructionQualityUseCase {
             });
             if (!hasHeading) {
                 const description =
-                    HEADING_PATTERN_DESCRIPTIONS.get(pattern) ??
+                    descriptionsByLower.get(patternLower) ??
                     "This heading helps guide coding agents through structured workflows.";
                 diagnostics.push({
                     filePath,
