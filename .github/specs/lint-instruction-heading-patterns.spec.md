@@ -34,7 +34,7 @@ so that I can **ensure coding agents have the context they need to follow struct
 - When the lint tool analyzes an instruction file that does not contain a heading matching `Before Commit`, the lint tool shall emit a `warning` diagnostic with rule ID `instruction/missing-structural-heading`.
 - When the lint tool analyzes an instruction file that does not contain a heading matching `Validation Suite`, the lint tool shall emit a `warning` diagnostic with rule ID `instruction/missing-structural-heading`.
 - When the lint tool analyzes an instruction file that does not contain a heading matching `Commands`, the lint tool shall emit a `warning` diagnostic with rule ID `instruction/missing-structural-heading`.
-- When the lint tool analyzes an instruction file that contains a heading matching one of the recommended patterns (case-insensitive substring match), the lint tool shall not emit a `instruction/missing-structural-heading` warning for that pattern.
+- When the lint tool analyzes an instruction file that contains a heading matching one of the recommended patterns (case-insensitive substring match), the lint tool shall not emit an `instruction/missing-structural-heading` warning for that pattern.
 - The `instruction/missing-structural-heading` warning message shall include the name of the missing heading and a brief description explaining why the heading is recommended.
 - The `instruction/missing-structural-heading` rule shall apply to both directory-mode (`runLint`) and string-mode (`lintContent`) instruction analysis.
 

@@ -207,7 +207,14 @@ export class AnalyzeInstructionQualityUseCase {
         }
 
         // Check each successfully parsed file for missing structural headings
-        for (const [filePath, structure] of fileStructures.entries()) {
+        const sortedFilePaths = Array.from(fileStructures.keys()).sort((a, b) =>
+            a.localeCompare(b),
+        );
+        for (const filePath of sortedFilePaths) {
+            const structure = fileStructures.get(filePath);
+            if (!structure) {
+                continue;
+            }
             const missingDiagnostics = this.checkMissingHeadings(
                 filePath,
                 structure,
@@ -628,9 +635,23 @@ export class AnalyzeInstructionQualityUseCase {
         );
 
         for (const pattern of headingPatterns) {
-            const hasHeading = fileHeadingTexts.some((text) =>
-                text.includes(pattern.toLowerCase()),
-            );
+            const patternLower = pattern.toLowerCase();
+            const hasHeading = fileHeadingTexts.some((text) => {
+                if (!text.includes(patternLower)) {
+                    return false;
+                }
+                // Don't let a heading satisfy a shorter pattern when it also satisfies
+                // a longer, more-specific pattern that starts with the shorter one.
+                // E.g., a "Validation Suite" heading satisfies "Validation Suite" but
+                // should NOT also satisfy "Validation".
+                const supersededByMoreSpecific = headingPatterns.some(
+                    (other) =>
+                        other !== pattern &&
+                        other.toLowerCase().startsWith(patternLower) &&
+                        text.includes(other.toLowerCase()),
+                );
+                return !supersededByMoreSpecific;
+            });
             if (!hasHeading) {
                 const description =
                     HEADING_PATTERN_DESCRIPTIONS.get(pattern) ??

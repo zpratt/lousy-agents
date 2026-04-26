@@ -1003,4 +1003,56 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             }
         });
     });
+
+    describe("given an instruction file with only a 'Validation Suite' heading", () => {
+        it("still emits a warning for the missing 'Validation' pattern", async () => {
+            // Arrange - a heading "Validation Suite" should not also satisfy the "Validation" pattern
+            const filePath = "/repo/AGENTS.md";
+            const files: DiscoveredInstructionFile[] = [
+                { filePath, format: "agents-md" },
+            ];
+
+            const structure: MarkdownStructure = {
+                headings: [
+                    {
+                        text: "Validation Suite",
+                        depth: 2,
+                        position: { line: 1 },
+                    },
+                ],
+                codeBlocks: [],
+                inlineCodes: [],
+                ast: { type: "root", children: [] } as unknown as Root,
+            };
+
+            const discoveryGateway = createMockDiscoveryGateway(files);
+            const astGateway = createMockAstGateway(
+                new Map([[filePath, structure]]),
+            );
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act
+            const output = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert - "Validation Suite" heading does NOT satisfy the "Validation" pattern
+            const missingHeadingDiags = output.diagnostics.filter(
+                (d) => d.ruleId === "instruction/missing-structural-heading",
+            );
+            const hasValidationWarning = missingHeadingDiags.some((d) =>
+                d.message.includes("'Validation'"),
+            );
+            expect(hasValidationWarning).toBe(true);
+
+            // Assert - "Validation Suite" itself is satisfied
+            const hasValidationSuiteWarning = missingHeadingDiags.some((d) =>
+                d.message.includes("'Validation Suite'"),
+            );
+            expect(hasValidationSuiteWarning).toBe(false);
+        });
+    });
 });
