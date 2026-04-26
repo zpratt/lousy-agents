@@ -94,6 +94,9 @@ export interface FeedbackLoopCommandsGateway {
     getMandatoryCommands(targetDir: string): Promise<string[]>;
 }
 
+/** Maximum number of raw heading pattern entries accepted before deduplication. */
+const MAX_RAW_HEADING_PATTERNS = 1000;
+
 /** Maximum number of heading patterns accepted in a single execute() call. */
 const MAX_HEADING_PATTERNS = 50;
 
@@ -105,11 +108,11 @@ const MAX_PATTERN_LENGTH = 200;
  */
 const AnalyzeInstructionQualityInputSchema = z.object({
     targetDir: z.string().min(1),
-    headingPatterns: z.array(z.string()).optional(),
+    headingPatterns: z.array(z.string()).max(MAX_RAW_HEADING_PATTERNS).optional(),
     proximityWindow: z.number().int().positive().optional(),
 });
 
-export type AnalyzeInstructionQualityInput = z.input<
+export type AnalyzeInstructionQualityInput = z.infer<
     typeof AnalyzeInstructionQualityInputSchema
 >;
 
