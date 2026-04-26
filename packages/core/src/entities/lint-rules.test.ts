@@ -96,6 +96,7 @@ describe("Lint rule registry", () => {
                 "skill/missing-description",
                 "skill/invalid-description",
                 "skill/missing-allowed-tools",
+                "skill/missing-argument-hint",
             ];
 
             // Assert
@@ -135,17 +136,24 @@ describe("Lint rule registry", () => {
             }
         });
 
-        it("should default skill/missing-allowed-tools to warn", () => {
+        it("should default skill/missing-allowed-tools and skill/missing-argument-hint to warn", () => {
             // Assert
             expect(
                 DEFAULT_LINT_RULES.skills["skill/missing-allowed-tools"],
+            ).toBe("warn");
+            expect(
+                DEFAULT_LINT_RULES.skills["skill/missing-argument-hint"],
             ).toBe("warn");
         });
 
         it("should default all other skill rules to error", () => {
             // Arrange
+            const warnRules = new Set([
+                "skill/missing-allowed-tools",
+                "skill/missing-argument-hint",
+            ]);
             const errorRules = Object.entries(DEFAULT_LINT_RULES.skills).filter(
-                ([id]) => id !== "skill/missing-allowed-tools",
+                ([id]) => !warnRules.has(id),
             );
 
             // Assert
@@ -192,7 +200,10 @@ describe("Lint rule registry", () => {
 
         it("should contain a rule for each recommended skill field", () => {
             // Arrange - recommended fields that produce skill/missing-* ruleIds
-            const recommendedFieldRuleIds = ["skill/missing-allowed-tools"];
+            const recommendedFieldRuleIds = [
+                "skill/missing-allowed-tools",
+                "skill/missing-argument-hint",
+            ];
 
             // Assert - each recommended field must have a registry entry
             for (const ruleId of recommendedFieldRuleIds) {

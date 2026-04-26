@@ -59,7 +59,7 @@ When no configuration file is found, or when a rule is not specified in the conf
 
 - **Agent rules**: All default to `"error"` except `agent/invalid-field` which defaults to `"warn"`
 - **Instruction rules**: All default to `"warn"`
-- **Skill rules**: All default to `"error"` except `skill/missing-allowed-tools` which defaults to `"warn"`
+- **Skill rules**: All default to `"error"` except `skill/missing-allowed-tools` and `skill/missing-argument-hint` which default to `"warn"`
 - **Hook rules**: All default to `"error"` except `hook/missing-matcher` and `hook/missing-timeout` which default to `"warn"`
 
 ### Configuration File Formats
@@ -146,6 +146,7 @@ Validates YAML frontmatter in `.github/skills/*/SKILL.md` and `.claude/skills/*/
 | `skill/missing-description` | `error` | Description field is missing |
 | `skill/invalid-description` | `error` | Description is whitespace-only, too long, or wrong type |
 | `skill/missing-allowed-tools` | `warn` | Recommended `allowed-tools` field is missing |
+| `skill/missing-argument-hint` | `warn` | Recommended `argument-hint` field is missing |
 
 ### Examples
 

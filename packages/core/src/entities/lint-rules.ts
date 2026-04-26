@@ -52,5 +52,6 @@ export const DEFAULT_LINT_RULES: LintRulesConfig = {
         "skill/missing-description": "error",
         "skill/invalid-description": "error",
         "skill/missing-allowed-tools": "warn",
+        "skill/missing-argument-hint": "warn",
     },
 };

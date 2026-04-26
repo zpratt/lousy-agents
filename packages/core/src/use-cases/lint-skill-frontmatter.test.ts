@@ -66,11 +66,13 @@ describe("LintSkillFrontmatterUseCase", () => {
                     name: skillName,
                     description: chance.sentence(),
                     "allowed-tools": "tool1, tool2",
+                    "argument-hint": "Do something useful",
                 },
                 fieldLines: new Map([
                     ["name", 2],
                     ["description", 3],
                     ["allowed-tools", 4],
+                    ["argument-hint", 5],
                 ]),
                 frontmatterStartLine: 1,
             };
@@ -79,7 +81,7 @@ describe("LintSkillFrontmatterUseCase", () => {
                 readSkillFileContent: vi
                     .fn()
                     .mockResolvedValue(
-                        "---\nname: my-skill\ndescription: A skill\nallowed-tools: tool1, tool2\n---\n",
+                        "---\nname: my-skill\ndescription: A skill\nallowed-tools: tool1, tool2\nargument-hint: Do something useful\n---\n",
                     ),
                 parseFrontmatter: vi.fn().mockReturnValue(frontmatter),
             });
@@ -379,12 +381,101 @@ describe("LintSkillFrontmatterUseCase", () => {
             expect(warnings.length).toBeGreaterThan(0);
             const warningFields = warnings.map((w) => w.field);
             expect(warningFields).toContain("allowed-tools");
+            expect(warningFields).toContain("argument-hint");
             const allowedToolsWarning = warnings.find(
                 (w) => w.field === "allowed-tools",
             );
             expect(allowedToolsWarning?.ruleId).toBe(
                 "skill/missing-allowed-tools",
             );
+            const argumentHintWarning = warnings.find(
+                (w) => w.field === "argument-hint",
+            );
+            expect(argumentHintWarning?.ruleId).toBe(
+                "skill/missing-argument-hint",
+            );
+        });
+
+        it("should return exactly one warning when allowed-tools is present but argument-hint is missing", async () => {
+            // Arrange
+            const skillName = "my-skill";
+            const filePath = `/repo/.github/skills/${skillName}/SKILL.md`;
+            const discovered: DiscoveredSkillFile[] = [{ filePath, skillName }];
+            const frontmatter: ParsedFrontmatter = {
+                data: {
+                    name: skillName,
+                    description: chance.sentence(),
+                    "allowed-tools": "Bash",
+                },
+                fieldLines: new Map([
+                    ["name", 2],
+                    ["description", 3],
+                    ["allowed-tools", 4],
+                ]),
+                frontmatterStartLine: 1,
+            };
+            const gateway = createMockGateway({
+                discoverSkills: vi.fn().mockResolvedValue(discovered),
+                readSkillFileContent: vi
+                    .fn()
+                    .mockResolvedValue(
+                        "---\nname: my-skill\ndescription: A skill\nallowed-tools: Bash\n---\n",
+                    ),
+                parseFrontmatter: vi.fn().mockReturnValue(frontmatter),
+            });
+            const useCase = new LintSkillFrontmatterUseCase(gateway);
+
+            // Act
+            const result = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert
+            const warnings = result.results[0].diagnostics.filter(
+                (d) => d.severity === "warning",
+            );
+            expect(warnings).toHaveLength(1);
+            expect(warnings[0].field).toBe("argument-hint");
+            expect(warnings[0].ruleId).toBe("skill/missing-argument-hint");
+        });
+
+        it("should return exactly one warning when argument-hint is present but allowed-tools is missing", async () => {
+            // Arrange
+            const skillName = "my-skill";
+            const filePath = `/repo/.github/skills/${skillName}/SKILL.md`;
+            const discovered: DiscoveredSkillFile[] = [{ filePath, skillName }];
+            const frontmatter: ParsedFrontmatter = {
+                data: {
+                    name: skillName,
+                    description: chance.sentence(),
+                    "argument-hint": "Provide the target file path",
+                },
+                fieldLines: new Map([
+                    ["name", 2],
+                    ["description", 3],
+                    ["argument-hint", 4],
+                ]),
+                frontmatterStartLine: 1,
+            };
+            const gateway = createMockGateway({
+                discoverSkills: vi.fn().mockResolvedValue(discovered),
+                readSkillFileContent: vi
+                    .fn()
+                    .mockResolvedValue(
+                        "---\nname: my-skill\ndescription: A skill\nargument-hint: Provide the target file path\n---\n",
+                    ),
+                parseFrontmatter: vi.fn().mockReturnValue(frontmatter),
+            });
+            const useCase = new LintSkillFrontmatterUseCase(gateway);
+
+            // Act
+            const result = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert
+            const warnings = result.results[0].diagnostics.filter(
+                (d) => d.severity === "warning",
+            );
+            expect(warnings).toHaveLength(1);
+            expect(warnings[0].field).toBe("allowed-tools");
+            expect(warnings[0].ruleId).toBe("skill/missing-allowed-tools");
         });
     });
 
