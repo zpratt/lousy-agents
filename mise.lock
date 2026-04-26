@@ -72,7 +72,7 @@ checksum = "sha256:23cb60a1354eed6bcc8d9b9735e8c7b388cd1fdcb75726b93bc299ef22dd9
 url = "https://github.com/jqlang/jq/releases/download/jq-1.8.1/jq-windows-amd64.exe"
 
 [[tools.markdownlint-cli2]]
-version = "0.22.0"
+version = "0.22.1"
 backend = "npm:markdownlint-cli2"
 
 [[tools.node]]
