@@ -93,6 +93,9 @@ export interface FeedbackLoopCommandsGateway {
     getMandatoryCommands(targetDir: string): Promise<string[]>;
 }
 
+/** Maximum number of heading patterns accepted in a single execute() call. */
+const MAX_HEADING_PATTERNS = 50;
+
 /**
  * Input for the analyze instruction quality use case.
  */
@@ -138,6 +141,13 @@ export class AnalyzeInstructionQualityUseCase {
         const headingPatterns = input.headingPatterns ?? [
             ...DEFAULT_STRUCTURAL_HEADING_PATTERNS,
         ];
+
+        if (headingPatterns.length > MAX_HEADING_PATTERNS) {
+            throw new Error(
+                `headingPatterns must contain at most ${MAX_HEADING_PATTERNS} entries (got ${headingPatterns.length})`,
+            );
+        }
+
         const proximityWindow = input.proximityWindow ?? 3;
 
         const discoveredFiles =

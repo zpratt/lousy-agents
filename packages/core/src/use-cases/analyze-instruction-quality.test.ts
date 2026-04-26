@@ -505,6 +505,14 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                     s.message.includes("could not be parsed"),
                 ),
             ).toBe(true);
+
+            // Assert - files that fail to parse are excluded from missing-heading checks
+            const missingHeadingForBadFile = output.diagnostics.filter(
+                (d) =>
+                    d.ruleId === "instruction/missing-structural-heading" &&
+                    d.filePath === badFile,
+            );
+            expect(missingHeadingForBadFile).toHaveLength(0);
         });
     });
 
@@ -1136,6 +1144,184 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             expect(diag).toBeDefined();
             expect(diag?.message).toContain(
                 "Agents need this section to know which commands and tools are available in the project.",
+            );
+        });
+    });
+
+    describe("given multiple instruction files both missing structural heading patterns", () => {
+        it("emits per-file diagnostics with the correct filePath for each file", async () => {
+            // Arrange
+            const filePathA = "/repo/AGENTS.md";
+            const filePathB = "/repo/.github/copilot-instructions.md";
+            const files: DiscoveredInstructionFile[] = [
+                { filePath: filePathA, format: "agents-md" },
+                { filePath: filePathB, format: "copilot-instructions" },
+            ];
+            const emptyStructure = (): MarkdownStructure => ({
+                headings: [],
+                codeBlocks: [],
+                inlineCodes: [],
+                ast: { type: "root", children: [] } as unknown as Root,
+            });
+
+            const discoveryGateway = createMockDiscoveryGateway(files);
+            const astGateway = createMockAstGateway(
+                new Map([
+                    [filePathA, emptyStructure()],
+                    [filePathB, emptyStructure()],
+                ]),
+            );
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+            const headingPatterns = ["Commands", "Validation"];
+
+            // Act
+            const output = await useCase.execute({
+                targetDir: "/repo",
+                headingPatterns,
+            });
+
+            // Assert - each file gets its own set of diagnostics
+            const missingHeadingDiags = output.diagnostics.filter(
+                (d) => d.ruleId === "instruction/missing-structural-heading",
+            );
+            expect(missingHeadingDiags).toHaveLength(
+                headingPatterns.length * files.length,
+            );
+            const diagsForFileA = missingHeadingDiags.filter(
+                (d) => d.filePath === filePathA,
+            );
+            const diagsForFileB = missingHeadingDiags.filter(
+                (d) => d.filePath === filePathB,
+            );
+            expect(diagsForFileA).toHaveLength(headingPatterns.length);
+            expect(diagsForFileB).toHaveLength(headingPatterns.length);
+        });
+
+        it("does not emit diagnostics for a pattern that only the second file is missing", async () => {
+            // Arrange — fileA has "Commands", fileB does not
+            const filePathA = "/repo/AGENTS.md";
+            const filePathB = "/repo/.github/copilot-instructions.md";
+            const files: DiscoveredInstructionFile[] = [
+                { filePath: filePathA, format: "agents-md" },
+                { filePath: filePathB, format: "copilot-instructions" },
+            ];
+
+            const structureWithCommands: MarkdownStructure = {
+                headings: [
+                    {
+                        text: "Commands",
+                        depth: 2,
+                        position: { line: 1 },
+                    },
+                ],
+                codeBlocks: [],
+                inlineCodes: [],
+                ast: { type: "root", children: [] } as unknown as Root,
+            };
+            const emptyStructure: MarkdownStructure = {
+                headings: [],
+                codeBlocks: [],
+                inlineCodes: [],
+                ast: { type: "root", children: [] } as unknown as Root,
+            };
+
+            const discoveryGateway = createMockDiscoveryGateway(files);
+            const astGateway = createMockAstGateway(
+                new Map([
+                    [filePathA, structureWithCommands],
+                    [filePathB, emptyStructure],
+                ]),
+            );
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act
+            const output = await useCase.execute({
+                targetDir: "/repo",
+                headingPatterns: ["Commands"],
+            });
+
+            // Assert - only fileB gets a diagnostic
+            const missingHeadingDiags = output.diagnostics.filter(
+                (d) => d.ruleId === "instruction/missing-structural-heading",
+            );
+            expect(missingHeadingDiags).toHaveLength(1);
+            expect(missingHeadingDiags[0].filePath).toBe(filePathB);
+        });
+    });
+
+    describe("given an empty headingPatterns array", () => {
+        it("emits no missing-structural-heading diagnostics", async () => {
+            // Arrange - empty array explicitly opts out of all heading checks
+            const filePath = "/repo/AGENTS.md";
+            const files: DiscoveredInstructionFile[] = [
+                { filePath, format: "agents-md" },
+            ];
+            const structure: MarkdownStructure = {
+                headings: [],
+                codeBlocks: [],
+                inlineCodes: [],
+                ast: { type: "root", children: [] } as unknown as Root,
+            };
+
+            const discoveryGateway = createMockDiscoveryGateway(files);
+            const astGateway = createMockAstGateway(
+                new Map([[filePath, structure]]),
+            );
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act
+            const output = await useCase.execute({
+                targetDir: "/repo",
+                headingPatterns: [],
+            });
+
+            // Assert - no heading warnings (caller explicitly disabled all checks)
+            const missingHeadingDiags = output.diagnostics.filter(
+                (d) => d.ruleId === "instruction/missing-structural-heading",
+            );
+            expect(missingHeadingDiags).toHaveLength(0);
+        });
+    });
+
+    describe("given more than the maximum allowed heading patterns", () => {
+        it("throws an error rather than performing quadratic-complexity matching", async () => {
+            // Arrange
+            const discoveryGateway = createMockDiscoveryGateway([]);
+            const astGateway = createMockAstGateway();
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+            const tooManyPatterns = Array.from(
+                { length: 51 },
+                (_, i) => `Pattern${i}`,
+            );
+
+            // Act & Assert
+            await expect(
+                useCase.execute({
+                    targetDir: "/repo",
+                    headingPatterns: tooManyPatterns,
+                }),
+            ).rejects.toThrow(
+                "headingPatterns must contain at most 50 entries",
             );
         });
     });
