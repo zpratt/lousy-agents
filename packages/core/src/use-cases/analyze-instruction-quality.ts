@@ -13,6 +13,7 @@ import type {
 import {
     CONDITIONAL_KEYWORDS,
     DEFAULT_STRUCTURAL_HEADING_PATTERNS,
+    HEADING_PATTERN_DESCRIPTIONS,
 } from "../entities/instruction-quality.js";
 import type { LintDiagnostic } from "../entities/lint.js";
 
@@ -203,6 +204,16 @@ export class AnalyzeInstructionQualityUseCase {
                 ruleId: "instruction/parse-error",
                 target: "instruction",
             });
+        }
+
+        // Check each successfully parsed file for missing structural headings
+        for (const [filePath, structure] of fileStructures.entries()) {
+            const missingDiagnostics = this.checkMissingHeadings(
+                filePath,
+                structure,
+                headingPatterns,
+            );
+            diagnostics.push(...missingDiagnostics);
         }
 
         for (const command of mandatoryCommands) {
@@ -599,6 +610,43 @@ export class AnalyzeInstructionQualityUseCase {
         }
 
         return false;
+    }
+
+    /**
+     * Emits a warning diagnostic for each heading pattern that is absent from the file.
+     * Headings are matched case-insensitively using substring inclusion, matching the
+     * same logic used elsewhere in the use case.
+     */
+    private checkMissingHeadings(
+        filePath: string,
+        structure: MarkdownStructure,
+        headingPatterns: string[],
+    ): LintDiagnostic[] {
+        const diagnostics: LintDiagnostic[] = [];
+        const fileHeadingTexts = structure.headings.map((h) =>
+            h.text.toLowerCase(),
+        );
+
+        for (const pattern of headingPatterns) {
+            const hasHeading = fileHeadingTexts.some((text) =>
+                text.includes(pattern.toLowerCase()),
+            );
+            if (!hasHeading) {
+                const description =
+                    HEADING_PATTERN_DESCRIPTIONS.get(pattern) ??
+                    "This heading helps guide coding agents through structured workflows.";
+                diagnostics.push({
+                    filePath,
+                    line: 1,
+                    severity: "warning",
+                    message: `Missing '${pattern}' heading section. ${description}`,
+                    ruleId: "instruction/missing-structural-heading",
+                    target: "instruction",
+                });
+            }
+        }
+
+        return diagnostics;
     }
 
     private generateSuggestions(

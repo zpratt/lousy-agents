@@ -64,6 +64,42 @@ export const DEFAULT_STRUCTURAL_HEADING_PATTERNS = [
     "Commands",
 ] as const;
 
+/**
+ * Descriptions for each default structural heading pattern explaining why it is recommended.
+ * Used to generate informative warnings when a heading is missing from an instruction file.
+ */
+export const HEADING_PATTERN_DESCRIPTIONS: ReadonlyMap<string, string> =
+    new Map([
+        [
+            "Validation",
+            "Agents need this section to understand how to validate their changes meet quality standards.",
+        ],
+        [
+            "Verification",
+            "Agents need this section to understand how to verify their implementation is correct.",
+        ],
+        [
+            "Feedback Loop",
+            "Agents need this section to understand the iterative improvement process to follow.",
+        ],
+        [
+            "Mandatory",
+            "Agents need this section to understand which steps are required and cannot be skipped.",
+        ],
+        [
+            "Before Commit",
+            "Agents need this section to know what checks to run before committing changes.",
+        ],
+        [
+            "Validation Suite",
+            "Agents need this section to know which validation commands to run against the codebase.",
+        ],
+        [
+            "Commands",
+            "Agents need this section to know which commands and tools are available in the project.",
+        ],
+    ]);
+
 /** Conditional keywords indicating error handling near code blocks */
 export const CONDITIONAL_KEYWORDS = [
     "if",

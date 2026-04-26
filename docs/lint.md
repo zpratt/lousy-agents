@@ -245,6 +245,9 @@ Each feedback loop command is scored on three dimensions (0 or 1 each):
 | `instruction/command-not-in-code-block` | `warn` | Command appears only in prose, not in a code block |
 | `instruction/command-outside-section` | `warn` | Command is not under a dedicated feedback loop section |
 | `instruction/missing-error-handling` | `warn` | Command has no error handling guidance |
+| `instruction/missing-structural-heading` | `warn` | Instruction file is missing a recommended structural heading section |
+
+The `instruction/missing-structural-heading` rule warns when an instruction file does not contain one or more of the following recommended heading sections: **Validation**, **Verification**, **Feedback Loop**, **Mandatory**, **Before Commit**, **Validation Suite**, **Commands**. These headings guide coding agents through validation and verification workflows. Because instruction files stack on each other across the filesystem, this rule fires per file and is a warning (not an error).
 
 The **composite score** per command is the average of the three dimensions. The **overall quality score** (0–100%) is the average of all mandatory command composite scores.
 

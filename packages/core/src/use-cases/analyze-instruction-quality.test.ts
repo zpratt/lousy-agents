@@ -1,7 +1,10 @@
 import Chance from "chance";
 import type { Root } from "mdast";
 import { describe, expect, it, vi } from "vitest";
-import type { DiscoveredInstructionFile } from "../entities/instruction-quality.js";
+import {
+    DEFAULT_STRUCTURAL_HEADING_PATTERNS,
+    type DiscoveredInstructionFile,
+} from "../entities/instruction-quality.js";
 import type { InstructionFileDiscoveryGateway } from "../gateways/instruction-file-discovery-gateway.js";
 import type {
     MarkdownAstGateway,
@@ -764,6 +767,240 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             expect(output.result.commandScores[0].structuralContext).toBe(1);
             expect(output.result.commandScores[0].executionClarity).toBe(1);
             expect(output.result.commandScores[0].bestSourceFile).toBe(file2);
+        });
+    });
+
+    describe("given an instruction file missing all structural heading patterns", () => {
+        it("emits a warning diagnostic for each missing heading pattern", async () => {
+            // Arrange
+            const filePath = "/repo/AGENTS.md";
+            const files: DiscoveredInstructionFile[] = [
+                { filePath, format: "agents-md" },
+            ];
+
+            const structure: MarkdownStructure = {
+                headings: [],
+                codeBlocks: [],
+                inlineCodes: [],
+                ast: { type: "root", children: [] } as unknown as Root,
+            };
+
+            const discoveryGateway = createMockDiscoveryGateway(files);
+            const astGateway = createMockAstGateway(
+                new Map([[filePath, structure]]),
+            );
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act
+            const output = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert - one warning per missing heading pattern
+            const missingHeadingDiags = output.diagnostics.filter(
+                (d) => d.ruleId === "instruction/missing-structural-heading",
+            );
+            expect(missingHeadingDiags).toHaveLength(
+                DEFAULT_STRUCTURAL_HEADING_PATTERNS.length,
+            );
+            for (const pattern of DEFAULT_STRUCTURAL_HEADING_PATTERNS) {
+                const diag = missingHeadingDiags.find((d) =>
+                    d.message.includes(`'${pattern}'`),
+                );
+                expect(diag).toBeDefined();
+                expect(diag?.severity).toBe("warning");
+                expect(diag?.filePath).toBe(filePath);
+                expect(diag?.line).toBe(1);
+                expect(diag?.target).toBe("instruction");
+            }
+        });
+    });
+
+    describe("given an instruction file containing some but not all structural heading patterns", () => {
+        it("emits warnings only for the missing headings", async () => {
+            // Arrange
+            const filePath = "/repo/CLAUDE.md";
+            const presentHeadings = ["Commands", "Validation"];
+            const files: DiscoveredInstructionFile[] = [
+                { filePath, format: "claude-md" },
+            ];
+
+            const structure: MarkdownStructure = {
+                headings: presentHeadings.map((text) => ({
+                    text,
+                    depth: 2,
+                    position: { line: 1 },
+                })),
+                codeBlocks: [],
+                inlineCodes: [],
+                ast: { type: "root", children: [] } as unknown as Root,
+            };
+
+            const discoveryGateway = createMockDiscoveryGateway(files);
+            const astGateway = createMockAstGateway(
+                new Map([[filePath, structure]]),
+            );
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act
+            const output = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert - warnings only for patterns not in presentHeadings
+            const missingHeadingDiags = output.diagnostics.filter(
+                (d) => d.ruleId === "instruction/missing-structural-heading",
+            );
+            const expectedMissingCount =
+                DEFAULT_STRUCTURAL_HEADING_PATTERNS.length -
+                presentHeadings.length;
+            expect(missingHeadingDiags).toHaveLength(expectedMissingCount);
+
+            for (const pattern of presentHeadings) {
+                const diag = missingHeadingDiags.find((d) =>
+                    d.message.includes(`'${pattern}'`),
+                );
+                expect(diag).toBeUndefined();
+            }
+        });
+    });
+
+    describe("given an instruction file with all structural heading patterns present", () => {
+        it("emits no missing-structural-heading diagnostics", async () => {
+            // Arrange
+            const filePath = "/repo/.github/copilot-instructions.md";
+            const files: DiscoveredInstructionFile[] = [
+                { filePath, format: "copilot-instructions" },
+            ];
+
+            const structure: MarkdownStructure = {
+                headings: DEFAULT_STRUCTURAL_HEADING_PATTERNS.map(
+                    (text, i) => ({
+                        text,
+                        depth: 2,
+                        position: { line: i * 10 + 1 },
+                    }),
+                ),
+                codeBlocks: [],
+                inlineCodes: [],
+                ast: { type: "root", children: [] } as unknown as Root,
+            };
+
+            const discoveryGateway = createMockDiscoveryGateway(files);
+            const astGateway = createMockAstGateway(
+                new Map([[filePath, structure]]),
+            );
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act
+            const output = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert - no missing-heading warnings
+            const missingHeadingDiags = output.diagnostics.filter(
+                (d) => d.ruleId === "instruction/missing-structural-heading",
+            );
+            expect(missingHeadingDiags).toHaveLength(0);
+        });
+    });
+
+    describe("given an instruction file where headings match patterns case-insensitively", () => {
+        it("does not emit missing-heading warnings for case-variant matches", async () => {
+            // Arrange
+            const filePath = "/repo/AGENTS.md";
+            const files: DiscoveredInstructionFile[] = [
+                { filePath, format: "agents-md" },
+            ];
+
+            const structure: MarkdownStructure = {
+                headings: [
+                    { text: "VALIDATION", depth: 2, position: { line: 1 } },
+                    { text: "commands", depth: 2, position: { line: 5 } },
+                ],
+                codeBlocks: [],
+                inlineCodes: [],
+                ast: { type: "root", children: [] } as unknown as Root,
+            };
+
+            const discoveryGateway = createMockDiscoveryGateway(files);
+            const astGateway = createMockAstGateway(
+                new Map([[filePath, structure]]),
+            );
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act
+            const output = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert - "Validation" and "Commands" should not trigger warnings
+            const missingHeadingDiags = output.diagnostics.filter(
+                (d) => d.ruleId === "instruction/missing-structural-heading",
+            );
+            const hasValidationWarning = missingHeadingDiags.some((d) =>
+                d.message.includes("'Validation'"),
+            );
+            const hasCommandsWarning = missingHeadingDiags.some((d) =>
+                d.message.includes("'Commands'"),
+            );
+            expect(hasValidationWarning).toBe(false);
+            expect(hasCommandsWarning).toBe(false);
+        });
+    });
+
+    describe("given an instruction file with a heading message that includes the reason for the recommendation", () => {
+        it("the warning message includes a description explaining why the heading is recommended", async () => {
+            // Arrange
+            const filePath = "/repo/AGENTS.md";
+            const files: DiscoveredInstructionFile[] = [
+                { filePath, format: "agents-md" },
+            ];
+
+            const structure: MarkdownStructure = {
+                headings: [],
+                codeBlocks: [],
+                inlineCodes: [],
+                ast: { type: "root", children: [] } as unknown as Root,
+            };
+
+            const discoveryGateway = createMockDiscoveryGateway(files);
+            const astGateway = createMockAstGateway(
+                new Map([[filePath, structure]]),
+            );
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act
+            const output = await useCase.execute({ targetDir: "/repo" });
+
+            // Assert - each warning message contains a description (more than just the heading name)
+            const missingHeadingDiags = output.diagnostics.filter(
+                (d) => d.ruleId === "instruction/missing-structural-heading",
+            );
+            for (const diag of missingHeadingDiags) {
+                expect(diag.message).toMatch(
+                    /Missing '.+' heading section\. .+/,
+                );
+                // Ensure the message contains actionable guidance beyond just the heading name
+                expect(diag.message.length).toBeGreaterThan(30);
+            }
         });
     });
 });
