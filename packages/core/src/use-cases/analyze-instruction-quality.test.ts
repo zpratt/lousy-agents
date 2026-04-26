@@ -101,7 +101,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
 
             // Act & Assert
             await expect(useCase.execute({ targetDir: "" })).rejects.toThrow(
-                "Target directory is required",
+                /targetDir/,
             );
         });
     });
@@ -1295,6 +1295,167 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                 (d) => d.ruleId === "instruction/missing-structural-heading",
             );
             expect(missingHeadingDiags).toHaveLength(0);
+        });
+    });
+
+    describe("given an empty string heading pattern", () => {
+        it("throws an error before performing any file I/O", async () => {
+            // Arrange
+            const discoveryGateway = createMockDiscoveryGateway([]);
+            const astGateway = createMockAstGateway();
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+            const validPattern = chance.word();
+
+            // Act & Assert
+            await expect(
+                useCase.execute({
+                    targetDir: "/repo",
+                    headingPatterns: [validPattern, ""],
+                }),
+            ).rejects.toThrow(
+                "headingPatterns must not contain empty or whitespace-only entries",
+            );
+            expect(
+                discoveryGateway.discoverInstructionFiles,
+            ).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("given a whitespace-only heading pattern", () => {
+        it("throws an error before performing any file I/O", async () => {
+            // Arrange
+            const discoveryGateway = createMockDiscoveryGateway([]);
+            const astGateway = createMockAstGateway();
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act & Assert
+            await expect(
+                useCase.execute({
+                    targetDir: "/repo",
+                    headingPatterns: ["   "],
+                }),
+            ).rejects.toThrow(
+                "headingPatterns must not contain empty or whitespace-only entries",
+            );
+            expect(
+                discoveryGateway.discoverInstructionFiles,
+            ).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("given a heading pattern containing control characters", () => {
+        it("throws an error with a safely serialized pattern representation", async () => {
+            // Arrange — ESC sequence that could inject ANSI codes into CLI output
+            const discoveryGateway = createMockDiscoveryGateway([]);
+            const astGateway = createMockAstGateway();
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+            const word = chance.word();
+
+            // Act & Assert
+            await expect(
+                useCase.execute({
+                    targetDir: "/repo",
+                    headingPatterns: [`\x1b[31m${word}\x1b[0m`],
+                }),
+            ).rejects.toThrow(
+                "headingPatterns must not contain control characters",
+            );
+            expect(
+                discoveryGateway.discoverInstructionFiles,
+            ).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("given a heading pattern containing a lone Unicode surrogate", () => {
+        it("throws a control-character error before performing any file I/O", async () => {
+            // Arrange — U+D800 (lone high surrogate) must be rejected to prevent
+            // garbled diagnostic output in Node.js string rendering pipelines
+            const discoveryGateway = createMockDiscoveryGateway([]);
+            const astGateway = createMockAstGateway();
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+            const word = chance.word();
+
+            // Act & Assert
+            await expect(
+                useCase.execute({
+                    targetDir: "/repo",
+                    headingPatterns: [`\uD800${word}`],
+                }),
+            ).rejects.toThrow(
+                "headingPatterns must not contain control characters",
+            );
+            expect(
+                discoveryGateway.discoverInstructionFiles,
+            ).not.toHaveBeenCalled();
+        });
+
+        it("accepts a valid surrogate pair (emoji) in a heading pattern", async () => {
+            // Arrange — 😀 = U+1F600 = \uD83D\uDE00 (valid surrogate pair)
+            // should NOT be rejected as a control character
+            const discoveryGateway = createMockDiscoveryGateway([]);
+            const astGateway = createMockAstGateway();
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act & Assert — should not throw
+            await expect(
+                useCase.execute({
+                    targetDir: "/repo",
+                    headingPatterns: ["😀 Commands"],
+                }),
+            ).resolves.toBeDefined();
+        });
+    });
+
+    describe("given a heading pattern that exceeds the maximum length", () => {
+        it("throws an error before performing any file I/O", async () => {
+            // Arrange — 201-character pattern exceeds the 200-char limit
+            const discoveryGateway = createMockDiscoveryGateway([]);
+            const astGateway = createMockAstGateway();
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+            const overLimitPattern = "x".repeat(201);
+
+            // Act & Assert
+            await expect(
+                useCase.execute({
+                    targetDir: "/repo",
+                    headingPatterns: [overLimitPattern],
+                }),
+            ).rejects.toThrow(
+                "headingPatterns entries must not exceed 200 characters",
+            );
+            expect(
+                discoveryGateway.discoverInstructionFiles,
+            ).not.toHaveBeenCalled();
         });
     });
 
