@@ -1366,15 +1366,21 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             );
             const word = chance.word();
 
-            // Act & Assert
-            await expect(
-                useCase.execute({
+            // Act
+            const error = await useCase
+                .execute({
                     targetDir: "/repo",
                     headingPatterns: [`\x1b[31m${word}\x1b[0m`],
-                }),
-            ).rejects.toThrow(
+                })
+                .catch((e: unknown) => e);
+
+            // Assert — static prefix and serialized ESC as \u001b (not raw bytes)
+            expect(error).toBeInstanceOf(Error);
+            const message = (error as Error).message;
+            expect(message).toContain(
                 "headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points",
             );
+            expect(message).toContain('"\\u001b');
             expect(
                 discoveryGateway.discoverInstructionFiles,
             ).not.toHaveBeenCalled();
@@ -1395,15 +1401,21 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             );
             const word = chance.word();
 
-            // Act & Assert
-            await expect(
-                useCase.execute({
+            // Act
+            const error = await useCase
+                .execute({
                     targetDir: "/repo",
                     headingPatterns: [`\uD800${word}`],
-                }),
-            ).rejects.toThrow(
+                })
+                .catch((e: unknown) => e);
+
+            // Assert — lone high surrogate serialized as \ud800, not raw bytes
+            expect(error).toBeInstanceOf(Error);
+            const message = (error as Error).message;
+            expect(message).toContain(
                 "headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points",
             );
+            expect(message).toContain('"\\ud800');
             expect(
                 discoveryGateway.discoverInstructionFiles,
             ).not.toHaveBeenCalled();
@@ -1421,15 +1433,21 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             );
             const word = chance.word();
 
-            // Act & Assert
-            await expect(
-                useCase.execute({
+            // Act
+            const error = await useCase
+                .execute({
                     targetDir: "/repo",
                     headingPatterns: [`${word}\uDC00`],
-                }),
-            ).rejects.toThrow(
+                })
+                .catch((e: unknown) => e);
+
+            // Assert — lone low surrogate serialized as \udc00, not raw bytes
+            expect(error).toBeInstanceOf(Error);
+            const message = (error as Error).message;
+            expect(message).toContain(
                 "headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points",
             );
+            expect(message).toContain('\\udc00"');
             expect(
                 discoveryGateway.discoverInstructionFiles,
             ).not.toHaveBeenCalled();
@@ -1471,15 +1489,21 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             );
             const word = chance.word();
 
-            // Act & Assert
-            await expect(
-                useCase.execute({
+            // Act
+            const error = await useCase
+                .execute({
                     targetDir: "/repo",
                     headingPatterns: [`${word}\u202A${word}`],
-                }),
-            ).rejects.toThrow(
+                })
+                .catch((e: unknown) => e);
+
+            // Assert — bidi override serialized as \u202a, not embedded raw
+            expect(error).toBeInstanceOf(Error);
+            const message = (error as Error).message;
+            expect(message).toContain(
                 "headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points",
             );
+            expect(message).toContain("\\u202a");
             expect(
                 discoveryGateway.discoverInstructionFiles,
             ).not.toHaveBeenCalled();
@@ -1500,15 +1524,21 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             );
             const word = chance.word();
 
-            // Act & Assert
-            await expect(
-                useCase.execute({
+            // Act
+            const error = await useCase
+                .execute({
                     targetDir: "/repo",
                     headingPatterns: [`${word}\u2028${word}`],
-                }),
-            ).rejects.toThrow(
+                })
+                .catch((e: unknown) => e);
+
+            // Assert — line separator serialized as \u2028, not embedded raw
+            expect(error).toBeInstanceOf(Error);
+            const message = (error as Error).message;
+            expect(message).toContain(
                 "headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points",
             );
+            expect(message).toContain("\\u2028");
             expect(
                 discoveryGateway.discoverInstructionFiles,
             ).not.toHaveBeenCalled();
@@ -1528,15 +1558,21 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             );
             const word = chance.word();
 
-            // Act & Assert
-            await expect(
-                useCase.execute({
+            // Act
+            const error = await useCase
+                .execute({
                     targetDir: "/repo",
                     headingPatterns: [`\u2028${word}`],
-                }),
-            ).rejects.toThrow(
+                })
+                .catch((e: unknown) => e);
+
+            // Assert — leading line separator serialized as \u2028 at message start
+            expect(error).toBeInstanceOf(Error);
+            const message = (error as Error).message;
+            expect(message).toContain(
                 "headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points",
             );
+            expect(message).toContain('"\\u2028');
             expect(
                 discoveryGateway.discoverInstructionFiles,
             ).not.toHaveBeenCalled();
@@ -1556,15 +1592,21 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             );
             const word = chance.word();
 
-            // Act & Assert
-            await expect(
-                useCase.execute({
+            // Act
+            const error = await useCase
+                .execute({
                     targetDir: "/repo",
                     headingPatterns: [`${word}\u2066${word}`],
-                }),
-            ).rejects.toThrow(
+                })
+                .catch((e: unknown) => e);
+
+            // Assert — bidi isolate serialized as \u2066, not embedded raw
+            expect(error).toBeInstanceOf(Error);
+            const message = (error as Error).message;
+            expect(message).toContain(
                 "headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points",
             );
+            expect(message).toContain("\\u2066");
             expect(
                 discoveryGateway.discoverInstructionFiles,
             ).not.toHaveBeenCalled();
