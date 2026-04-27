@@ -9,7 +9,7 @@ The instruction quality linter scores how well instruction files document feedba
 | Persona | Impact | Notes |
 | --- | --- | --- |
 | Software Engineer Learning Vibe Coding | Positive | Primary user — receives actionable feedback explaining which recommended headings are missing and why |
-| Web App Developer | Positive | `lintContent` string-mode consumers also receive heading warnings in the same pass |
+| Web App Developer | Positive | Consumers using the MCP tool also receive heading warnings in the same pass |
 | CLI/Action Consumer | Positive | Existing `runLint` directory-mode consumers receive the new warnings automatically |
 
 ## Value Assessment
@@ -36,7 +36,7 @@ so that I can **ensure coding agents have the context they need to follow struct
 - When the lint tool analyzes an instruction file that does not contain a heading matching `Commands`, the lint tool shall emit a `warning` diagnostic with rule ID `instruction/missing-structural-heading`.
 - When the lint tool analyzes an instruction file that contains a heading matching one of the recommended patterns (case-insensitive substring match), the lint tool shall not emit an `instruction/missing-structural-heading` warning for that pattern.
 - The `instruction/missing-structural-heading` warning message shall include the name of the missing heading and a brief description explaining why the heading is recommended.
-- The `instruction/missing-structural-heading` rule shall apply to both directory-mode (`runLint`) and string-mode (`lintContent`) instruction analysis.
+- The `instruction/missing-structural-heading` rule shall apply to directory-mode (`runLint`) instruction analysis, and its diagnostics are surfaced through the MCP tool.
 
 #### Notes
 
@@ -106,7 +106,7 @@ flowchart TB
 
 ```mermaid
 sequenceDiagram
-    participant Caller as runLint / lintContent
+    participant Caller as runLint / MCP tool
     participant UC as AnalyzeInstructionQualityUseCase
     participant GW as MarkdownAstGateway
 
@@ -195,7 +195,7 @@ sequenceDiagram
 - All acceptance criteria from Story 1 must have corresponding test coverage.
 
 **Verification**:
-- [x] `npm test packages/core/src/use-cases/analyze-instruction-quality.test.ts` passes with 23 tests (11 existing + 12 new)
+- [x] `npm test packages/core/src/use-cases/analyze-instruction-quality.test.ts` passes with 38 tests (11 existing + 27 new)
 
 **Done when**:
 - [x] All verification steps pass

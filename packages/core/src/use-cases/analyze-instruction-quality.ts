@@ -115,12 +115,12 @@ const HEADING_DESCRIPTIONS_BY_LOWER: ReadonlyMap<string, string> = new Map(
  * Input for the analyze instruction quality use case.
  */
 const AnalyzeInstructionQualityInputSchema = z.object({
-    targetDir: z.string().min(1),
+    targetDir: z.string().min(1, "Target directory is required"),
     headingPatterns: z
         .array(z.string().max(MAX_PATTERN_LENGTH * 2))
         .max(MAX_RAW_HEADING_PATTERNS)
         .optional(),
-    proximityWindow: z.number().int().positive().optional(),
+    proximityWindow: z.number().int().min(0).optional(),
 });
 
 export type AnalyzeInstructionQualityInput = z.infer<
