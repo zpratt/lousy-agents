@@ -108,7 +108,10 @@ const MAX_PATTERN_LENGTH = 200;
  */
 const AnalyzeInstructionQualityInputSchema = z.object({
     targetDir: z.string().min(1),
-    headingPatterns: z.array(z.string()).max(MAX_RAW_HEADING_PATTERNS).optional(),
+    headingPatterns: z
+        .array(z.string())
+        .max(MAX_RAW_HEADING_PATTERNS)
+        .optional(),
     proximityWindow: z.number().int().positive().optional(),
 });
 
