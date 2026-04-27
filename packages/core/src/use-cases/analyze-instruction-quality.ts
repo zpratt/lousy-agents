@@ -120,7 +120,7 @@ const AnalyzeInstructionQualityInputSchema = z.object({
         .array(z.string().max(MAX_PATTERN_LENGTH * 2))
         .max(MAX_RAW_HEADING_PATTERNS)
         .optional(),
-    proximityWindow: z.number().int().min(0).optional(),
+    proximityWindow: z.number().int().positive().optional(),
 });
 
 export type AnalyzeInstructionQualityInput = z.infer<

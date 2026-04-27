@@ -34,13 +34,19 @@ so that I can **ensure coding agents have the context they need to follow struct
 - When the lint tool analyzes an instruction file that does not contain a heading matching `Before Commit`, the lint tool shall emit a `warning` diagnostic with rule ID `instruction/missing-structural-heading`.
 - When the lint tool analyzes an instruction file that does not contain a heading matching `Validation Suite`, the lint tool shall emit a `warning` diagnostic with rule ID `instruction/missing-structural-heading`.
 - When the lint tool analyzes an instruction file that does not contain a heading matching `Commands`, the lint tool shall emit a `warning` diagnostic with rule ID `instruction/missing-structural-heading`.
-- When the lint tool analyzes an instruction file that contains a heading matching one of the recommended patterns (case-insensitive substring match), the lint tool shall not emit an `instruction/missing-structural-heading` warning for that pattern.
+- When the lint tool analyzes an instruction file that contains a heading that matches a recommended pattern via case-insensitive substring match, and that heading does not also match a longer pattern that starts with the shorter one, the lint tool shall not emit an `instruction/missing-structural-heading` warning for that shorter pattern.
+- When the lint tool analyzes an instruction file whose only heading for a shorter pattern `P` also satisfies a longer pattern `Q` that starts with `P` (supersession), the lint tool shall still emit an `instruction/missing-structural-heading` warning for `P` (see Notes).
 - The `instruction/missing-structural-heading` warning message shall include the name of the missing heading and a brief description explaining why the heading is recommended.
 - The `instruction/missing-structural-heading` rule shall apply to directory-mode (`runLint`) instruction analysis, and its diagnostics are surfaced through the MCP tool.
+- If a `headingPatterns` entry contains control characters, bidi override characters, or lone surrogate code points, then the lint tool shall throw an error with a safely serialized representation of the invalid entry.
+- If a `headingPatterns` entry is empty or whitespace-only after trimming, then the lint tool shall throw an error.
+- If a `headingPatterns` entry exceeds 200 characters, then the lint tool shall throw an error.
+- If more than 50 unique heading patterns are supplied (after case-insensitive deduplication), then the lint tool shall throw an error.
 
 #### Notes
 
 - Heading matching uses case-insensitive substring inclusion (consistent with the existing `isCommandUnderMatchedHeading` logic). A heading of `## My Validation Section` satisfies the `Validation` pattern.
+- **Supersession**: A heading satisfies a shorter pattern `P` only if: (1) no longer pattern `Q` starting with `P` exists in the pattern list, OR (2) a longer pattern `Q` exists but the same heading does not also match `Q`. Concretely, a `## Validation Suite` heading matches `Validation Suite` (long pattern) but does NOT satisfy the shorter `Validation` pattern when both are being checked — because the same heading also matches `Validation Suite`. This prevents a `## Validation Suite` heading from masking a genuinely missing `## Validation` section.
 - Because instruction files stack on each other in the filesystem (different files cover different concerns), this rule cannot require all headings to appear in every single file — warnings (not errors) are the correct severity.
 - The check is performed per file. Each instruction file is independently assessed against all seven patterns.
 - Files that fail to parse already receive a `instruction/parse-error` diagnostic; they are excluded from the missing-heading check since their structure is unknown.
