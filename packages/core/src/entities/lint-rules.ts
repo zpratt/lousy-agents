@@ -41,6 +41,7 @@ export const DEFAULT_LINT_RULES: LintRulesConfig = {
         "instruction/command-not-in-code-block": "warn",
         "instruction/command-outside-section": "warn",
         "instruction/missing-error-handling": "warn",
+        "instruction/missing-structural-heading": "warn",
     },
     skills: {
         "skill/invalid-frontmatter": "error",

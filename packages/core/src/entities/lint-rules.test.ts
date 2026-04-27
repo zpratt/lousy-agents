@@ -73,6 +73,7 @@ describe("Lint rule registry", () => {
                 "instruction/command-not-in-code-block",
                 "instruction/command-outside-section",
                 "instruction/missing-error-handling",
+                "instruction/missing-structural-heading",
             ];
 
             // Assert
