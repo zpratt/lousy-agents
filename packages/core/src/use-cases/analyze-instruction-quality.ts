@@ -255,14 +255,13 @@ export class AnalyzeInstructionQualityUseCase {
             const lower = trimmed.toLowerCase();
             if (!seenLower.has(lower)) {
                 seenLower.add(lower);
+                if (seenLower.size > MAX_HEADING_PATTERNS) {
+                    throw new Error(
+                        `headingPatterns must contain at most ${MAX_HEADING_PATTERNS} entries`,
+                    );
+                }
                 headingPatterns.push(trimmed);
             }
-        }
-
-        if (headingPatterns.length > MAX_HEADING_PATTERNS) {
-            throw new Error(
-                `headingPatterns must contain at most ${MAX_HEADING_PATTERNS} entries (got ${headingPatterns.length})`,
-            );
         }
 
         const proximityWindow = parsed.proximityWindow ?? 3;
