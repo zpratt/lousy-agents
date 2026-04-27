@@ -181,6 +181,26 @@ export class AnalyzeInstructionQualityUseCase {
         return false;
     }
 
+    /**
+     * Serializes a heading pattern for safe inclusion in error messages,
+     * escaping every code unit outside the printable ASCII range (0x20–0x7E)
+     * to a \uXXXX sequence. This prevents terminal injection via bidi override
+     * characters and other non-printable code points that JSON.stringify does
+     * not escape.
+     */
+    private static serializePatternForError(value: string): string {
+        let result = '"';
+        for (let i = 0; i < value.length; i++) {
+            const code = value.charCodeAt(i);
+            if (code >= 0x20 && code <= 0x7e) {
+                result += value[i];
+            } else {
+                result += `\\u${code.toString(16).padStart(4, "0")}`;
+            }
+        }
+        return `${result}"`;
+    }
+
     async execute(
         input: AnalyzeInstructionQualityInput,
     ): Promise<AnalyzeInstructionQualityOutput> {
@@ -192,6 +212,18 @@ export class AnalyzeInstructionQualityUseCase {
         for (const raw of parsed.headingPatterns ?? [
             ...DEFAULT_STRUCTURAL_HEADING_PATTERNS,
         ]) {
+            // Validate BEFORE trim() — U+2028/U+2029 are JavaScript whitespace
+            // and would be silently stripped by trim(), bypassing the check.
+            // Filter before transform.
+            if (
+                AnalyzeInstructionQualityUseCase.patternHasControlCharacters(
+                    raw,
+                )
+            ) {
+                throw new Error(
+                    `headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points: ${AnalyzeInstructionQualityUseCase.serializePatternForError(raw)}`,
+                );
+            }
             const trimmed = raw.trim();
             if (trimmed.length === 0) {
                 throw new Error(
@@ -201,15 +233,6 @@ export class AnalyzeInstructionQualityUseCase {
             if (trimmed.length > MAX_PATTERN_LENGTH) {
                 throw new Error(
                     `headingPatterns entries must not exceed ${MAX_PATTERN_LENGTH} characters`,
-                );
-            }
-            if (
-                AnalyzeInstructionQualityUseCase.patternHasControlCharacters(
-                    trimmed,
-                )
-            ) {
-                throw new Error(
-                    `headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points: ${JSON.stringify(trimmed)}`,
                 );
             }
             const lower = trimmed.toLowerCase();

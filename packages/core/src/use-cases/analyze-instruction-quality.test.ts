@@ -1513,6 +1513,62 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                 discoveryGateway.discoverInstructionFiles,
             ).not.toHaveBeenCalled();
         });
+
+        it("rejects a leading U+2028 that trim() would otherwise strip", async () => {
+            // Arrange — U+2028 at the start is stripped by trim(), so the old
+            // code would silently accept "\u2028realpattern". The check must run
+            // BEFORE trim() to catch this bypass.
+            const discoveryGateway = createMockDiscoveryGateway([]);
+            const astGateway = createMockAstGateway();
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+            const word = chance.word();
+
+            // Act & Assert
+            await expect(
+                useCase.execute({
+                    targetDir: "/repo",
+                    headingPatterns: [`\u2028${word}`],
+                }),
+            ).rejects.toThrow(
+                "headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points",
+            );
+            expect(
+                discoveryGateway.discoverInstructionFiles,
+            ).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("given a heading pattern containing a bidi isolate character", () => {
+        it("throws an error before performing any file I/O", async () => {
+            // Arrange — U+2066 (First Strong Isolate) can spoof terminal output
+            const discoveryGateway = createMockDiscoveryGateway([]);
+            const astGateway = createMockAstGateway();
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+            const word = chance.word();
+
+            // Act & Assert
+            await expect(
+                useCase.execute({
+                    targetDir: "/repo",
+                    headingPatterns: [`${word}\u2066${word}`],
+                }),
+            ).rejects.toThrow(
+                "headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points",
+            );
+            expect(
+                discoveryGateway.discoverInstructionFiles,
+            ).not.toHaveBeenCalled();
+        });
     });
 
     describe("given a heading pattern that exceeds the maximum length", () => {
