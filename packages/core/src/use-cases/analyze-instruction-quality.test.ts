@@ -1385,6 +1385,64 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                 discoveryGateway.discoverInstructionFiles,
             ).not.toHaveBeenCalled();
         });
+
+        it("escapes double quotes within the serialized pattern representation", async () => {
+            // Arrange — pattern with control char AND embedded double quotes:
+            // \x1b"quoted" — verifies the " → \" escaping path in serializePatternForError
+            const discoveryGateway = createMockDiscoveryGateway([]);
+            const astGateway = createMockAstGateway();
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act
+            const error = await useCase
+                .execute({
+                    targetDir: "/repo",
+                    headingPatterns: ['\x1b"quoted"'],
+                })
+                .catch((e: unknown) => e);
+
+            // Assert — both \u001b (ESC) and \" (escaped quote) appear in message
+            expect(error).toBeInstanceOf(Error);
+            const message = (error as Error).message;
+            expect(message).toContain('"\\u001b\\"quoted\\"');
+            expect(
+                discoveryGateway.discoverInstructionFiles,
+            ).not.toHaveBeenCalled();
+        });
+
+        it("escapes backslashes within the serialized pattern representation", async () => {
+            // Arrange — pattern with control char AND embedded backslash:
+            // \x1b\value — verifies the \ → \\ escaping path in serializePatternForError
+            const discoveryGateway = createMockDiscoveryGateway([]);
+            const astGateway = createMockAstGateway();
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+
+            // Act
+            const error = await useCase
+                .execute({
+                    targetDir: "/repo",
+                    headingPatterns: ["\x1b\\value"],
+                })
+                .catch((e: unknown) => e);
+
+            // Assert — \u001b (ESC) then \\ (escaped backslash) appear in message
+            expect(error).toBeInstanceOf(Error);
+            const message = (error as Error).message;
+            expect(message).toContain('"\\u001b\\\\value');
+            expect(
+                discoveryGateway.discoverInstructionFiles,
+            ).not.toHaveBeenCalled();
+        });
     });
 
     describe("given a heading pattern containing a lone Unicode surrogate", () => {

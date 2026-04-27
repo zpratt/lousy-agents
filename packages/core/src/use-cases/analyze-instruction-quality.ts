@@ -117,7 +117,7 @@ const HEADING_DESCRIPTIONS_BY_LOWER: ReadonlyMap<string, string> = new Map(
 const AnalyzeInstructionQualityInputSchema = z.object({
     targetDir: z.string().min(1),
     headingPatterns: z
-        .array(z.string())
+        .array(z.string().max(MAX_PATTERN_LENGTH * 2))
         .max(MAX_RAW_HEADING_PATTERNS)
         .optional(),
     proximityWindow: z.number().int().positive().optional(),
