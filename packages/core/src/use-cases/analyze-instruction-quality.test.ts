@@ -1373,7 +1373,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                     headingPatterns: [`\x1b[31m${word}\x1b[0m`],
                 }),
             ).rejects.toThrow(
-                "headingPatterns must not contain control characters",
+                "headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points",
             );
             expect(
                 discoveryGateway.discoverInstructionFiles,
@@ -1382,7 +1382,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
     });
 
     describe("given a heading pattern containing a lone Unicode surrogate", () => {
-        it("throws a control-character error before performing any file I/O", async () => {
+        it("throws an error naming surrogates before performing any file I/O", async () => {
             // Arrange — U+D800 (lone high surrogate) must be rejected to prevent
             // garbled diagnostic output in Node.js string rendering pipelines
             const discoveryGateway = createMockDiscoveryGateway([]);
@@ -1402,7 +1402,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                     headingPatterns: [`\uD800${word}`],
                 }),
             ).rejects.toThrow(
-                "headingPatterns must not contain control characters",
+                "headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points",
             );
             expect(
                 discoveryGateway.discoverInstructionFiles,

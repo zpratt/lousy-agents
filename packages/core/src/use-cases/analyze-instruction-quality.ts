@@ -209,7 +209,7 @@ export class AnalyzeInstructionQualityUseCase {
                 )
             ) {
                 throw new Error(
-                    `headingPatterns must not contain control characters: ${JSON.stringify(trimmed)}`,
+                    `headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points: ${JSON.stringify(trimmed)}`,
                 );
             }
             const lower = trimmed.toLowerCase();
@@ -294,8 +294,8 @@ export class AnalyzeInstructionQualityUseCase {
         }
 
         // Check each successfully parsed file for missing structural headings
-        const sortedFilePaths = Array.from(fileStructures.keys()).sort((a, b) =>
-            a.localeCompare(b),
+        const sortedFilePaths = Array.from(fileStructures.keys()).sort(
+            (a, b) => (a < b ? -1 : a > b ? 1 : 0),
         );
         for (const filePath of sortedFilePaths) {
             const structure = fileStructures.get(filePath);
