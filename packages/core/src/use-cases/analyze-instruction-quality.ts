@@ -275,7 +275,9 @@ export class AnalyzeInstructionQualityUseCase {
         }
 
         // Sort parsing errors for deterministic output
-        parsingErrors.sort((a, b) => a.filePath.localeCompare(b.filePath));
+        parsingErrors.sort((a, b) =>
+            a.filePath < b.filePath ? -1 : a.filePath > b.filePath ? 1 : 0,
+        );
 
         // Score each mandatory command across all files
         const commandScores: CommandQualityScores[] = [];

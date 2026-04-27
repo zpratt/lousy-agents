@@ -1409,6 +1409,32 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             ).not.toHaveBeenCalled();
         });
 
+        it("rejects a lone low surrogate before performing any file I/O", async () => {
+            // Arrange — U+DC00 (lone low surrogate) must also be rejected
+            const discoveryGateway = createMockDiscoveryGateway([]);
+            const astGateway = createMockAstGateway();
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+            const word = chance.word();
+
+            // Act & Assert
+            await expect(
+                useCase.execute({
+                    targetDir: "/repo",
+                    headingPatterns: [`${word}\uDC00`],
+                }),
+            ).rejects.toThrow(
+                "headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points",
+            );
+            expect(
+                discoveryGateway.discoverInstructionFiles,
+            ).not.toHaveBeenCalled();
+        });
+
         it("accepts a valid surrogate pair (emoji) in a heading pattern", async () => {
             // Arrange — 😀 = U+1F600 = \uD83D\uDE00 (valid surrogate pair)
             // should NOT be rejected as a control character
@@ -1428,6 +1454,64 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                     headingPatterns: ["😀 Commands"],
                 }),
             ).resolves.toBeDefined();
+        });
+    });
+
+    describe("given a heading pattern containing a bidi override character", () => {
+        it("throws an error before performing any file I/O", async () => {
+            // Arrange — U+202A (LTR embedding) is a bidi override that can
+            // spoof displayed text in terminal output
+            const discoveryGateway = createMockDiscoveryGateway([]);
+            const astGateway = createMockAstGateway();
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+            const word = chance.word();
+
+            // Act & Assert
+            await expect(
+                useCase.execute({
+                    targetDir: "/repo",
+                    headingPatterns: [`${word}\u202A${word}`],
+                }),
+            ).rejects.toThrow(
+                "headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points",
+            );
+            expect(
+                discoveryGateway.discoverInstructionFiles,
+            ).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("given a heading pattern containing a line/paragraph separator", () => {
+        it("throws an error before performing any file I/O", async () => {
+            // Arrange — U+2028 (line separator) can break terminal rendering
+            // and is not a printable character
+            const discoveryGateway = createMockDiscoveryGateway([]);
+            const astGateway = createMockAstGateway();
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+            const word = chance.word();
+
+            // Act & Assert
+            await expect(
+                useCase.execute({
+                    targetDir: "/repo",
+                    headingPatterns: [`${word}\u2028${word}`],
+                }),
+            ).rejects.toThrow(
+                "headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points",
+            );
+            expect(
+                discoveryGateway.discoverInstructionFiles,
+            ).not.toHaveBeenCalled();
         });
     });
 
