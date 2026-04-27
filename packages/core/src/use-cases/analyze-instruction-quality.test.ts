@@ -1386,7 +1386,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             ).not.toHaveBeenCalled();
         });
 
-        it("escapes double quotes within the serialized pattern representation", async () => {
+        it("should escape double quotes in the serialized error message when the pattern contains a control character and a double quote", async () => {
             // Arrange — pattern with control char AND embedded double quotes:
             // \x1b"quoted" — verifies the " → \" escaping path in serializePatternForError
             const discoveryGateway = createMockDiscoveryGateway([]);
@@ -1415,7 +1415,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             ).not.toHaveBeenCalled();
         });
 
-        it("escapes backslashes within the serialized pattern representation", async () => {
+        it("should escape backslashes in the serialized error message when the pattern contains a control character and a backslash", async () => {
             // Arrange — pattern with control char AND embedded backslash:
             // \x1b\value — verifies the \ → \\ escaping path in serializePatternForError
             const discoveryGateway = createMockDiscoveryGateway([]);
@@ -1693,6 +1693,31 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             ).rejects.toThrow(
                 "headingPatterns entries must not exceed 200 characters",
             );
+            expect(
+                discoveryGateway.discoverInstructionFiles,
+            ).not.toHaveBeenCalled();
+        });
+
+        it("rejects a pattern that exceeds the Zod per-element max before any allocation", async () => {
+            // Arrange — 401-character pattern exceeds the Zod .max(400) guard,
+            // preventing large allocations before the application-level check fires.
+            const discoveryGateway = createMockDiscoveryGateway([]);
+            const astGateway = createMockAstGateway();
+            const commandsGateway = createMockCommandsGateway([]);
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryGateway,
+                astGateway,
+                commandsGateway,
+            );
+            const zodOverLimitPattern = "x".repeat(401);
+
+            // Act & Assert — must reject; exact message is Zod's validation error
+            await expect(
+                useCase.execute({
+                    targetDir: "/repo",
+                    headingPatterns: [zodOverLimitPattern],
+                }),
+            ).rejects.toThrow();
             expect(
                 discoveryGateway.discoverInstructionFiles,
             ).not.toHaveBeenCalled();
