@@ -3,6 +3,7 @@
  * Orchestrates discovery, AST parsing, and scoring of feedback loop documentation.
  */
 
+import { z } from "zod";
 import type {
     CommandQualityScores,
     DiscoveredInstructionFile,
@@ -13,6 +14,7 @@ import type {
 import {
     CONDITIONAL_KEYWORDS,
     DEFAULT_STRUCTURAL_HEADING_PATTERNS,
+    HEADING_PATTERN_DESCRIPTIONS,
 } from "../entities/instruction-quality.js";
 import type { LintDiagnostic } from "../entities/lint.js";
 
@@ -92,14 +94,38 @@ export interface FeedbackLoopCommandsGateway {
     getMandatoryCommands(targetDir: string): Promise<string[]>;
 }
 
+/** Maximum number of raw heading pattern entries accepted before deduplication. */
+const MAX_RAW_HEADING_PATTERNS = 1000;
+
+/** Maximum number of heading patterns accepted in a single execute() call. */
+const MAX_HEADING_PATTERNS = 50;
+
+/** Maximum character length for a single heading pattern. */
+const MAX_PATTERN_LENGTH = 200;
+
+/**
+ * Lowercase-keyed lookup built once from HEADING_PATTERN_DESCRIPTIONS.
+ * Enables description lookup regardless of the casing callers supply for patterns.
+ */
+const HEADING_DESCRIPTIONS_BY_LOWER: ReadonlyMap<string, string> = new Map(
+    Array.from(HEADING_PATTERN_DESCRIPTIONS, ([k, v]) => [k.toLowerCase(), v]),
+);
+
 /**
  * Input for the analyze instruction quality use case.
  */
-export interface AnalyzeInstructionQualityInput {
-    targetDir: string;
-    headingPatterns?: string[];
-    proximityWindow?: number;
-}
+const AnalyzeInstructionQualityInputSchema = z.object({
+    targetDir: z.string().min(1, "Target directory is required"),
+    headingPatterns: z
+        .array(z.string().max(MAX_PATTERN_LENGTH * 2))
+        .max(MAX_RAW_HEADING_PATTERNS)
+        .optional(),
+    proximityWindow: z.number().int().positive().optional(),
+});
+
+export type AnalyzeInstructionQualityInput = z.infer<
+    typeof AnalyzeInstructionQualityInputSchema
+>;
 
 /**
  * Output from the analyze instruction quality use case.
@@ -127,25 +153,126 @@ export class AnalyzeInstructionQualityUseCase {
         private readonly commandsGateway: FeedbackLoopCommandsGateway,
     ) {}
 
+    /**
+     * Returns true if the given heading-pattern string contains any characters
+     * that could cause terminal injection or garbled output when the pattern
+     * is embedded in a diagnostic message.
+     *
+     * Rejects: ASCII C0 (0x00–0x1F), DEL (0x7F), C1 (0x80–0x9F), **lone**
+     * Unicode surrogates (U+D800–U+DFFF — but valid surrogate pairs like emoji
+     * are accepted), line/paragraph separators (U+2028–U+2029), and bidi
+     * override characters (U+202A–U+202E, U+2066–U+2069).
+     */
+    private static patternHasControlCharacters(value: string): boolean {
+        for (let i = 0; i < value.length; i++) {
+            const code = value.charCodeAt(i);
+            if (code <= 0x1f) return true;
+            if (code === 0x7f) return true;
+            if (code >= 0x80 && code <= 0x9f) return true;
+            // Detect lone surrogates only; valid surrogate pairs (e.g., emoji)
+            // should be accepted. A high surrogate (0xD800–0xDBFF) is lone if
+            // it is not immediately followed by a low surrogate (0xDC00–0xDFFF).
+            if (code >= 0xd800 && code <= 0xdbff) {
+                const next = value.charCodeAt(i + 1);
+                if (next >= 0xdc00 && next <= 0xdfff) {
+                    i++; // valid pair — skip the low surrogate
+                } else {
+                    return true; // lone high surrogate
+                }
+            } else if (code >= 0xdc00 && code <= 0xdfff) {
+                return true; // lone low surrogate
+            }
+            if (code === 0x2028 || code === 0x2029) return true;
+            if (code >= 0x202a && code <= 0x202e) return true;
+            if (code >= 0x2066 && code <= 0x2069) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Serializes a heading pattern for safe inclusion in error messages.
+     * Produces a quoted, unambiguous representation by:
+     *   - Escaping `"` as `\"` and `\` as `\\` within printable ASCII (0x20–0x7E)
+     *   - Escaping every code unit outside that range to `\uXXXX`
+     *
+     * The \uXXXX escaping prevents terminal injection via bidi override
+     * characters and other non-printable code points that JSON.stringify does
+     * not escape.
+     */
+    private static serializePatternForError(value: string): string {
+        let result = '"';
+        for (let i = 0; i < value.length; i++) {
+            const code = value.charCodeAt(i);
+            if (code >= 0x20 && code <= 0x7e) {
+                if (code === 0x22) {
+                    result += '\\"';
+                } else if (code === 0x5c) {
+                    result += "\\\\";
+                } else {
+                    result += value[i];
+                }
+            } else {
+                result += `\\u${code.toString(16).padStart(4, "0")}`;
+            }
+        }
+        return `${result}"`;
+    }
+
     async execute(
         input: AnalyzeInstructionQualityInput,
     ): Promise<AnalyzeInstructionQualityOutput> {
-        if (!input.targetDir) {
-            throw new Error("Target directory is required");
+        const parsed = AnalyzeInstructionQualityInputSchema.parse(input);
+
+        const seenLower = new Set<string>();
+        const headingPatterns: string[] = [];
+
+        for (const raw of parsed.headingPatterns ?? [
+            ...DEFAULT_STRUCTURAL_HEADING_PATTERNS,
+        ]) {
+            // Validate BEFORE trim() — U+2028/U+2029 are JavaScript whitespace
+            // and would be silently stripped by trim(), bypassing the check.
+            // Filter before transform.
+            if (
+                AnalyzeInstructionQualityUseCase.patternHasControlCharacters(
+                    raw,
+                )
+            ) {
+                throw new Error(
+                    `headingPatterns must not contain control characters, bidi override characters, or lone surrogate code points: ${AnalyzeInstructionQualityUseCase.serializePatternForError(raw)}`,
+                );
+            }
+            const trimmed = raw.trim();
+            if (trimmed.length === 0) {
+                throw new Error(
+                    "headingPatterns must not contain empty or whitespace-only entries",
+                );
+            }
+            if (trimmed.length > MAX_PATTERN_LENGTH) {
+                throw new Error(
+                    `headingPatterns entries must not exceed ${MAX_PATTERN_LENGTH} characters`,
+                );
+            }
+            const lower = trimmed.toLowerCase();
+            if (!seenLower.has(lower)) {
+                seenLower.add(lower);
+                if (seenLower.size > MAX_HEADING_PATTERNS) {
+                    throw new Error(
+                        `headingPatterns must contain at most ${MAX_HEADING_PATTERNS} entries`,
+                    );
+                }
+                headingPatterns.push(trimmed);
+            }
         }
 
-        const headingPatterns = input.headingPatterns ?? [
-            ...DEFAULT_STRUCTURAL_HEADING_PATTERNS,
-        ];
-        const proximityWindow = input.proximityWindow ?? 3;
+        const proximityWindow = parsed.proximityWindow ?? 3;
 
         const discoveredFiles =
             await this.discoveryGateway.discoverInstructionFiles(
-                input.targetDir,
+                parsed.targetDir,
             );
 
         const mandatoryCommands =
-            await this.commandsGateway.getMandatoryCommands(input.targetDir);
+            await this.commandsGateway.getMandatoryCommands(parsed.targetDir);
 
         if (discoveredFiles.length === 0) {
             return {
@@ -187,7 +314,9 @@ export class AnalyzeInstructionQualityUseCase {
         }
 
         // Sort parsing errors for deterministic output
-        parsingErrors.sort((a, b) => a.filePath.localeCompare(b.filePath));
+        parsingErrors.sort((a, b) =>
+            a.filePath < b.filePath ? -1 : a.filePath > b.filePath ? 1 : 0,
+        );
 
         // Score each mandatory command across all files
         const commandScores: CommandQualityScores[] = [];
@@ -203,6 +332,23 @@ export class AnalyzeInstructionQualityUseCase {
                 ruleId: "instruction/parse-error",
                 target: "instruction",
             });
+        }
+
+        // Check each successfully parsed file for missing structural headings
+        const sortedFilePaths = Array.from(fileStructures.keys()).sort(
+            (a, b) => (a < b ? -1 : a > b ? 1 : 0),
+        );
+        for (const filePath of sortedFilePaths) {
+            const structure = fileStructures.get(filePath);
+            if (!structure) {
+                continue;
+            }
+            const missingDiagnostics = this.checkMissingHeadings(
+                filePath,
+                structure,
+                headingPatterns,
+            );
+            diagnostics.push(...missingDiagnostics);
         }
 
         for (const command of mandatoryCommands) {
@@ -599,6 +745,60 @@ export class AnalyzeInstructionQualityUseCase {
         }
 
         return false;
+    }
+
+    /**
+     * Emits a warning diagnostic for each heading pattern that is absent from the file.
+     * Headings are matched case-insensitively using substring inclusion, matching the
+     * same logic used elsewhere in the use case.
+     */
+    private checkMissingHeadings(
+        filePath: string,
+        structure: MarkdownStructure,
+        headingPatterns: string[],
+    ): LintDiagnostic[] {
+        // Precondition: `headingPatterns` must already be deduplicated
+        // (case-insensitively) and validated. This invariant is enforced by
+        // `execute()` before calling this method.
+        const diagnostics: LintDiagnostic[] = [];
+        const fileHeadingTexts = structure.headings.map((h) =>
+            h.text.toLowerCase(),
+        );
+
+        for (const pattern of headingPatterns) {
+            const patternLower = pattern.toLowerCase();
+            const hasHeading = fileHeadingTexts.some((text) => {
+                if (!text.includes(patternLower)) {
+                    return false;
+                }
+                // Don't let a heading satisfy a shorter pattern when it also satisfies
+                // a longer, more-specific pattern that starts with the shorter one.
+                // E.g., a "Validation Suite" heading satisfies "Validation Suite" but
+                // should NOT also satisfy "Validation".
+                const supersededByMoreSpecific = headingPatterns.some(
+                    (other) =>
+                        other !== pattern &&
+                        other.toLowerCase().startsWith(patternLower) &&
+                        text.includes(other.toLowerCase()),
+                );
+                return !supersededByMoreSpecific;
+            });
+            if (!hasHeading) {
+                const description =
+                    HEADING_DESCRIPTIONS_BY_LOWER.get(patternLower) ??
+                    "This heading helps guide coding agents through structured workflows.";
+                diagnostics.push({
+                    filePath,
+                    line: 1,
+                    severity: "warning",
+                    message: `Missing '${pattern}' heading section. ${description}`,
+                    ruleId: "instruction/missing-structural-heading",
+                    target: "instruction",
+                });
+            }
+        }
+
+        return diagnostics;
     }
 
     private generateSuggestions(
