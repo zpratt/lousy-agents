@@ -104,6 +104,14 @@ const MAX_HEADING_PATTERNS = 50;
 const MAX_PATTERN_LENGTH = 200;
 
 /**
+ * Lowercase-keyed lookup built once from HEADING_PATTERN_DESCRIPTIONS.
+ * Enables description lookup regardless of the casing callers supply for patterns.
+ */
+const HEADING_DESCRIPTIONS_BY_LOWER: ReadonlyMap<string, string> = new Map(
+    Array.from(HEADING_PATTERN_DESCRIPTIONS, ([k, v]) => [k.toLowerCase(), v]),
+);
+
+/**
  * Input for the analyze instruction quality use case.
  */
 const AnalyzeInstructionQualityInputSchema = z.object({
@@ -182,9 +190,12 @@ export class AnalyzeInstructionQualityUseCase {
     }
 
     /**
-     * Serializes a heading pattern for safe inclusion in error messages,
-     * escaping every code unit outside the printable ASCII range (0x20–0x7E)
-     * to a \uXXXX sequence. This prevents terminal injection via bidi override
+     * Serializes a heading pattern for safe inclusion in error messages.
+     * Produces a quoted, unambiguous representation by:
+     *   - Escaping `"` as `\"` and `\` as `\\` within printable ASCII (0x20–0x7E)
+     *   - Escaping every code unit outside that range to `\uXXXX`
+     *
+     * The \uXXXX escaping prevents terminal injection via bidi override
      * characters and other non-printable code points that JSON.stringify does
      * not escape.
      */
@@ -193,7 +204,13 @@ export class AnalyzeInstructionQualityUseCase {
         for (let i = 0; i < value.length; i++) {
             const code = value.charCodeAt(i);
             if (code >= 0x20 && code <= 0x7e) {
-                result += value[i];
+                if (code === 0x22) {
+                    result += '\\"';
+                } else if (code === 0x5c) {
+                    result += "\\\\";
+                } else {
+                    result += value[i];
+                }
             } else {
                 result += `\\u${code.toString(16).padStart(4, "0")}`;
             }
@@ -749,13 +766,6 @@ export class AnalyzeInstructionQualityUseCase {
             h.text.toLowerCase(),
         );
 
-        // Build a lowercase-keyed lookup for descriptions so the map remains valid
-        // even when callers provide headingPatterns with non-canonical casing.
-        const descriptionsByLower = new Map<string, string>();
-        for (const [key, value] of HEADING_PATTERN_DESCRIPTIONS) {
-            descriptionsByLower.set(key.toLowerCase(), value);
-        }
-
         for (const pattern of headingPatterns) {
             const patternLower = pattern.toLowerCase();
             const hasHeading = fileHeadingTexts.some((text) => {
@@ -776,7 +786,7 @@ export class AnalyzeInstructionQualityUseCase {
             });
             if (!hasHeading) {
                 const description =
-                    descriptionsByLower.get(patternLower) ??
+                    HEADING_DESCRIPTIONS_BY_LOWER.get(patternLower) ??
                     "This heading helps guide coding agents through structured workflows.";
                 diagnostics.push({
                     filePath,
