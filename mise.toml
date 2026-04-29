@@ -19,7 +19,7 @@ pipx = "latest"
 shellcheck = "0.11.0"
 vhs = "0.11.0"
 yamllint = "1.38.0"                # Created with `mise use --pin yamllint`
-devcontainer-cli = "0.84.1"
+devcontainer-cli = "0.86.0"
 
 [tasks.yamllint]
 description = "Running yamllint locally on all yaml files"
