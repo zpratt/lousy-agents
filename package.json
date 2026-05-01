@@ -46,7 +46,7 @@
         "@modelcontextprotocol/server-sequential-thinking": "2025.12.18",
         "@rspack/cli": "2.0.1",
         "@rspack/core": "2.0.1",
-        "@types/chance": "1.1.7",
+        "@types/chance": "1.1.8",
         "@types/mdast": "4.0.4",
         "@types/node": "25.6.0",
         "@upstash/context7-mcp": "2.2.3",
