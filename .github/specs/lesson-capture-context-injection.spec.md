@@ -141,7 +141,7 @@ triggers:
 
 **Pattern length constraint**: each entry in `triggers.patterns` must not exceed 200 characters. Patterns are treated as literal substrings for matching — never as regular expressions. The matching implementation shall use linear string search (e.g., `String.prototype.includes()`) and must not use regex on untrusted file content to prevent catastrophic backtracking.
 
-**File size constraint**: lesson files must not exceed 1MB. The lesson gateway shall reject files larger than this limit before parsing YAML to prevent anchor-bomb OOM.
+**File size constraint**: lesson files must not exceed 1MB. The lesson gateway shall reject files larger than this limit before parsing YAML. Note: file size alone is insufficient to prevent anchor-bomb OOM — YAML alias/anchor expansion can produce gigabytes of in-memory data from a compact file. The YAML parser must be configured with `maxAliasCount: 0` (from the `yaml` package already in the workspace) to disallow aliases entirely; any alias-limit violation shall be treated as invalid frontmatter and cause the lesson to be rejected.
 
 The body is human-readable markdown prose: the rule, when it applies, examples of correct application, and edge cases.
 
@@ -515,7 +515,7 @@ sequenceDiagram
 
 **Requirements**:
 - Gateway reads `.lousy-agents/lessons/` relative to the resolved project root (not raw `process.cwd()` string).
-- Before calling `readdir()`, the gateway shall call `lstat()` on `.lousy-agents/lessons/` and throw a typed error if the entry is a symlink (to prevent directory-level symlink redirection to arbitrary paths). The CLI command is responsible for treating this as a fatal condition and setting a non-zero exit code.
+- Before calling `readdir()`, the gateway shall use `assertPathHasNoSymbolicLinks(projectRoot, lessonsDir)` from `packages/core/src/gateways/file-system-utils.ts` to verify that no path segment from the project root to `.lousy-agents/lessons/` is a symbolic link. A plain `lstat()` on the final segment is insufficient — it follows symlinks in ancestor directories (e.g., `.lousy-agents/` itself could be a symlink). Any symlink detection shall throw a typed error; the CLI command is responsible for treating this as a fatal condition and setting a non-zero exit code.
 - All file reads use `readFileNoFollow()` from `packages/core/src/gateways/file-system-utils.ts` with a 1MB `maxBytes` limit.
 - Files exceeding 1MB are reported as errors, not silently skipped.
 - Frontmatter is validated using `LessonFrontmatterSchema` from `lesson-schema.ts`.
