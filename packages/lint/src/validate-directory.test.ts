@@ -163,7 +163,10 @@ describe("validateDirectory", () => {
 
     describe("given a path with a backslash traversal (Windows path separator)", () => {
         it("rejects with a LintValidationError", async () => {
-            // 'a\\..\\..' contains '..' segments when split on '\\' — must be caught.
+            // On Linux, '\' is a filename character, not a separator. However,
+            // hasPathTraversalSegment splits on /[\\/]/ to apply the same conservative
+            // rejection on all platforms. This is an intentional trade-off: inputs mixing
+            // '\' and '..' are rejected even when they would be harmless on Linux.
             await expect(
                 validateDirectory("a\\..\\.\\..\\etc\\passwd"),
             ).rejects.toThrow(LintValidationError);

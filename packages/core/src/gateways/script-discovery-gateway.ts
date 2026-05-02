@@ -2,7 +2,6 @@
  * Gateway for discovering scripts from package.json manifests
  */
 
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";
 import {
@@ -12,9 +11,10 @@ import {
 } from "../entities/feedback-loop.js";
 import type { FeedbackLoopCommandsGateway } from "../use-cases/analyze-instruction-quality.js";
 import type { ScriptDiscoveryGateway } from "../use-cases/discover-feedback-loops.js";
-import { assertFileSizeWithinLimit, fileExists } from "./file-system-utils.js";
+import { fileExists, readFileNoFollow } from "./file-system-utils.js";
 
-export const MAX_PACKAGE_JSON_BYTES = 1024 * 1024; // 1 MB — covers even the largest real-world manifests
+// 1 MB — covers even the largest real-world manifests
+const MAX_PACKAGE_JSON_BYTES = 1024 * 1024;
 
 const PackageJsonSchema = z.object({
     scripts: z.record(z.string(), z.string()).optional(),
@@ -36,15 +36,22 @@ export class FileSystemScriptDiscoveryGateway
             return [];
         }
 
-        // Size guard runs before any parsing. Errors (including EACCES) propagate to the caller.
-        await assertFileSizeWithinLimit(
-            packageJsonPath,
-            MAX_PACKAGE_JSON_BYTES,
-            `package.json '${packageJsonPath}'`,
-        );
+        // readFileNoFollow combines O_NOFOLLOW + fstat size check + read on the same fd,
+        // eliminating the TOCTOU window. Size and symlink errors propagate to the caller.
+        let content: string;
+        try {
+            content = await readFileNoFollow(
+                packageJsonPath,
+                MAX_PACKAGE_JSON_BYTES,
+            );
+        } catch (error) {
+            if (error instanceof SyntaxError) {
+                return [];
+            }
+            throw error;
+        }
 
         try {
-            const content = await readFile(packageJsonPath, "utf-8");
             const parseResult = PackageJsonSchema.safeParse(
                 JSON.parse(content),
             );
