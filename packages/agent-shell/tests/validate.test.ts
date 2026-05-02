@@ -54,7 +54,8 @@ describe("hasProtoKey", () => {
 
     describe("given a structure deeper than MAX_PROTO_SCAN_DEPTH with no __proto__", () => {
         it("should return true (conservatively reject)", () => {
-            // Build an object 34 levels deep (past the 32-level scan limit)
+            // Build an object 34 levels deep (= MAX_PROTO_SCAN_DEPTH [32] + 2),
+            // ensuring we exceed the scan limit regardless of the constant's value.
             let deep: unknown = { safe: true };
             for (let i = 0; i < 34; i++) {
                 deep = { nested: deep };
