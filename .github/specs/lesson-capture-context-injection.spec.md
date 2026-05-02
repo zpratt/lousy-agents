@@ -33,7 +33,7 @@ so that I can **reduce repeated mistakes without manually reviewing project conv
 - The context command shall not perform model calls, embedding similarity, or LLM-mediated relevance scoring.
 - When a SessionStart hook fires, the context command shall return all lessons with `type: invariant` without requiring a `--files` path argument.
 - If lesson files contain invalid frontmatter, then the context command shall skip those files, log a warning, and continue processing remaining lessons without crashing the hook.
-- If a `--files` path resolves outside the current working directory, then the context command shall reject the path with a boundary-safe containment check (e.g., `path.relative(cwd, file).startsWith('..')`) and exit non-zero.
+- If a `--files` path resolves outside the current working directory, then the context command shall reject the path with a boundary-safe containment check (e.g., `const rel = path.relative(cwd, file); rel.startsWith('..') || path.isAbsolute(rel)` — the `path.isAbsolute` guard handles Windows paths on different drive letters where `path.relative` returns an absolute path rather than a `..`-prefixed one; `rel === ''` means file equals cwd and shall be treated as a valid in-bounds path) and exit non-zero.
 - If the `.lousy-agents/lessons/` directory cannot be read for any reason (missing, not a directory, permission denied), the context command shall return an empty `context` array and exit zero rather than crashing the PreToolUse hook.
 - When a lesson's `triggers.tags` array contains a value matching any forward-slash-separated path segment OR the file extension of the file under edit, the context command shall include that lesson in `additionalContext`. For `src/rules.ts`, testable segments are `src`, `rules.ts`, and `ts`.
 
@@ -57,7 +57,7 @@ so that I can **accumulate project-specific knowledge without a separate triage 
 
 ### Story: Lesson Schema Validation
 
-As a **platform engineer**,
+As a **Platform Engineer**,
 I want **committed lessons validated against a documented schema**,
 so that I can **catch malformed lessons before they silently fail in the injection runtime**.
 
@@ -174,7 +174,7 @@ The body is human-readable markdown prose: the rule, when it applies, examples o
 
 **Content pattern matching**: literal substring search (`String.prototype.includes()`) against the full file content string after loading it. Case-sensitive. Patterns exceeding 200 characters are rejected by the schema validator before reaching the matcher.
 
-**Path normalization requirement**: all file paths from CLI arguments or gateway reads must be normalized with `path.resolve()` before any comparison or I/O. The cwd containment check must be boundary-safe (e.g., `path.relative(cwd, resolvedFilePath).startsWith('..')`) to prevent prefix confusion (e.g., `/repo` matching `/repo2`). String `includes('..')` is explicitly prohibited for this check — it is both insufficient (misses encoded traversal) and incorrect (rejects valid filenames containing `..` as a substring, e.g., `..foo.ts`).
+**Path normalization requirement**: all file paths from CLI arguments or gateway reads must be normalized with `path.resolve()` before any comparison or I/O. The cwd containment check must be boundary-safe (e.g., `const rel = path.relative(cwd, resolvedFilePath); rel.startsWith('..') || path.isAbsolute(rel)` — the `path.isAbsolute` guard handles Windows cross-drive paths where `path.relative` returns an absolute path instead of a `..`-prefixed relative path) to prevent both path traversal and prefix confusion (e.g., `/repo` matching `/repo2`). String `includes('..')` and simple `startsWith` prefix checks are explicitly prohibited for this check — `includes('..')` is insufficient (misses encoded traversal) and incorrect (rejects valid names like `..foo.ts`), while `startsWith` is vulnerable to prefix confusion.
 
 **Windows cross-platform**: before passing any path to glob matching, normalize backslash separators to forward slashes (e.g., `filePath.split(path.sep).join('/')`). Path glob matching is always case-sensitive regardless of the OS filesystem case sensitivity.
 
@@ -250,7 +250,7 @@ The use-case layer depends on this port; the gateway in `packages/core/src/gatew
 ```typescript
 // packages/core/src/use-cases/lesson-file-gateway-port.ts
 export interface ParsedLesson {
-  readonly frontmatter: Lesson;
+  readonly lesson: Lesson;
   readonly filePath: string;
 }
 
@@ -559,7 +559,7 @@ sequenceDiagram
 **Requirements**:
 - Accepts one or more file paths via repeated `--files` flags (e.g., `--files path1 --files path2`). Comma-separated values in a single flag are not supported.
 - When invoked without any `--files` arguments, returns all lessons with `type: invariant` without performing path, tag, or content matching. This is the SessionStart injection path.
-- Before any file I/O, validates each `--files` path using `path.resolve()` and confirms the resolved absolute path starts with `path.resolve(process.cwd())`. Rejects any path that does not satisfy this check with a non-zero exit and error message. String `includes('..')` must not be used for this check.
+- Before any file I/O, validates each `--files` path using `path.resolve()` and applies a boundary-safe containment check: compute `const rel = path.relative(resolvedCwd, resolvedPath)` and reject if `rel.startsWith('..')` or `path.isAbsolute(rel)` — this prevents both path traversal and prefix-confusion attacks (e.g., `/repo` incorrectly matching `/repo2`). String `includes('..')` and simple `startsWith` prefix checks must not be used for this check.
 - File paths are normalized to forward-slash separators before glob matching.
 - Reads committed lesson files using the gateway from Task 4 (including size limit enforcement).
 - Matches lessons by path globs, tag intersection, and literal substring content matching using the semantics defined in the Design section. Pattern matching uses `String.prototype.includes()` or equivalent linear-time search. Regex matching against file content is explicitly prohibited.
@@ -579,7 +579,7 @@ sequenceDiagram
 - [ ] Tests cover empty trigger arrays not matching any file.
 - [ ] Tests cover empty match result returning `{ context: [] }` and exiting zero.
 - [ ] Tests cover multiple `--files` flags producing a merged match result.
-- [ ] Tests cover a `--files` path containing `..` being rejected with exit 1.
+- [ ] Tests cover a `--files` path with `..` segments that resolves outside cwd being rejected with exit 1 (e.g., `../../etc/passwd`). A path with `..` segments that still resolves inside cwd (e.g., `src/../lib/safe.ts`) shall not be rejected.
 - [ ] Tests cover a `--files` path resolving outside cwd being rejected with exit 1.
 - [ ] Tests cover path normalization: a `--files` path with backslash separators resolves correctly against cwd.
 - [ ] Tests cover path normalization: a lesson with path glob `src/policy/**` matches a `--files` path with backslash separators after normalization.
