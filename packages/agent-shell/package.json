@@ -36,7 +36,7 @@
         "build": "rspack build --config rspack.config.ts && chmod +x dist/index.js"
     },
     "dependencies": {
-        "zod": "4.3.6"
+        "zod": "4.4.2"
     },
     "peerDependencies": {
         "@github/copilot-sdk": "0.3.0"
