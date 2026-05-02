@@ -4,15 +4,14 @@ import { describe, expect, it, vi } from "vitest";
 import type { QueryDeps } from "../../src/gateways/log-query.js";
 import {
     listSessions,
+    MAX_LINE_BYTES,
+    MAX_LINES_PER_FILE,
     parseDuration,
     queryEvents,
     resolveReadEventsDir,
 } from "../../src/gateways/log-query.js";
 
 const chance = new Chance();
-
-const MAX_LINE_BYTES = 65_536;
-const MAX_LINES_PER_FILE = 100_000;
 
 function buildScriptEndEvent(
     overrides: Record<string, unknown> = {},

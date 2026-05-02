@@ -35,8 +35,8 @@ export interface SessionSummary {
 }
 
 const DURATION_PATTERN = /^(\d+)([mhd])$/;
-const MAX_LINE_BYTES = 65_536;
-const MAX_LINES_PER_FILE = 100_000;
+export const MAX_LINE_BYTES = 65_536;
+export const MAX_LINES_PER_FILE = 100_000;
 
 const UNIT_MS: Record<string, number> = {
     m: 60 * 1000,
