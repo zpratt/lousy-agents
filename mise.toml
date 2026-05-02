@@ -41,6 +41,11 @@ description = "Running shellcheck against shell scripts"
 run = "[ -n \"$(ls -A *.sh 2>/dev/null)\" ] && shellcheck *.sh || echo 'No shell scripts found, skipping shellcheck'"
 hide = true
 
+[tasks.dependency-cruiser]
+description = "Validate package architecture with dependency-cruiser"
+run = "npm run lint:architecture"
+hide = true
+
 [tasks.check-issue-forms]
 description = "Validating GitHub issue form templates against JSON schema"
 run = "check-jsonschema --schemafile https://json.schemastore.org/github-issue-forms.json .github/ISSUE_TEMPLATE/*.yml"
@@ -59,6 +64,7 @@ run = [
     'yamllint',
     'markdownlint',
     'shellcheck',
+    'dependency-cruiser',
     'check-issue-forms',
     'format-check',
   ] }, # These run in parallel!
