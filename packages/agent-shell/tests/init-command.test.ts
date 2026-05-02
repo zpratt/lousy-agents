@@ -342,6 +342,33 @@ describe("handleInit", () => {
         });
     });
 
+    describe("given hooks.json contains __proto__ as own-property key (Zod 4.4.2 validation bypass)", () => {
+        it("should abort with an error and not modify hooks.json", async () => {
+            // Arrange
+            const flags = createDefaultFlags({ flightRecorder: true });
+            const deps = createMockDeps({
+                readFile: vi
+                    .fn()
+                    .mockResolvedValue(
+                        '{"__proto__":{"polluted":true},"version":1,"hooks":{}}',
+                    ),
+            });
+
+            // Act
+            const ok = await handleInit(flags, deps);
+
+            // Assert
+            expect(ok).toBe(false);
+            expect(deps.stderr.join("")).toContain(
+                "failed to read existing hooks.json",
+            );
+            expect(deps.writeFile).not.toHaveBeenCalled();
+            expect(
+                (Object.prototype as Record<string, unknown>).polluted,
+            ).toBeUndefined();
+        });
+    });
+
     describe("given hooks.json exists with only policy configured", () => {
         describe("with --flight-recorder flag", () => {
             it("should add flight recording while preserving policy", async () => {
