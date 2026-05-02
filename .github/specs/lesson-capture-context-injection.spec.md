@@ -22,7 +22,7 @@ AI coding agents repeat mistakes, forget project-specific conventions, and lose 
 
 ### Story: Lesson Injection Before File Edits
 
-As a **vibe coder**,
+As a **Vibe Coder**,
 I want **relevant lessons injected before an agent edits a file**,
 so that I can **reduce repeated mistakes without manually reviewing project conventions before each session**.
 
@@ -33,15 +33,15 @@ so that I can **reduce repeated mistakes without manually reviewing project conv
 - The context command shall not perform model calls, embedding similarity, or LLM-mediated relevance scoring.
 - When a SessionStart hook fires, the context command shall return all lessons with `type: invariant` without requiring a `--files` path argument.
 - If lesson files contain invalid frontmatter, then the context command shall skip those files, log a warning, and continue processing remaining lessons without crashing the hook.
-- If a `--files` path resolves outside the current working directory, then the context command shall reject the path with an error and exit non-zero.
+- If a `--files` path resolves outside the current working directory, then the context command shall reject the path with a boundary-safe containment check (e.g., `path.relative(cwd, file).startsWith('..')`) and exit non-zero.
 - If the `.lousy-agents/lessons/` directory cannot be read for any reason (missing, not a directory, permission denied), the context command shall return an empty `context` array and exit zero rather than crashing the PreToolUse hook.
-- When a lesson's `triggers.tags` array contains a value matching any forward-slash-separated path segment of the file under edit, the context command shall include that lesson in `additionalContext`.
+- When a lesson's `triggers.tags` array contains a value matching any forward-slash-separated path segment OR the file extension of the file under edit, the context command shall include that lesson in `additionalContext`. For `src/rules.ts`, testable segments are `src`, `rules.ts`, and `ts`.
 
 ---
 
 ### Story: Inline Lesson Capture at Session End
 
-As a **vibe coder**,
+As a **Vibe Coder**,
 I want **the agent to capture durable lessons from its own session findings**,
 so that I can **accumulate project-specific knowledge without a separate triage or authoring step**.
 
@@ -75,7 +75,7 @@ so that I can **catch malformed lessons before they silently fail in the injecti
 
 ### Story: Hook Initialization
 
-As a **vibe coder**,
+As a **Vibe Coder**,
 I want **a single command to wire the lesson lifecycle into my Claude Code session**,
 so that I can **enable lesson injection and capture without manually editing hook configuration**.
 
@@ -137,7 +137,7 @@ triggers:
 ---
 ```
 
-**Slug format constraint**: slugs must match `^[a-z0-9-]+$`. Path separators and dot-dot sequences are invalid and will cause lesson rejection by the linter and gateway.
+**Slug format constraint**: slugs must match `^[a-z0-9-]+$`. Path separators and dot-dot sequences are invalid. Malformed slugs will cause lesson rejection by the linter; the runtime context gateway shall skip invalid lesson files with a warning and continue.
 
 **Pattern length constraint**: each entry in `triggers.patterns` must not exceed 200 characters. Patterns are treated as literal substrings for matching — never as regular expressions. The matching implementation shall use linear string search (e.g., `String.prototype.includes()`) and must not use regex on untrusted file content to prevent catastrophic backtracking.
 
@@ -174,7 +174,7 @@ The body is human-readable markdown prose: the rule, when it applies, examples o
 
 **Content pattern matching**: literal substring search (`String.prototype.includes()`) against the full file content string after loading it. Case-sensitive. Patterns exceeding 200 characters are rejected by the schema validator before reaching the matcher.
 
-**Path normalization requirement**: all file paths from CLI arguments or gateway reads must be normalized with `path.resolve()` before any comparison or I/O. The cwd containment check must compare `path.resolve(filePath)` against `path.resolve(process.cwd())` using `startsWith()` on the resulting absolute path strings. String `includes('..')` is explicitly prohibited for this check — it is both insufficient (misses encoded traversal) and incorrect (rejects valid filenames containing `..` as a substring, e.g., `..foo.ts`).
+**Path normalization requirement**: all file paths from CLI arguments or gateway reads must be normalized with `path.resolve()` before any comparison or I/O. The cwd containment check must be boundary-safe (e.g., `path.relative(cwd, resolvedFilePath).startsWith('..')`) to prevent prefix confusion (e.g., `/repo` matching `/repo2`). String `includes('..')` is explicitly prohibited for this check — it is both insufficient (misses encoded traversal) and incorrect (rejects valid filenames containing `..` as a substring, e.g., `..foo.ts`).
 
 **Windows cross-platform**: before passing any path to glob matching, normalize backslash separators to forward slashes (e.g., `filePath.split(path.sep).join('/')`). Path glob matching is always case-sensitive regardless of the OS filesystem case sensitivity.
 
