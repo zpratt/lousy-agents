@@ -9,7 +9,7 @@ AI coding agents repeat mistakes, forget project-specific conventions, and lose 
 | Persona | Impact | Notes |
 | --- | --- | --- |
 | AI Coding Agent | Positive | Receives relevant lessons before edits; can author new lessons inline |
-| Vibe Coder (software engineer learning AI-assisted development) | Positive | Lessons improve agent reliability without manual triage effort |
+| Vibe Coder | Positive | Software engineer learning AI-assisted development; lessons improve agent reliability without manual triage effort |
 | Platform Engineer | Positive | Lessons are committed, reviewable, and auditable through normal Git workflow |
 
 ## Value Assessment
@@ -270,7 +270,7 @@ export interface LessonFileGatewayPort {
 }
 ```
 
-#### `additionalContext` JSON Shape
+#### CLI Stdout JSON Shape
 
 > **BLOCKING open question for Task 5**: Confirm the exact field name(s) expected by Claude Code for `additionalContext` hook responses before Task 5 begins. The shape below defines the *lousy-agents* stdout output; field naming must conform to the Claude Code hook protocol once confirmed.
 
@@ -566,7 +566,7 @@ sequenceDiagram
 - Matches lessons by path globs, tag intersection, and literal substring content matching using the semantics defined in the Design section. Pattern matching uses `String.prototype.includes()` or equivalent linear-time search. Regex matching against file content is explicitly prohibited.
 - Empty trigger arrays (`paths: []`, `tags: []`, `patterns: []`) do not match any file — absence is not a wildcard.
 - Lesson body content is truncated to 10 000 characters before inclusion in the `additionalContext` output.
-- Returns JSON conforming to the `additionalContext` shape defined in the Data Model section.
+- Returns CLI stdout JSON conforming to the `{ "context": [...] }` shape defined in the Data Model section. The PreToolUse hook is responsible for wrapping this output into the Claude Code `additionalContext` response format once field names are confirmed (see blocking open question in the Data Model section).
 - Performs no model calls, embedding lookup, or LLM relevance scoring.
 - Returns a valid empty `context` array (exits zero) when no lessons match.
 - Returns a valid empty `context` array (exits zero) when the lessons directory cannot be read.
