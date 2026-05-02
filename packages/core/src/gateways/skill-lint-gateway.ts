@@ -22,6 +22,7 @@ const MAX_SKILL_FILE_BYTES = 1_048_576;
 const SKILL_DIRECTORIES = [
     join(".github", "skills"),
     join(".claude", "skills"),
+    join(".agents", "skills"),
 ] as const;
 
 /**
