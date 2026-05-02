@@ -2,6 +2,7 @@
 import { join, resolve } from "node:path";
 import type { ScriptEvent } from "../entities/types.js";
 import { ScriptEventSchema } from "../entities/types.js";
+import { hasProtoKey } from "../entities/validation.js";
 import { isPathNotFoundError, isWithinProjectRoot } from "../lib/path-utils.js";
 
 export interface QueryDeps {
@@ -164,6 +165,10 @@ function parseLine(line: string): ScriptEvent | undefined {
         return undefined;
     }
 
+    if (hasProtoKey(parsed)) {
+        return undefined;
+    }
+
     const result = ScriptEventSchema.safeParse(parsed);
     if (!result.success) {
         return undefined;
@@ -260,6 +265,10 @@ export async function listSessions(
             try {
                 parsed = JSON.parse(line);
             } catch {
+                continue;
+            }
+
+            if (hasProtoKey(parsed)) {
                 continue;
             }
 

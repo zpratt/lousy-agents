@@ -1,6 +1,6 @@
 import Chance from "chance";
 import { describe, expect, it } from "vitest";
-import { hasProtoKey } from "../src/lib/validate.js";
+import { hasProtoKey } from "../src/entities/validation.js";
 
 const chance = new Chance();
 
