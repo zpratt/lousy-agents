@@ -11,7 +11,7 @@ import {
 } from "../entities/feedback-loop.js";
 import type { FeedbackLoopCommandsGateway } from "../use-cases/analyze-instruction-quality.js";
 import type { ScriptDiscoveryGateway } from "../use-cases/discover-feedback-loops.js";
-import { fileExists, readFileNoFollow } from "./file-system-utils.js";
+import { readFileNoFollow } from "./file-system-utils.js";
 
 // 1 MB — covers even the largest real-world manifests
 const MAX_PACKAGE_JSON_BYTES = 1024 * 1024;
@@ -32,12 +32,10 @@ export class FileSystemScriptDiscoveryGateway
     async discoverScripts(targetDir: string): Promise<DiscoveredScript[]> {
         const packageJsonPath = join(targetDir, "package.json");
 
-        if (!(await fileExists(packageJsonPath))) {
-            return [];
-        }
-
         // readFileNoFollow combines O_NOFOLLOW + fstat size check + read on the same fd,
-        // eliminating the TOCTOU window. Size and symlink errors propagate to the caller.
+        // eliminating both the fileExists TOCTOU window and symlink attacks.
+        // ENOENT → no package.json present; return [].
+        // Size or symlink errors propagate to the caller.
         let content: string;
         try {
             content = await readFileNoFollow(
@@ -45,7 +43,11 @@ export class FileSystemScriptDiscoveryGateway
                 MAX_PACKAGE_JSON_BYTES,
             );
         } catch (error) {
-            if (error instanceof SyntaxError) {
+            if (
+                error instanceof Error &&
+                "code" in error &&
+                (error as NodeJS.ErrnoException).code === "ENOENT"
+            ) {
                 return [];
             }
             throw error;
