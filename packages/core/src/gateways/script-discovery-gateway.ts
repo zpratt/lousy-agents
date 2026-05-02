@@ -46,46 +46,49 @@ export class FileSystemScriptDiscoveryGateway
             if (
                 error instanceof Error &&
                 "code" in error &&
-                (error as NodeJS.ErrnoException).code === "ENOENT"
+                (error as { code?: unknown }).code === "ENOENT"
             ) {
                 return [];
             }
             throw error;
         }
 
+        // Isolate JSON.parse — the only legitimate SyntaxError source — so
+        // entity-layer calls (determineScriptPhase, isScriptMandatory) are
+        // never accidentally swallowed by the SyntaxError guard.
+        let parsed: unknown;
         try {
-            const parseResult = PackageJsonSchema.safeParse(
-                JSON.parse(content),
-            );
-
-            if (!parseResult.success || !parseResult.data.scripts) {
+            parsed = JSON.parse(content);
+        } catch (e) {
+            if (e instanceof SyntaxError) {
                 return [];
             }
-
-            const scripts: DiscoveredScript[] = [];
-
-            for (const [name, command] of Object.entries(
-                parseResult.data.scripts,
-            )) {
-                const phase = determineScriptPhase(name, command);
-                const isMandatory = isScriptMandatory(phase);
-
-                scripts.push({
-                    name,
-                    command,
-                    phase,
-                    isMandatory,
-                });
-            }
-
-            return scripts;
-        } catch (error) {
-            if (error instanceof SyntaxError) {
-                // Malformed JSON — not a fatal error; report no scripts found
-                return [];
-            }
-            throw error;
+            throw e;
         }
+
+        const parseResult = PackageJsonSchema.safeParse(parsed);
+
+        if (!parseResult.success || !parseResult.data.scripts) {
+            return [];
+        }
+
+        const scripts: DiscoveredScript[] = [];
+
+        for (const [name, command] of Object.entries(
+            parseResult.data.scripts,
+        )) {
+            const phase = determineScriptPhase(name, command);
+            const isMandatory = isScriptMandatory(phase);
+
+            scripts.push({
+                name,
+                command,
+                phase,
+                isMandatory,
+            });
+        }
+
+        return scripts;
     }
 }
 

@@ -66,6 +66,7 @@ run = [
     'shellcheck',
     'check-issue-forms',
     'format-check',
+    'dependency-cruiser',
   ] }, # These run in parallel!
 ]
 
