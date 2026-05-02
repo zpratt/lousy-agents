@@ -29,7 +29,7 @@ so that I can **reduce repeated mistakes without manually reviewing project conv
 #### Acceptance Criteria
 
 - When an agent attempts to edit or write a file, the PreToolUse hook shall invoke `lousy-agents context --files <path>` and return matching lessons as `additionalContext` (the CLI outputs `{ "context": [...] }` to stdout; the hook wraps that output into its `additionalContext` response to Claude — see the Data Model section for the CLI output shape and the BLOCKING open question on exact hook field naming).
-- When no lessons match the file, the context command shall return a valid empty JSON result without error.
+- When no lessons match the file, the context command shall return `{"context": []}` on stdout and exit zero.
 - The context command shall not perform model calls, embedding similarity, or LLM-mediated relevance scoring.
 - When a SessionStart hook fires, the context command shall return all lessons with `type: invariant` without requiring a `--files` path argument.
 - If lesson files contain invalid frontmatter, then the context command shall skip those files, log a warning, and continue processing remaining lessons without crashing the hook.
@@ -213,7 +213,7 @@ export interface Lesson {
 }
 ```
 
-Zod validation schema (use-case layer — framework imports allowed here):
+Zod validation schema (use-case layer — framework imports allowed here). This schema validates YAML frontmatter only — `body` is the markdown content after the `---` delimiter and is read separately by the gateway:
 
 ```typescript
 // packages/core/src/use-cases/lesson-schema.ts
@@ -223,7 +223,7 @@ const SAFE_SLUG = /^[a-z0-9-]+$/;
 const MAX_PATTERN_LENGTH = 200;
 const MAX_PATTERNS = 50;
 
-export const LessonSchema = z.object({
+export const LessonFrontmatterSchema = z.object({
   slug: z.string().regex(SAFE_SLUG, 'slug must match ^[a-z0-9-]+$'),
   title: z.string().min(1),
   type: z.enum(['invariant', 'pattern']),
@@ -235,13 +235,13 @@ export const LessonSchema = z.object({
     pr: z.number().int(),
     finding_id: z.string(),
     facet: z.string(),
-  })),
+  }).strict()),
   triggers: z.object({
     paths: z.array(z.string()),
     tags: z.array(z.string()),
     patterns: z.array(z.string().max(MAX_PATTERN_LENGTH)).max(MAX_PATTERNS),
-  }),
-});
+  }).strict(),
+}).strict();
 ```
 
 #### Gateway Port Interface
@@ -515,10 +515,10 @@ sequenceDiagram
 
 **Requirements**:
 - Gateway reads `.lousy-agents/lessons/` relative to the resolved project root (not raw `process.cwd()` string).
-- Before calling `readdir()`, the gateway shall call `lstat()` on `.lousy-agents/lessons/` and reject the path with a non-zero exit if the entry is a symlink (to prevent directory-level symlink redirection to arbitrary paths).
+- Before calling `readdir()`, the gateway shall call `lstat()` on `.lousy-agents/lessons/` and throw a typed error if the entry is a symlink (to prevent directory-level symlink redirection to arbitrary paths). The CLI command is responsible for treating this as a fatal condition and setting a non-zero exit code.
 - All file reads use `readFileNoFollow()` from `packages/core/src/gateways/file-system-utils.ts` with a 1MB `maxBytes` limit.
 - Files exceeding 1MB are reported as errors, not silently skipped.
-- Frontmatter is validated using `LessonSchema` from `lesson-schema.ts`.
+- Frontmatter is validated using `LessonFrontmatterSchema` from `lesson-schema.ts`.
 - Reports invalid files with file path and specific validation reason.
 - Exits non-zero if any lesson is invalid.
 - Exits zero if all lessons are valid.
@@ -622,7 +622,7 @@ sequenceDiagram
 - Preserves unrelated existing settings in `.claude/settings.json` if the file already exists.
 - Does not overwrite existing hook entries for the same tool/event unless `--force` is passed.
 - If `.claude/settings.json` contains malformed JSON, exits non-zero with a descriptive error.
-- The hook config gateway shall parse `.claude/settings.json` using `JSON.parse()` followed by prototype-safe object construction. Any object at any nesting level containing `__proto__`, `constructor`, or `prototype` as keys shall be rejected with a non-zero exit and descriptive error.
+- The hook config gateway shall parse `.claude/settings.json` using `JSON.parse()` followed by prototype-safe object construction. Any object at any nesting level containing `__proto__`, `constructor`, or `prototype` as keys shall cause the gateway to throw a typed error with a descriptive message. The CLI command is responsible for treating this as a fatal condition and setting a non-zero exit code.
 
 **Verification**:
 - [ ] Tests cover creating hook config when no file exists.
