@@ -132,7 +132,13 @@ describe("validateDirectory", () => {
     });
 
     describe("given a path with traversal segments", () => {
-        it("rejects with a path traversal error", async () => {
+        it("rejects with a LintValidationError", async () => {
+            await expect(
+                validateDirectory("/tmp/../etc/passwd"),
+            ).rejects.toThrow(LintValidationError);
+        });
+
+        it("rejects with a path traversal error message", async () => {
             await expect(
                 validateDirectory("/tmp/../etc/passwd"),
             ).rejects.toThrow("path traversal");
@@ -140,12 +146,18 @@ describe("validateDirectory", () => {
     });
 
     describe("given a path with a forward-slash traversal on Windows-style input", () => {
-        it("rejects traversal using forward-slash separators on all platforms", async () => {
+        it("rejects with a LintValidationError", async () => {
             // On Windows, path.sep is '\\' but '/' is also a valid separator.
             // A path like 'a/../../etc/passwd' must be caught on all platforms.
             await expect(
                 validateDirectory("a/../../etc/passwd"),
             ).rejects.toThrow(LintValidationError);
+        });
+
+        it("rejects with a path traversal error message", async () => {
+            await expect(
+                validateDirectory("a/../../etc/passwd"),
+            ).rejects.toThrow("path traversal");
         });
     });
 

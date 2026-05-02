@@ -1,8 +1,12 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import Chance from "chance";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { FileSystemScriptDiscoveryGateway } from "./script-discovery-gateway.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ScriptDiscoveryGateway } from "../use-cases/discover-feedback-loops.js";
+import {
+    createFeedbackLoopCommandsGateway,
+    FileSystemScriptDiscoveryGateway,
+} from "./script-discovery-gateway.js";
 
 const chance = new Chance();
 
@@ -166,7 +170,7 @@ describe("FileSystemScriptDiscoveryGateway", () => {
     });
 
     describe("when package.json contains malformed JSON", () => {
-        it("should return empty array and log warning", async () => {
+        it("should return empty array when JSON is malformed", async () => {
             // Write invalid JSON
             await writeFile(
                 join(testDir, "package.json"),
@@ -177,5 +181,87 @@ describe("FileSystemScriptDiscoveryGateway", () => {
 
             expect(result).toEqual([]);
         });
+    });
+
+    describe("when package.json exceeds the size limit", () => {
+        it("should return empty array when file is too large", async () => {
+            // Write a package.json that exceeds MAX_PACKAGE_JSON_BYTES (64 KB)
+            const oversized = `{"scripts":{"test":"${chance.string({ length: 65 * 1024 })}"}}`;
+            await writeFile(join(testDir, "package.json"), oversized);
+
+            const result = await gateway.discoverScripts(testDir);
+
+            expect(result).toEqual([]);
+        });
+    });
+
+    describe("when package.json scripts field fails schema validation", () => {
+        it("should return empty array when a script value is not a string", async () => {
+            // Valid JSON but scripts values are not strings — schema rejects it
+            await writeFile(
+                join(testDir, "package.json"),
+                JSON.stringify({
+                    name: "test-package",
+                    scripts: { test: 42 },
+                }),
+            );
+
+            const result = await gateway.discoverScripts(testDir);
+
+            expect(result).toEqual([]);
+        });
+    });
+});
+
+describe("createFeedbackLoopCommandsGateway", () => {
+    it("filters to mandatory-only commands from the injected gateway", async () => {
+        // Arrange
+        const chance = new Chance();
+        const mandatoryName = chance.word();
+        const optionalName = chance.word();
+        const stubGateway: ScriptDiscoveryGateway = {
+            discoverScripts: vi.fn().mockResolvedValue([
+                {
+                    name: mandatoryName,
+                    command: "vitest run",
+                    phase: "test",
+                    isMandatory: true,
+                },
+                {
+                    name: optionalName,
+                    command: "tsx src/index.ts",
+                    phase: "dev",
+                    isMandatory: false,
+                },
+            ]),
+        };
+        const gateway = createFeedbackLoopCommandsGateway(stubGateway);
+
+        // Act
+        const result = await gateway.getMandatoryCommands("/any/dir");
+
+        // Assert
+        expect(result).toEqual([mandatoryName]);
+        expect(result).not.toContain(optionalName);
+    });
+
+    it("creates its own FileSystemScriptDiscoveryGateway when no gateway is provided", async () => {
+        // Arrange — empty dir, so discoverScripts returns []
+        const dir = join(
+            "/tmp",
+            `test-feedback-gateway-${new Chance().guid()}`,
+        );
+        await mkdir(dir, { recursive: true });
+        const gateway = createFeedbackLoopCommandsGateway();
+
+        try {
+            // Act
+            const result = await gateway.getMandatoryCommands(dir);
+
+            // Assert
+            expect(result).toEqual([]);
+        } finally {
+            await rm(dir, { recursive: true, force: true });
+        }
     });
 });

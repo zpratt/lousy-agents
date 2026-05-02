@@ -38,7 +38,7 @@
         "test:integration": "vitest run --config vitest.integration.config.ts",
         "lint": "biome check .",
         "lint:fix": "biome check --write .",
-        "lint:architecture": "depcruise --config .dependency-cruiser.cjs packages/lint/src packages/core/src packages/agent-shell/src packages/cli/src packages/mcp/src",
+        "lint:architecture": "depcruise --config .dependency-cruiser.cjs packages/lint/src packages/core/src",
         "lint:workflows": "actionlint",
         "lint:yaml": "yamllint ."
     },

@@ -12,14 +12,16 @@ import {
 } from "../entities/feedback-loop.js";
 import type { FeedbackLoopCommandsGateway } from "../use-cases/analyze-instruction-quality.js";
 import type { ScriptDiscoveryGateway } from "../use-cases/discover-feedback-loops.js";
-import { fileExists } from "./file-system-utils.js";
+import { assertFileSizeWithinLimit, fileExists } from "./file-system-utils.js";
+
+const MAX_PACKAGE_JSON_BYTES = 64 * 1024;
 
 const PackageJsonSchema = z.object({
     scripts: z.record(z.string(), z.string()).optional(),
 });
 
 // Re-export port types for consumers
-export type { ScriptDiscoveryGateway };
+export type { FeedbackLoopCommandsGateway, ScriptDiscoveryGateway };
 
 /**
  * File system implementation of script discovery gateway
@@ -35,6 +37,11 @@ export class FileSystemScriptDiscoveryGateway
         }
 
         try {
+            await assertFileSizeWithinLimit(
+                packageJsonPath,
+                MAX_PACKAGE_JSON_BYTES,
+                `package.json '${packageJsonPath}'`,
+            );
             const content = await readFile(packageJsonPath, "utf-8");
             const parseResult = PackageJsonSchema.safeParse(
                 JSON.parse(content),

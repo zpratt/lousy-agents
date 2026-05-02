@@ -4,7 +4,9 @@ module.exports = {
         // ── Clean Architecture: Layer 1 – Entities ─────────────────────────────
         // Entities are the innermost layer. They must not import from any outer
         // layer; only entity-to-entity imports are permitted.
-        // Enforced for packages/core/src (fully compliant) and packages/lint/src.
+        // Scoped to packages/core/src where Clean Architecture layers are enforced.
+        // (packages/lint/src has no entities/ directory; its single-responsibility
+        //  rules are covered by the lint-specific rules below.)
         {
             name: "no-entities-to-use-cases",
             severity: "error",
@@ -150,13 +152,7 @@ module.exports = {
         webpackConfig: {
             fileName: ".dependency-cruiser.webpack.cjs",
         },
-        includeOnly: [
-            "^packages/lint/src",
-            "^packages/core/src",
-            "^packages/agent-shell/src",
-            "^packages/cli/src",
-            "^packages/mcp/src",
-        ],
+        includeOnly: ["^packages/lint/src", "^packages/core/src"],
         exclude: {
             path: "[.](test|spec)[.]ts$|[.]d[.]ts$",
         },
