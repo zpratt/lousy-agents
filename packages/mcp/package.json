@@ -37,8 +37,8 @@
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "1.29.0",
-        "yaml": "2.8.3",
-        "zod": "4.3.6"
+        "yaml": "2.8.4",
+        "zod": "4.4.2"
     },
     "devDependencies": {
         "@lousy-agents/core": "*"

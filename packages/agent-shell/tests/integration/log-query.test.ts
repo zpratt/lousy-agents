@@ -514,4 +514,40 @@ describe("Log query integration", { timeout: 30_000 }, () => {
             expect(exitCodes).toContain(1);
         });
     });
+
+    describe("given a JSONL file containing a line with __proto__ as an own-property key", () => {
+        it("silently skips the poisoned line and returns the remaining valid events", async () => {
+            // Arrange
+            const eventsDir = defaultEventsDir(tmpDir);
+            const sessionId = chance.guid();
+            const validCommand = `echo ${chance.word()}`;
+
+            // Build the poisoned JSON string directly (JS object literal syntax
+            // treats "__proto__" as a prototype setter, not an own-property, so
+            // JSON.stringify would omit it — use string interpolation instead).
+            const baseEvent = makeScriptEndEvent({ session_id: sessionId });
+            const poisonedLine = `{"__proto__":{"polluted":true},${JSON.stringify(baseEvent).slice(1)}`;
+            const validLine = JSON.stringify(
+                makeScriptEndEvent({
+                    session_id: sessionId,
+                    command: validCommand,
+                }),
+            );
+
+            await mkdir(eventsDir, { recursive: true });
+            await writeFile(
+                join(eventsDir, `${sessionId}.jsonl`),
+                `${poisonedLine}\n${validLine}\n`,
+            );
+
+            // Act
+            const result = runLog(tmpDir, ["--json", "--last", "1d"]);
+
+            // Assert — poisoned line is dropped, valid event is returned
+            expect(result.status).toBe(0);
+            const events: Record<string, unknown>[] = JSON.parse(result.stdout);
+            expect(events).toHaveLength(1);
+            expect(events[0].command).toBe(validCommand);
+        });
+    });
 });

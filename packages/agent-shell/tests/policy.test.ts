@@ -752,4 +752,24 @@ describe("loadPolicy TOCTOU and error propagation", () => {
             );
         });
     });
+    describe("given the policy file contains __proto__ as own-property key (Zod 4.4.2 validation bypass)", () => {
+        it("should throw rejecting the non-conforming file", async () => {
+            // Arrange
+            const repoRoot = "/fake/repo";
+            const content = '{"__proto__":{"polluted":true},"deny":[]}';
+            const deps = buildPolicyDeps({
+                getRepositoryRoot: vi.fn(() => repoRoot),
+                realpath: vi.fn(async (p: string) => p),
+                readFile: vi.fn(async () => content),
+            });
+
+            // Act & Assert
+            await expect(loadPolicy({}, deps)).rejects.toThrow(
+                "policy schema validation failed",
+            );
+            expect(
+                (Object.prototype as Record<string, unknown>).polluted,
+            ).toBeUndefined();
+        });
+    });
 });
