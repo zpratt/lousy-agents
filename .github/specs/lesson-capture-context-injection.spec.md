@@ -20,7 +20,7 @@ AI coding agents repeat mistakes, forget project-specific conventions, and lose 
 
 ## User Stories
 
-### Story: Lesson Injection Before File Edits
+### Story 1: Lesson Injection Before File Edits
 
 As a **Vibe Coder**,
 I want **relevant lessons injected before an agent edits a file**,
@@ -39,7 +39,7 @@ so that I can **reduce repeated mistakes without manually reviewing project conv
 
 ---
 
-### Story: Inline Lesson Capture at Session End
+### Story 2: Inline Lesson Capture at Session End
 
 As a **Vibe Coder**,
 I want **the agent to capture durable lessons from its own session findings**,
@@ -55,7 +55,7 @@ so that I can **accumulate project-specific knowledge without a separate triage 
 
 ---
 
-### Story: Lesson Schema Validation
+### Story 3: Lesson Schema Validation
 
 As a **Platform Engineer**,
 I want **committed lessons validated against a documented schema**,
@@ -69,11 +69,11 @@ so that I can **catch malformed lessons before they silently fail in the injecti
 - If all lesson files are valid, then `lousy-agents lint lessons` shall exit zero.
 - If `.lousy-agents/lessons/` does not exist, then the linter shall report that no lessons are configured, exit zero, and create no hidden state.
 - If a lesson specifies any `type` other than `invariant` or `pattern`, then the linter shall report a schema validation error.
-- If a lesson `slug` contains path separators (`/`, `\`) or dot-dot sequences (`..`), then the linter shall reject the lesson with a path traversal validation error.
+- If a lesson `slug` contains path separators (`/`, `\`) or dot-dot sequences (`..`), then the linter shall reject the lesson with a slug format validation error (the `^[a-z0-9-]+$` constraint rejects these characters; no separate path-traversal check is required).
 
 ---
 
-### Story: Hook Initialization
+### Story 4: Hook Initialization
 
 As a **Vibe Coder**,
 I want **a single command to wire the lesson lifecycle into my Claude Code session**,
