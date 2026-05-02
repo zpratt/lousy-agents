@@ -25,10 +25,8 @@ import { LintAgentFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-a
 import { LintHookConfigUseCase } from "@lousy-agents/core/use-cases/lint-hook-config.js";
 import { LintSkillFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-skill-frontmatter.js";
 import { ZodError, z } from "zod";
-import {
-    LintValidationError,
-    validateDirectory,
-} from "./validate-directory.js";
+import { LintValidationError } from "./lint-errors.js";
+import { validateDirectory } from "./validate-directory.js";
 
 const LintTargetsSchema = z
     .object({

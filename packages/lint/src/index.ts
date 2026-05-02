@@ -45,7 +45,7 @@ export type {
 } from "@lousy-agents/core/formatters/index.js";
 // ── Output formatters ────────────────────────────────────────────────
 export { createFormatter } from "@lousy-agents/core/formatters/index.js";
-// ── Public lint API (composition root) ───────────────────────────────
 export type { LintOptions, LintResult } from "./lint.js";
 export { runLint } from "./lint.js";
-export { LintValidationError } from "./validate-directory.js";
+// ── Public lint API (composition root) ───────────────────────────────
+export { LintValidationError } from "./lint-errors.js";

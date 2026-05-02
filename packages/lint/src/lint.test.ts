@@ -5,7 +5,7 @@ import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { LintOptions } from "./lint.js";
 import { runLint } from "./lint.js";
-import { LintValidationError } from "./validate-directory.js";
+import { LintValidationError } from "./lint-errors.js";
 
 const chance = new Chance();
 

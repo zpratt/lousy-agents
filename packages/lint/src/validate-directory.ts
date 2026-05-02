@@ -8,19 +8,7 @@
 
 import { lstat, realpath } from "node:fs/promises";
 import { resolve } from "node:path";
-
-/**
- * Thrown when user-supplied directory input fails validation.
- *
- * Consumers can catch this type to distinguish user-input errors
- * (bad path, missing directory) from system-level errors (EACCES, EMFILE).
- */
-export class LintValidationError extends Error {
-    constructor(message: string) {
-        super(message);
-        this.name = "LintValidationError";
-    }
-}
+import { LintValidationError } from "./lint-errors.js";
 
 function isControlCharacter(code: number): boolean {
     if (code >= 0x00 && code <= 0x1f) return true;
