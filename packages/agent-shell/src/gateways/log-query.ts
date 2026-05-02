@@ -2,6 +2,7 @@
 import { join, resolve } from "node:path";
 import type { ScriptEvent } from "../entities/types.js";
 import { ScriptEventSchema } from "../entities/types.js";
+import { hasProtoKey } from "../entities/validation.js";
 import { isPathNotFoundError, isWithinProjectRoot } from "../lib/path-utils.js";
 
 export interface QueryDeps {
@@ -34,8 +35,8 @@ export interface SessionSummary {
 }
 
 const DURATION_PATTERN = /^(\d+)([mhd])$/;
-const MAX_LINE_BYTES = 65_536;
-const MAX_LINES_PER_FILE = 100_000;
+export const MAX_LINE_BYTES = 65_536;
+export const MAX_LINES_PER_FILE = 100_000;
 
 const UNIT_MS: Record<string, number> = {
     m: 60 * 1000,
@@ -164,6 +165,10 @@ function parseLine(line: string): ScriptEvent | undefined {
         return undefined;
     }
 
+    if (hasProtoKey(parsed)) {
+        return undefined;
+    }
+
     const result = ScriptEventSchema.safeParse(parsed);
     if (!result.success) {
         return undefined;
@@ -253,22 +258,23 @@ export async function listSessions(
         let firstEvent: string | undefined;
         let lastEvent: string | undefined;
         let eventCount = 0;
+        let lineCount = 0;
         const actorSet = new Set<string>();
 
         for await (const line of deps.readFileLines(filePath)) {
-            let parsed: unknown;
-            try {
-                parsed = JSON.parse(line);
-            } catch {
+            if (lineCount >= MAX_LINES_PER_FILE) {
+                deps.writeStderr(
+                    `agent-shell: file ${file} exceeds ${MAX_LINES_PER_FILE} lines, truncating\n`,
+                );
+                break;
+            }
+            lineCount++;
+
+            const event = parseLine(line);
+            if (event === undefined) {
                 continue;
             }
 
-            const result = ScriptEventSchema.safeParse(parsed);
-            if (!result.success) {
-                continue;
-            }
-
-            const event = result.data;
             eventCount++;
             actorSet.add(event.actor);
 

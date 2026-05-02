@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { join, resolve } from "node:path";
 import type { HooksConfig } from "../entities/types.js";
 import { HooksConfigSchema, PolicyConfigSchema } from "../entities/types.js";
+import { hasProtoKey } from "../entities/validation.js";
 import type { ProjectScanResult } from "../gateways/project-scanner.js";
 import { isPathNotFoundError, isWithinProjectRoot } from "../lib/path-utils.js";
 import { sanitizeForStderr } from "../lib/sanitize.js";
@@ -92,6 +93,13 @@ export function ensureAgentShellAllowed(content: string): PolicyPatchResult {
         return { status: "invalid", reason: "JSON parse error" };
     }
 
+    // Zod v4.4.2+ accepts and silently strips __proto__ in .strict() mode,
+    // causing non-conforming files to pass schema validation. Reject explicitly
+    // so callers receive status: "invalid".
+    if (hasProtoKey(parsed)) {
+        return { status: "invalid", reason: "policy schema validation failed" };
+    }
+
     const result = PolicyConfigSchema.safeParse(parsed);
     if (!result.success) {
         return { status: "invalid", reason: "policy schema validation failed" };
@@ -136,6 +144,9 @@ async function loadExistingHooksConfig(
     try {
         const raw = await deps.readFile(hooksPath, "utf-8");
         const parsed: unknown = JSON.parse(raw);
+        if (hasProtoKey(parsed)) {
+            throw new Error("hooks schema validation failed");
+        }
         return { config: HooksConfigSchema.parse(parsed), error: false };
     } catch (err) {
         if (isPathNotFoundError(err)) {
