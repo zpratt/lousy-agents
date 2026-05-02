@@ -2,6 +2,8 @@
 
 This project uses a shared instruction architecture. Domain-specific rules are stored in `.github/instructions/`.
 
+See @.github/context/project.context.md for full project context.
+
 ## Shared Instructions Triggers
 
 When performing the following tasks, you **MUST** read the corresponding instruction file using `read_file` to ensure compliance with project standards:
@@ -45,7 +47,7 @@ You MUST follow the TDD loop for all code changes:
 ### Essential Commands
 - `mise run test`: Run Vitest tests.
 - `mise run lint`: Run all linters (Biome, actionlint, etc.).
-- `mise run ci`: Full validation (lint -> test -> smoke-test). **MUST exit 0 before task completion.**
+- `mise run ci`: Full validation (lint -> test -> test-integration -> smoke-test). **MUST exit 0 before task completion.**
 
 ## Tooling Efficiency
 
