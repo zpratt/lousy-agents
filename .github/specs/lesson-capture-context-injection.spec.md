@@ -570,6 +570,7 @@ sequenceDiagram
 - Performs no model calls, embedding lookup, or LLM relevance scoring.
 - Returns a valid empty `context` array (exits zero) when no lessons match.
 - Returns a valid empty `context` array (exits zero) when the lessons directory cannot be read.
+- If the gateway throws a typed symlink error for `.lousy-agents/lessons/` (the shared gateway security check from Task 4), the context command shall catch that error, log a warning, and return `{ context: [] }` with exit 0. The symlink check is a security control in the shared gateway; the context command's fail-open policy means it must handle this condition gracefully rather than propagating it as a fatal error (contrast with `lint lessons` in Task 4, which treats the symlink error as a fatal condition).
 - If individual lesson files are invalid or oversized, skips them with a logged warning and continues.
 
 **Verification**:
@@ -586,6 +587,7 @@ sequenceDiagram
 - [ ] Tests cover path normalization: a lesson with path glob `src/policy/**` matches a `--files` path with backslash separators after normalization.
 - [ ] Tests cover lesson body exceeding 10 000 characters being truncated in JSON output.
 - [ ] Tests cover unreadable lessons directory returning `{ context: [] }` and exiting zero.
+- [ ] Tests cover `.lousy-agents/lessons/` being a symlink returning `{ context: [] }` and exiting zero (fail-open contrast with Task 4's fail-closed behavior).
 - [ ] Tests cover invoking the command without `--files` returning all `invariant` lessons (SessionStart path).
 - [ ] Output is valid JSON on stdout conforming to the shape in the Data Model section.
 - [ ] `mise run test` passes.
