@@ -258,26 +258,23 @@ export async function listSessions(
         let firstEvent: string | undefined;
         let lastEvent: string | undefined;
         let eventCount = 0;
+        let lineCount = 0;
         const actorSet = new Set<string>();
 
         for await (const line of deps.readFileLines(filePath)) {
-            let parsed: unknown;
-            try {
-                parsed = JSON.parse(line);
-            } catch {
+            if (lineCount >= MAX_LINES_PER_FILE) {
+                deps.writeStderr(
+                    `agent-shell: file ${file} exceeds ${MAX_LINES_PER_FILE} lines, truncating\n`,
+                );
+                break;
+            }
+            lineCount++;
+
+            const event = parseLine(line);
+            if (event === undefined) {
                 continue;
             }
 
-            if (hasProtoKey(parsed)) {
-                continue;
-            }
-
-            const result = ScriptEventSchema.safeParse(parsed);
-            if (!result.success) {
-                continue;
-            }
-
-            const event = result.data;
             eventCount++;
             actorSet.add(event.actor);
 

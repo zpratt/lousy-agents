@@ -744,6 +744,77 @@ describe("session listing", () => {
         // Assert
         expect(result).toEqual([]);
     });
+
+    describe("given a JSONL file containing a line with __proto__ as an own-property key", () => {
+        it("should silently skip the poisoned line and count only valid events", async () => {
+            // Arrange — construct poisoned JSON via string interpolation because
+            // JS object literal syntax treats "__proto__" as a prototype setter,
+            // not an own-property, so JSON.stringify would omit it.
+            const validEvent = buildScriptEndEvent();
+            const poisonedLine = `{"__proto__":{"polluted":true},${JSON.stringify(validEvent).slice(1)}`;
+
+            const deps = createMockDeps({
+                "session.jsonl": {
+                    lines: [poisonedLine, JSON.stringify(validEvent)],
+                    mtimeMs: Date.now(),
+                },
+            });
+
+            // Act
+            const result = await listSessions("/events", deps);
+
+            // Assert — poisoned line is dropped; only the valid event is counted
+            expect(result).toHaveLength(1);
+            expect(result[0].eventCount).toBe(1);
+            expect(
+                (Object.prototype as Record<string, unknown>).polluted,
+            ).toBeUndefined();
+        });
+    });
+
+    describe("given a JSONL file containing an oversized line", () => {
+        it("should silently skip the oversized line and count only valid events", async () => {
+            // Arrange
+            const validEvent = buildScriptEndEvent();
+            const oversizedLine = "x".repeat(MAX_LINE_BYTES + 1);
+
+            const deps = createMockDeps({
+                "session.jsonl": {
+                    lines: [oversizedLine, JSON.stringify(validEvent)],
+                    mtimeMs: Date.now(),
+                },
+            });
+
+            // Act
+            const result = await listSessions("/events", deps);
+
+            // Assert — oversized line is dropped; valid event is counted
+            expect(result).toHaveLength(1);
+            expect(result[0].eventCount).toBe(1);
+        });
+    });
+
+    describe("given a JSONL file exceeding MAX_LINES_PER_FILE", () => {
+        it("should truncate and emit a stderr warning", async () => {
+            // Arrange — exceed the line cap by one
+            const event = buildScriptEndEvent();
+            const lines = Array.from({ length: MAX_LINES_PER_FILE + 1 }, () =>
+                JSON.stringify(event),
+            );
+
+            const deps = createMockDeps({
+                "session.jsonl": { lines, mtimeMs: Date.now() },
+            });
+
+            // Act
+            await listSessions("/events", deps);
+
+            // Assert
+            expect(deps.writeStderr).toHaveBeenCalledWith(
+                expect.stringContaining("exceeds"),
+            );
+        });
+    });
 });
 
 function buildToolUseEvent(
