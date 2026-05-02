@@ -10,10 +10,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-    LintValidationError,
-    validateDirectory,
-} from "./validate-directory.js";
+import { LintValidationError } from "./lint-errors.js";
+import { validateDirectory } from "./validate-directory.js";
 
 const chance = new Chance();
 
