@@ -8,14 +8,36 @@ import type {
     DiscoveredScript,
     DiscoveredTool,
 } from "../entities/feedback-loop.js";
-import type { ScriptDiscoveryGateway } from "../gateways/script-discovery-gateway.js";
-import type { ToolDiscoveryGateway } from "../gateways/tool-discovery-gateway.js";
 
 /**
- * Gateway for detecting package managers
+ * Port for detecting package managers.
  */
 export interface PackageManagerGateway {
     detectPackageManagers(targetDir: string): Promise<PackageManagerFile[]>;
+}
+
+/**
+ * Port for discovering scripts from package manifests.
+ */
+export interface ScriptDiscoveryGateway {
+    /**
+     * Discovers scripts from package.json in the target directory
+     * @param targetDir The directory to search for package.json
+     * @returns Array of discovered scripts
+     */
+    discoverScripts(targetDir: string): Promise<DiscoveredScript[]>;
+}
+
+/**
+ * Port for discovering CLI tools from GitHub Actions workflows.
+ */
+export interface ToolDiscoveryGateway {
+    /**
+     * Discovers CLI tools and commands from GitHub Actions workflows
+     * @param targetDir The repository root directory
+     * @returns Array of discovered tools
+     */
+    discoverTools(targetDir: string): Promise<DiscoveredTool[]>;
 }
 
 /**

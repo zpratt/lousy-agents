@@ -139,6 +139,20 @@ describe("validateDirectory", () => {
         });
     });
 
+    describe("given a path with a backslash in a filename (POSIX)", () => {
+        it.skipIf(process.platform === "win32")(
+            "does not falsely reject a backslash that is part of a directory name",
+            async () => {
+                // On POSIX, backslash is a valid filename character and must
+                // not be treated as a path separator. A path containing `\..`
+                // as part of a filename segment is NOT a traversal sequence.
+                await expect(
+                    validateDirectory("/tmp/a\\.."),
+                ).rejects.not.toThrow("path traversal");
+            },
+        );
+    });
+
     describe("given a path with double dots in a filename", () => {
         it("does not falsely reject legitimate names like data..v2", async () => {
             const legitimateDir = join(tempDir, "data..v2");

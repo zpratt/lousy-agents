@@ -5,7 +5,57 @@
 
 import { z } from "zod";
 import { generateSkillContent, normalizeSkillName } from "../entities/skill.js";
-import type { SkillFileGateway } from "../gateways/skill-file-gateway.js";
+
+/**
+ * Port for skill file operations.
+ */
+export interface SkillFileGateway {
+    /**
+     * Checks if a skill directory already exists
+     * @param targetDir The root directory of the repository
+     * @param skillName The normalized name of the skill
+     * @returns true if the skill directory exists
+     */
+    skillDirectoryExists(
+        targetDir: string,
+        skillName: string,
+    ): Promise<boolean>;
+
+    /**
+     * Ensures the .github/skills/<name> directory exists
+     * @param targetDir The root directory of the repository
+     * @param skillName The normalized name of the skill
+     */
+    ensureSkillDirectory(targetDir: string, skillName: string): Promise<void>;
+
+    /**
+     * Writes content to a SKILL.md file
+     * @param targetDir The root directory of the repository
+     * @param skillName The normalized name of the skill
+     * @param content The content to write to the file
+     */
+    writeSkillFile(
+        targetDir: string,
+        skillName: string,
+        content: string,
+    ): Promise<void>;
+
+    /**
+     * Returns the full path to a skill directory
+     * @param targetDir The root directory of the repository
+     * @param skillName The normalized name of the skill
+     * @returns The full path to the skill directory
+     */
+    getSkillDirectoryPath(targetDir: string, skillName: string): string;
+
+    /**
+     * Returns the full path to a SKILL.md file
+     * @param targetDir The root directory of the repository
+     * @param skillName The normalized name of the skill
+     * @returns The full path to the SKILL.md file
+     */
+    getSkillFilePath(targetDir: string, skillName: string): string;
+}
 
 /**
  * Schema for validating skill name input

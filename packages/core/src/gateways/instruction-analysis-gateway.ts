@@ -12,28 +12,13 @@ import type {
 } from "../entities/feedback-loop.js";
 import { fileExists } from "./file-system-utils.js";
 
-/**
- * Gateway interface for analyzing instruction coverage
- */
-export interface InstructionAnalysisGateway {
-    /**
-     * Analyzes repository instructions to determine coverage of mandatory feedback loops
-     * @param targetDir The repository root directory
-     * @param scripts Discovered scripts to check for documentation
-     * @param tools Discovered tools to check for documentation
-     * @returns Coverage analysis result
-     */
-    analyzeCoverage(
-        targetDir: string,
-        scripts: DiscoveredScript[],
-        tools: DiscoveredTool[],
-    ): Promise<FeedbackLoopCoverage>;
-}
+import type { InstructionAnalysisGateway } from "../use-cases/validate-instruction-coverage.js";
+
+// Re-export port type for consumers
+export type { InstructionAnalysisGateway };
 
 /**
  * File system implementation of instruction analysis gateway
- */
-export class FileSystemInstructionAnalysisGateway
     implements InstructionAnalysisGateway
 {
     async analyzeCoverage(

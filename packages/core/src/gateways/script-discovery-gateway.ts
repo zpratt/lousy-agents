@@ -9,31 +9,11 @@ import {
     determineScriptPhase,
     isScriptMandatory,
 } from "../entities/feedback-loop.js";
-import type { FeedbackLoopCommandsGateway } from "../use-cases/analyze-instruction-quality.js";
-import { fileExists } from "./file-system-utils.js";
+import type { ScriptDiscoveryGateway } from "../use-cases/discover-feedback-loops.js";
 
-// Re-export port type for consumers
-export type { FeedbackLoopCommandsGateway };
-
-/**
- * Interface for package.json scripts section
- */
-interface PackageJson {
-    scripts?: Record<string, string>;
-    name?: string;
-}
-
-/**
- * Gateway interface for discovering scripts
- */
-export interface ScriptDiscoveryGateway {
-    /**
-     * Discovers scripts from package.json in the target directory
-     * @param targetDir The directory to search for package.json
-     * @returns Array of discovered scripts
-     */
-    discoverScripts(targetDir: string): Promise<DiscoveredScript[]>;
-}
+// Re-export port types for consumers
+export type { ScriptDiscoveryGateway };
+export type { FeedbackLoopCommandsGateway } from "../use-cases/analyze-instruction-quality.js";
 
 /**
  * File system implementation of script discovery gateway

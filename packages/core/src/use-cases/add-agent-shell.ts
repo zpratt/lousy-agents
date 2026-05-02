@@ -4,7 +4,23 @@
  */
 
 import type { PackageManagerFile } from "../entities/copilot-setup.js";
-import type { NpmrcGateway } from "../gateways/npmrc-gateway.js";
+
+/**
+ * Port for `.npmrc` file operations.
+ */
+export interface NpmrcGateway {
+    /**
+     * Reads the content of the `.npmrc` file in the target directory.
+     * @returns The file content as a string, or null if the file does not exist.
+     */
+    readNpmrc(targetDir: string): Promise<string | null>;
+
+    /**
+     * Writes content to the `.npmrc` file in the target directory.
+     * Creates the file if it does not exist.
+     */
+    writeNpmrc(targetDir: string, content: string): Promise<void>;
+}
 
 /**
  * The script-shell entry added to `.npmrc` to enable agent-shell.

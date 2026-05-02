@@ -2,8 +2,11 @@
  * Use case for validating instruction coverage of feedback loops
  */
 
-import type { FeedbackLoopCoverage } from "../entities/feedback-loop.js";
-import type { InstructionAnalysisGateway } from "../gateways/instruction-analysis-gateway.js";
+import type {
+    DiscoveredScript,
+    DiscoveredTool,
+    FeedbackLoopCoverage,
+} from "../entities/feedback-loop.js";
 import type {
     DiscoverFeedbackLoopsOutput,
     DiscoverFeedbackLoopsUseCase,
@@ -23,6 +26,17 @@ export interface ValidateInstructionCoverageOutput {
     coverage: FeedbackLoopCoverage;
     hasFullCoverage: boolean;
     suggestions: string[];
+}
+
+/**
+ * Port for analyzing repository instruction coverage.
+ */
+export interface InstructionAnalysisGateway {
+    analyzeCoverage(
+        targetDir: string,
+        scripts: DiscoveredScript[],
+        tools: DiscoveredTool[],
+    ): Promise<FeedbackLoopCoverage>;
 }
 
 /**

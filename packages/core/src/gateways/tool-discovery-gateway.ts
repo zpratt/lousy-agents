@@ -12,17 +12,10 @@ import {
 } from "../entities/feedback-loop.js";
 import { fileExists } from "./file-system-utils.js";
 
-/**
- * Gateway interface for discovering tools from workflows
- */
-export interface ToolDiscoveryGateway {
-    /**
-     * Discovers CLI tools and commands from GitHub Actions workflows
-     * @param targetDir The repository root directory
-     * @returns Array of discovered tools
-     */
-    discoverTools(targetDir: string): Promise<DiscoveredTool[]>;
-}
+import type { ToolDiscoveryGateway } from "../use-cases/discover-feedback-loops.js";
+
+// Re-export port type for consumers
+export type { ToolDiscoveryGateway };
 
 /**
  * File system implementation of tool discovery gateway

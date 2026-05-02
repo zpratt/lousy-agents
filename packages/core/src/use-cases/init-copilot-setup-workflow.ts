@@ -5,12 +5,33 @@
  */
 
 import type { ResolvedVersion } from "../entities/copilot-setup.js";
-import type { EnvironmentGateway } from "../gateways/environment-gateway.js";
-import type { WorkflowGateway } from "../gateways/workflow-gateway.js";
-import type { CopilotSetupConfig } from "../lib/copilot-setup-config.js";
+import type { CopilotSetupConfig } from "../entities/copilot-setup-config.js";
 import { buildCandidatesFromEnvironment } from "./candidate-builder.js";
 import { mergeCandidates } from "./setup-step-discovery.js";
 import { generateWorkflowContent } from "./workflow-generator.js";
+
+/**
+ * Port for environment detection.
+ */
+export interface EnvironmentGateway {
+    detectEnvironment(targetDir: string): Promise<import("../entities/copilot-setup.js").DetectedEnvironment>;
+}
+
+/**
+ * Port for workflow file operations.
+ */
+export interface WorkflowGateway {
+    parseWorkflowsForSetupActions(
+        targetDir: string,
+    ): Promise<import("../entities/copilot-setup.js").SetupStepCandidate[]>;
+    copilotSetupWorkflowExists(targetDir: string): Promise<boolean>;
+    getCopilotSetupWorkflowPath(targetDir: string): Promise<string>;
+    readCopilotSetupWorkflow(targetDir: string): Promise<unknown | null>;
+    writeCopilotSetupWorkflow(
+        targetDir: string,
+        content: string,
+    ): Promise<void>;
+}
 
 export interface InitCopilotSetupWorkflowInput {
     targetDir: string;

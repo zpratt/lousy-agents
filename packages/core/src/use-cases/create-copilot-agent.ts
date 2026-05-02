@@ -8,7 +8,45 @@ import {
     generateAgentContent,
     normalizeAgentName,
 } from "../entities/copilot-agent.js";
-import type { AgentFileGateway } from "../gateways/agent-file-gateway.js";
+
+/**
+ * Port for agent file operations.
+ */
+export interface AgentFileGateway {
+    /**
+     * Checks if an agent file already exists
+     * @param targetDir The root directory of the repository
+     * @param agentName The normalized name of the agent
+     * @returns true if the agent file exists
+     */
+    agentFileExists(targetDir: string, agentName: string): Promise<boolean>;
+
+    /**
+     * Ensures the .github/agents directory exists
+     * @param targetDir The root directory of the repository
+     */
+    ensureAgentsDirectory(targetDir: string): Promise<void>;
+
+    /**
+     * Writes content to an agent file
+     * @param targetDir The root directory of the repository
+     * @param agentName The normalized name of the agent
+     * @param content The content to write to the file
+     */
+    writeAgentFile(
+        targetDir: string,
+        agentName: string,
+        content: string,
+    ): Promise<void>;
+
+    /**
+     * Returns the full path to an agent file
+     * @param targetDir The root directory of the repository
+     * @param agentName The normalized name of the agent
+     * @returns The full path to the agent file
+     */
+    getAgentFilePath(targetDir: string, agentName: string): string;
+}
 
 /**
  * Schema for validating agent name input
