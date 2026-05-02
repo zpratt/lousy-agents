@@ -15,7 +15,7 @@ import type { ScriptDiscoveryGateway } from "../use-cases/discover-feedback-loop
 import { fileExists } from "./file-system-utils.js";
 
 const PackageJsonSchema = z.object({
-    scripts: z.record(z.string()).optional(),
+    scripts: z.record(z.string(), z.string()).optional(),
 });
 
 // Re-export port types for consumers
@@ -36,7 +36,9 @@ export class FileSystemScriptDiscoveryGateway
 
         try {
             const content = await readFile(packageJsonPath, "utf-8");
-            const parseResult = PackageJsonSchema.safeParse(JSON.parse(content));
+            const parseResult = PackageJsonSchema.safeParse(
+                JSON.parse(content),
+            );
 
             if (!parseResult.success || !parseResult.data.scripts) {
                 return [];
@@ -44,7 +46,9 @@ export class FileSystemScriptDiscoveryGateway
 
             const scripts: DiscoveredScript[] = [];
 
-            for (const [name, command] of Object.entries(parseResult.data.scripts)) {
+            for (const [name, command] of Object.entries(
+                parseResult.data.scripts,
+            )) {
                 const phase = determineScriptPhase(name, command);
                 const isMandatory = isScriptMandatory(phase);
 

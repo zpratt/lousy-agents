@@ -1,21 +1,14 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
 import { z } from "zod/v4";
+import type { TelemetryDeps } from "../gateways/telemetry.js";
+import { emitToolUseEvent } from "../gateways/telemetry.js";
 import { sanitizeForStderr } from "../lib/sanitize.js";
-
-export interface TelemetryPort {
-    emitToolUseEvent(options: {
-        tool_name: string;
-        command: string;
-        env: Record<string, string | undefined>;
-        projectRoot: string;
-    }): Promise<void>;
-}
 
 export interface RecordDeps {
     readStdin: () => Promise<string>;
     writeStderr: (data: string) => void;
     env: Record<string, string | undefined>;
-    telemetry: TelemetryPort;
+    telemetryDeps: TelemetryDeps;
     getRepositoryRoot: () => string;
 }
 
@@ -136,12 +129,15 @@ export async function handleRecord(deps: RecordDeps): Promise<boolean> {
 
     try {
         const repoRoot = deps.getRepositoryRoot();
-        await deps.telemetry.emitToolUseEvent({
-            tool_name: toolName,
-            command,
-            env: deps.env,
-            projectRoot: repoRoot,
-        });
+        await emitToolUseEvent(
+            {
+                tool_name: toolName,
+                command,
+                env: deps.env,
+                projectRoot: repoRoot,
+            },
+            deps.telemetryDeps,
+        );
     } catch (err) {
         deps.writeStderr(
             `agent-shell: telemetry write error: ${sanitizeForStderr(err)}\n`,

@@ -1,6 +1,9 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { ProjectScanResult } from "../gateways/project-scanner.js";
+import {
+    type ProjectScanResult,
+    scanProject,
+} from "../gateways/project-scanner.js";
 import {
     isSafeCommand,
     SHELL_METACHAR_PATTERN,
@@ -13,7 +16,6 @@ export interface PolicyInitDeps {
     writeStdout: (data: string) => void;
     writeStderr: (data: string) => void;
     model?: string;
-    scanProject: (dir: string) => Promise<ProjectScanResult>;
 }
 
 interface GeneratedPolicy {
@@ -259,7 +261,7 @@ export async function handlePolicyInit(deps: PolicyInitDeps): Promise<void> {
 
     deps.writeStdout("Scanning project...\n");
 
-    const scanResult = await deps.scanProject(repoRoot);
+    const scanResult = await scanProject(repoRoot);
 
     deps.writeStdout(
         `Discovered: ${scanResult.scripts.length} npm script(s), ` +
