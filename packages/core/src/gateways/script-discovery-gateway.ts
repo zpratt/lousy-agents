@@ -14,7 +14,7 @@ import type { FeedbackLoopCommandsGateway } from "../use-cases/analyze-instructi
 import type { ScriptDiscoveryGateway } from "../use-cases/discover-feedback-loops.js";
 import { assertFileSizeWithinLimit, fileExists } from "./file-system-utils.js";
 
-const MAX_PACKAGE_JSON_BYTES = 64 * 1024;
+export const MAX_PACKAGE_JSON_BYTES = 1024 * 1024; // 1 MB — covers even the largest real-world manifests
 
 const PackageJsonSchema = z.object({
     scripts: z.record(z.string(), z.string()).optional(),
@@ -36,12 +36,14 @@ export class FileSystemScriptDiscoveryGateway
             return [];
         }
 
+        // Size guard runs before any parsing. Errors (including EACCES) propagate to the caller.
+        await assertFileSizeWithinLimit(
+            packageJsonPath,
+            MAX_PACKAGE_JSON_BYTES,
+            `package.json '${packageJsonPath}'`,
+        );
+
         try {
-            await assertFileSizeWithinLimit(
-                packageJsonPath,
-                MAX_PACKAGE_JSON_BYTES,
-                `package.json '${packageJsonPath}'`,
-            );
             const content = await readFile(packageJsonPath, "utf-8");
             const parseResult = PackageJsonSchema.safeParse(
                 JSON.parse(content),
@@ -68,9 +70,12 @@ export class FileSystemScriptDiscoveryGateway
             }
 
             return scripts;
-        } catch {
-            // If package.json is malformed or cannot be parsed, return empty array
-            return [];
+        } catch (error) {
+            if (error instanceof SyntaxError) {
+                // Malformed JSON — not a fatal error; report no scripts found
+                return [];
+            }
+            throw error;
         }
     }
 }

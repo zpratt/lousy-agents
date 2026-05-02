@@ -161,6 +161,21 @@ describe("validateDirectory", () => {
         });
     });
 
+    describe("given a path with a backslash traversal (Windows path separator)", () => {
+        it("rejects with a LintValidationError", async () => {
+            // 'a\\..\\..' contains '..' segments when split on '\\' — must be caught.
+            await expect(
+                validateDirectory("a\\..\\.\\..\\etc\\passwd"),
+            ).rejects.toThrow(LintValidationError);
+        });
+
+        it("rejects with a path traversal error message", async () => {
+            await expect(
+                validateDirectory("a\\..\\.\\..\\etc\\passwd"),
+            ).rejects.toThrow("path traversal");
+        });
+    });
+
     describe("given a path with double dots in a filename", () => {
         it("does not falsely reject legitimate names like data..v2", async () => {
             const legitimateDir = join(tempDir, "data..v2");

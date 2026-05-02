@@ -6,6 +6,7 @@ import type { ScriptDiscoveryGateway } from "../use-cases/discover-feedback-loop
 import {
     createFeedbackLoopCommandsGateway,
     FileSystemScriptDiscoveryGateway,
+    MAX_PACKAGE_JSON_BYTES,
 } from "./script-discovery-gateway.js";
 
 const chance = new Chance();
@@ -184,14 +185,12 @@ describe("FileSystemScriptDiscoveryGateway", () => {
     });
 
     describe("when package.json exceeds the size limit", () => {
-        it("should return empty array when file is too large", async () => {
-            // Write a package.json that exceeds MAX_PACKAGE_JSON_BYTES (64 KB)
-            const oversized = `{"scripts":{"test":"${chance.string({ length: 65 * 1024 })}"}}`;
+        it("should propagate an error when file exceeds MAX_PACKAGE_JSON_BYTES", async () => {
+            // Write a package.json that is just over the 1 MB limit
+            const oversized = "x".repeat(MAX_PACKAGE_JSON_BYTES + 1);
             await writeFile(join(testDir, "package.json"), oversized);
 
-            const result = await gateway.discoverScripts(testDir);
-
-            expect(result).toEqual([]);
+            await expect(gateway.discoverScripts(testDir)).rejects.toThrow();
         });
     });
 

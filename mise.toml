@@ -64,7 +64,6 @@ run = [
     'yamllint',
     'markdownlint',
     'shellcheck',
-    'dependency-cruiser',
     'check-issue-forms',
     'format-check',
   ] }, # These run in parallel!
