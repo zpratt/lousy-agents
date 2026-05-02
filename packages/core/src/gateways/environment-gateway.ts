@@ -27,12 +27,10 @@ import {
 
 const MAX_VERSION_FILE_BYTES = 16 * 1024;
 
-/**
- * Interface for environment detection gateway.
- */
-export interface EnvironmentGateway {
-    detectEnvironment(targetDir: string): Promise<DetectedEnvironment>;
-}
+import type { EnvironmentGateway } from "../use-cases/init-copilot-setup-workflow.js";
+
+// Re-export port type for consumers
+export type { EnvironmentGateway };
 
 async function readVersionFileContent(filePath: string): Promise<string> {
     await assertFileSizeWithinLimit(

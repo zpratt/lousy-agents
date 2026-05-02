@@ -5,47 +5,11 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { AgentFileGateway } from "../use-cases/create-copilot-agent.js";
 import { fileExists, resolveSafePath } from "./file-system-utils.js";
 
-/**
- * Interface for agent file gateway
- * Allows for different implementations (file system, mock, etc.)
- */
-export interface AgentFileGateway {
-    /**
-     * Checks if an agent file already exists
-     * @param targetDir The root directory of the repository
-     * @param agentName The normalized name of the agent
-     * @returns true if the agent file exists
-     */
-    agentFileExists(targetDir: string, agentName: string): Promise<boolean>;
-
-    /**
-     * Ensures the .github/agents directory exists
-     * @param targetDir The root directory of the repository
-     */
-    ensureAgentsDirectory(targetDir: string): Promise<void>;
-
-    /**
-     * Writes content to an agent file
-     * @param targetDir The root directory of the repository
-     * @param agentName The normalized name of the agent
-     * @param content The content to write to the file
-     */
-    writeAgentFile(
-        targetDir: string,
-        agentName: string,
-        content: string,
-    ): Promise<void>;
-
-    /**
-     * Returns the full path to an agent file
-     * @param targetDir The root directory of the repository
-     * @param agentName The normalized name of the agent
-     * @returns The full path to the agent file
-     */
-    getAgentFilePath(targetDir: string, agentName: string): string;
-}
+// Re-export port type for consumers
+export type { AgentFileGateway };
 
 /**
  * File system implementation of the agent file gateway

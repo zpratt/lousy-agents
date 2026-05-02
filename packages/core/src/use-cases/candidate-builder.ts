@@ -14,11 +14,9 @@ import type {
 import {
     type CopilotSetupConfig,
     DEFAULT_COPILOT_SETUP_CONFIG,
-} from "../entities/copilot-setup-config.js";
-import {
     getVersionFileConfigKeyMap,
     getVersionTypeToActionMap,
-} from "../lib/copilot-setup-config.js";
+} from "../entities/copilot-setup-config.js";
 
 /**
  * Port for action version lookup.

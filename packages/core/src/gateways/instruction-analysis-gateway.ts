@@ -10,15 +10,16 @@ import type {
     FeedbackLoopCoverage,
     InstructionReference,
 } from "../entities/feedback-loop.js";
-import { fileExists } from "./file-system-utils.js";
-
 import type { InstructionAnalysisGateway } from "../use-cases/validate-instruction-coverage.js";
+import { fileExists } from "./file-system-utils.js";
 
 // Re-export port type for consumers
 export type { InstructionAnalysisGateway };
 
 /**
  * File system implementation of instruction analysis gateway
+ */
+export class FileSystemInstructionAnalysisGateway
     implements InstructionAnalysisGateway
 {
     async analyzeCoverage(

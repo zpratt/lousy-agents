@@ -5,9 +5,8 @@
 
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { fileExists, resolveSafePath } from "./file-system-utils.js";
-
 import type { SkillFileGateway } from "../use-cases/create-skill.js";
+import { fileExists, resolveSafePath } from "./file-system-utils.js";
 
 // Re-export port type for consumers
 export type { SkillFileGateway };

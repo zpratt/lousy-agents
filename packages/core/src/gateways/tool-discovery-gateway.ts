@@ -10,9 +10,8 @@ import {
     determineScriptPhase,
     isScriptMandatory,
 } from "../entities/feedback-loop.js";
-import { fileExists } from "./file-system-utils.js";
-
 import type { ToolDiscoveryGateway } from "../use-cases/discover-feedback-loops.js";
+import { fileExists } from "./file-system-utils.js";
 
 // Re-export port type for consumers
 export type { ToolDiscoveryGateway };
