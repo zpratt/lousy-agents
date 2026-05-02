@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -180,6 +180,23 @@ describe("FileSystemScriptDiscoveryGateway", () => {
             const result = await gateway.discoverScripts(testDir);
 
             expect(result).toEqual([]);
+        });
+    });
+
+    describe("when package.json is a symlink", () => {
+        it("should propagate the error rather than returning empty array", async () => {
+            // Arrange — create a real file then symlink package.json to it.
+            // readFileNoFollow uses O_NOFOLLOW so the kernel returns ELOOP,
+            // which readFileNoFollow converts to "Symlinks are not allowed".
+            // That error has no code === "ENOENT", so discoverScripts must rethrow it.
+            const realFile = join(testDir, "real-package.json");
+            await writeFile(realFile, JSON.stringify({ name: "test" }));
+            await symlink(realFile, join(testDir, "package.json"));
+
+            // Act & Assert
+            await expect(gateway.discoverScripts(testDir)).rejects.toThrow(
+                /Symlinks are not allowed/,
+            );
         });
     });
 
