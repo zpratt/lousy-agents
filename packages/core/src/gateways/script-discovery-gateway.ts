@@ -9,10 +9,10 @@ import {
     determineScriptPhase,
     isScriptMandatory,
 } from "../entities/feedback-loop.js";
+import type { FeedbackLoopCommandsGateway } from "../use-cases/analyze-instruction-quality.js";
 import type { ScriptDiscoveryGateway } from "../use-cases/discover-feedback-loops.js";
 import { fileExists } from "./file-system-utils.js";
 
-export type { FeedbackLoopCommandsGateway } from "../use-cases/analyze-instruction-quality.js";
 // Re-export port types for consumers
 export type { ScriptDiscoveryGateway };
 

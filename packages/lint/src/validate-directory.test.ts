@@ -139,18 +139,14 @@ describe("validateDirectory", () => {
         });
     });
 
-    describe("given a path with a backslash in a filename (POSIX)", () => {
-        it.skipIf(process.platform === "win32")(
-            "does not falsely reject a backslash that is part of a directory name",
-            async () => {
-                // On POSIX, backslash is a valid filename character and must
-                // not be treated as a path separator. A path containing `\..`
-                // as part of a filename segment is NOT a traversal sequence.
-                await expect(
-                    validateDirectory("/tmp/a\\.."),
-                ).rejects.not.toThrow("path traversal");
-            },
-        );
+    describe("given a path with a forward-slash traversal on Windows-style input", () => {
+        it("rejects traversal using forward-slash separators on all platforms", async () => {
+            // On Windows, path.sep is '\\' but '/' is also a valid separator.
+            // A path like 'a/../../etc/passwd' must be caught on all platforms.
+            await expect(
+                validateDirectory("a/../../etc/passwd"),
+            ).rejects.toThrow(LintValidationError);
+        });
     });
 
     describe("given a path with double dots in a filename", () => {

@@ -63,7 +63,35 @@ module.exports = {
                 path: "^packages/core/src/index[.]ts$",
             },
         },
-        // ── lint package: error contract isolation (Layer 1 equivalent) ────────
+        // ── Clean Architecture: protect composition roots from inner layers ───────
+        // Entities and use-cases must not import the composition root.
+        {
+            name: "no-entities-to-composition-root",
+            severity: "error",
+            comment:
+                "Layer 1 (entities) must not import from the composition root (index.ts). " +
+                "Inner layers must be unaware of wiring.",
+            from: {
+                path: "^packages/core/src/entities/",
+            },
+            to: {
+                path: "^packages/core/src/index[.]ts$",
+            },
+        },
+        {
+            name: "no-use-cases-to-composition-root",
+            severity: "error",
+            comment:
+                "Layer 2 (use-cases) must not import from the composition root (index.ts). " +
+                "Use cases must only depend on entities and ports.",
+            from: {
+                path: "^packages/core/src/use-cases/",
+            },
+            to: {
+                path: "^packages/core/src/index[.]ts$",
+            },
+        },
+
         // lint-errors.ts is a pure domain error type with no implementation
         // dependencies. It must not import from any other lint source file so it
         // remains a stable, infrastructure-free contract.
@@ -121,7 +149,13 @@ module.exports = {
         webpackConfig: {
             fileName: ".dependency-cruiser.webpack.cjs",
         },
-        includeOnly: ["^packages/lint/src", "^packages/core/src"],
+        includeOnly: [
+            "^packages/lint/src",
+            "^packages/core/src",
+            "^packages/agent-shell/src",
+            "^packages/cli/src",
+            "^packages/mcp/src",
+        ],
         exclude: {
             path: "[.](test|spec)[.]ts$|[.]d[.]ts$",
         },

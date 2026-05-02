@@ -7,7 +7,7 @@
  */
 
 import { lstat, realpath } from "node:fs/promises";
-import { resolve, sep } from "node:path";
+import { resolve } from "node:path";
 import { LintValidationError } from "./lint-errors.js";
 
 function isControlCharacter(code: number): boolean {
@@ -34,7 +34,7 @@ function sanitizeForErrorMessage(value: string): string {
 }
 
 function hasPathTraversalSegment(directory: string): boolean {
-    return directory.split(sep).includes("..");
+    return directory.split(/[\\/]/).includes("..");
 }
 
 /**
