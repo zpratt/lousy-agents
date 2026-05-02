@@ -1229,12 +1229,15 @@ describe("ensureAgentShellAllowed", () => {
         expect(parsed.deny).toEqual(["rm -rf *"]);
     });
 
-    it("should return invalid for __proto__ prototype pollution attempt", () => {
+    it("should return invalid when JSON contains __proto__ as own-property key (Zod 4.4.2 validation bypass)", () => {
         const content = '{"__proto__":{"polluted":true},"allow":[]}';
         const result = ensureAgentShellAllowed(content);
         expect(result.status).toBe("invalid");
         if (result.status === "invalid") {
             expect(result.reason).toContain("schema validation failed");
         }
+        expect(
+            (Object.prototype as Record<string, unknown>).polluted,
+        ).toBeUndefined();
     });
 });
