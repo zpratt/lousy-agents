@@ -1,6 +1,9 @@
 import Chance from "chance";
 import { describe, expect, it } from "vitest";
-import { hasProtoKey } from "../src/entities/validation.js";
+import {
+    hasProtoKey,
+    MAX_PROTO_SCAN_DEPTH,
+} from "../src/entities/validation.js";
 
 const chance = new Chance();
 
@@ -54,10 +57,10 @@ describe("hasProtoKey", () => {
 
     describe("given a structure deeper than MAX_PROTO_SCAN_DEPTH with no __proto__", () => {
         it("should return true (conservatively reject)", () => {
-            // Build an object 34 levels deep (= MAX_PROTO_SCAN_DEPTH [32] + 2),
-            // ensuring we exceed the scan limit regardless of the constant's value.
+            // Build an object MAX_PROTO_SCAN_DEPTH + 2 levels deep so it always
+            // exceeds the scan limit, even if the constant is changed in future.
             let deep: unknown = { safe: true };
-            for (let i = 0; i < 34; i++) {
+            for (let i = 0; i < MAX_PROTO_SCAN_DEPTH + 2; i++) {
                 deep = { nested: deep };
             }
             expect(hasProtoKey(deep)).toBe(true);

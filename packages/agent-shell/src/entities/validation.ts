@@ -11,7 +11,7 @@
  * to prevent unbounded recursion on attacker-controlled input.
  */
 
-const MAX_PROTO_SCAN_DEPTH = 32;
+export const MAX_PROTO_SCAN_DEPTH = 32;
 
 function hasProtoKeyAtDepth(value: unknown, depth: number): boolean {
     if (depth > MAX_PROTO_SCAN_DEPTH) {
