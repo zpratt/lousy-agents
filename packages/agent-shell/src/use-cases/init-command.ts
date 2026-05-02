@@ -145,7 +145,7 @@ async function loadExistingHooksConfig(
         const raw = await deps.readFile(hooksPath, "utf-8");
         const parsed: unknown = JSON.parse(raw);
         if (hasProtoKey(parsed)) {
-            throw new Error("policy schema validation failed");
+            throw new Error("hooks schema validation failed");
         }
         return { config: HooksConfigSchema.parse(parsed), error: false };
     } catch (err) {

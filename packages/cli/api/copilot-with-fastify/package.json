@@ -24,6 +24,9 @@
         "postgres": "3.4.9",
         "zod": "4.4.2"
     },
+    "overrides": {
+        "zod": "4.4.2"
+    },
     "devDependencies": {
         "@biomejs/biome": "2.4.14",
         "@lousy-agents/mcp": "5.12.0",
