@@ -1,5 +1,6 @@
 import { isAbsolute, join } from "node:path";
 import { type PolicyConfig, PolicyConfigSchema } from "../entities/types.js";
+import { hasProtoKey } from "../entities/validation.js";
 import { isPathNotFoundError, isWithinProjectRoot } from "../lib/path-utils.js";
 import { SHELL_METACHAR_PATTERN } from "../lib/sanitize.js";
 
@@ -168,6 +169,12 @@ export async function loadPolicy(
     } catch {
         throw new Error(
             `Invalid JSON in policy file ${sanitizePath(resolvedPath)}: file exists but contains malformed JSON`,
+        );
+    }
+
+    if (hasProtoKey(parsed)) {
+        throw new Error(
+            `Invalid JSON in policy file ${sanitizePath(resolvedPath)}: policy schema validation failed`,
         );
     }
 
