@@ -28,7 +28,7 @@ so that I can **reduce repeated mistakes without manually reviewing project conv
 
 #### Acceptance Criteria
 
-- When an agent attempts to edit or write a file, the PreToolUse hook shall invoke `lousy-agents context --files <path>` and return matching lessons as `additionalContext`.
+- When an agent attempts to edit or write a file, the PreToolUse hook shall invoke `lousy-agents context --files <path>` and return matching lessons as `additionalContext` (the CLI outputs `{ "context": [...] }` to stdout; the hook wraps that output into its `additionalContext` response to Claude — see the Data Model section for the CLI output shape and the BLOCKING open question on exact hook field naming).
 - When no lessons match the file, the context command shall return a valid empty JSON result without error.
 - The context command shall not perform model calls, embedding similarity, or LLM-mediated relevance scoring.
 - When a SessionStart hook fires, the context command shall return all lessons with `type: invariant` without requiring a `--files` path argument.
@@ -174,7 +174,7 @@ The body is human-readable markdown prose: the rule, when it applies, examples o
 
 **Content pattern matching**: literal substring search (`String.prototype.includes()`) against the full file content string after loading it. Case-sensitive. Patterns exceeding 200 characters are rejected by the schema validator before reaching the matcher.
 
-**Path normalization requirement**: all file paths from CLI arguments or gateway reads must be normalized with `path.resolve()` before any comparison or I/O. The cwd containment check must be boundary-safe (e.g., `const rel = path.relative(cwd, resolvedFilePath); rel.startsWith('..') || path.isAbsolute(rel)` — the `path.isAbsolute` guard handles Windows cross-drive paths where `path.relative` returns an absolute path instead of a `..`-prefixed relative path) to prevent both path traversal and prefix confusion (e.g., `/repo` matching `/repo2`). String `includes('..')` and simple `startsWith` prefix checks are explicitly prohibited for this check — `includes('..')` is insufficient (misses encoded traversal) and incorrect (rejects valid names like `..foo.ts`), while `startsWith` is vulnerable to prefix confusion.
+**Path normalization requirement**: all file paths from CLI arguments or gateway reads must be normalized with `path.resolve()` before any comparison or I/O. The cwd containment check must be boundary-safe (e.g., `const rel = path.relative(cwd, resolvedFilePath); rel.startsWith('..') || path.isAbsolute(rel)` — the `path.isAbsolute` guard handles Windows cross-drive paths where `path.relative` returns an absolute path instead of a `..`-prefixed relative path; `rel === ''` means the file equals cwd and is treated as a valid in-bounds path) to prevent both path traversal and prefix confusion (e.g., `/repo` matching `/repo2`). String `includes('..')` and simple `startsWith` prefix checks are explicitly prohibited for this check — `includes('..')` is insufficient (misses encoded traversal) and incorrect (rejects valid names like `..foo.ts`), while `startsWith` is vulnerable to prefix confusion.
 
 **Windows cross-platform**: before passing any path to glob matching, normalize backslash separators to forward slashes (e.g., `filePath.split(path.sep).join('/')`). Path glob matching is always case-sensitive regardless of the OS filesystem case sensitivity.
 
@@ -183,6 +183,7 @@ The body is human-readable markdown prose: the rule, when it applies, examples o
 Plain TypeScript types (entities layer — no framework imports):
 
 ```typescript
+// biome-ignore-all lint/style/useNamingConvention: lesson schema uses snake_case field names to match YAML frontmatter keys verbatim
 // packages/core/src/entities/lesson.ts
 export type LessonType = 'invariant' | 'pattern';
 
