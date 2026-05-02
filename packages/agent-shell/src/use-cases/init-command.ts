@@ -92,6 +92,16 @@ export function ensureAgentShellAllowed(content: string): PolicyPatchResult {
         return { status: "invalid", reason: "JSON parse error" };
     }
 
+    // Zod v4.4.2+ silently strips __proto__ keys in strict mode rather than
+    // rejecting them. Explicitly reject prototype pollution attempts here.
+    if (
+        typeof parsed === "object" &&
+        parsed !== null &&
+        Object.prototype.hasOwnProperty.call(parsed, "__proto__")
+    ) {
+        return { status: "invalid", reason: "policy schema validation failed" };
+    }
+
     const result = PolicyConfigSchema.safeParse(parsed);
     if (!result.success) {
         return { status: "invalid", reason: "policy schema validation failed" };
