@@ -4,6 +4,7 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { z } from "zod";
 import {
     type DiscoveredScript,
     determineScriptPhase,
@@ -12,6 +13,10 @@ import {
 import type { FeedbackLoopCommandsGateway } from "../use-cases/analyze-instruction-quality.js";
 import type { ScriptDiscoveryGateway } from "../use-cases/discover-feedback-loops.js";
 import { fileExists } from "./file-system-utils.js";
+
+const PackageJsonSchema = z.object({
+    scripts: z.record(z.string()).optional(),
+});
 
 // Re-export port types for consumers
 export type { ScriptDiscoveryGateway };
@@ -31,15 +36,15 @@ export class FileSystemScriptDiscoveryGateway
 
         try {
             const content = await readFile(packageJsonPath, "utf-8");
-            const packageJson: PackageJson = JSON.parse(content);
+            const parseResult = PackageJsonSchema.safeParse(JSON.parse(content));
 
-            if (!packageJson.scripts) {
+            if (!parseResult.success || !parseResult.data.scripts) {
                 return [];
             }
 
             const scripts: DiscoveredScript[] = [];
 
-            for (const [name, command] of Object.entries(packageJson.scripts)) {
+            for (const [name, command] of Object.entries(parseResult.data.scripts)) {
                 const phase = determineScriptPhase(name, command);
                 const isMandatory = isScriptMandatory(phase);
 

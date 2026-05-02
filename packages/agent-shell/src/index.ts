@@ -101,6 +101,7 @@ async function main(): Promise<void> {
                     writeStdout: (data) => process.stdout.write(data),
                     writeStderr: (data) => process.stderr.write(data),
                     model: mode.model,
+                    scanProject: (dir) => scanProject(dir),
                 });
                 process.exitCode = 0;
             } catch (err) {
@@ -121,7 +122,10 @@ async function main(): Promise<void> {
                     readStdin: () => readStdin(),
                     writeStderr: (data) => process.stderr.write(data),
                     env: process.env,
-                    telemetryDeps: createDefaultDeps(),
+                    telemetry: {
+                        emitToolUseEvent: (options) =>
+                            emitToolUseEvent(options, createDefaultDeps()),
+                    },
                     getRepositoryRoot,
                 });
             } catch (err) {

@@ -11,10 +11,10 @@ module.exports = {
                 "Layer 1 (entities) must not import from Layer 2 (use-cases). " +
                 "The dependency rule requires inner layers to remain unaware of outer layers.",
             from: {
-                path: "^packages/core/src/entities/",
+                path: "^packages/[^/]+/src/entities/",
             },
             to: {
-                path: "^packages/core/src/use-cases/",
+                path: "^packages/[^/]+/src/use-cases/",
             },
         },
         {
@@ -24,10 +24,10 @@ module.exports = {
                 "Layer 1 (entities) must not import from Layer 3 adapters " +
                 "(gateways, lib, or formatters). Entities must have zero framework dependencies.",
             from: {
-                path: "^packages/core/src/entities/",
+                path: "^packages/[^/]+/src/entities/",
             },
             to: {
-                path: "^packages/core/src/(gateways|lib|formatters)/",
+                path: "^packages/[^/]+/src/(gateways|lib|formatters)/",
             },
         },
         // ── Clean Architecture: Layer 2 – Use Cases ────────────────────────────
@@ -41,10 +41,10 @@ module.exports = {
                 "(gateways, lib, or formatters). Use cases define ports; they must " +
                 "not depend on concrete implementations.",
             from: {
-                path: "^packages/core/src/use-cases/",
+                path: "^packages/[^/]+/src/use-cases/",
             },
             to: {
-                path: "^packages/core/src/(gateways|lib|formatters)/",
+                path: "^packages/[^/]+/src/(gateways|lib|formatters)/",
             },
         },
         // ── Clean Architecture: Layer 3 – Adapters ─────────────────────────────
@@ -57,10 +57,10 @@ module.exports = {
                 "Layer 3 adapters (gateways, lib, formatters) must not import from " +
                 "the core composition root (index.ts). Only Layer 4 may import from all layers.",
             from: {
-                path: "^packages/core/src/(gateways|lib|formatters)/",
+                path: "^packages/[^/]+/src/(gateways|lib|formatters)/",
             },
             to: {
-                path: "^packages/core/src/index[.]ts$",
+                path: "^packages/[^/]+/src/index[.]ts$",
             },
         },
         // ── Clean Architecture: protect composition roots from inner layers ───────
@@ -72,10 +72,10 @@ module.exports = {
                 "Layer 1 (entities) must not import from the composition root (index.ts). " +
                 "Inner layers must be unaware of wiring.",
             from: {
-                path: "^packages/core/src/entities/",
+                path: "^packages/[^/]+/src/entities/",
             },
             to: {
-                path: "^packages/core/src/index[.]ts$",
+                path: "^packages/[^/]+/src/index[.]ts$",
             },
         },
         {
@@ -85,10 +85,10 @@ module.exports = {
                 "Layer 2 (use-cases) must not import from the composition root (index.ts). " +
                 "Use cases must only depend on entities and ports.",
             from: {
-                path: "^packages/core/src/use-cases/",
+                path: "^packages/[^/]+/src/use-cases/",
             },
             to: {
-                path: "^packages/core/src/index[.]ts$",
+                path: "^packages/[^/]+/src/index[.]ts$",
             },
         },
 
