@@ -47,7 +47,7 @@ export class FileSystemScriptDiscoveryGateway
                     : undefined;
             if (code !== "ENOENT") {
                 this.logger.warn(
-                    `script-discovery: could not read ${packageJsonPath}: ${error instanceof Error ? error.message : String(error)}`,
+                    `script-discovery: could not read ${JSON.stringify(packageJsonPath)}: ${error instanceof Error ? error.message : String(error)}`,
                 );
             }
             return [];

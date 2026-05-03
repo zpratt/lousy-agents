@@ -40,8 +40,7 @@ export class FileSystemToolDiscoveryGateway implements ToolDiscoveryGateway {
                 const workflow = parseYaml(content);
                 const tools = this.extractToolsFromWorkflow(workflow, file);
                 allTools.push(...tools);
-            } catch {
-            }
+            } catch {}
         }
 
         return this.deduplicateTools(allTools);

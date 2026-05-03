@@ -1,4 +1,5 @@
 import { chmod, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { createConsola } from "consola";
@@ -17,7 +18,7 @@ describe("FileSystemScriptDiscoveryGateway", () => {
 
     beforeEach(async () => {
         gateway = new FileSystemScriptDiscoveryGateway();
-        testDir = join("/tmp", `test-script-discovery-${chance.guid()}`);
+        testDir = join(tmpdir(), `test-script-discovery-${chance.guid()}`);
         await mkdir(testDir, { recursive: true });
     });
 
@@ -294,7 +295,7 @@ describe("createFeedbackLoopCommandsGateway", () => {
 
     it("creates its own FileSystemScriptDiscoveryGateway when no gateway is provided", async () => {
         const dir = join(
-            "/tmp",
+            tmpdir(),
             `test-feedback-gateway-${new Chance().guid()}`,
         );
         await mkdir(dir, { recursive: true });

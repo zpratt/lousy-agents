@@ -176,8 +176,7 @@ export async function loadCopilotSetupConfig(
  * This function is retained for backwards compatibility but is a no-op
  * because configuration is no longer cached at module scope.
  */
-export function resetCopilotSetupConfigCache(): void {
-}
+export function resetCopilotSetupConfigCache(): void {}
 
 export {
     getVersionFileConfigKeyMap,

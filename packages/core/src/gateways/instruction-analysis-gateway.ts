@@ -115,8 +115,7 @@ export class FileSystemInstructionAnalysisGateway
                         files.push(join(instructionsDir, file));
                     }
                 }
-            } catch {
-            }
+            } catch {}
         }
 
         return files;

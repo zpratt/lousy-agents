@@ -97,8 +97,7 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
                     config.setupActionPatterns,
                 );
                 allCandidates.push(...candidates);
-            } catch {
-            }
+            } catch {}
         }
 
         return deduplicateCandidates(allCandidates);
