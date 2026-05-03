@@ -107,4 +107,31 @@ describe("parseFrontmatter", () => {
             expect(result?.data).toEqual({});
         });
     });
+
+    describe("given frontmatter with a null-value field (key with no value)", () => {
+        it("should track the line number for a null-value field", () => {
+            // Arrange — "description:" has no value; the regex must match key-only entries
+            const content =
+                "---\ntitle: My Title\ndescription:\ntags: []\n---\n";
+
+            // Act
+            const result = parseFrontmatter(content);
+
+            // Assert
+            expect(result?.fieldLines.get("description")).toBe(3);
+        });
+    });
+
+    describe("given frontmatter containing YAML aliases", () => {
+        it("should return null instead of expanding aliases", () => {
+            // Arrange — YAML with an anchor/alias that would expand if aliases were allowed
+            const content = "---\nbase: &anchor value\nalias: *anchor\n---\n";
+
+            // Act
+            const result = parseFrontmatter(content);
+
+            // Assert
+            expect(result).toBeNull();
+        });
+    });
 });

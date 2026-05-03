@@ -35,7 +35,7 @@ export function parseFrontmatter(content: string): ParsedFrontmatter | null {
 
     let data: Record<string, unknown>;
     try {
-        const parsed: unknown = parseYaml(yamlContent);
+        const parsed: unknown = parseYaml(yamlContent, { maxAliasCount: 0 });
         data =
             parsed !== null &&
             typeof parsed === "object" &&
@@ -48,8 +48,8 @@ export function parseFrontmatter(content: string): ParsedFrontmatter | null {
 
     const fieldLines = new Map<string, number>();
     for (let i = 1; i < endIndex; i++) {
-        // Match YAML top-level field names: non-whitespace start, any chars except colon, then colon+space
-        const match = lines[i]?.match(/^([^\s:][^:]*?):\s/);
+        // Match YAML top-level field names: non-whitespace start, any chars except colon, then colon followed by whitespace or end-of-line
+        const match = lines[i]?.match(/^([^\s:][^:]*?):(?:\s|$)/);
         if (match?.[1]) {
             fieldLines.set(match[1], i + 1);
         }

@@ -296,7 +296,7 @@ Rules:
 
 #### Shared Hook-Response Builder
 
-Both `@lousy-agents/agent-shell` (PreToolUse `permissionDecision` responses in `policy-check.ts`) and `@lousy-agents/cli` (the new `context` command's `additionalContext` responses) emit Claude Code hook envelopes. To avoid duplicating the envelope-shaping logic — and to keep both packages aligned with the documented `hookSpecificOutput` wrapper — a small shared builder shall live in `@lousy-agents/core` and be consumed by both packages:
+Both `@lousy-agents/agent-shell` (PreToolUse `permissionDecision` responses in `policy-check.ts`) and `@lousy-agents/cli` (the new `context` command's `additionalContext` responses) emit Claude Code hook envelopes. To avoid duplicating the envelope-shaping logic — and to keep both packages aligned with the documented `hookSpecificOutput` wrapper — a small shared builder shall live in `@lousy-agents/core`. In v1, only `@lousy-agents/cli` must consume it; `@lousy-agents/agent-shell` migration is explicitly deferred (see below):
 
 ```typescript
 // packages/core/src/use-cases/claude-hook-response.ts
