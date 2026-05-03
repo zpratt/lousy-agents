@@ -160,7 +160,7 @@ The body is human-readable markdown prose: the rule, when it applies, examples o
 - `zod` — lesson Zod schema in use-case layer (already pinned in workspace)
 - **Frontmatter parser**: Do not add `gray-matter` or any new frontmatter parser without explicit approval. Before Task 4 begins, identify whether an existing YAML parser (e.g., `yaml` package already used in the workspace) can parse frontmatter with a simple fence splitter, or raise this as a **blocking open question** requiring maintainer approval before proceeding.
 - Existing file-system utilities: `packages/core/src/gateways/file-system-utils.ts` (`readFileNoFollow()`) — required for all lesson and hook config file reads.
-- **Glob library**: Do not add a glob library without explicit approval. Before Task 5 begins, confirm whether `minimatch`, `picomatch`, or an equivalent library is already present in the workspace. If not present, raise as a **blocking open question** requiring maintainer approval before proceeding.
+- **Glob library**: Do not add a glob library without explicit approval. Before Task 5 begins, confirm whether `minimatch`, `picomatch`, or an equivalent library is already present **as a direct pinned dependency** in the consuming package's `package.json`. Presence in `node_modules` only as a transitive dependency does **not** qualify — for example, `minimatch@5.1.9` currently appears in `node_modules` only via the `testcontainers → archiver → readdir-glob` chain (a dev-only test dep), which is not reliable for production use. If no qualifying direct dep exists, raise this as a **blocking open question** requiring maintainer approval before proceeding.
 
 ### Glob and Path Matching Semantics
 
@@ -523,6 +523,7 @@ sequenceDiagram
 - Exits non-zero if any lesson is invalid.
 - Exits zero if all lessons are valid.
 - Reports gracefully if the directory does not exist: exits zero with an informational message stating no lessons are configured. Does not create hidden state.
+- If the `.lousy-agents/lessons/` directory path exists but cannot be read (e.g., permission denied), or the path exists but is not a directory: exits non-zero with a descriptive error message identifying the path and the failure reason.
 
 **Verification**:
 - [ ] Tests cover a directory with all-valid lessons (exit 0).
@@ -532,6 +533,8 @@ sequenceDiagram
 - [ ] Tests cover malformed YAML frontmatter (exit 1).
 - [ ] Tests cover a file exceeding 1MB (exit 1, message includes file path).
 - [ ] Tests cover a non-existent `.lousy-agents/lessons/` directory.
+- [ ] Tests cover `.lousy-agents/lessons/` path existing but not being a directory (exit 1, message includes path).
+- [ ] Tests cover `.lousy-agents/lessons/` path existing but unreadable/permission denied (exit 1, message includes path and reason).
 - [ ] Tests cover `.lousy-agents/lessons/` being a symlink (exit 1 with a descriptive error).
 - [ ] `mise run test` passes.
 - [ ] `mise run lint` passes.
