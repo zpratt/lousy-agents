@@ -34,23 +34,16 @@ export class FileSystemScriptDiscoveryGateway
 
         // readFileNoFollow combines O_NOFOLLOW + fstat size check + read on the same fd,
         // eliminating both the fileExists TOCTOU window and symlink attacks.
-        // ENOENT → no package.json present; return [].
-        // Size or symlink errors propagate to the caller.
+        // Any read failure (ENOENT, symlink, size limit, EACCES, etc.) returns []
+        // so script discovery is best-effort and never aborts the lint run.
         let content: string;
         try {
             content = await readFileNoFollow(
                 packageJsonPath,
                 MAX_PACKAGE_JSON_BYTES,
             );
-        } catch (error) {
-            if (
-                error instanceof Error &&
-                "code" in error &&
-                (error as { code?: unknown }).code === "ENOENT"
-            ) {
-                return [];
-            }
-            throw error;
+        } catch {
+            return [];
         }
 
         // Isolate JSON.parse — the only legitimate SyntaxError source — so

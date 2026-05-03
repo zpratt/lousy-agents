@@ -184,31 +184,31 @@ describe("FileSystemScriptDiscoveryGateway", () => {
     });
 
     describe("when package.json is a symlink", () => {
-        it("should propagate the error rather than returning empty array", async () => {
+        it("should return empty array rather than propagating the error", async () => {
             // Arrange — create a real file then symlink package.json to it.
             // readFileNoFollow uses O_NOFOLLOW so the kernel returns ELOOP,
             // which readFileNoFollow converts to "Symlinks are not allowed".
-            // That error has no code === "ENOENT", so discoverScripts must rethrow it.
+            // Script discovery is best-effort: any unreadable manifest yields [].
             const realFile = join(testDir, "real-package.json");
             await writeFile(realFile, JSON.stringify({ name: "test" }));
             await symlink(realFile, join(testDir, "package.json"));
 
             // Act & Assert
-            await expect(gateway.discoverScripts(testDir)).rejects.toThrow(
-                /Symlinks are not allowed/,
-            );
+            const result = await gateway.discoverScripts(testDir);
+            expect(result).toEqual([]);
         });
     });
 
     describe("when package.json exceeds the size limit", () => {
-        it("should propagate a size-limit error for files over 1 MB", async () => {
-            // 1 MB + 1 byte — just over the internal MAX_PACKAGE_JSON_BYTES (1024 * 1024)
+        it("should return empty array for files over 1 MB", async () => {
+            // 1 MB + 1 byte — just over the internal MAX_PACKAGE_JSON_BYTES (1024 * 1024).
+            // Script discovery is best-effort: oversized manifests yield [] rather than
+            // aborting the lint run.
             const oversized = "x".repeat(1024 * 1024 + 1);
             await writeFile(join(testDir, "package.json"), oversized);
 
-            await expect(gateway.discoverScripts(testDir)).rejects.toThrow(
-                /exceeds size limit/,
-            );
+            const result = await gateway.discoverScripts(testDir);
+            expect(result).toEqual([]);
         });
     });
 
