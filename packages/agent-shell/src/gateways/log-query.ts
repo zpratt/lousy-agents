@@ -90,7 +90,11 @@ export async function resolveReadEventsDir(
         try {
             resolved = await deps.realpath(candidate);
         } catch (err: unknown) {
-            if (isPathNotFoundError(err)) {
+            const code =
+                typeof err === "object" && err !== null && "code" in err
+                    ? (err as { code: unknown }).code
+                    : undefined;
+            if (isPathNotFoundError(err) || code === "ENAMETOOLONG") {
                 return {
                     dir: "",
                     error: "AGENTSHELL_LOG_DIR does not exist or is not a directory",
@@ -99,10 +103,7 @@ export async function resolveReadEventsDir(
             throw err;
         }
 
-        if (
-            !isWithinProjectRoot(resolved, projectRoot) &&
-            !isWithinProjectRoot(resolved, projectRootReal)
-        ) {
+        if (!isWithinProjectRoot(resolved, projectRootReal)) {
             return {
                 dir: "",
                 error: "AGENTSHELL_LOG_DIR resolves outside project root",

@@ -476,8 +476,8 @@ describe("events directory resolution", () => {
         });
     });
 
-    describe("given AGENTSHELL_LOG_DIR outside project root", () => {
-        it("should return an error", async () => {
+    describe("given AGENTSHELL_LOG_DIR is a symlink that resolves outside the project root", () => {
+        it("should reject the path when realpath escapes the project boundary", async () => {
             // Arrange
             const deps = createMockDeps(
                 {},
@@ -521,6 +521,33 @@ describe("events directory resolution", () => {
 
             // Assert
             expect(result.dir).toBe("/mnt/project/custom-logs");
+            expect(result.error).toBeUndefined();
+        });
+
+        it("should accept an absolute path inside the real root when cwd is a symlinked root", async () => {
+            // Arrange — cwd = /workspace (symlink to /mnt/project).
+            // AGENTSHELL_LOG_DIR is the absolute canonical path; it is NOT within the
+            // logical projectRoot (/workspace), so only the projectRootReal branch of
+            // the pre-realpath check accepts it.
+            const deps = createMockDeps(
+                {},
+                {
+                    cwd: vi.fn().mockReturnValue("/workspace"),
+                    realpath: vi.fn().mockImplementation(async (p: string) => {
+                        if (p === "/workspace") return "/mnt/project";
+                        if (p === "/mnt/project/events")
+                            return "/mnt/project/events";
+                        return p;
+                    }),
+                },
+            );
+            const env = { AGENTSHELL_LOG_DIR: "/mnt/project/events" };
+
+            // Act
+            const result = await resolveReadEventsDir(env, deps);
+
+            // Assert — second branch of the pre-realpath logical check accepts this
+            expect(result.dir).toBe("/mnt/project/events");
             expect(result.error).toBeUndefined();
         });
     });
@@ -624,6 +651,35 @@ describe("events directory resolution", () => {
             );
             expect(result.dir).toBe("");
         });
+
+        it("should return an error instead of throwing for ENAMETOOLONG", async () => {
+            // Arrange — an adversarially long AGENTSHELL_LOG_DIR value causes
+            // realpath to throw ENAMETOOLONG; this must be treated as invalid
+            // user input and map to a controlled error return, not an unhandled throw.
+            const enametoolong = Object.assign(
+                new Error("ENAMETOOLONG: name too long"),
+                { code: "ENAMETOOLONG" },
+            );
+            const deps = createMockDeps(
+                {},
+                {
+                    realpath: vi.fn().mockImplementation(async (p: string) => {
+                        if (p === "/project") return "/project";
+                        throw enametoolong;
+                    }),
+                },
+            );
+            const env = { AGENTSHELL_LOG_DIR: "/project/events" };
+
+            // Act
+            const result = await resolveReadEventsDir(env, deps);
+
+            // Assert
+            expect(result.error).toBe(
+                "AGENTSHELL_LOG_DIR does not exist or is not a directory",
+            );
+            expect(result.dir).toBe("");
+        });
     });
 
     describe("given AGENTSHELL_LOG_DIR triggers a permission error", () => {
@@ -651,6 +707,29 @@ describe("events directory resolution", () => {
         });
     });
 
+    describe("given resolving the project root itself fails", () => {
+        it("should propagate the error since an inaccessible cwd is a system-level failure", async () => {
+            // Arrange — realpath for the project root throws; this is an OS-level
+            // failure (e.g. cwd was deleted), not user input, so it propagates.
+            const systemError = Object.assign(
+                new Error("EACCES: permission denied on cwd"),
+                { code: "EACCES" },
+            );
+            const deps = createMockDeps(
+                {},
+                {
+                    realpath: vi.fn().mockRejectedValue(systemError),
+                },
+            );
+            const env = { AGENTSHELL_LOG_DIR: "events" };
+
+            // Act & Assert
+            await expect(resolveReadEventsDir(env, deps)).rejects.toThrow(
+                "EACCES: permission denied on cwd",
+            );
+        });
+    });
+
     describe("given AGENTSHELL_LOG_DIR is a relative traversal path", () => {
         it("should return an error for paths escaping the project root", async () => {
             // Arrange
@@ -674,11 +753,11 @@ describe("events directory resolution", () => {
     });
 
     describe("given AGENTSHELL_LOG_DIR logical path escapes but realpath resolves inside the project", () => {
-        it("should return an error to match resolveWriteEventsDir rejection behavior", async () => {
+        it("should reject the path when the logical candidate escapes the project root, regardless of where realpath resolves", async () => {
             // Arrange — realpath points the symlink back into the project, but the
-            // logical candidate still escapes.  resolveWriteEventsDir rejects at the
-            // logical check, so resolveReadEventsDir must also reject to keep reads
-            // and writes consistent.
+            // logical candidate still escapes.  The pre-realpath logical check must
+            // reject such paths to prevent a caller from reading from a directory
+            // whose logical form bypasses the project boundary.
             const deps = createMockDeps(
                 {},
                 {
