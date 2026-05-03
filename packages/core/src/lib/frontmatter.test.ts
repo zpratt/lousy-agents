@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseFrontmatter } from "./frontmatter.js";
+import { parseFrontmatter, parseFrontmatterWithError } from "./frontmatter.js";
 
 describe("parseFrontmatter", () => {
     describe("given content with valid YAML frontmatter", () => {
@@ -132,6 +132,56 @@ describe("parseFrontmatter", () => {
 
             // Assert
             expect(result).toBeNull();
+        });
+    });
+});
+
+describe("parseFrontmatterWithError", () => {
+    describe("given content with valid YAML frontmatter", () => {
+        it("should return ok: true with parsed data", () => {
+            const content =
+                "---\nslug: my-lesson\ntitle: A lesson\n---\n# Body\n";
+            const result = parseFrontmatterWithError(content);
+            expect(result.ok).toBe(true);
+            if (result.ok) {
+                expect(result.data.data.slug).toBe("my-lesson");
+            }
+        });
+    });
+
+    describe("given content without frontmatter delimiters", () => {
+        it("should return ok: false with reason: missing", () => {
+            const content = "# Just a heading\n";
+            const result = parseFrontmatterWithError(content);
+            expect(result.ok).toBe(false);
+            if (!result.ok) {
+                expect(result.reason).toBe("missing");
+            }
+        });
+    });
+
+    describe("given content with unclosed frontmatter", () => {
+        it("should return ok: false with reason: missing", () => {
+            const content = "---\nslug: my-lesson\n";
+            const result = parseFrontmatterWithError(content);
+            expect(result.ok).toBe(false);
+            if (!result.ok) {
+                expect(result.reason).toBe("missing");
+            }
+        });
+    });
+
+    describe("given content with invalid YAML", () => {
+        it("should return ok: false with reason: invalid and a detail message", () => {
+            const content = "---\n: invalid:\n  - :\n---\n";
+            const result = parseFrontmatterWithError(content);
+            expect(result.ok).toBe(false);
+            if (!result.ok) {
+                expect(result.reason).toBe("invalid");
+                if (result.reason === "invalid") {
+                    expect(result.detail).toBeTruthy();
+                }
+            }
         });
     });
 });

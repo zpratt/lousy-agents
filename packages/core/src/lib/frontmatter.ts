@@ -6,6 +6,73 @@
 import { parse as parseYaml } from "yaml";
 import type { ParsedFrontmatter } from "../entities/skill.js";
 
+export type FrontmatterParseResult =
+    | { ok: true; data: ParsedFrontmatter }
+    | { ok: false; reason: "missing" }
+    | { ok: false; reason: "invalid"; detail: string };
+
+/**
+ * Parses YAML frontmatter and returns a tagged result:
+ * - `{ ok: true, data }` on success
+ * - `{ ok: false, reason: 'missing' }` when no frontmatter delimiters found
+ * - `{ ok: false, reason: 'invalid', detail }` when YAML is malformed (with error detail)
+ */
+export function parseFrontmatterWithError(
+    content: string,
+): FrontmatterParseResult {
+    const lines = content.split("\n");
+
+    if (lines[0]?.trim() !== "---") {
+        return { ok: false, reason: "missing" };
+    }
+
+    let endIndex = -1;
+    for (let i = 1; i < lines.length; i++) {
+        if (lines[i]?.trim() === "---") {
+            endIndex = i;
+            break;
+        }
+    }
+
+    if (endIndex === -1) {
+        return { ok: false, reason: "missing" };
+    }
+
+    const yamlContent = lines.slice(1, endIndex).join("\n");
+
+    let data: Record<string, unknown>;
+    try {
+        const parsed: unknown = parseYaml(yamlContent, { maxAliasCount: 0 });
+        data =
+            parsed !== null &&
+            typeof parsed === "object" &&
+            !Array.isArray(parsed)
+                ? (parsed as Record<string, unknown>)
+                : {};
+    } catch (error: unknown) {
+        const detail =
+            error instanceof Error ? error.message : "Unknown YAML parse error";
+        return { ok: false, reason: "invalid", detail };
+    }
+
+    const fieldLines = new Map<string, number>();
+    for (let i = 1; i < endIndex; i++) {
+        const match = lines[i]?.match(/^([^\s:][^:]*?):(?:\s|$)/);
+        if (match?.[1]) {
+            fieldLines.set(match[1], i + 1);
+        }
+    }
+
+    return {
+        ok: true,
+        data: {
+            data: data ?? {},
+            fieldLines,
+            frontmatterStartLine: 1,
+        },
+    };
+}
+
 /**
  * Parses YAML frontmatter from markdown content.
  *

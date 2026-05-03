@@ -28,6 +28,7 @@
         "@octokit/rest": "22.0.1",
         "c12": "3.3.4",
         "consola": "3.4.2",
+        "picomatch": "4.0.4",
         "remark": "15.0.1",
         "remark-parse": "11.0.0",
         "unist-util-visit": "5.1.0",
@@ -35,6 +36,7 @@
         "zod": "4.4.3"
     },
     "devDependencies": {
-        "@types/mdast": "4.0.4"
+        "@types/mdast": "4.0.4",
+        "@types/picomatch": "4.0.0"
     }
 }

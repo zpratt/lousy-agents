@@ -63,6 +63,12 @@ export {
     DEFAULT_STRUCTURAL_HEADING_PATTERNS,
 } from "./instruction-quality.js";
 export type {
+    Lesson,
+    LessonProvenance,
+    LessonTriggers,
+    LessonType,
+} from "./lesson.js";
+export type {
     LintDiagnostic,
     LintOutput,
     LintSeverity,

@@ -12,6 +12,7 @@ import {
 import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
+import { lintLessonsCommand } from "./lint-lessons.js";
 
 /**
  * Formats and displays a LintOutput using consola.
@@ -81,12 +82,16 @@ function displayInstructionQuality(output: LintOutput): void {
 
 /**
  * The `lint` command for validating agent skills, custom agents, and instruction files.
+ * Also exposes `lint lessons` as a subcommand for lesson frontmatter validation.
  */
 export const lintCommand = defineCommand({
     meta: {
         name: "lint",
         description:
-            "Lint agent skills, custom agents, instruction files, and hook configurations. Validates frontmatter, instruction quality, and hook config schemas.",
+            "Lint agent skills, custom agents, instruction files, and hook configurations. Validates frontmatter, instruction quality, and hook config schemas. Run `lint lessons` to validate lesson files.",
+    },
+    subCommands: {
+        lessons: lintLessonsCommand,
     },
     args: {
         skills: {
