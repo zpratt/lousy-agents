@@ -29,12 +29,12 @@ so that I can **reduce repeated mistakes without manually reviewing project conv
 #### Acceptance Criteria
 
 - When an agent attempts to edit or write a file, the PreToolUse hook shall invoke `lousy-agents context --files <path>` and return matching lessons to Claude Code as a `hookSpecificOutput.additionalContext` string (the CLI emits the protocol-compliant Claude Code hook envelope directly on stdout — see the Data Model section for the exact shape).
-- When no lessons match the file, the context command shall return `{"context": []}` on stdout and exit zero.
+- When no lessons match the file, the context command shall emit the Claude Code hook envelope with an empty `additionalContext` string (i.e., `{ "hookSpecificOutput": { "hookEventName": "PreToolUse", "additionalContext": "" } }`) on stdout and exit zero.
 - The context command shall not perform model calls, embedding similarity, or LLM-mediated relevance scoring.
 - When a SessionStart hook fires, the context command shall return all lessons with `type: invariant` without requiring a `--files` path argument.
 - If lesson files contain invalid frontmatter, then the context command shall skip those files, log a warning, and continue processing remaining lessons without crashing the hook.
 - If a `--files` path resolves outside the current working directory, then the context command shall reject the path with a boundary-safe containment check (e.g., ``const rel = path.relative(cwd, file); rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)`` — the segment-aware `..` checks avoid false positives for valid in-root filenames like `..foo.ts` (where `rel === '..foo.ts'`), and the `path.isAbsolute` guard handles Windows paths on different drive letters where `path.relative` returns an absolute path rather than a `..`-prefixed one; `rel === ''` means file equals cwd and shall be treated as a valid in-bounds path) and exit non-zero.
-- If the `.lousy-agents/lessons/` directory cannot be read for any reason (missing, not a directory, permission denied), the context command shall return an empty `context` array and exit zero rather than crashing the PreToolUse hook.
+- If the `.lousy-agents/lessons/` directory cannot be read for any reason (missing, not a directory, permission denied), the context command shall emit the Claude Code hook envelope with an empty `additionalContext` string (i.e., `{ "hookSpecificOutput": { "hookEventName": "...", "additionalContext": "" } }`) and exit zero rather than crashing the PreToolUse hook.
 - When a lesson's `triggers.tags` array contains a value matching any forward-slash-separated path segment OR the file extension of the file under edit, the context command shall include that lesson in the rendered `additionalContext` string. For `src/rules.ts`, testable segments are `src`, `rules.ts`, and `ts`.
 - After determining the set of matching lessons, the context command shall increment `fire_count` by 1 and set `last_fired` to the current date in `YYYY-MM-DD` format in the frontmatter of each matched lesson file on disk. If a write fails for any individual lesson (e.g., permission denied, read-only filesystem), the command shall log a warning and continue — the failure must not affect the JSON output or the exit code. Concurrent writes are not guarded; last-writer-wins is acceptable in v1.
 
@@ -287,6 +287,7 @@ The `lousy-agents context` command emits the **Claude Code hook response envelop
 Rules:
 
 - The CLI emits exactly one JSON object on stdout. No surrounding prose, no markdown fences.
+- All diagnostic output (warnings, info messages) shall go to stderr; stdout is reserved exclusively for the single JSON object per invocation.
 - `hookEventName` is `"PreToolUse"` when invoked with `--files`, and `"SessionStart"` when invoked without `--files` (the SessionStart invariant-injection path).
 - `additionalContext` is a **string** rendering of matched lessons (e.g., a concatenation of `## <title>\n\n<body>` blocks). It is **not** a JSON array — Claude Code expects a string here.
 - When no lessons match, the CLI emits `{ "hookSpecificOutput": { "hookEventName": "...", "additionalContext": "" } }` and exits zero. An empty string is the correct "no context" signal; omitting the field or printing nothing is also acceptable per Claude's docs but the explicit empty string keeps the contract uniform and easier to test.
