@@ -11,7 +11,10 @@ import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { LintValidationError } from "./lint-errors.js";
-import { validateDirectory } from "./validate-directory.js";
+import {
+    hasPathTraversalSegment,
+    validateDirectory,
+} from "./validate-directory.js";
 
 const chance = new Chance();
 
@@ -337,5 +340,49 @@ describe("validateDirectory", () => {
                 }
             },
         );
+    });
+});
+
+// ── Direct unit tests for hasPathTraversalSegment ────────────────────────────
+// These run on EVERY platform so that both the Windows branch (splits on '\')
+// and the POSIX branch (splits only on '/') have CI coverage regardless of
+// the host OS.
+describe("hasPathTraversalSegment", () => {
+    describe("given the win32 platform", () => {
+        it("detects backslash-separated traversal", () => {
+            expect(
+                hasPathTraversalSegment("a\\..\\.\\..\\etc\\passwd", "win32"),
+            ).toBe(true);
+        });
+
+        it("detects forward-slash traversal", () => {
+            expect(hasPathTraversalSegment("a/../../etc/passwd", "win32")).toBe(
+                true,
+            );
+        });
+
+        it("does not reject a simple relative path", () => {
+            expect(hasPathTraversalSegment("foo\\bar\\baz", "win32")).toBe(
+                false,
+            );
+        });
+    });
+
+    describe("given a POSIX platform", () => {
+        it("detects forward-slash traversal", () => {
+            expect(hasPathTraversalSegment("a/../../etc/passwd", "linux")).toBe(
+                true,
+            );
+        });
+
+        it("does not treat backslash as a separator (backslash is a valid filename character on POSIX)", () => {
+            expect(
+                hasPathTraversalSegment("a\\..\\.\\..\\etc\\passwd", "linux"),
+            ).toBe(false);
+        });
+
+        it("does not reject a simple relative path", () => {
+            expect(hasPathTraversalSegment("foo/bar/baz", "linux")).toBe(false);
+        });
     });
 });

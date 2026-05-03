@@ -102,6 +102,12 @@ export function createScriptDiscoveryGateway(
 
 /**
  * Creates a FeedbackLoopCommandsGateway that discovers mandatory commands from package.json scripts.
+ *
+ * @param scriptGateway - Optional gateway implementation. If omitted, a default
+ *   `FileSystemScriptDiscoveryGateway` is created using `logger`.
+ * @param logger - Optional logger for the default gateway. Only used when
+ *   `scriptGateway` is omitted; if a custom `scriptGateway` is supplied, its
+ *   own logger configuration applies and this parameter is ignored.
  */
 export function createFeedbackLoopCommandsGateway(
     scriptGateway?: ScriptDiscoveryGateway,

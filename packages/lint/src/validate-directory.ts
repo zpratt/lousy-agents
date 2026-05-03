@@ -33,12 +33,23 @@ function sanitizeForErrorMessage(value: string): string {
     return JSON.stringify(value);
 }
 
-function hasPathTraversalSegment(directory: string): boolean {
-    // On Windows, both '/' and '\' are path separators, so split on both.
-    // On POSIX, '\' is a valid filename character (not a separator), so only
-    // split on '/' to avoid false-rejecting legitimate paths whose names
-    // contain backslashes.
-    const separator = process.platform === "win32" ? /[\\/]/ : "/";
+/**
+ * Detects path traversal segments in a user-supplied directory string.
+ *
+ * On Windows, both '/' and '\' are path separators, so the check splits on
+ * both. On POSIX, '\' is a valid filename character (not a separator), so only
+ * '/' is used as the split boundary to avoid false-rejecting legitimate paths
+ * whose names contain backslashes.
+ *
+ * Exported for direct unit testing of the platform-specific branch.
+ *
+ * @internal
+ */
+export function hasPathTraversalSegment(
+    directory: string,
+    platform = process.platform,
+): boolean {
+    const separator = platform === "win32" ? /[\\/]/ : "/";
     return directory.split(separator).includes("..");
 }
 
