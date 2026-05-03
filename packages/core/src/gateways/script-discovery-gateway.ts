@@ -3,7 +3,7 @@
  */
 
 import { join } from "node:path";
-import { type ConsolaInstance, consola } from "consola";
+import { consola } from "consola";
 import { z } from "zod";
 import {
     type DiscoveredScript,
@@ -24,16 +24,26 @@ const PackageJsonSchema = z.object({
 export type { FeedbackLoopCommandsGateway, ScriptDiscoveryGateway };
 
 /**
+ * Minimal logger interface used by this gateway. Only `.warn()` is ever
+ * called, so the gateway does not depend on the full `ConsolaInstance` type.
+ * Any object with a `.warn` method — including a consola instance, a pino
+ * child logger, or a plain object — satisfies this interface.
+ */
+export interface ScriptDiscoveryLogger {
+    warn(message: string, ...args: unknown[]): void;
+}
+
+/**
  * File system implementation of script discovery gateway
  */
 export class FileSystemScriptDiscoveryGateway
     implements ScriptDiscoveryGateway
 {
-    constructor(logger?: ConsolaInstance) {
+    constructor(logger?: ScriptDiscoveryLogger) {
         this.logger = logger ?? consola;
     }
 
-    private readonly logger: ConsolaInstance;
+    private readonly logger: ScriptDiscoveryLogger;
 
     async discoverScripts(targetDir: string): Promise<DiscoveredScript[]> {
         const packageJsonPath = join(targetDir, "package.json");
@@ -107,7 +117,7 @@ export class FileSystemScriptDiscoveryGateway
  * Creates and returns the default script discovery gateway
  */
 export function createScriptDiscoveryGateway(
-    logger?: ConsolaInstance,
+    logger?: ScriptDiscoveryLogger,
 ): ScriptDiscoveryGateway {
     return new FileSystemScriptDiscoveryGateway(logger);
 }
@@ -123,7 +133,7 @@ export function createScriptDiscoveryGateway(
  */
 export function createFeedbackLoopCommandsGateway(
     scriptGateway?: ScriptDiscoveryGateway,
-    logger?: ConsolaInstance,
+    logger?: ScriptDiscoveryLogger,
 ): FeedbackLoopCommandsGateway {
     const gateway = scriptGateway ?? createScriptDiscoveryGateway(logger);
     return {

@@ -24,7 +24,6 @@ import { applySeverityFilter } from "@lousy-agents/core/use-cases/apply-severity
 import { LintAgentFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-agent-frontmatter.js";
 import { LintHookConfigUseCase } from "@lousy-agents/core/use-cases/lint-hook-config.js";
 import { LintSkillFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-skill-frontmatter.js";
-import type { ConsolaInstance } from "consola";
 import { ZodError, z } from "zod";
 import { LintValidationError } from "./lint-errors.js";
 import { validateDirectory } from "./validate-directory.js";
@@ -36,7 +35,7 @@ import { validateDirectory } from "./validate-directory.js";
  * (consola, pino, plain object) satisfies this contract. This keeps the
  * published `@lousy-agents/lint` types free from a hard `consola` import.
  */
-interface LintLogger {
+export interface LintLogger {
     warn(message: string, ...args: unknown[]): void;
 }
 
@@ -179,11 +178,9 @@ async function lintInstructions(
 ): Promise<LintOutput> {
     const discoveryGateway = createInstructionFileDiscoveryGateway();
     const astGateway = createMarkdownAstGateway();
-    // Cast to ConsolaInstance: the core gateway only calls `.warn()`, which is
-    // the entire contract of LintLogger. The cast is safe by construction.
     const commandsGateway = createFeedbackLoopCommandsGateway(
         undefined,
-        logger as ConsolaInstance | undefined,
+        logger,
     );
 
     const useCase = new AnalyzeInstructionQualityUseCase(

@@ -44,7 +44,7 @@ export type {
 } from "@lousy-agents/core/formatters/index.js";
 
 export { createFormatter } from "@lousy-agents/core/formatters/index.js";
-export type { LintOptions, LintResult } from "./lint.js";
+export type { LintLogger, LintOptions, LintResult } from "./lint.js";
 export { runLint } from "./lint.js";
 
 export { LintValidationError } from "./lint-errors.js";
