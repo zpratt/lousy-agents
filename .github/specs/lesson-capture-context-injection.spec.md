@@ -33,11 +33,11 @@ so that I can **reduce repeated mistakes without manually reviewing project conv
 - The context command shall not perform model calls, embedding similarity, or LLM-mediated relevance scoring.
 - When a SessionStart hook fires, the context command shall return all lessons with `type: invariant` without requiring a `--files` path argument.
 - If lesson files contain invalid frontmatter, then the context command shall skip those files, log a warning, and continue processing remaining lessons without crashing the hook.
-- If a `--files` path resolves outside the current working directory, then the context command shall reject the path with a boundary-safe containment check (e.g., ``const rel = path.relative(cwd, file); rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)`` — the segment-aware `..` checks avoid false positives for valid in-root filenames like `..foo.ts` (where `rel === '..foo.ts'`), and the `path.isAbsolute` guard handles Windows paths on different drive letters where `path.relative` returns an absolute path rather than a `..`-prefixed one; `rel === ''` means file equals cwd and shall be treated as a valid in-bounds path) and exit non-zero.
+- If a `--files` path resolves outside the current working directory, then the context command shall reject the path and exit non-zero. The containment check must be boundary-safe — see **Design § Path normalization requirement** for the required algorithm.
 - If a file path from hook input or `--files` resolves to a symbolic link, or its real path resolves outside the current working directory, then the context command shall not read target content; it shall log a warning, treat that file as having empty content, and continue matching only on the validated in-repo path string.
 - If the `.lousy-agents/lessons/` directory cannot be read for any reason (missing, not a directory, permission denied), the context command shall emit the Claude Code hook envelope with an empty `additionalContext` string (i.e., `{ "hookSpecificOutput": { "hookEventName": "...", "additionalContext": "" } }`) and exit zero rather than crashing the PreToolUse hook.
 - When a lesson's `triggers.tags` array contains a value matching any forward-slash-separated path segment OR the file extension of the file under edit, the context command shall include that lesson in the rendered `additionalContext` string. For `src/rules.ts`, testable segments are `src`, `rules.ts`, and `ts`.
-- After determining the set of matching lessons, the context command shall remain read-only: it shall not update `fire_count`, `last_fired`, lesson files, or hidden runtime state. Those frontmatter fields are manually maintained when lessons are authored or revised.
+- After determining the set of matching lessons, the context command shall remain read-only: it shall not write to lesson files, mutate frontmatter, or persist hidden runtime state.
 
 ---
 
@@ -50,7 +50,9 @@ so that I can **accumulate project-specific knowledge without a separate triage 
 #### Acceptance Criteria
 
 - When either a Stop or SubagentStop hook fires, the capture script shall provide the active agent with a structured prompt to review recent session context for findings worth capturing.
+- When the agent captures a finding, the agent shall first inspect existing lesson files under `.lousy-agents/lessons/` and update an existing lesson when the finding extends prior knowledge rather than creating a duplicate.
 - When the agent captures a finding, the agent shall write or update lesson files at `.lousy-agents/lessons/<slug>.md` using normal Write/Edit operations.
+- Where the active agent is a subagent (SubagentStop), the capture prompt shall direct the agent to capture findings local to its subagent scope before that context is lost. Where the active agent is the main agent (Stop), the capture prompt shall direct the agent to capture session-level findings.
 - The capture script shall not directly create lesson files on the agent's behalf.
 - The runtime system shall remain passive for lesson authoring and shall not expose a custom lesson-authoring API.
 - When a new lesson is written, the resulting file shall conform to the documented frontmatter schema.
@@ -128,8 +130,6 @@ title: Use fail-closed defaults for policy decisions
 type: invariant  # or "pattern"
 created: 2026-05-02
 revised: 2026-05-02
-fire_count: 0
-last_fired: null
 provenance:
   - pr: 234
     finding_id: f-2026-05-02-001
@@ -166,11 +166,11 @@ The body is human-readable markdown prose: the rule, when it applies, examples o
 - `zod` — lesson Zod schema in use-case layer (already pinned in workspace)
 - **Frontmatter parser**: Do not add `gray-matter` or any new frontmatter parser without explicit approval. Before Task 4 begins, identify whether an existing YAML parser (e.g., `yaml` package already used in the workspace) can parse frontmatter with a simple fence splitter, or raise this as a **blocking open question** requiring maintainer approval before proceeding.
 - Existing file-system utilities: `packages/core/src/gateways/file-system-utils.ts` (`readFileNoFollow()`) — required for all lesson and hook config file reads.
-- **Glob library**: Do not add a glob library without explicit approval. Before Task 5 begins, confirm whether `minimatch`, `picomatch`, or an equivalent library is already present **as a direct pinned dependency** in the consuming package's `package.json`. Presence in `node_modules` only as a transitive dependency does **not** qualify — for example, `minimatch@5.1.9` currently appears in `node_modules` only via the `testcontainers → archiver → readdir-glob` chain (a dev-only test dep), which is not reliable for production use. If no qualifying direct dep exists, raise this as a **blocking open question** requiring maintainer approval before proceeding.
+- **Glob library**: See resolved blocking open question below. The current resolution requires adding `picomatch` as a directly pinned dependency to `packages/core/package.json` before Task 5 implementation begins.
 
 ### Glob and Path Matching Semantics
 
-**Library and options**: glob matching uses `minimatch` (or workspace-approved equivalent) with `{ dot: false, nocase: false }` — case-sensitive, does not match dot-prefixed entries unless explicitly specified.
+**Library and options**: glob matching uses `picomatch` (resolved per Open Questions) with `{ dot: false, nocase: false }` — case-sensitive, does not match dot-prefixed entries unless explicitly specified.
 
 **`**` semantics**: `src/policy/**` matches `src/policy/foo.ts` and `src/policy/foo/bar/baz.ts` — zero or more path segments. Does not match `src/policy/` itself (directory entries are not exposed as file paths).
 
@@ -180,7 +180,7 @@ The body is human-readable markdown prose: the rule, when it applies, examples o
 
 **Content pattern matching**: literal substring search (`String.prototype.includes()`) against the full file content string after loading it. Case-sensitive. Patterns exceeding 200 characters are rejected by the schema validator before reaching the matcher.
 
-**Path normalization requirement**: all file paths from CLI arguments or gateway reads must be normalized with `path.resolve()` before any comparison or I/O. The cwd containment check must be boundary-safe (e.g., ``const rel = path.relative(cwd, resolvedFilePath); rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)`` — the segment-aware `..` checks (`rel === '..'` and `rel.startsWith(`..${path.sep}`)`) avoid false positives for valid in-root filenames like `..foo.ts` (where `rel === '..foo.ts'`), and the `path.isAbsolute` guard handles Windows cross-drive paths where `path.relative` returns an absolute path instead of a `..`-prefixed relative path; `rel === ''` means the file equals cwd and is treated as a valid in-bounds path) to prevent both path traversal and prefix confusion (e.g., `/repo` matching `/repo2`). String `includes('..')`, `rel.startsWith('..')` without segment terminator, and simple `startsWith` full-path prefix checks are explicitly prohibited for this check — `includes('..')` is insufficient (misses encoded traversal) and incorrect (rejects valid names like `..foo.ts`), `rel.startsWith('..')` is incorrect for the same reason, and full-path `startsWith` is vulnerable to prefix confusion.
+**Path normalization requirement**: All file paths from CLI arguments or gateway reads must be validated using the existing `resolvePathWithinRoot()` utility from `packages/core/src/gateways/file-system-utils.ts`. This utility resolves the real path of the project root, calls `path.resolve()` on the candidate, and rejects any candidate not contained within the resolved root using a boundary-safe `startsWith(rootPath + path.sep)` check that prevents prefix-confusion attacks (e.g., `/repo` incorrectly matching `/repo2`). Components shall not reimplement this check inline; using a single shared utility avoids drift between the lint, context, and init-hooks code paths. String `includes('..')` checks and naked `startsWith(rootPath)` checks (without separator suffix) are explicitly prohibited.
 
 **Windows cross-platform**: before passing any path to glob matching, normalize backslash separators to forward slashes (e.g., `filePath.split(path.sep).join('/')`). Path glob matching is always case-sensitive regardless of the OS filesystem case sensitivity.
 
@@ -213,8 +213,6 @@ export interface Lesson {
   readonly type: LessonType;
   readonly created: string;
   readonly revised: string;
-  readonly fire_count: number;
-  readonly last_fired: string | null;
   readonly provenance: readonly LessonProvenance[];
   readonly triggers: LessonTriggers;
   readonly body: string;
@@ -239,8 +237,7 @@ export const LessonFrontmatterSchema = z.object({
   type: z.enum(['invariant', 'pattern']),
   created: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'created must be YYYY-MM-DD'),
   revised: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'revised must be YYYY-MM-DD'),
-  fire_count: z.number().int().min(0),
-  last_fired: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'last_fired must be YYYY-MM-DD').nullable(),
+  // provenance MAY be empty: agent-captured lessons are written before any PR exists.
   provenance: z.array(z.object({
     pr: z.number().int(),
     finding_id: z.string(),
@@ -251,7 +248,10 @@ export const LessonFrontmatterSchema = z.object({
     tags: z.array(z.string().min(1).max(MAX_TRIGGER_VALUE_LENGTH)).max(MAX_TRIGGER_VALUES),
     patterns: z.array(z.string().min(1).max(MAX_PATTERN_LENGTH)).max(MAX_PATTERNS),
   }).strict(),
-}).strict();
+}).strict().refine(
+  (data) => data.revised >= data.created,
+  { message: 'revised must be on or after created (lexicographic ISO date compare)', path: ['revised'] },
+);
 ```
 
 #### Gateway Port Interface
@@ -301,9 +301,26 @@ export const ClaudePreToolUseHookInputSchema = z.object({
       .regex(SAFE_PRINTABLE_PATH, 'file_path must not contain control characters'),
   }).passthrough(),
 }).passthrough();
+
+export const ClaudeSessionStartHookInputSchema = z.object({
+  hook_event_name: z.literal('SessionStart'),
+}).passthrough();
+
+// The CLI dispatches on `hook_event_name`. Stdin parsing tries the SessionStart
+// schema first when stdin is non-empty but does not contain `tool_name` /
+// `tool_input`, then falls back to the PreToolUse schema. If neither schema
+// matches, the CLI follows its fail-open policy.
 ```
 
-If stdin contains malformed JSON or hook input that does not match this schema, `lousy-agents context` follows the fail-open context policy: log a warning to stderr, emit the PreToolUse hook envelope with `additionalContext: ""`, and exit zero. If stdin is empty and no `--files` flags are provided, the command treats the invocation as the SessionStart invariant-injection path.
+**Dispatch rules**:
+
+1. If `--files` is provided, the CLI uses the `--files` set and emits `hookEventName: "PreToolUse"`. Stdin is ignored (an info message is logged to stderr if stdin also contained valid hook input). `--files` always takes precedence over stdin to keep manual/debug invocations predictable.
+2. Otherwise, if stdin is non-empty and parses as JSON matching `ClaudePreToolUseHookInputSchema`, the CLI extracts `tool_input.file_path` and emits `hookEventName: "PreToolUse"`.
+3. Otherwise, if stdin is non-empty and parses as JSON matching `ClaudeSessionStartHookInputSchema`, the CLI returns all `invariant` lessons and emits `hookEventName: "SessionStart"`.
+4. Otherwise, if stdin is empty and no `--files` flags are provided, the CLI treats the invocation as the SessionStart invariant-injection path (`hookEventName: "SessionStart"`).
+5. If stdin is non-empty but does not match either schema (malformed JSON or unknown shape), the CLI follows its fail-open policy: log a warning to stderr, emit the PreToolUse hook envelope with `additionalContext: ""`, and exit zero.
+
+The `init-hooks` command writes the SessionStart wiring such that Claude Code pipes its standard hook input JSON on stdin; the CLI's SessionStart schema accepts this input via rule 3 above. This means the SessionStart path works regardless of whether Claude Code emits stdin or not.
 
 #### CLI Stdout JSON Shape (Claude Code Hook Envelope)
 
@@ -364,6 +381,59 @@ export function buildPermissionDecisionResponse(
 ```
 
 Both functions return the JSON-stringified envelope `{ "hookSpecificOutput": { ... } }` ready for stdout. `@lousy-agents/cli` **must** consume this builder rather than hand-constructing the envelope — this is the architectural seam that keeps the `context` command aligned with the Claude Code protocol. Migrating `agent-shell/src/use-cases/policy-check.ts` to consume `buildPermissionDecisionResponse` is **out of scope for this spec** (its current bare-`permissionDecision` shape is accepted by Claude Code today); the builder is designed to support that migration without API changes, but `agent-shell` remains unchanged in this spec.
+
+### Capture Prompt Template
+
+The capture command emits a structured prompt to the active agent. The template differentiates by hook event so subagent-local findings are captured before subagent context is lost. Only validated structured fields from hook input may be interpolated; raw session text shall not be embedded verbatim.
+
+**Stop event template** (main-agent / session-level findings):
+
+```markdown
+You have just finished a coding session. Before this context is lost, review your
+recent work for findings worth capturing as durable lessons.
+
+A lesson is worth capturing when:
+- You discovered a project-specific invariant that wasn't obvious from the code
+- You hit a recurring concern that future agents will likely encounter on similar files
+- You corrected a mistake that future agents could easily repeat
+
+Lessons live at `.lousy-agents/lessons/<slug>.md`. Each lesson is a markdown file
+with YAML frontmatter conforming to this schema:
+
+- `slug`: lowercase, digits, hyphens only (matches `^[a-z0-9-]+$`)
+- `title`: one-line human-readable summary
+- `type`: `invariant` (broad project rule) or `pattern` (file-specific concern)
+- `created` / `revised`: YYYY-MM-DD; `revised` must be on or after `created`
+- `provenance`: array of `{ pr, finding_id, facet }` (may be empty for in-session captures)
+- `triggers.paths`: glob patterns (max 100 entries, max 200 chars each)
+- `triggers.tags`: path-segment or extension matches (max 100, max 200 chars)
+- `triggers.patterns`: literal substrings to match in file content (max 50, max 200 chars)
+
+Before writing a new lesson:
+1. List existing lessons under `.lousy-agents/lessons/` and read any whose slug or
+   title looks related to your finding.
+2. If an existing lesson covers your finding, update it (bump `revised`, append
+   to `provenance`, refine triggers/body) rather than creating a duplicate.
+3. Only create a new lesson if no existing lesson covers the finding.
+
+Write or edit lessons using your normal Write/Edit tools. The capture command
+will not create or modify files for you.
+```
+
+**SubagentStop event template** (subagent-local findings):
+
+```markdown
+You are a subagent finishing your task. Before your subagent context is lost,
+capture findings local to your scope as durable lessons.
+
+[…schema and authorship rules identical to the Stop template…]
+
+Focus your review on findings specific to the work you completed in this
+subagent invocation. The main agent will run its own capture pass on Stop and
+will see broader session findings; do not duplicate that work.
+```
+
+The capture command shall interpolate only structured fields from validated hook input (e.g., `hook_event_name`) into the prompt. Raw session messages, tool transcripts, and free-form output from the agent shall not be templated into the prompt string.
 
 ### Diagrams
 
@@ -457,11 +527,12 @@ sequenceDiagram
 
 ### Open Questions
 
-- [x] ~~Should `fire_count` and `last_fired` be auto-updated in PreToolUse, or remain manually maintained to keep the hot path passive and avoid noisy working-tree diffs?~~ **Resolved**: Manually maintained. The context command remains read-only so PreToolUse never dirties the working tree or loses updates under concurrent hooks.
+- [x] ~~Should `fire_count` and `last_fired` be auto-updated in PreToolUse, or remain manually maintained to keep the hot path passive and avoid noisy working-tree diffs?~~ **Resolved**: Both fields are deferred from v1 entirely. Manual maintenance combined with a read-only context command meant they would rot; carrying required schema fields with no writer would only burden agent-authored lesson capture. The context command stays read-only and the schema no longer includes either field. They are tracked in **Future Considerations** for reintroduction once an automated writer exists.
 - [x] ~~**BLOCKING for Task 5**: What is the exact JSON shape expected by Claude Code for `additionalContext` in hook responses? A proposed shape is defined in the Data Model section above; confirm against Claude Code documentation before Task 5 begins.~~ **Resolved**: Per the [Claude Code hooks documentation](https://docs.claude.com/en/docs/claude-code/hooks), `additionalContext` is a **string** nested inside `hookSpecificOutput` alongside `hookEventName`. Claude Code caps the value at 10 000 characters before spilling to a file. The CLI emits the protocol-compliant envelope directly on stdout (no separate wrapper script needed). Repo audit: `agent-shell`'s `policy-check.ts` is the only existing Claude hook-response producer and emits a different shape (`permissionDecision`); a small shared `buildAdditionalContextResponse` / `buildPermissionDecisionResponse` helper in `@lousy-agents/core` shall be introduced so both packages avoid duplicating the envelope-shaping logic. See the Data Model section for the canonical shape and the shared builder interface.
 - [x] ~~Should `lousy-agents context --files` accept comma-separated paths, repeated flags, or both?~~ **Resolved**: `--files` accepts repeated flags only (e.g., `--files path1 --files path2`). No comma-splitting — avoids the need to escape or parse commas in file paths.
 - [x] ~~Which hook takes priority for capture: `SubagentStop`, `Stop`, or both wired independently?~~ **Resolved**: Both Stop and SubagentStop are wired independently; neither takes priority. SubagentStop captures findings from a subagent's local context before that context is lost, while Stop captures main-agent and session-level findings. The capture prompt must be safe to run for either event and rely on the active agent to check existing lessons before writing or updating files.
 - [x] ~~**BLOCKING**: Is an existing YAML parser in the workspace sufficient for frontmatter parsing, or is a new dependency required? Do not begin Task 4 until this is resolved with explicit maintainer approval.~~ **Resolved**: The `yaml` package already in the workspace is sufficient. The duplicated `parseFrontmatter` implementation was extracted from `FileSystemSkillLintGateway` and `FileSystemAgentLintGateway` into a shared utility at `packages/core/src/lib/frontmatter.ts`. Task 4 must import `parseFrontmatter` from `@lousy-agents/core/lib/frontmatter.js` — no new dependency required.
+- [x] ~~**BLOCKING for Task 5**: Is a glob library available as a direct pinned dependency in `@lousy-agents/cli` or `@lousy-agents/core`?~~ **Resolved**: Workspace audit (2026-05-03) confirmed neither package has a direct glob dependency. `minimatch` appears only as a transitive dev dep through `testcontainers → archiver → readdir-glob` and is not reliable for production. **Decision**: add `picomatch` (smaller and faster than `minimatch`, no regex precompile cost on the hot path) as a directly pinned dep to `packages/core/package.json`. Glob matching shall use `picomatch` with `{ dot: false, nocase: false }` per the Design § Glob and Path Matching Semantics section. Pinning the dep is part of Task 5's implementation work.
 
 ---
 
@@ -516,7 +587,7 @@ sequenceDiagram
 
 **Requirements**:
 - `lesson.ts` contains only TypeScript `type` and `interface` declarations. No imports of any kind.
-- `lesson-schema.ts` defines the Zod schema using the constraints: slug `^[a-z0-9-]+$`, trigger path/tag arrays `max(100)`, trigger path/tag strings `max(200)`, patterns `max(200)` per entry, patterns array `max(50)`, and `type` enum `['invariant', 'pattern']`.
+- `lesson-schema.ts` defines the Zod schema using the constraints: slug `^[a-z0-9-]+$`, trigger path/tag arrays `max(100)`, trigger path/tag strings `max(200)`, patterns `max(200)` per entry, patterns array `max(50)`, and `type` enum `['invariant', 'pattern']`. The schema includes a `.refine()` enforcing `revised >= created` (lexicographic ISO date compare).
 - All required frontmatter fields are covered by the schema.
 - Invalid `type` values produce a descriptive Zod error.
 - Invalid slugs produce a descriptive Zod error that names the constraint.
@@ -533,6 +604,9 @@ sequenceDiagram
 - [ ] Tests cover rejection of too many trigger paths or tags.
 - [ ] Tests cover rejection of trigger path/tag strings exceeding 200 characters.
 - [ ] Tests cover missing required fields.
+- [ ] Tests cover rejection of `revised` earlier than `created` (e.g., `created: 2026-05-02`, `revised: 2026-05-01`) with a descriptive error.
+- [ ] Tests cover acceptance of `revised` equal to `created` (same-day authoring).
+- [ ] Tests cover acceptance of an empty `provenance` array (in-session captures pre-PR).
 - [ ] `mise run test` passes.
 - [ ] `mise run lint` passes.
 
@@ -582,6 +656,8 @@ sequenceDiagram
 **Context**: Validation is the first executable runtime contract. Every other component trusts lesson metadata to be well-formed; the linter enforces that trust. All file reads must use `readFileNoFollow()` with the 1MB size limit.
 
 **Affected files**:
+- `packages/core/src/lib/frontmatter.ts` (modified — see Slice 4A)
+- `packages/core/src/lib/frontmatter.test.ts` (modified or new test cases)
 - `packages/core/src/gateways/lesson-file-gateway.ts` (new)
 - `packages/core/src/gateways/lesson-file-gateway.test.ts` (new)
 - `packages/core/src/use-cases/lint-lessons-use-case.ts` (new)
@@ -590,9 +666,10 @@ sequenceDiagram
 - `packages/cli/src/commands/lint-lessons.test.ts` (new)
 
 **Implementation slices**:
-- Slice 4A: lesson file gateway and gateway tests (`lesson-file-gateway.ts`, `lesson-file-gateway.test.ts`).
-- Slice 4B: lint use case and use-case tests (`lint-lessons-use-case.ts`, `lint-lessons-use-case.test.ts`).
-- Slice 4C: CLI command and command tests (`lint-lessons.ts`, `lint-lessons.test.ts`).
+- Slice 4A: extend the shared `parseFrontmatter` utility to return a tagged result distinguishing "no frontmatter present" from "invalid YAML" and surfacing the underlying YAML error reason. The current `null` return swallows YAML error specifics, which prevents the linter from meeting the Story 3 AC requiring a "specific validation reason." Update existing callers (`FileSystemSkillLintGateway`, `FileSystemAgentLintGateway`) to consume the new tagged return type without behavior change. Tests cover: missing frontmatter, malformed YAML with line/column reason surfaced, and valid frontmatter parsing unchanged.
+- Slice 4B: lesson file gateway and gateway tests (`lesson-file-gateway.ts`, `lesson-file-gateway.test.ts`).
+- Slice 4C: lint use case and use-case tests (`lint-lessons-use-case.ts`, `lint-lessons-use-case.test.ts`).
+- Slice 4D: CLI command and command tests (`lint-lessons.ts`, `lint-lessons.test.ts`).
 
 **Requirements**:
 - Gateway reads `.lousy-agents/lessons/` relative to the resolved project root (not raw `process.cwd()` string).
@@ -611,7 +688,7 @@ sequenceDiagram
 - [ ] Tests cover a lesson with an invalid `type` (exit 1, message includes file path).
 - [ ] Tests cover a lesson with a slug containing `/` (exit 1, message includes slug constraint).
 - [ ] Tests cover a lesson with missing required fields (exit 1, message includes field name).
-- [ ] Tests cover malformed YAML frontmatter (exit 1).
+- [ ] Tests cover malformed YAML frontmatter (exit 1) — the lint output shall include the underlying YAML error reason (e.g., line/column or expected token), not a generic "frontmatter parse failed" message.
 - [ ] Tests cover a file exceeding 1MB (exit 1, message includes file path).
 - [ ] Tests cover more than 500 lesson files causing exit 1 with a descriptive cap error.
 - [ ] Tests cover aggregate lesson bytes exceeding 20MB causing exit 1 with a descriptive cap error.
@@ -655,12 +732,13 @@ sequenceDiagram
 - Slice 5D: CLI command and command tests (`context.ts`, `context.test.ts`).
 
 **Requirements**:
-- By default, reads Claude Code hook input JSON from stdin, validates it with `ClaudePreToolUseHookInputSchema`, and extracts only the Edit/Write file path fields needed for matching. The fixed hook command must not receive a shell-interpolated path argument.
-- If stdin contains malformed JSON or hook input that does not match `ClaudePreToolUseHookInputSchema`, logs a warning to stderr, emits the PreToolUse hook envelope with `additionalContext: ""`, and exits zero.
+- By default, reads Claude Code hook input JSON from stdin and dispatches per the rules in **Data Model § Dispatch rules**: validates against `ClaudePreToolUseHookInputSchema` first, then `ClaudeSessionStartHookInputSchema`, falling back to fail-open on schema mismatch. The fixed hook command must not receive a shell-interpolated path argument.
+- If stdin contains malformed JSON or hook input that matches neither schema, logs a warning to stderr, emits the PreToolUse hook envelope with `additionalContext: ""`, and exits zero.
 - Accepts one or more file paths via repeated `--files` flags (e.g., `--files path1 --files path2`) for manual/debug invocations. Comma-separated values in a single flag are not supported.
-- When invoked without hook input or `--files` arguments, returns all lessons with `type: invariant` without performing path, tag, or content matching. This is the SessionStart injection path; the emitted envelope shall use `hookEventName: "SessionStart"`.
+- When `--files` is provided, the CLI uses that path set and emits `hookEventName: "PreToolUse"`. Stdin is not consumed for path extraction; if stdin also contained valid hook input, the CLI logs an info message to stderr noting that `--files` took precedence.
+- When invoked without `--files` and without parseable stdin hook input (or stdin matches `ClaudeSessionStartHookInputSchema`), returns all lessons with `type: invariant` without performing path, tag, or content matching. This is the SessionStart injection path; the emitted envelope shall use `hookEventName: "SessionStart"`.
 - When invoked from validated PreToolUse hook input or with one or more `--files` arguments, the emitted envelope shall use `hookEventName: "PreToolUse"`.
-- Before any file I/O, validates each hook-input or `--files` path using `path.resolve()` and applies a boundary-safe containment check: compute `const rel = path.relative(resolvedCwd, resolvedPath)` and reject if ``rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)`` — segment-aware `..` checks avoid false positives for valid in-root filenames like `..foo.ts` (where `rel === '..foo.ts'`), and the `path.isAbsolute` guard handles Windows cross-drive paths where `path.relative` returns an absolute path. `rel === ''` (file equals cwd) is treated as in-bounds. This prevents both path traversal and prefix-confusion attacks (e.g., `/repo` incorrectly matching `/repo2`). String `includes('..')`, `rel.startsWith('..')` without segment terminator, and simple full-path `startsWith` prefix checks must not be used for this check.
+- Before any file I/O, validates each hook-input or `--files` path using the shared `resolvePathWithinRoot()` utility from `packages/core/src/gateways/file-system-utils.ts` (see **Design § Path normalization requirement**). Components shall not reimplement the boundary-safe containment check inline.
 - File paths are normalized to forward-slash separators before glob matching.
 - If a target path cannot be read (e.g., file does not exist yet on new-file Write flows, permission denied, or symlink target rejected), it is treated as having empty content: content-pattern matching is skipped for that path, a warning is logged, and the command continues. This does not affect exit code. Path containment and symlink validation still apply before any read attempt.
 - Before reading target file content, rejects symbolic links and verifies the target's real path remains within the resolved cwd. Symlinked targets are never followed for content matching; they are treated as empty content with a warning.
@@ -675,7 +753,7 @@ sequenceDiagram
 - Returns an envelope with `additionalContext: ""` and exits zero when the lessons directory cannot be read.
 - If the gateway throws a typed symlink error for `.lousy-agents/lessons/` (the shared gateway security check from Task 4), the context command shall catch that error, log a warning, and emit `additionalContext: ""` with exit 0. The symlink check is a security control in the shared gateway; the context command's fail-open policy means it must handle this condition gracefully rather than propagating it as a fatal error (contrast with `lint lessons` in Task 4, which treats the symlink error as a fatal condition).
 - If individual lesson files are invalid, oversized, or violate schema-level resource caps, skips them with a logged warning and continues. Directory-level resource cap violations emit `additionalContext: ""` with exit 0.
-- The command is read-only: it shall not update `fire_count`, `last_fired`, lesson files, or hidden runtime state as part of context injection.
+- The command is read-only: it shall not write to lesson files, mutate frontmatter, or persist hidden runtime state as part of context injection.
 
 **Verification**:
 - [ ] Tests cover the shared `buildAdditionalContextResponse` helper producing `{ "hookSpecificOutput": { "hookEventName": "...", "additionalContext": "..." } }` for both `PreToolUse` and `SessionStart` event names.
@@ -706,7 +784,9 @@ sequenceDiagram
 - [ ] Tests cover invoking the command without `--files` returning all `invariant` lessons with `hookEventName: "SessionStart"` (SessionStart path).
 - [ ] Tests cover invoking the command with `--files` emitting `hookEventName: "PreToolUse"`.
 - [ ] Output is valid JSON on stdout conforming to the Claude Code hook envelope shape in the Data Model section.
-- [ ] Tests cover matched lessons leaving `fire_count`, `last_fired`, and lesson file contents unchanged after the command runs.
+- [ ] Tests cover matched lessons leaving lesson file contents unchanged on disk after the command runs (read-only contract).
+- [ ] Tests cover `--files` taking precedence over valid stdin hook input: when both are supplied, the resolved path set comes from `--files`, an info message is logged to stderr, and stdin is not consumed for path extraction.
+- [ ] Tests cover validated SessionStart stdin hook input emitting `hookEventName: "SessionStart"` with all `invariant` lessons.
 - [ ] `mise run test` passes.
 - [ ] `mise run lint` passes.
 
@@ -726,15 +806,15 @@ sequenceDiagram
 **Context**: The feature is only useful when wired into the agent lifecycle. This command bridges the CLI and the Claude Code session. Existing hook entries must not be overwritten without `--force`.
 
 **Affected files**:
-- `packages/core/src/gateways/hook-config-gateway.ts` (new or extended)
-- `packages/core/src/gateways/hook-config-gateway.test.ts` (new)
+- `packages/core/src/gateways/init-hooks-config-gateway.ts` (new — separate from the existing `FileSystemHookConfigGateway` which is read-only/discovery for `lint hooks`; the existing gateway must not be modified to support writes)
+- `packages/core/src/gateways/init-hooks-config-gateway.test.ts` (new)
 - `packages/core/src/use-cases/init-hooks-use-case.ts` (new)
 - `packages/core/src/use-cases/init-hooks-use-case.test.ts` (new)
 - `packages/cli/src/commands/init-hooks.ts` (new)
 - `packages/cli/src/commands/init-hooks.test.ts` (new)
 
 **Implementation slices**:
-- Slice 6A: hook config gateway and gateway tests (`hook-config-gateway.ts`, `hook-config-gateway.test.ts`).
+- Slice 6A: init-hooks config gateway and gateway tests (`init-hooks-config-gateway.ts`, `init-hooks-config-gateway.test.ts`).
 - Slice 6B: init-hooks use case and use-case tests (`init-hooks-use-case.ts`, `init-hooks-use-case.test.ts`).
 - Slice 6C: CLI command and command tests (`init-hooks.ts`, `init-hooks.test.ts`).
 
@@ -746,6 +826,7 @@ sequenceDiagram
 - Hook config gateway reads `.claude/settings.json` using `readFileNoFollow()` and writes it without following symlinks. Writes shall be atomic within the `.claude` directory when possible.
 - Preserves unrelated existing settings in `.claude/settings.json` if the file already exists.
 - Does not overwrite existing hook entries for the same tool/event unless `--force` is passed.
+- The `--force` flag is **per-event**: it shall only rewrite hook entries that `init-hooks` would otherwise have written (PreToolUse for Edit/Write, Stop, SubagentStop, optionally SessionStart). Unrelated hook entries authored manually by the user, comments, or any other key in `.claude/settings.json` shall never be altered, even when `--force` is passed.
 - If `.claude/settings.json` contains malformed JSON, exits non-zero with a descriptive error.
 - The hook config gateway shall parse `.claude/settings.json` using `JSON.parse()` followed by prototype-safe object construction. Any object at any nesting level containing `__proto__`, `constructor`, or `prototype` as keys shall cause the gateway to throw a typed error with a descriptive message. The CLI command is responsible for treating this as a fatal condition and setting a non-zero exit code.
 
@@ -754,6 +835,7 @@ sequenceDiagram
 - [ ] Tests cover merging into existing settings without destroying unrelated config.
 - [ ] Tests cover refusing to overwrite existing hook entries without `--force`.
 - [ ] Tests cover overwriting existing hook entries when `--force` is passed.
+- [ ] Tests cover `--force` preserving unrelated hook entries authored by the user (e.g., a manual `UserPromptSubmit` hook is left intact when `init-hooks --force` rewrites only the lesson lifecycle entries).
 - [ ] Tests cover PreToolUse wiring for Edit.
 - [ ] Tests cover PreToolUse wiring for Write.
 - [ ] Tests cover Stop capture wiring.
@@ -796,8 +878,9 @@ sequenceDiagram
 - Script reads hook input available from Stop or SubagentStop context.
 - Hook input fields used in prompt construction must be sanitized: raw session text must not be embedded verbatim into the prompt string. Only structured metadata fields (e.g., tool name, resolved file path) may be interpolated into the prompt, and each such field must be validated as a safe printable string (no control characters, reasonable length limit) before interpolation.
 - If hook input is absent or cannot be parsed, the capture script shall exit non-zero with a descriptive error. It shall not produce a partial or silent prompt.
-- Produces a structured prompt instructing the agent to review recent session findings.
-- Prompt includes the documented lesson schema requirements, including the slug safety constraint.
+- Produces a structured prompt instructing the agent to review recent session findings; the prompt content shall match the **Stop event template** or **SubagentStop event template** documented in **Design § Capture Prompt Template** based on the validated `hook_event_name` from hook input.
+- The Stop and SubagentStop templates shall produce different prompts: the Stop template directs the main agent to capture session-level findings; the SubagentStop template directs the subagent to capture findings local to its scope before that context is lost.
+- Prompt includes the documented lesson schema requirements, including the slug safety constraint and the `revised >= created` rule.
 - Prompt instructs the agent to check for existing lessons before creating new ones and to update when a finding extends prior knowledge.
 - Script does not directly create or write lesson files.
 - Maintains the architectural boundary: the runtime is passive for lesson authoring.
@@ -806,6 +889,7 @@ sequenceDiagram
 - [ ] Tests cover prompt output including the schema structure.
 - [ ] Tests cover prompt output including the slug format constraint.
 - [ ] Tests cover prompt instructing agent to check for existing lessons before creating new ones.
+- [ ] Tests cover Stop vs SubagentStop producing distinguishable prompt content per the Design § Capture Prompt Template section.
 - [ ] Tests confirm no lesson file is created by the capture script itself.
 - [ ] Tests cover absent or unparseable hook input causing exit 1 with a descriptive error.
 - [ ] Tests cover that raw session text from hook input is not present verbatim in the prompt output.
@@ -876,3 +960,5 @@ sequenceDiagram
 - Retro command for bulk lesson authoring after a multi-session project phase
 - Multi-repo lesson sharing via a shareable `c12` configuration
 - GitHub PR comment integration as an additional provenance source
+- `lousy-agents context --explain` mode for surfacing why a lesson did or did not match a path (debugging aid for lesson authors)
+- Reintroduce `fire_count` and `last_fired` frontmatter fields once an automated writer exists; both are deferred from v1 because manual maintenance combined with a read-only context command produces dead metadata that rots
