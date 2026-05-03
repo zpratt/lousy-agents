@@ -227,8 +227,10 @@ describe("FileSystemScriptDiscoveryGateway", () => {
                 );
                 await chmod(pkgPath, 0o000);
 
+                // Use a full real logger so no methods are missing; spy+mock on warn
+                // suppresses console noise while allowing assertion on call arguments.
                 const logger = createConsola({ level: 0 });
-                vi.spyOn(logger, "warn");
+                vi.spyOn(logger, "warn").mockImplementation(() => {});
                 const gatewayWithLogger = new FileSystemScriptDiscoveryGateway(
                     logger,
                 );
