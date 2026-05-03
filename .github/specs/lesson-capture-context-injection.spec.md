@@ -37,7 +37,7 @@ so that I can **reduce repeated mistakes without manually reviewing project conv
 - If a file path from hook input or `--files` resolves to a symbolic link, or its real path resolves outside the current working directory, then the context command shall not read target content; it shall log a warning, treat that file as having empty content, and continue matching only on the validated in-repo path string.
 - If the `.lousy-agents/lessons/` directory cannot be read for any reason (missing, not a directory, permission denied), the context command shall emit the Claude Code hook envelope with an empty `additionalContext` string (i.e., `{ "hookSpecificOutput": { "hookEventName": "...", "additionalContext": "" } }`) and exit zero rather than crashing the PreToolUse hook.
 - When a lesson's `triggers.tags` array contains a value matching any forward-slash-separated path segment OR the file extension of the file under edit, the context command shall include that lesson in the rendered `additionalContext` string. For `src/rules.ts`, testable segments are `src`, `rules.ts`, and `ts`.
-- After determining the set of matching lessons, the context command shall remain read-only: it shall not write to lesson files, mutate frontmatter, or persist hidden runtime state.
+- The context command shall be read-only: it shall not write to lesson files, mutate frontmatter, or persist hidden runtime state.
 
 ---
 
