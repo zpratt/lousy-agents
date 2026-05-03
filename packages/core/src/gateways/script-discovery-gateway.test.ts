@@ -212,7 +212,7 @@ describe("FileSystemScriptDiscoveryGateway", () => {
     });
 
     describe("when package.json exceeds the size limit", () => {
-        it("should return empty array for files over 1 MB", async () => {
+        it("should return empty array and log a warning for files over 1 MB", async () => {
             const oversized = "x".repeat(1024 * 1024 + 1);
             await writeFile(join(testDir, "package.json"), oversized);
 
@@ -224,6 +224,9 @@ describe("FileSystemScriptDiscoveryGateway", () => {
 
             const result = await gatewayWithLogger.discoverScripts(testDir);
             expect(result).toEqual([]);
+            expect(logger.warn).toHaveBeenCalledWith(
+                expect.stringContaining("could not read"),
+            );
         });
     });
 

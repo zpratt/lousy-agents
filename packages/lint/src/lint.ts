@@ -43,8 +43,17 @@ const LintOptionsSchema = z
     .object({
         directory: z.string().min(1, "directory must not be empty"),
         targets: LintTargetsSchema,
-        // logger is a runtime object — validated by TypeScript, not Zod
-        logger: z.custom<ConsolaInstance>().optional(),
+        // logger is a runtime object — `z.custom` validates its structural contract
+        // at the boundary; TypeScript enforces it further at compile time.
+        logger: z
+            .custom<ConsolaInstance>(
+                (v) =>
+                    v === undefined ||
+                    (v !== null &&
+                        typeof v === "object" &&
+                        typeof (v as ConsolaInstance).warn === "function"),
+            )
+            .optional(),
     })
     .strict();
 

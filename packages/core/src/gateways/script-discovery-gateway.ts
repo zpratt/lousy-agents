@@ -29,7 +29,11 @@ export type { FeedbackLoopCommandsGateway, ScriptDiscoveryGateway };
 export class FileSystemScriptDiscoveryGateway
     implements ScriptDiscoveryGateway
 {
-    constructor(private readonly logger: ConsolaInstance = consola) {}
+    constructor(logger?: ConsolaInstance) {
+        this.logger = logger ?? consola;
+    }
+
+    private readonly logger: ConsolaInstance;
 
     async discoverScripts(targetDir: string): Promise<DiscoveredScript[]> {
         const packageJsonPath = join(targetDir, "package.json");
