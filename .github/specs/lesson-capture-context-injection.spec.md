@@ -717,7 +717,7 @@ sequenceDiagram
 - [ ] `lousy-agents context --files <matching-path>` returns the expected lesson in JSON.
 - [ ] `lousy-agents context --files ../../etc/passwd` exits non-zero with a path traversal error.
 - [ ] `lousy-agents init-hooks` produces the expected hook wiring in `.claude/settings.json`.
-- [ ] `mise run ci` passes (lint → test → smoke-test).
+- [ ] `mise run ci` passes.
 - [ ] `npm run build` passes.
 
 **Done when**:
