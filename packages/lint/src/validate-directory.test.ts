@@ -11,10 +11,7 @@ import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { LintValidationError } from "./lint-errors.js";
-import {
-    hasPathTraversalSegment,
-    validateDirectory,
-} from "./validate-directory.js";
+import { validateDirectory } from "./validate-directory.js";
 
 const chance = new Chance();
 
@@ -343,46 +340,56 @@ describe("validateDirectory", () => {
     });
 });
 
-// ── Direct unit tests for hasPathTraversalSegment ────────────────────────────
-// These run on EVERY platform so that both the Windows branch (splits on '\')
-// and the POSIX branch (splits only on '/') have CI coverage regardless of
-// the host OS.
-describe("hasPathTraversalSegment", () => {
+// ── Platform-specific traversal branch coverage ──────────────────────────────
+// These tests exercise the Windows ('\'-as-separator) and POSIX ('/'-only)
+// branches of hasPathTraversalSegment via the public validateDirectory API,
+// injecting `platform` so both branches run unconditionally in Linux CI.
+describe("validateDirectory — platform-specific traversal detection", () => {
     describe("given the win32 platform", () => {
-        it("detects backslash-separated traversal", () => {
-            expect(
-                hasPathTraversalSegment("a\\..\\.\\..\\etc\\passwd", "win32"),
-            ).toBe(true);
+        it("rejects backslash-separated traversal with a path traversal error", async () => {
+            await expect(
+                validateDirectory("a\\..\\.\\..\\etc\\passwd", "win32"),
+            ).rejects.toThrow("path traversal");
         });
 
-        it("detects forward-slash traversal", () => {
-            expect(hasPathTraversalSegment("a/../../etc/passwd", "win32")).toBe(
-                true,
-            );
+        it("rejects forward-slash traversal with a path traversal error", async () => {
+            await expect(
+                validateDirectory("a/../../etc/passwd", "win32"),
+            ).rejects.toThrow("path traversal");
         });
 
-        it("does not reject a simple relative path", () => {
-            expect(hasPathTraversalSegment("foo\\bar\\baz", "win32")).toBe(
-                false,
-            );
+        it("does not reject a simple relative path as traversal", async () => {
+            // 'foo\bar\baz' contains no '..', so traversal check passes.
+            // The directory does not exist, so it fails with "does not exist"
+            // — confirming the traversal check did NOT reject it.
+            await expect(
+                validateDirectory("foo\\bar\\baz", "win32"),
+            ).rejects.toThrow("does not exist");
         });
     });
 
     describe("given a POSIX platform", () => {
-        it("detects forward-slash traversal", () => {
-            expect(hasPathTraversalSegment("a/../../etc/passwd", "linux")).toBe(
-                true,
-            );
+        it("rejects forward-slash traversal with a path traversal error", async () => {
+            await expect(
+                validateDirectory("a/../../etc/passwd", "linux"),
+            ).rejects.toThrow("path traversal");
         });
 
-        it("does not treat backslash as a separator (backslash is a valid filename character on POSIX)", () => {
-            expect(
-                hasPathTraversalSegment("a\\..\\.\\..\\etc\\passwd", "linux"),
-            ).toBe(false);
+        it("does not treat backslash as a separator — path fails with does-not-exist, not path-traversal", async () => {
+            // On POSIX, '\' is a valid filename character. The path
+            // 'a\..\.\..\etc\passwd' is a single segment, not traversal.
+            // validateDirectory will still reject it because the directory
+            // does not exist, but the error must be "does not exist", not
+            // "path traversal".
+            await expect(
+                validateDirectory("a\\..\\.\\..\\etc\\passwd", "linux"),
+            ).rejects.toThrow("does not exist");
         });
 
-        it("does not reject a simple relative path", () => {
-            expect(hasPathTraversalSegment("foo/bar/baz", "linux")).toBe(false);
+        it("does not reject a simple relative path as traversal", async () => {
+            await expect(
+                validateDirectory("foo/bar/baz", "linux"),
+            ).rejects.toThrow("does not exist");
         });
     });
 });

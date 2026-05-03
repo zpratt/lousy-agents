@@ -40,12 +40,8 @@ function sanitizeForErrorMessage(value: string): string {
  * both. On POSIX, '\' is a valid filename character (not a separator), so only
  * '/' is used as the split boundary to avoid false-rejecting legitimate paths
  * whose names contain backslashes.
- *
- * Exported for direct unit testing of the platform-specific branch.
- *
- * @internal
  */
-export function hasPathTraversalSegment(
+function hasPathTraversalSegment(
     directory: string,
     platform = process.platform,
 ): boolean {
@@ -62,10 +58,18 @@ export function hasPathTraversalSegment(
  * the canonicalized absolute path (all symlinks resolved) so downstream
  * code always operates on real paths.
  *
+ * @param directory - The path to validate.
+ * @param platform - The platform identifier used for path-separator detection.
+ *   Defaults to `process.platform`. Overridable for cross-platform unit tests
+ *   so that the Windows (`\`) and POSIX (`/`-only) traversal branches can be
+ *   exercised on any host OS.
  * @throws {LintValidationError} If the path is empty, contains control
  *   characters, traversal segments, does not exist, or is not a directory.
  */
-export async function validateDirectory(directory: string): Promise<string> {
+export async function validateDirectory(
+    directory: string,
+    platform = process.platform,
+): Promise<string> {
     if (directory.length === 0) {
         throw new LintValidationError("directory must not be empty");
     }
@@ -78,7 +82,7 @@ export async function validateDirectory(directory: string): Promise<string> {
         );
     }
 
-    if (hasPathTraversalSegment(directory)) {
+    if (hasPathTraversalSegment(directory, platform)) {
         throw new LintValidationError(
             `Invalid directory path (path traversal detected): ${safeDir}`,
         );
