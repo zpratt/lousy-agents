@@ -39,7 +39,8 @@ function sanitizeForErrorMessage(value: string): string {
  * On Windows, both '/' and '\' are path separators, so the check splits on
  * both. On POSIX, '\' is a valid filename character (not a separator), so only
  * '/' is used as the split boundary to avoid false-rejecting legitimate paths
- * whose names contain backslashes.
+ * whose names contain backslashes. Any `platform` value other than `'win32'`
+ * is treated as POSIX.
  */
 function hasPathTraversalSegment(
     directory: string,
@@ -60,9 +61,9 @@ function hasPathTraversalSegment(
  *
  * @param directory - The path to validate.
  * @param platform - The platform identifier used for path-separator detection.
- *   Defaults to `process.platform`. Overridable for cross-platform unit tests
- *   so that the Windows (`\`) and POSIX (`/`-only) traversal branches can be
- *   exercised on any host OS.
+ *   Defaults to `process.platform`. Only `'win32'` uses `\` as a separator;
+ *   all other values are treated as POSIX. Overridable for cross-platform unit
+ *   tests so that both branches can be exercised on any host OS.
  * @throws {LintValidationError} If the path is empty, contains control
  *   characters, traversal segments, does not exist, or is not a directory.
  */

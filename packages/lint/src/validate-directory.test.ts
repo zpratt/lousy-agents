@@ -173,24 +173,9 @@ describe("validateDirectory", () => {
                 validateDirectory("a\\..\\.\\..\\etc\\passwd"),
             ).rejects.toThrow(LintValidationError);
         });
-
-        it.skipIf(process.platform !== "win32")(
-            "rejects with a path traversal error message on Windows",
-            async () => {
-                await expect(
-                    validateDirectory("a\\..\\.\\..\\etc\\passwd"),
-                ).rejects.toThrow("path traversal");
-            },
-        );
-
-        it.skipIf(process.platform === "win32")(
-            "rejects with a directory-does-not-exist error message on POSIX (backslash is a valid filename character, not a separator)",
-            async () => {
-                await expect(
-                    validateDirectory("a\\..\\.\\..\\etc\\passwd"),
-                ).rejects.toThrow("does not exist");
-            },
-        );
+        // Platform-specific error message assertions are covered by the
+        // platform-injection tests at the bottom of this file, which run
+        // unconditionally on all CI platforms.
     });
 
     describe("given a path with double dots in a filename", () => {

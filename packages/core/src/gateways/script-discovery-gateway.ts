@@ -46,10 +46,8 @@ export class FileSystemScriptDiscoveryGateway
                     ? (error as { code?: unknown }).code
                     : undefined;
             if (code !== "ENOENT") {
-                const errorMsg =
-                    error instanceof Error ? error.message : String(error);
                 this.logger.warn(
-                    `script-discovery: could not read ${JSON.stringify(packageJsonPath)}: ${JSON.stringify(errorMsg)}`,
+                    `script-discovery: could not read ${JSON.stringify(packageJsonPath)}: ${JSON.stringify(error instanceof Error ? error.message : String(error))}`,
                 );
             }
             return [];
