@@ -44,7 +44,7 @@ function sanitizeForErrorMessage(value: string): string {
  */
 function hasPathTraversalSegment(
     directory: string,
-    platform = process.platform,
+    platform: NodeJS.Platform = process.platform,
 ): boolean {
     const separator = platform === "win32" ? /[\\/]/ : "/";
     return directory.split(separator).includes("..");
@@ -69,7 +69,7 @@ function hasPathTraversalSegment(
  */
 export async function validateDirectory(
     directory: string,
-    platform = process.platform,
+    platform: NodeJS.Platform = process.platform,
 ): Promise<string> {
     if (directory.length === 0) {
         throw new LintValidationError("directory must not be empty");

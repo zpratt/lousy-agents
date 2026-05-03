@@ -216,7 +216,13 @@ describe("FileSystemScriptDiscoveryGateway", () => {
             const oversized = "x".repeat(1024 * 1024 + 1);
             await writeFile(join(testDir, "package.json"), oversized);
 
-            const result = await gateway.discoverScripts(testDir);
+            const logger = createConsola({ level: 0 });
+            vi.spyOn(logger, "warn").mockImplementation(() => {});
+            const gatewayWithLogger = new FileSystemScriptDiscoveryGateway(
+                logger,
+            );
+
+            const result = await gatewayWithLogger.discoverScripts(testDir);
             expect(result).toEqual([]);
         });
     });
@@ -259,7 +265,7 @@ describe("FileSystemScriptDiscoveryGateway", () => {
     });
 
     describe("when package.json scripts field fails schema validation", () => {
-        it("should return empty array when a script value is not a string", async () => {
+        it("should return empty array and log a warning when a script value is not a string", async () => {
             await writeFile(
                 join(testDir, "package.json"),
                 JSON.stringify({
@@ -268,9 +274,18 @@ describe("FileSystemScriptDiscoveryGateway", () => {
                 }),
             );
 
-            const result = await gateway.discoverScripts(testDir);
+            const logger = createConsola({ level: 0 });
+            vi.spyOn(logger, "warn").mockImplementation(() => {});
+            const gatewayWithLogger = new FileSystemScriptDiscoveryGateway(
+                logger,
+            );
+
+            const result = await gatewayWithLogger.discoverScripts(testDir);
 
             expect(result).toEqual([]);
+            expect(logger.warn).toHaveBeenCalledWith(
+                expect.stringContaining("unexpected structure"),
+            );
         });
     });
 });

@@ -65,7 +65,14 @@ export class FileSystemScriptDiscoveryGateway
 
         const parseResult = PackageJsonSchema.safeParse(parsed);
 
-        if (!parseResult.success || !parseResult.data.scripts) {
+        if (!parseResult.success) {
+            this.logger.warn(
+                `script-discovery: ${JSON.stringify(packageJsonPath)} has an unexpected structure — scripts field must be a record of strings`,
+            );
+            return [];
+        }
+
+        if (!parseResult.data.scripts) {
             return [];
         }
 

@@ -24,6 +24,7 @@ import { applySeverityFilter } from "@lousy-agents/core/use-cases/apply-severity
 import { LintAgentFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-agent-frontmatter.js";
 import { LintHookConfigUseCase } from "@lousy-agents/core/use-cases/lint-hook-config.js";
 import { LintSkillFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-skill-frontmatter.js";
+import type { ConsolaInstance } from "consola";
 import { ZodError, z } from "zod";
 import { LintValidationError } from "./lint-errors.js";
 import { validateDirectory } from "./validate-directory.js";
@@ -42,6 +43,8 @@ const LintOptionsSchema = z
     .object({
         directory: z.string().min(1, "directory must not be empty"),
         targets: LintTargetsSchema,
+        // logger is a runtime object — validated by TypeScript, not Zod
+        logger: z.custom<ConsolaInstance>().optional(),
     })
     .strict();
 
@@ -51,6 +54,9 @@ const LintOptionsSchema = z
  * @property directory - Path to the project directory to lint (absolute or relative).
  * @property targets - Optional selection of which lint targets to run.
  *   When omitted or when all flags are false, all targets are linted.
+ * @property logger - Optional logger instance for gateway diagnostics (e.g. warnings
+ *   about unreadable or malformed package.json files). When omitted, the global
+ *   `consola` instance is used.
  */
 export interface LintOptions {
     readonly directory: string;
@@ -60,6 +66,7 @@ export interface LintOptions {
         readonly hooks?: boolean;
         readonly instructions?: boolean;
     };
+    readonly logger?: ConsolaInstance;
 }
 
 /**
@@ -144,10 +151,16 @@ async function lintHooks(targetDir: string): Promise<LintOutput> {
     return toLintOutput(output, "hook", output.totalFiles);
 }
 
-async function lintInstructions(targetDir: string): Promise<LintOutput> {
+async function lintInstructions(
+    targetDir: string,
+    logger?: ConsolaInstance,
+): Promise<LintOutput> {
     const discoveryGateway = createInstructionFileDiscoveryGateway();
     const astGateway = createMarkdownAstGateway();
-    const commandsGateway = createFeedbackLoopCommandsGateway();
+    const commandsGateway = createFeedbackLoopCommandsGateway(
+        undefined,
+        logger,
+    );
 
     const useCase = new AnalyzeInstructionQualityUseCase(
         discoveryGateway,
@@ -184,13 +197,6 @@ interface LintTargetDefinition {
     readonly key: TargetKey;
     readonly execute: (targetDir: string) => Promise<LintOutput>;
 }
-
-const LINT_TARGETS: readonly LintTargetDefinition[] = [
-    { key: "skills", execute: lintSkills },
-    { key: "agents", execute: lintAgents },
-    { key: "hooks", execute: lintHooks },
-    { key: "instructions", execute: lintInstructions },
-];
 
 function isTargetEnabled(
     key: TargetKey,
@@ -247,7 +253,17 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
         throw error;
     }
 
-    const enabledTargets = LINT_TARGETS.filter((t) =>
+    const lintTargets: readonly LintTargetDefinition[] = [
+        { key: "skills", execute: lintSkills },
+        { key: "agents", execute: lintAgents },
+        { key: "hooks", execute: lintHooks },
+        {
+            key: "instructions",
+            execute: (dir) => lintInstructions(dir, parsed.logger),
+        },
+    ];
+
+    const enabledTargets = lintTargets.filter((t) =>
         isTargetEnabled(t.key, parsed.targets),
     );
 
