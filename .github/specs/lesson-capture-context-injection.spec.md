@@ -48,7 +48,7 @@ so that I can **accumulate project-specific knowledge without a separate triage 
 
 #### Acceptance Criteria
 
-- When a Stop or SubagentStop hook fires, the capture script shall provide the active agent with a structured prompt to review recent session context for findings worth capturing.
+- When either a Stop or SubagentStop hook fires, the capture script shall provide the active agent with a structured prompt to review recent session context for findings worth capturing.
 - When the agent captures a finding, the agent shall write or update lesson files at `.lousy-agents/lessons/<slug>.md` using normal Write/Edit operations.
 - The capture script shall not directly create lesson files on the agent's behalf.
 - The runtime system shall remain passive for lesson authoring and shall not expose a custom lesson-authoring API.
@@ -83,7 +83,7 @@ so that I can **enable lesson injection and capture without manually editing hoo
 #### Acceptance Criteria
 
 - When a user runs `lousy-agents init-hooks`, the CLI shall configure a project-scoped PreToolUse hook for Edit and Write operations.
-- When a user runs `lousy-agents init-hooks`, the CLI shall configure a Stop or SubagentStop capture hook.
+- When a user runs `lousy-agents init-hooks`, the CLI shall configure both Stop and SubagentStop capture hooks independently.
 - Where SessionStart support is enabled, `lousy-agents init-hooks` shall configure a SessionStart hook for broad invariant injection.
 - If a `.claude/settings.json` file already exists, then `lousy-agents init-hooks` shall preserve unrelated existing settings.
 - If hook entries for the same tool and event already exist in `.claude/settings.json`, then `lousy-agents init-hooks` shall not overwrite them unless `--force` is passed.
@@ -101,7 +101,7 @@ The v1 system makes the following load-bearing decisions (documented in `DESIGN.
 - **Storage**: Lessons live at `.lousy-agents/lessons/<slug>.md`. One file per lesson. Committed to the repo. Git is the audit trail.
 - **Lesson types**: Exactly two — `invariant` (project-scoped, fire broadly) and `pattern` (file-specific recurring concerns). No third type in v1.
 - **Authorship**: Agents write lessons via normal Write/Edit tools. No custom MCP authoring API. Schema changes are documentation changes.
-- **Capture trigger**: Stop/SubagentStop hook prompts the active agent. The agent decides what to capture and writes files. The runtime stays passive.
+- **Capture trigger**: Stop and SubagentStop hooks are both wired independently; neither takes priority. SubagentStop captures subagent-local findings before that context is lost, and Stop captures main-agent/session-level findings. The agent decides what to capture and writes files. The runtime stays passive.
 - **Injection**: PreToolUse hook for Edit/Write calls `lousy-agents context --files <path>`. SessionStart hook injects invariants at session open.
 - **Matching**: Path globs, tag matches, and literal substring search against file content only. No regex matching on file content. No model calls in PreToolUse.
 
@@ -360,7 +360,7 @@ flowchart TB
     subgraph Claude["Claude Code Session Lifecycle"]
         SessionStart["SessionStart hook"]
         PreToolUse["PreToolUse: Edit | Write"]
-        StopHook["Stop / SubagentStop hook"]
+        StopHook["Stop + SubagentStop hooks"]
         Agent["Agent (normal Write/Edit tools)"]
     end
 
@@ -414,8 +414,8 @@ sequenceDiagram
     CLI-->>Hook: hookSpecificOutput JSON (PreToolUse, additionalContext string)
     Hook-->>Agent: Provide relevant lessons before edit decision
 
-    Agent->>Hook: Session ends (Stop / SubagentStop)
-    Hook->>CLI: Capture hook fires
+    Agent->>Hook: Main agent or subagent stops
+    Hook->>CLI: Stop or SubagentStop capture hook fires independently
     CLI-->>Agent: Structured prompt: review session for durable findings
     Agent->>Lessons: Write/Edit lesson files via normal tools
     Agent->>Git: Lesson changes committed like any other code change
@@ -426,7 +426,7 @@ sequenceDiagram
 - [x] ~~Should `fire_count` and `last_fired` be auto-updated in PreToolUse, or remain manually maintained to keep the hot path passive and avoid noisy working-tree diffs?~~ **Resolved**: Auto-updated. The context command increments `fire_count` and sets `last_fired` to the current date for each matched lesson. Working-tree diffs are acceptable.
 - [x] ~~**BLOCKING for Task 5**: What is the exact JSON shape expected by Claude Code for `additionalContext` in hook responses? A proposed shape is defined in the Data Model section above; confirm against Claude Code documentation before Task 5 begins.~~ **Resolved**: Per the [Claude Code hooks documentation](https://docs.claude.com/en/docs/claude-code/hooks), `additionalContext` is a **string** nested inside `hookSpecificOutput` alongside `hookEventName`. Claude Code caps the value at 10 000 characters before spilling to a file. The CLI emits the protocol-compliant envelope directly on stdout (no separate wrapper script needed). Repo audit: `agent-shell`'s `policy-check.ts` is the only existing Claude hook-response producer and emits a different shape (`permissionDecision`); a small shared `buildAdditionalContextResponse` / `buildPermissionDecisionResponse` helper in `@lousy-agents/core` shall be introduced so both packages avoid duplicating the envelope-shaping logic. See the Data Model section for the canonical shape and the shared builder interface.
 - [x] ~~Should `lousy-agents context --files` accept comma-separated paths, repeated flags, or both?~~ **Resolved**: `--files` accepts repeated flags only (e.g., `--files path1 --files path2`). No comma-splitting — avoids the need to escape or parse commas in file paths.
-- [ ] Which hook takes priority for capture: `SubagentStop`, `Stop`, or both wired independently?
+- [x] ~~Which hook takes priority for capture: `SubagentStop`, `Stop`, or both wired independently?~~ **Resolved**: Both Stop and SubagentStop are wired independently; neither takes priority. SubagentStop captures findings from a subagent's local context before that context is lost, while Stop captures main-agent and session-level findings. The capture prompt must be safe to run for either event and rely on the active agent to check existing lessons before writing or updating files.
 - [x] ~~**BLOCKING**: Is an existing YAML parser in the workspace sufficient for frontmatter parsing, or is a new dependency required? Do not begin Task 4 until this is resolved with explicit maintainer approval.~~ **Resolved**: The `yaml` package already in the workspace is sufficient. The duplicated `parseFrontmatter` implementation was extracted from `FileSystemSkillLintGateway` and `FileSystemAgentLintGateway` into a shared utility at `packages/core/src/lib/frontmatter.ts` (commit `400fe1d`). Task 4 must import `parseFrontmatter` from `@lousy-agents/core/lib/frontmatter.js` — no new dependency required.
 
 ---
@@ -674,7 +674,7 @@ sequenceDiagram
 
 **Requirements**:
 - Configures PreToolUse hook for Edit and Write operations invoking `lousy-agents context --files <path>`.
-- Configures Stop or SubagentStop capture hook.
+- Configures both Stop and SubagentStop capture hooks independently, with both invoking `lousy-agents capture`.
 - Supports optional SessionStart hook for broad invariant injection. The SessionStart hook shall invoke `lousy-agents context` without any `--files` arguments to return all `invariant` lessons.
 - Hook config gateway reads `.claude/settings.json` using `readFileNoFollow()`.
 - Preserves unrelated existing settings in `.claude/settings.json` if the file already exists.
@@ -689,7 +689,8 @@ sequenceDiagram
 - [ ] Tests cover overwriting existing hook entries when `--force` is passed.
 - [ ] Tests cover PreToolUse wiring for Edit.
 - [ ] Tests cover PreToolUse wiring for Write.
-- [ ] Tests cover Stop or SubagentStop capture wiring.
+- [ ] Tests cover Stop capture wiring.
+- [ ] Tests cover SubagentStop capture wiring.
 - [ ] Tests cover SessionStart invariant wiring.
 - [ ] Tests cover malformed existing JSON causing exit 1 with an error message.
 - [ ] Tests cover a settings file containing a top-level `__proto__` key being rejected with exit 1.
@@ -719,7 +720,7 @@ sequenceDiagram
 - `packages/cli/src/commands/capture.test.ts` (new)
 
 **Requirements**:
-- Script reads hook input available from Stop/SubagentStop context.
+- Script reads hook input available from Stop or SubagentStop context.
 - Hook input fields used in prompt construction must be sanitized: raw session text must not be embedded verbatim into the prompt string. Only structured metadata fields (e.g., tool name, resolved file path) may be interpolated into the prompt, and each such field must be validated as a safe printable string (no control characters, reasonable length limit) before interpolation.
 - If hook input is absent or cannot be parsed, the capture script shall exit non-zero with a descriptive error. It shall not produce a partial or silent prompt.
 - Produces a structured prompt instructing the agent to review recent session findings.
