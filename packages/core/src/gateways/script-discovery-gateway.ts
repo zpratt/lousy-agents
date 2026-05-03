@@ -3,6 +3,7 @@
  */
 
 import { join } from "node:path";
+import { type ConsolaInstance, consola } from "consola";
 import { z } from "zod";
 import {
     type DiscoveredScript,
@@ -29,20 +30,32 @@ export type { FeedbackLoopCommandsGateway, ScriptDiscoveryGateway };
 export class FileSystemScriptDiscoveryGateway
     implements ScriptDiscoveryGateway
 {
+    constructor(private readonly logger: ConsolaInstance = consola) {}
+
     async discoverScripts(targetDir: string): Promise<DiscoveredScript[]> {
         const packageJsonPath = join(targetDir, "package.json");
 
         // readFileNoFollow combines O_NOFOLLOW + fstat size check + read on the same fd,
         // eliminating both the fileExists TOCTOU window and symlink attacks.
-        // Any read failure (ENOENT, symlink, size limit, EACCES, etc.) returns []
-        // so script discovery is best-effort and never aborts the lint run.
+        // Script discovery is best-effort: any read failure returns [] so a missing,
+        // unreadable, oversized, or symlinked manifest never aborts the lint run.
+        // Unexpected failures (EACCES, EIO, symlink, size) are logged at warn level.
         let content: string;
         try {
             content = await readFileNoFollow(
                 packageJsonPath,
                 MAX_PACKAGE_JSON_BYTES,
             );
-        } catch {
+        } catch (error: unknown) {
+            const code =
+                error instanceof Error && "code" in error
+                    ? (error as { code?: unknown }).code
+                    : undefined;
+            if (code !== "ENOENT") {
+                this.logger.warn(
+                    `script-discovery: could not read ${packageJsonPath}: ${error instanceof Error ? error.message : String(error)}`,
+                );
+            }
             return [];
         }
 

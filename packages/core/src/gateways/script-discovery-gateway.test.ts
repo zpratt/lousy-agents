@@ -1,6 +1,7 @@
-import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import Chance from "chance";
+import type { ConsolaInstance } from "consola";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ScriptDiscoveryGateway } from "../use-cases/discover-feedback-loops.js";
 import {
@@ -209,6 +210,38 @@ describe("FileSystemScriptDiscoveryGateway", () => {
 
             const result = await gateway.discoverScripts(testDir);
             expect(result).toEqual([]);
+        });
+    });
+
+    describe("when package.json is unreadable (EACCES)", () => {
+        it("should return empty array and log a warning", async () => {
+            // Arrange — chmod 000 makes the file unreadable.
+            // This test is meaningful only on non-root POSIX environments.
+            const pkgPath = join(testDir, "package.json");
+            await writeFile(
+                pkgPath,
+                JSON.stringify({ scripts: { test: "vitest" } }),
+            );
+            await chmod(pkgPath, 0o000);
+
+            const logger = {
+                warn: vi.fn(),
+            } as unknown as ConsolaInstance;
+            const gatewayWithLogger = new FileSystemScriptDiscoveryGateway(
+                logger,
+            );
+
+            // Act
+            const result = await gatewayWithLogger.discoverScripts(testDir);
+
+            // Restore permissions so afterEach cleanup can delete the file.
+            await chmod(pkgPath, 0o644);
+
+            // Assert
+            expect(result).toEqual([]);
+            expect(logger.warn).toHaveBeenCalledWith(
+                expect.stringContaining("could not read"),
+            );
         });
     });
 

@@ -51,7 +51,7 @@ run = "check-jsonschema --schemafile https://json.schemastore.org/github-issue-f
 hide = true
 
 [tasks.format-check]
-description = "Checking code formatting and architecture"
+description = "Checking code formatting"
 hide = true
 run = "npm run lint"
 
