@@ -129,6 +129,9 @@ packages/action/dist/*.map
 # End of https://mrkandreev.name/snippets/gitignore-generator/#Node
 .claude/settings.local.json
 
+# macOS metadata
+.DS_Store
+
 # Dolt database files (added by bd init)
 .dolt/
 *.db

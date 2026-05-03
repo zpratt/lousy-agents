@@ -5,8 +5,8 @@
 
 import { lstat, readdir } from "node:fs/promises";
 import { basename, join, relative, resolve, sep } from "node:path";
-import { parse as parseYaml } from "yaml";
 import type { ParsedFrontmatter } from "../entities/skill.js";
+import { parseFrontmatter } from "../lib/frontmatter.js";
 import type {
     AgentLintGateway,
     DiscoveredAgentFile,
@@ -97,52 +97,7 @@ export class FileSystemAgentLintGateway implements AgentLintGateway {
     }
 
     parseFrontmatter(content: string): ParsedFrontmatter | null {
-        const lines = content.split("\n");
-
-        if (lines[0]?.trim() !== "---") {
-            return null;
-        }
-
-        let endIndex = -1;
-        for (let i = 1; i < lines.length; i++) {
-            if (lines[i]?.trim() === "---") {
-                endIndex = i;
-                break;
-            }
-        }
-
-        if (endIndex === -1) {
-            return null;
-        }
-
-        const yamlContent = lines.slice(1, endIndex).join("\n");
-
-        let data: Record<string, unknown>;
-        try {
-            const parsed: unknown = parseYaml(yamlContent);
-            data =
-                parsed !== null &&
-                typeof parsed === "object" &&
-                !Array.isArray(parsed)
-                    ? (parsed as Record<string, unknown>)
-                    : {};
-        } catch {
-            return null;
-        }
-
-        const fieldLines = new Map<string, number>();
-        for (let i = 1; i < endIndex; i++) {
-            const match = lines[i]?.match(/^([^\s:][^:]*?):\s/);
-            if (match?.[1]) {
-                fieldLines.set(match[1], i + 1);
-            }
-        }
-
-        return {
-            data: data ?? {},
-            fieldLines,
-            frontmatterStartLine: 1,
-        };
+        return parseFrontmatter(content);
     }
 }
 
