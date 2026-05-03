@@ -36,7 +36,7 @@ so that I can **reduce repeated mistakes without manually reviewing project conv
 - If a `--files` path resolves outside the current working directory, then the context command shall reject the path with a boundary-safe containment check (e.g., ``const rel = path.relative(cwd, file); rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)`` — the segment-aware `..` checks avoid false positives for valid in-root filenames like `..foo.ts` (where `rel === '..foo.ts'`), and the `path.isAbsolute` guard handles Windows paths on different drive letters where `path.relative` returns an absolute path rather than a `..`-prefixed one; `rel === ''` means file equals cwd and shall be treated as a valid in-bounds path) and exit non-zero.
 - If the `.lousy-agents/lessons/` directory cannot be read for any reason (missing, not a directory, permission denied), the context command shall emit the Claude Code hook envelope with an empty `additionalContext` string (i.e., `{ "hookSpecificOutput": { "hookEventName": "...", "additionalContext": "" } }`) and exit zero rather than crashing the PreToolUse hook.
 - When a lesson's `triggers.tags` array contains a value matching any forward-slash-separated path segment OR the file extension of the file under edit, the context command shall include that lesson in the rendered `additionalContext` string. For `src/rules.ts`, testable segments are `src`, `rules.ts`, and `ts`.
-- After determining the set of matching lessons, the context command shall increment `fire_count` by 1 and set `last_fired` to the current date in `YYYY-MM-DD` format in the frontmatter of each matched lesson file on disk. If a write fails for any individual lesson (e.g., permission denied, read-only filesystem), the command shall log a warning and continue — the failure must not affect the JSON output or the exit code. Concurrent writes are not guarded; last-writer-wins is acceptable in v1.
+- After determining the set of matching lessons, the context command shall increment `fire_count` by 1 and set `last_fired` to the current **local** date in `YYYY-MM-DD` format (using the system's local timezone, not UTC) in the frontmatter of each matched lesson file on disk. If a write fails for any individual lesson (e.g., permission denied, read-only filesystem), the command shall log a warning and continue — the failure must not affect the JSON output or the exit code. Concurrent writes are not guarded; last-writer-wins is acceptable in v1.
 
 ---
 
@@ -171,7 +171,7 @@ The body is human-readable markdown prose: the rule, when it applies, examples o
 
 **Empty trigger arrays**: an empty `triggers.paths`, `triggers.tags`, or `triggers.patterns` means that trigger type does **not** fire for any file. Absence is not a wildcard. A lesson with all three trigger arrays empty matches nothing.
 
-**Tag matching**: lesson tags are tested against the set of forward-slash-separated path segments of the file under edit. For `src/policy/rules.ts`, the testable segments are `src`, `policy`, `rules.ts`, and `ts`. A lesson tag must equal one of these segments exactly (case-sensitive).
+**Tag matching**: lesson tags are tested against the set composed of the forward-slash-separated path segments of the file under edit **plus the standalone file extension** (last component after the final `.`). For `src/policy/rules.ts`, the testable segments are `src`, `policy`, `rules.ts` (path segments), and `ts` (file extension). A lesson tag must equal one of these values exactly (case-sensitive). This matches the Story 1 AC: "any forward-slash-separated path segment OR the file extension."
 
 **Content pattern matching**: literal substring search (`String.prototype.includes()`) against the full file content string after loading it. Case-sensitive. Patterns exceeding 200 characters are rejected by the schema validator before reaching the matcher.
 
@@ -228,10 +228,10 @@ export const LessonFrontmatterSchema = z.object({
   slug: z.string().regex(SAFE_SLUG, 'slug must match ^[a-z0-9-]+$'),
   title: z.string().min(1),
   type: z.enum(['invariant', 'pattern']),
-  created: z.string(),
-  revised: z.string(),
+  created: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'created must be YYYY-MM-DD'),
+  revised: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'revised must be YYYY-MM-DD'),
   fire_count: z.number().int().min(0),
-  last_fired: z.string().nullable(),
+  last_fired: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'last_fired must be YYYY-MM-DD').nullable(),
   provenance: z.array(z.object({
     pr: z.number().int(),
     finding_id: z.string(),
@@ -329,7 +329,7 @@ export function buildPermissionDecisionResponse(
 ): string;
 ```
 
-Both functions return the JSON-stringified envelope `{ "hookSpecificOutput": { ... } }` ready for stdout. Both packages must consume this builder rather than hand-constructing the envelope — this is the architectural seam that prevents the two hook-response producers from drifting out of sync with the Claude Code protocol. Migrating `agent-shell/src/use-cases/policy-check.ts` to consume `buildPermissionDecisionResponse` is **out of scope for this spec** (its current bare-`permissionDecision` shape is accepted by Claude Code today), but the builder shall be designed to support that migration without API changes.
+Both functions return the JSON-stringified envelope `{ "hookSpecificOutput": { ... } }` ready for stdout. `@lousy-agents/cli` **must** consume this builder rather than hand-constructing the envelope — this is the architectural seam that keeps the `context` command aligned with the Claude Code protocol. Migrating `agent-shell/src/use-cases/policy-check.ts` to consume `buildPermissionDecisionResponse` is **out of scope for this spec** (its current bare-`permissionDecision` shape is accepted by Claude Code today); the builder is designed to support that migration without API changes, but `agent-shell` remains unchanged in this spec.
 
 ### Diagrams
 
@@ -619,7 +619,7 @@ sequenceDiagram
 - Returns an envelope with `additionalContext: ""` and exits zero when the lessons directory cannot be read.
 - If the gateway throws a typed symlink error for `.lousy-agents/lessons/` (the shared gateway security check from Task 4), the context command shall catch that error, log a warning, and emit `additionalContext: ""` with exit 0. The symlink check is a security control in the shared gateway; the context command's fail-open policy means it must handle this condition gracefully rather than propagating it as a fatal error (contrast with `lint lessons` in Task 4, which treats the symlink error as a fatal condition).
 - If individual lesson files are invalid or oversized, skips them with a logged warning and continues.
-- After returning the matched lessons, the command shall update the frontmatter of each matched lesson file: increment `fire_count` by 1 and set `last_fired` to the current date in `YYYY-MM-DD` format. If any individual frontmatter write fails, log a warning and continue — this must not affect the JSON output or exit code.
+- After returning the matched lessons, the command shall update the frontmatter of each matched lesson file: increment `fire_count` by 1 and set `last_fired` to the current **local** date in `YYYY-MM-DD` format (system local timezone, not UTC). If any individual frontmatter write fails, log a warning and continue — this must not affect the JSON output or exit code.
 
 **Verification**:
 - [ ] Tests cover the shared `buildAdditionalContextResponse` helper producing `{ "hookSpecificOutput": { "hookEventName": "...", "additionalContext": "..." } }` for both `PreToolUse` and `SessionStart` event names.
