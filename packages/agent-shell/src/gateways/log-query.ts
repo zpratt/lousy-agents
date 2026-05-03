@@ -76,16 +76,6 @@ export async function resolveReadEventsDir(
         const projectRootReal = await deps.realpath(projectRoot);
         const candidate = resolve(projectRoot, logDir);
 
-        if (
-            !isWithinProjectRoot(candidate, projectRoot) &&
-            !isWithinProjectRoot(candidate, projectRootReal)
-        ) {
-            return {
-                dir: "",
-                error: "AGENTSHELL_LOG_DIR resolves outside project root",
-            };
-        }
-
         let resolved: string;
         try {
             resolved = await deps.realpath(candidate);
@@ -99,7 +89,10 @@ export async function resolveReadEventsDir(
             throw err;
         }
 
-        if (!isWithinProjectRoot(resolved, projectRootReal)) {
+        if (
+            !isWithinProjectRoot(resolved, projectRoot) &&
+            !isWithinProjectRoot(resolved, projectRootReal)
+        ) {
             return {
                 dir: "",
                 error: "AGENTSHELL_LOG_DIR resolves outside project root",
