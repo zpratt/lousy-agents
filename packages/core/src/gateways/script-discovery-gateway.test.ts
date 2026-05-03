@@ -1,7 +1,7 @@
 import { chmod, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import Chance from "chance";
-import type { ConsolaInstance } from "consola";
+import { createConsola } from "consola";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ScriptDiscoveryGateway } from "../use-cases/discover-feedback-loops.js";
 import {
@@ -214,35 +214,38 @@ describe("FileSystemScriptDiscoveryGateway", () => {
     });
 
     describe("when package.json is unreadable (EACCES)", () => {
-        it("should return empty array and log a warning", async () => {
-            // Arrange — chmod 000 makes the file unreadable.
-            // This test is meaningful only on non-root POSIX environments.
-            const pkgPath = join(testDir, "package.json");
-            await writeFile(
-                pkgPath,
-                JSON.stringify({ scripts: { test: "vitest" } }),
-            );
-            await chmod(pkgPath, 0o000);
+        const isRoot = process.getuid?.() === 0;
+        it.skipIf(isRoot)(
+            "should return empty array and log a warning",
+            async () => {
+                // Arrange — chmod 000 makes the file unreadable to non-root users.
+                // Skipped when running as root (root bypasses file-permission checks).
+                const pkgPath = join(testDir, "package.json");
+                await writeFile(
+                    pkgPath,
+                    JSON.stringify({ scripts: { test: "vitest" } }),
+                );
+                await chmod(pkgPath, 0o000);
 
-            const logger = {
-                warn: vi.fn(),
-            } as unknown as ConsolaInstance;
-            const gatewayWithLogger = new FileSystemScriptDiscoveryGateway(
-                logger,
-            );
+                const logger = createConsola({ level: 0 });
+                vi.spyOn(logger, "warn");
+                const gatewayWithLogger = new FileSystemScriptDiscoveryGateway(
+                    logger,
+                );
 
-            // Act
-            const result = await gatewayWithLogger.discoverScripts(testDir);
+                // Act
+                const result = await gatewayWithLogger.discoverScripts(testDir);
 
-            // Restore permissions so afterEach cleanup can delete the file.
-            await chmod(pkgPath, 0o644);
+                // Restore permissions so afterEach cleanup can delete the file.
+                await chmod(pkgPath, 0o644);
 
-            // Assert
-            expect(result).toEqual([]);
-            expect(logger.warn).toHaveBeenCalledWith(
-                expect.stringContaining("could not read"),
-            );
-        });
+                // Assert
+                expect(result).toEqual([]);
+                expect(logger.warn).toHaveBeenCalledWith(
+                    expect.stringContaining("could not read"),
+                );
+            },
+        );
     });
 
     describe("when package.json scripts field fails schema validation", () => {
