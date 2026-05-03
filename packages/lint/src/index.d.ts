@@ -6,6 +6,8 @@
  * the package — internal architecture types are not leaked.
  */
 
+import type { ConsolaInstance } from "consola";
+
 // ── Lint severity and target ─────────────────────────────────────────
 
 /** Severity levels for lint diagnostics. */
@@ -120,6 +122,9 @@ export declare const DEFAULT_LINT_RULES: LintRulesConfig;
  * @property directory - Path to the project directory to lint.
  * @property targets - Optional selection of which lint targets to run.
  *   When omitted or when all flags are false, all targets are linted.
+ * @property logger - Optional logger instance for gateway diagnostics (e.g. warnings
+ *   about unreadable or malformed package.json files). When omitted, the global
+ *   `consola` instance is used.
  */
 export interface LintOptions {
     readonly directory: string;
@@ -129,6 +134,7 @@ export interface LintOptions {
         readonly hooks?: boolean;
         readonly instructions?: boolean;
     };
+    readonly logger?: ConsolaInstance;
 }
 
 /**

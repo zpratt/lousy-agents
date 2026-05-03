@@ -62,6 +62,9 @@ export class FileSystemScriptDiscoveryGateway
             parsed = JSON.parse(content);
         } catch (e) {
             if (e instanceof SyntaxError) {
+                this.logger.warn(
+                    `script-discovery: ${JSON.stringify(packageJsonPath)} contains invalid JSON — ${JSON.stringify(e.message)}`,
+                );
                 return [];
             }
             throw e;

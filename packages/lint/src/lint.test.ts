@@ -2,7 +2,8 @@ import { mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createConsola } from "consola";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LintOptions } from "./lint.js";
 import { runLint } from "./lint.js";
 import { LintValidationError } from "./lint-errors.js";
@@ -215,6 +216,30 @@ describe("runLint", () => {
             await expect(
                 runLint({ directory: "/tmp/\x1b[2Jevil" }),
             ).rejects.toThrow("control characters");
+        });
+    });
+
+    describe("given a project with a malformed package.json and a logger option", () => {
+        it("forwards the logger to the script discovery gateway and emits a warning", async () => {
+            await writeFile(
+                join(tempDir, "package.json"),
+                '{ "scripts": {} invalid json',
+            );
+
+            const logger = createConsola({ level: 0 });
+            vi.spyOn(logger, "warn").mockImplementation(() => {});
+
+            const options: LintOptions = {
+                directory: tempDir,
+                targets: { instructions: true },
+                logger,
+            };
+
+            await runLint(options);
+
+            expect(logger.warn).toHaveBeenCalledWith(
+                expect.stringContaining("invalid JSON"),
+            );
         });
     });
 

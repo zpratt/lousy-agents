@@ -172,15 +172,24 @@ describe("FileSystemScriptDiscoveryGateway", () => {
     });
 
     describe("when package.json contains malformed JSON", () => {
-        it("should return empty array when JSON is malformed", async () => {
+        it("should return empty array and log a warning when JSON is malformed", async () => {
             await writeFile(
                 join(testDir, "package.json"),
                 '{ "scripts": { "test": "vitest" } invalid json',
             );
 
-            const result = await gateway.discoverScripts(testDir);
+            const logger = createConsola({ level: 0 });
+            vi.spyOn(logger, "warn").mockImplementation(() => {});
+            const gatewayWithLogger = new FileSystemScriptDiscoveryGateway(
+                logger,
+            );
+
+            const result = await gatewayWithLogger.discoverScripts(testDir);
 
             expect(result).toEqual([]);
+            expect(logger.warn).toHaveBeenCalledWith(
+                expect.stringContaining("invalid JSON"),
+            );
         });
     });
 

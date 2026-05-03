@@ -94,10 +94,16 @@ export async function resolveReadEventsDir(
         try {
             resolved = await deps.realpath(candidate);
         } catch (err: unknown) {
-            if (isPathNotFoundError(err) || isNameTooLongError(err)) {
+            if (isPathNotFoundError(err)) {
                 return {
                     dir: "",
                     error: "AGENTSHELL_LOG_DIR does not exist or is not a directory",
+                };
+            }
+            if (isNameTooLongError(err)) {
+                return {
+                    dir: "",
+                    error: "AGENTSHELL_LOG_DIR path is too long",
                 };
             }
             throw err;
