@@ -88,7 +88,8 @@ so that I can **enable lesson injection and capture without manually editing hoo
 
 - When a user runs `lousy-agents init-hooks`, the CLI shall configure a project-scoped PreToolUse hook for Edit and Write operations.
 - When a user runs `lousy-agents init-hooks`, the CLI shall configure both Stop and SubagentStop capture hooks independently.
-- Where SessionStart support is enabled, `lousy-agents init-hooks` shall configure a SessionStart hook for broad invariant injection.
+- Where the `--no-session-start` flag is **not** passed, `lousy-agents init-hooks` shall configure a SessionStart hook for broad invariant injection (SessionStart wiring is **enabled by default**).
+- When `--no-session-start` is passed, `lousy-agents init-hooks` shall not write a SessionStart hook entry. Any pre-existing SessionStart entry in `.claude/settings.json` shall be left untouched (the flag does not act as an inverse `--force` for SessionStart).
 - If a `.claude/settings.json` file already exists, then `lousy-agents init-hooks` shall preserve unrelated existing settings.
 - If hook entries for the same tool and event already exist in `.claude/settings.json`, then `lousy-agents init-hooks` shall not overwrite them unless `--force` is passed.
 - If `.claude/settings.json` or any ancestor path segment from the project root to `.claude/settings.json` is a symbolic link, then `lousy-agents init-hooks` shall exit non-zero with a descriptive error before reading or writing hook configuration.
@@ -119,7 +120,7 @@ Each component has an explicit fail-open or fail-closed stance. Reviewers should
 | `lousy-agents context` | **Fail-open** — invalid/oversized lesson files skip with a warning; unreadable lessons directory returns empty result and exits zero; symlinked edit targets are treated as empty content | Crashing the hook blocks the agent entirely; partial injection is always preferable to blocking |
 | `lousy-agents lint lessons` | **Fail-closed** — any invalid lesson → exit non-zero | Validation must be strict; a silent pass would mask broken lessons reaching the runtime |
 | `lousy-agents init-hooks` | **Fail-closed** — any settings read/write or parse error → exit non-zero | Hook misconfiguration silently breaks the lifecycle; fail loudly |
-| `lousy-agents capture` | **Fail-closed** — absent or unparseable hook input → exit non-zero | A silent failure could cause lesson loss with no indication to the developer |
+| `lousy-agents capture` | **Fail-open** — absent or unparseable hook input → log warning to stderr, emit no prompt, exit zero | Stop/SubagentStop fire when the agent is already terminating; a non-zero exit cannot block useful work and may not surface to the developer at all. Stderr warnings preserve the developer signal without disrupting the lifecycle |
 
 ### Lesson Frontmatter Schema
 
@@ -166,7 +167,7 @@ The body is human-readable markdown prose: the rule, when it applies, examples o
 - `zod` — lesson Zod schema in use-case layer (already pinned in workspace)
 - **Frontmatter parser**: Do not add `gray-matter` or any new frontmatter parser without explicit approval. Before Task 4 begins, identify whether an existing YAML parser (e.g., `yaml` package already used in the workspace) can parse frontmatter with a simple fence splitter, or raise this as a **blocking open question** requiring maintainer approval before proceeding.
 - Existing file-system utilities: `packages/core/src/gateways/file-system-utils.ts` (`readFileNoFollow()`) — required for all lesson and hook config file reads.
-- **Glob library**: See resolved blocking open question below. The current resolution requires adding `picomatch` as a directly pinned dependency to `packages/core/package.json` before Task 5 implementation begins.
+- **Glob library**: See resolved blocking open question below. The current resolution requires adding `picomatch@4.0.2` as a directly pinned dependency (exact version, no `^` or `~`, per the project dependency policy) to `packages/core/package.json` before Task 5 implementation begins. Glob semantics — particularly `**` and `dot` handling — have shifted across picomatch minor releases; the version is pinned and locked by a fixture test in Task 5 verification. Bumping the version in a future change requires re-running the fixture test and updating the spec if behavior diverges.
 
 ### Glob and Path Matching Semantics
 
@@ -185,6 +186,17 @@ The body is human-readable markdown prose: the rule, when it applies, examples o
 **Windows cross-platform**: before passing any path to glob matching, normalize backslash separators to forward slashes (e.g., `filePath.split(path.sep).join('/')`). Path glob matching is always case-sensitive regardless of the OS filesystem case sensitivity.
 
 **Symlink handling for edit targets**: after lexical cwd containment succeeds, content reads for files under edit must reject symbolic links and verify the target's real path remains inside the resolved cwd. Symlinked targets are not followed for content-pattern matching; they are treated as unreadable/empty content with a warning so an in-repo symlink cannot expose `/etc/passwd`, `$HOME/.ssh`, or other out-of-repo files through lesson matching.
+
+### Platform Scope
+
+v1 targets **macOS and Linux as primary platforms**; Windows is **best-effort**. The spec is written against POSIX-shaped semantics — symbolic-link rejection, separator normalization, and case-sensitive matching all assume POSIX behavior. Windows differences:
+
+- **Symbolic links**: Windows symlinks require admin privileges or Developer Mode. The `lstat()`-based detection used by `assertPathHasNoSymbolicLinks()` and the edit-target symlink check works identically when symlinks exist; the typical Windows developer environment does not create them, so this code path is rarely exercised.
+- **Path separators**: backslash-to-forward-slash normalization is performed before glob matching (see § Glob and Path Matching Semantics). Path globs in `triggers.paths` shall be authored using forward slashes; backslash globs in lesson YAML are not supported and will not match.
+- **Case sensitivity**: glob and tag matching are case-sensitive (`{ nocase: false }`) regardless of the host filesystem's behavior. Windows users authoring lessons must match the canonical case of repo paths (e.g., `src/policy/**`, not `Src/Policy/**`).
+- **Filesystem APIs**: `readFileNoFollow()`, `resolvePathWithinRoot()`, and the `assertPathHasNoSymbolicLinks()` helper rely on `node:fs` primitives that behave consistently on Windows; no platform-specific code paths are added in v1.
+
+Windows-specific bugs are accepted but will not block Task 8 sign-off in v1. CI runs on `ubuntu-latest` (per **CI/CD pipeline instructions**); Windows behavior is exercised only through unit tests with synthesized inputs (e.g., backslash-bearing path strings, simulated `lstat()` results). A future task may add a Windows CI job; until then, Windows is documented but not gated.
 
 ### Data Model Changes
 
@@ -342,8 +354,20 @@ Rules:
 - `hookEventName` is `"PreToolUse"` when invoked from a PreToolUse hook input or with `--files`, and `"SessionStart"` when invoked without hook input or `--files` (the SessionStart invariant-injection path).
 - `additionalContext` is a **string** rendering of matched lessons (e.g., a concatenation of `## <title>\n\n<body>` blocks). It is **not** a JSON array — Claude Code expects a string here.
 - When no lessons match, the CLI emits `{ "hookSpecificOutput": { "hookEventName": "...", "additionalContext": "" } }` and exits zero. An empty string is the correct "no context" signal; omitting the field or printing nothing is also acceptable per Claude's docs but the explicit empty string keeps the contract uniform and easier to test.
-- The rendered `additionalContext` string is truncated to 10 000 characters total (matching Claude Code's documented cap) before being emitted. Per-lesson body truncation is applied first (see Design section), and the final assembled string is truncated again if the concatenation exceeds the cap.
+- The rendered `additionalContext` string is shaped by a two-stage budget so multiple lessons can fit inside Claude Code's 10 000-character cap. (1) Each matched lesson body is truncated to **2 000 characters** before rendering — this leaves room for roughly five lessons in a typical assembly. (2) After all lesson blocks are concatenated, the assembled string is truncated to **9 800 characters** to leave headroom for the truncation footer. (3) When one or more lessons are partially or fully dropped from the assembled string by the 9 800-character cap, the renderer appends `\n\n_(N additional lessons truncated due to length cap)_` where `N` is the count of dropped lessons. The footer is omitted when no lessons are dropped, even if individual bodies were truncated by the per-lesson 2 000-character cap (per-body truncation is silent because it does not lose lesson presence). See **§ `additionalContext` Rendering Format** for the canonical block layout.
 - The command exits zero for all non-error conditions, including the no-match case.
+
+#### `additionalContext` Rendering Format
+
+The CLI assembles matched lessons into the `additionalContext` string deterministically. Every detail below is part of the contract — tests should pin the exact bytes, not just the intent:
+
+1. **No prologue.** The string begins with the first lesson's header. No introductory sentence.
+2. **Per-lesson block.** `## <lesson.title>\n\n<truncated lesson.body>` — Markdown H2, blank line, body. No metadata block, no slug, no type tag.
+3. **Inter-lesson separator.** `\n\n` (one blank line) between lesson blocks.
+4. **No trailing newline** at the end of the assembled string before truncation or footer append.
+5. **Truncation footer.** When the 9 800-character assembled-string cap drops one or more lessons, the renderer appends `\n\n_(N additional lessons truncated due to length cap)_` where `N` is the count of dropped lessons (a lesson is "dropped" if any portion of its block, including its `## <title>` header, is removed by the cap). The footer is omitted when no lessons are dropped, even if individual bodies were shortened by the per-body 2 000-character cap.
+6. **Empty result.** `additionalContext: ""` is exactly the empty string — no header, no separator, no footer, no whitespace.
+7. **Ordering.** The block order matches the deterministic sort defined in **Task 5 Requirements** (`type` ascending, then `slug` ascending). Truncation respects this order: the first dropped lesson is the lowest-priority one in sort order.
 
 #### Shared Hook-Response Builder
 
@@ -433,7 +457,7 @@ subagent invocation. The main agent will run its own capture pass on Stop and
 will see broader session findings; do not duplicate that work.
 ```
 
-The capture command shall interpolate only structured fields from validated hook input (e.g., `hook_event_name`) into the prompt. Raw session messages, tool transcripts, and free-form output from the agent shall not be templated into the prompt string.
+The capture command shall not interpolate any hook input fields into the prompt body. `hook_event_name` is consumed only as a dispatch key to select between the two static templates above. Raw session messages, tool transcripts, and free-form output from the agent are likewise excluded by construction — there is no template slot for them. If a future revision adds field interpolation, this section and the corresponding Task 7 requirement must be updated together to specify the field list and per-field validation.
 
 ### Diagrams
 
@@ -532,7 +556,7 @@ sequenceDiagram
 - [x] ~~Should `lousy-agents context --files` accept comma-separated paths, repeated flags, or both?~~ **Resolved**: `--files` accepts repeated flags only (e.g., `--files path1 --files path2`). No comma-splitting — avoids the need to escape or parse commas in file paths.
 - [x] ~~Which hook takes priority for capture: `SubagentStop`, `Stop`, or both wired independently?~~ **Resolved**: Both Stop and SubagentStop are wired independently; neither takes priority. SubagentStop captures findings from a subagent's local context before that context is lost, while Stop captures main-agent and session-level findings. The capture prompt must be safe to run for either event and rely on the active agent to check existing lessons before writing or updating files.
 - [x] ~~**BLOCKING**: Is an existing YAML parser in the workspace sufficient for frontmatter parsing, or is a new dependency required? Do not begin Task 4 until this is resolved with explicit maintainer approval.~~ **Resolved**: The `yaml` package already in the workspace is sufficient. The duplicated `parseFrontmatter` implementation was extracted from `FileSystemSkillLintGateway` and `FileSystemAgentLintGateway` into a shared utility at `packages/core/src/lib/frontmatter.ts`. Task 4 must import `parseFrontmatter` from `@lousy-agents/core/lib/frontmatter.js` — no new dependency required.
-- [x] ~~**BLOCKING for Task 5**: Is a glob library available as a direct pinned dependency in `@lousy-agents/cli` or `@lousy-agents/core`?~~ **Resolved**: Workspace audit (2026-05-03) confirmed neither package has a direct glob dependency. `minimatch` appears only as a transitive dev dep through `testcontainers → archiver → readdir-glob` and is not reliable for production. **Decision**: add `picomatch` (smaller and faster than `minimatch`, no regex precompile cost on the hot path) as a directly pinned dep to `packages/core/package.json`. Glob matching shall use `picomatch` with `{ dot: false, nocase: false }` per the Design § Glob and Path Matching Semantics section. Pinning the dep is part of Task 5's implementation work.
+- [x] ~~**BLOCKING for Task 5**: Is a glob library available as a direct pinned dependency in `@lousy-agents/cli` or `@lousy-agents/core`?~~ **Resolved**: Workspace audit (2026-05-03) confirmed neither package has a direct glob dependency. `minimatch` appears only as a transitive dev dep through `testcontainers → archiver → readdir-glob` and is not reliable for production. **Decision**: add `picomatch@4.0.2` (smaller and faster than `minimatch`, no regex precompile cost on the hot path; pinned exact, no `^` or `~`) as a directly pinned dep to `packages/core/package.json`. Glob matching shall use `picomatch` with `{ dot: false, nocase: false }` per the Design § Glob and Path Matching Semantics section. Pinning the dep is part of Task 5's implementation work, and Task 5 includes a fixture test that locks the version-dependent `**` and `dot: false` semantics so a future bump cannot silently regress matching.
 
 ---
 
@@ -746,7 +770,7 @@ sequenceDiagram
 - Matches lessons by path globs, tag intersection, and literal substring content matching using the semantics defined in the Design section. Pattern matching uses `String.prototype.includes()` or equivalent linear-time search. Regex matching against file content is explicitly prohibited.
 - Empty trigger arrays (`paths: []`, `tags: []`, `patterns: []`) do not match any file — absence is not a wildcard.
 - The matched lesson result set is deduplicated by `slug` (a lesson matching multiple `--files` paths appears only once) and sorted deterministically by `type` ascending then `slug` ascending before being rendered into the envelope.
-- Each matched lesson's body is truncated to 10 000 characters before being rendered into the `additionalContext` string. After all matched lessons are concatenated into the rendered string, the final string is truncated again to 10 000 characters total to match Claude Code's documented `additionalContext` cap.
+- Each matched lesson's body is truncated to **2 000 characters** before being rendered into the `additionalContext` string (so multiple lessons fit inside Claude Code's 10 000-character cap). After all matched lessons are concatenated, the assembled string is truncated to **9 800 characters** to leave headroom for a truncation footer. When the 9 800-character cap partially or fully drops one or more lessons, the renderer appends `\n\n_(N additional lessons truncated due to length cap)_` where `N` is the count of dropped lessons (a lesson is "dropped" if any portion of its block, including its `## <title>` header, is removed). Per-body truncation alone (without dropping a lesson from the set) does not produce the footer. The block layout, separators, and footer placement are specified in **§ `additionalContext` Rendering Format**.
 - Emits the Claude Code hook envelope on stdout via the shared `buildAdditionalContextResponse` helper (defined in `packages/core/src/use-cases/claude-hook-response.ts`). The CLI must not hand-construct the `hookSpecificOutput` envelope; consuming the shared builder is mandatory so `agent-shell`'s policy hook and this command stay in sync with the protocol.
 - Performs no model calls, embedding lookup, or LLM relevance scoring.
 - Returns an envelope with `additionalContext: ""` (empty string) and exits zero when no lessons match.
@@ -771,13 +795,18 @@ sequenceDiagram
 - [ ] Tests cover a `--files` path resolving outside cwd being rejected with exit 1.
 - [ ] Tests cover path normalization: a `--files` path with backslash separators resolves correctly against cwd.
 - [ ] Tests cover path normalization: a lesson with path glob `src/policy/**` matches a `--files` path with backslash separators after normalization.
+- [ ] **Picomatch version lock fixture**: tests assert the exact `picomatch@4.0.2` semantics required by this spec — `src/policy/**` matches `src/policy/foo.ts` and `src/policy/foo/bar/baz.ts` and does not match `src/policy/.hidden.ts` (with `dot: false`); `src/policy/*.ts` matches `src/policy/foo.ts` but not `src/policy/foo/bar.ts`. This fixture exists so a future picomatch bump cannot silently change matching behavior; if the fixture fails after a version bump, the spec must be revisited before the bump lands.
 - [ ] Tests cover validated Claude hook input on stdin extracting an Edit/Write file path and emitting `hookEventName: "PreToolUse"`.
 - [ ] Tests cover malformed stdin hook JSON emitting `additionalContext: ""`, warning on stderr, and exiting zero.
 - [ ] Tests cover stdin hook input missing `tool_input.file_path` emitting `additionalContext: ""`, warning on stderr, and exiting zero.
 - [ ] Tests cover a hook-input filename containing shell metacharacters (for example, `$(touch pwned).ts`) being treated as data, never interpolated into a shell command.
 - [ ] Tests cover an in-repo symlink target pointing outside cwd being treated as empty content with a warning, not read.
-- [ ] Tests cover an individual lesson body exceeding 10 000 characters being truncated before concatenation.
-- [ ] Tests cover the assembled `additionalContext` string being truncated to 10 000 characters when the concatenation of multiple matched lessons exceeds the cap.
+- [ ] Tests cover an individual lesson body exceeding 2 000 characters being truncated to 2 000 characters before concatenation.
+- [ ] Tests cover per-body truncation alone (one lesson over 2 000 chars, no lessons dropped from the set) producing **no** truncation footer.
+- [ ] Tests cover the assembled `additionalContext` string being truncated to 9 800 characters and a `\n\n_(N additional lessons truncated due to length cap)_` footer appended when the concatenation of multiple matched lessons exceeds the assembled-string cap.
+- [ ] Tests cover `N` in the truncation footer correctly reflecting the count of lessons partially or fully dropped from the rendered string (lesson is "dropped" if any portion of its block, including header, is removed).
+- [ ] Tests cover the dropped lessons being the lowest-priority in sort order (deterministic truncation: `type` ascending, then `slug` ascending — the last lessons in sort order are dropped first).
+- [ ] Tests pin the exact byte layout per **§ `additionalContext` Rendering Format**: H2 headers, single blank line between blocks, no prologue, no trailing newline before footer.
 - [ ] Tests cover unreadable lessons directory emitting an envelope with `additionalContext: ""` and exiting zero.
 - [ ] Tests cover directory-level resource caps emitting an envelope with `additionalContext: ""`, logging a warning, and exiting zero.
 - [ ] Tests cover `.lousy-agents/lessons/` being a symlink emitting an envelope with `additionalContext: ""` and exiting zero (fail-open contrast with Task 4's fail-closed behavior).
@@ -821,7 +850,7 @@ sequenceDiagram
 **Requirements**:
 - Configures PreToolUse hook for Edit and Write operations invoking the fixed command `lousy-agents context`; file paths are supplied only through Claude hook input JSON on stdin, not by shell interpolation.
 - Configures both Stop and SubagentStop capture hooks independently, with both invoking `lousy-agents capture`.
-- Supports optional SessionStart hook for broad invariant injection. The SessionStart hook shall invoke `lousy-agents context` without any `--files` arguments to return all `invariant` lessons.
+- Configures a SessionStart hook for broad invariant injection **by default**. The SessionStart hook shall invoke `lousy-agents context` without any `--files` arguments to return all `invariant` lessons. The CLI exposes a `--no-session-start` flag that disables SessionStart wiring; when this flag is passed, no SessionStart entry is written and any pre-existing SessionStart entry is left untouched (the flag never deletes a user-authored hook entry, with or without `--force`).
 - Before reading or writing `.claude/settings.json`, the hook config gateway shall use `assertPathHasNoSymbolicLinks(projectRoot, settingsPath)` to verify no path segment from the project root to the settings file is a symbolic link.
 - Hook config gateway reads `.claude/settings.json` using `readFileNoFollow()` and writes it without following symlinks. Writes shall be atomic within the `.claude` directory when possible.
 - Preserves unrelated existing settings in `.claude/settings.json` if the file already exists.
@@ -840,7 +869,10 @@ sequenceDiagram
 - [ ] Tests cover PreToolUse wiring for Write.
 - [ ] Tests cover Stop capture wiring.
 - [ ] Tests cover SubagentStop capture wiring.
-- [ ] Tests cover SessionStart invariant wiring.
+- [ ] Tests cover SessionStart invariant wiring being created by default (no flag passed).
+- [ ] Tests cover `--no-session-start` suppressing SessionStart wiring on a fresh `.claude/settings.json`.
+- [ ] Tests cover `--no-session-start` leaving a pre-existing user-authored SessionStart entry untouched (the flag is not destructive).
+- [ ] Tests cover `--no-session-start` combined with `--force` still leaving a pre-existing SessionStart entry untouched.
 - [ ] Tests cover malformed existing JSON causing exit 1 with an error message.
 - [ ] Tests cover `.claude/` being a symlink causing exit 1 before reading or writing settings.
 - [ ] Tests cover `.claude/settings.json` being a symlink causing exit 1 before reading or writing settings.
@@ -876,8 +908,8 @@ sequenceDiagram
 
 **Requirements**:
 - Script reads hook input available from Stop or SubagentStop context.
-- Hook input fields used in prompt construction must be sanitized: raw session text must not be embedded verbatim into the prompt string. Only structured metadata fields (e.g., tool name, resolved file path) may be interpolated into the prompt, and each such field must be validated as a safe printable string (no control characters, reasonable length limit) before interpolation.
-- If hook input is absent or cannot be parsed, the capture script shall exit non-zero with a descriptive error. It shall not produce a partial or silent prompt.
+- The Stop and SubagentStop prompt templates documented in **Design § Capture Prompt Template** are static text. The capture command uses the validated `hook_event_name` field **only as a dispatch key** to choose between the two templates — `hook_event_name` is **not interpolated as text** into the prompt body, and no other hook input field is templated. Because no untrusted data is embedded, no per-field sanitization is required; the templates ship as compile-time string constants. If a future revision needs to interpolate session-derived signals (file paths, tool names, etc.), this requirement and the corresponding template documentation must be updated to specify which fields are interpolated and how each is validated before this code is changed.
+- If hook input is absent or cannot be parsed, the capture script shall log a descriptive warning to stderr, emit no prompt on stdout, and exit zero. The capture command is **fail-open** per the Error Behavior Policy: Stop/SubagentStop hooks fire when the agent is already terminating, so a non-zero exit cannot block useful work and may not surface to the developer at all. Stderr warnings preserve the developer signal without disrupting the lifecycle.
 - Produces a structured prompt instructing the agent to review recent session findings; the prompt content shall match the **Stop event template** or **SubagentStop event template** documented in **Design § Capture Prompt Template** based on the validated `hook_event_name` from hook input.
 - The Stop and SubagentStop templates shall produce different prompts: the Stop template directs the main agent to capture session-level findings; the SubagentStop template directs the subagent to capture findings local to its scope before that context is lost.
 - Prompt includes the documented lesson schema requirements, including the slug safety constraint and the `revised >= created` rule.
@@ -891,8 +923,10 @@ sequenceDiagram
 - [ ] Tests cover prompt instructing agent to check for existing lessons before creating new ones.
 - [ ] Tests cover Stop vs SubagentStop producing distinguishable prompt content per the Design § Capture Prompt Template section.
 - [ ] Tests confirm no lesson file is created by the capture script itself.
-- [ ] Tests cover absent or unparseable hook input causing exit 1 with a descriptive error.
-- [ ] Tests cover that raw session text from hook input is not present verbatim in the prompt output.
+- [ ] Tests cover absent or unparseable hook input emitting a descriptive stderr warning, no stdout output, and exit zero (fail-open per Error Behavior Policy).
+- [ ] Tests cover the prompt output for a valid Stop event being **byte-identical** to the documented Stop template constant — confirming `hook_event_name` is used only for dispatch and no hook fields are interpolated into the body.
+- [ ] Tests cover the prompt output for a valid SubagentStop event being byte-identical to the documented SubagentStop template constant.
+- [ ] Tests cover that arbitrary additional fields in hook input (e.g., a `tool_input.file_path`, a fake `session_text` field, control characters) do not appear anywhere in the prompt output, even partially.
 - [ ] `mise run test` passes.
 - [ ] `mise run lint` passes.
 
