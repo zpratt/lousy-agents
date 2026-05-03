@@ -28,15 +28,16 @@ so that I can **reduce repeated mistakes without manually reviewing project conv
 
 #### Acceptance Criteria
 
-- When an agent attempts to edit or write a file, the PreToolUse hook shall invoke `lousy-agents context --files <path>` and return matching lessons to Claude Code as a `hookSpecificOutput.additionalContext` string (the CLI emits the protocol-compliant Claude Code hook envelope directly on stdout — see the Data Model section for the exact shape).
+- When an agent attempts to edit or write a file, the PreToolUse hook shall invoke the fixed command `lousy-agents context` and pass Claude Code hook input JSON on stdin; the command shall validate that input with Zod, extract the Edit/Write file path, and return matching lessons to Claude Code as a `hookSpecificOutput.additionalContext` string (the CLI emits the protocol-compliant Claude Code hook envelope directly on stdout — see the Data Model section for the exact shape). Hook configuration shall not interpolate file paths into shell command strings.
 - When no lessons match the file, the context command shall emit the Claude Code hook envelope with an empty `additionalContext` string (i.e., `{ "hookSpecificOutput": { "hookEventName": "PreToolUse", "additionalContext": "" } }`) on stdout and exit zero.
 - The context command shall not perform model calls, embedding similarity, or LLM-mediated relevance scoring.
 - When a SessionStart hook fires, the context command shall return all lessons with `type: invariant` without requiring a `--files` path argument.
 - If lesson files contain invalid frontmatter, then the context command shall skip those files, log a warning, and continue processing remaining lessons without crashing the hook.
 - If a `--files` path resolves outside the current working directory, then the context command shall reject the path with a boundary-safe containment check (e.g., ``const rel = path.relative(cwd, file); rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)`` — the segment-aware `..` checks avoid false positives for valid in-root filenames like `..foo.ts` (where `rel === '..foo.ts'`), and the `path.isAbsolute` guard handles Windows paths on different drive letters where `path.relative` returns an absolute path rather than a `..`-prefixed one; `rel === ''` means file equals cwd and shall be treated as a valid in-bounds path) and exit non-zero.
+- If a file path from hook input or `--files` resolves to a symbolic link, or its real path resolves outside the current working directory, then the context command shall not read target content; it shall log a warning, treat that file as having empty content, and continue matching only on the validated in-repo path string.
 - If the `.lousy-agents/lessons/` directory cannot be read for any reason (missing, not a directory, permission denied), the context command shall emit the Claude Code hook envelope with an empty `additionalContext` string (i.e., `{ "hookSpecificOutput": { "hookEventName": "...", "additionalContext": "" } }`) and exit zero rather than crashing the PreToolUse hook.
 - When a lesson's `triggers.tags` array contains a value matching any forward-slash-separated path segment OR the file extension of the file under edit, the context command shall include that lesson in the rendered `additionalContext` string. For `src/rules.ts`, testable segments are `src`, `rules.ts`, and `ts`.
-- After determining the set of matching lessons, the context command shall increment `fire_count` by 1 and set `last_fired` to the current **local** date in `YYYY-MM-DD` format (using the system's local timezone, not UTC) in the frontmatter of each matched lesson file on disk. If a write fails for any individual lesson (e.g., permission denied, read-only filesystem), the command shall log a warning and continue — the failure must not affect the JSON output or the exit code. Concurrent writes are not guarded; last-writer-wins is acceptable in v1.
+- After determining the set of matching lessons, the context command shall remain read-only: it shall not update `fire_count`, `last_fired`, lesson files, or hidden runtime state. Those frontmatter fields are manually maintained when lessons are authored or revised.
 
 ---
 
@@ -71,6 +72,7 @@ so that I can **catch malformed lessons before they silently fail in the injecti
 - If `.lousy-agents/lessons/` does not exist, then the linter shall report that no lessons are configured, exit zero, and create no hidden state.
 - If a lesson specifies any `type` other than `invariant` or `pattern`, then the linter shall report a schema validation error.
 - If a lesson `slug` contains path separators (`/`, `\`) or dot-dot sequences (`..`), then the linter shall reject the lesson with a slug format validation error (the `^[a-z0-9-]+$` constraint rejects these characters; no separate path-traversal check is required).
+- If a lesson exceeds documented resource caps for trigger array length, trigger string length, lesson file count, or aggregate lesson bytes, then the linter shall reject the lesson set with a descriptive validation error.
 
 ---
 
@@ -87,6 +89,7 @@ so that I can **enable lesson injection and capture without manually editing hoo
 - Where SessionStart support is enabled, `lousy-agents init-hooks` shall configure a SessionStart hook for broad invariant injection.
 - If a `.claude/settings.json` file already exists, then `lousy-agents init-hooks` shall preserve unrelated existing settings.
 - If hook entries for the same tool and event already exist in `.claude/settings.json`, then `lousy-agents init-hooks` shall not overwrite them unless `--force` is passed.
+- If `.claude/settings.json` or any ancestor path segment from the project root to `.claude/settings.json` is a symbolic link, then `lousy-agents init-hooks` shall exit non-zero with a descriptive error before reading or writing hook configuration.
 
 ---
 
@@ -102,7 +105,7 @@ The v1 system makes the following load-bearing decisions (documented in `DESIGN.
 - **Lesson types**: Exactly two — `invariant` (project-scoped, fire broadly) and `pattern` (file-specific recurring concerns). No third type in v1.
 - **Authorship**: Agents write lessons via normal Write/Edit tools. No custom MCP authoring API. Schema changes are documentation changes.
 - **Capture trigger**: Stop and SubagentStop hooks are both wired independently; neither takes priority. SubagentStop captures subagent-local findings before that context is lost, and Stop captures main-agent/session-level findings. The agent decides what to capture and writes files. The runtime stays passive.
-- **Injection**: PreToolUse hook for Edit/Write calls `lousy-agents context --files <path>`. SessionStart hook injects invariants at session open.
+- **Injection**: PreToolUse hook for Edit/Write calls the fixed command `lousy-agents context` and passes Claude Code hook input JSON on stdin. Manual/debug invocations may pass repeated `--files` flags. SessionStart hook injects invariants at session open.
 - **Matching**: Path globs, tag matches, and literal substring search against file content only. No regex matching on file content. No model calls in PreToolUse.
 
 #### Error Behavior Policy
@@ -111,7 +114,7 @@ Each component has an explicit fail-open or fail-closed stance. Reviewers should
 
 | Component | Stance | Rationale |
 | --- | --- | --- |
-| `lousy-agents context --files` | **Fail-open** — invalid/oversized lesson files skip with a warning; unreadable lessons directory returns empty result and exits zero; `fire_count`/`last_fired` write failures log a warning but do not affect output or exit code | Crashing the hook blocks the agent entirely; partial injection is always preferable to blocking |
+| `lousy-agents context` | **Fail-open** — invalid/oversized lesson files skip with a warning; unreadable lessons directory returns empty result and exits zero; symlinked edit targets are treated as empty content | Crashing the hook blocks the agent entirely; partial injection is always preferable to blocking |
 | `lousy-agents lint lessons` | **Fail-closed** — any invalid lesson → exit non-zero | Validation must be strict; a silent pass would mask broken lessons reaching the runtime |
 | `lousy-agents init-hooks` | **Fail-closed** — any settings read/write or parse error → exit non-zero | Hook misconfiguration silently breaks the lifecycle; fail loudly |
 | `lousy-agents capture` | **Fail-closed** — absent or unparseable hook input → exit non-zero | A silent failure could cause lesson loss with no indication to the developer |
@@ -140,9 +143,11 @@ triggers:
 
 **Slug format constraint**: slugs must match `^[a-z0-9-]+$`. Path separators and dot-dot sequences are invalid. Malformed slugs will cause lesson rejection by the linter; the runtime context gateway shall skip invalid lesson files with a warning and continue.
 
-**Pattern length constraint**: each entry in `triggers.patterns` must not exceed 200 characters. Patterns are treated as literal substrings for matching — never as regular expressions. The matching implementation shall use linear string search (e.g., `String.prototype.includes()`) and must not use regex on untrusted file content to prevent catastrophic backtracking.
+**Pattern length constraint**: each entry in `triggers.patterns` must not exceed 200 characters, and the array must not exceed 50 entries. Patterns are treated as literal substrings for matching — never as regular expressions. The matching implementation shall use linear string search (e.g., `String.prototype.includes()`) and must not use regex on untrusted file content to prevent catastrophic backtracking.
 
 **File size constraint**: lesson files must not exceed 1MB. The lesson gateway shall reject files larger than this limit before parsing YAML. Note: file size alone is insufficient to prevent anchor-bomb OOM — YAML alias/anchor expansion can produce gigabytes of in-memory data from a compact file. The YAML parser must be configured with `maxAliasCount: 0` (from the `yaml` package already in the workspace) to disallow aliases entirely; any alias-limit violation shall be treated as invalid frontmatter and cause the lesson to be rejected.
+
+**Resource caps**: the lesson gateway shall process at most 500 lesson files and at most 20MB of aggregate lesson bytes per invocation. Each of `triggers.paths` and `triggers.tags` must not exceed 100 entries, and each path/tag string must not exceed 200 characters. `lousy-agents lint lessons` treats cap violations as validation failures and exits non-zero. `lousy-agents context` treats cap violations according to its fail-open policy: log a warning, emit an empty `additionalContext` string for directory-level cap violations, and skip individual lesson files that violate schema-level caps.
 
 The body is human-readable markdown prose: the rule, when it applies, examples of correct application, and edge cases.
 
@@ -178,6 +183,8 @@ The body is human-readable markdown prose: the rule, when it applies, examples o
 **Path normalization requirement**: all file paths from CLI arguments or gateway reads must be normalized with `path.resolve()` before any comparison or I/O. The cwd containment check must be boundary-safe (e.g., ``const rel = path.relative(cwd, resolvedFilePath); rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)`` — the segment-aware `..` checks (`rel === '..'` and `rel.startsWith(`..${path.sep}`)`) avoid false positives for valid in-root filenames like `..foo.ts` (where `rel === '..foo.ts'`), and the `path.isAbsolute` guard handles Windows cross-drive paths where `path.relative` returns an absolute path instead of a `..`-prefixed relative path; `rel === ''` means the file equals cwd and is treated as a valid in-bounds path) to prevent both path traversal and prefix confusion (e.g., `/repo` matching `/repo2`). String `includes('..')`, `rel.startsWith('..')` without segment terminator, and simple `startsWith` full-path prefix checks are explicitly prohibited for this check — `includes('..')` is insufficient (misses encoded traversal) and incorrect (rejects valid names like `..foo.ts`), `rel.startsWith('..')` is incorrect for the same reason, and full-path `startsWith` is vulnerable to prefix confusion.
 
 **Windows cross-platform**: before passing any path to glob matching, normalize backslash separators to forward slashes (e.g., `filePath.split(path.sep).join('/')`). Path glob matching is always case-sensitive regardless of the OS filesystem case sensitivity.
+
+**Symlink handling for edit targets**: after lexical cwd containment succeeds, content reads for files under edit must reject symbolic links and verify the target's real path remains inside the resolved cwd. Symlinked targets are not followed for content-pattern matching; they are treated as unreadable/empty content with a warning so an in-repo symlink cannot expose `/etc/passwd`, `$HOME/.ssh`, or other out-of-repo files through lesson matching.
 
 ### Data Model Changes
 
@@ -223,6 +230,8 @@ import { z } from 'zod';
 const SAFE_SLUG = /^[a-z0-9-]+$/;
 const MAX_PATTERN_LENGTH = 200;
 const MAX_PATTERNS = 50;
+const MAX_TRIGGER_VALUES = 100;
+const MAX_TRIGGER_VALUE_LENGTH = 200;
 
 export const LessonFrontmatterSchema = z.object({
   slug: z.string().regex(SAFE_SLUG, 'slug must match ^[a-z0-9-]+$'),
@@ -238,9 +247,9 @@ export const LessonFrontmatterSchema = z.object({
     facet: z.string(),
   }).strict()),
   triggers: z.object({
-    paths: z.array(z.string()),
-    tags: z.array(z.string()),
-    patterns: z.array(z.string().max(MAX_PATTERN_LENGTH)).max(MAX_PATTERNS),
+    paths: z.array(z.string().min(1).max(MAX_TRIGGER_VALUE_LENGTH)).max(MAX_TRIGGER_VALUES),
+    tags: z.array(z.string().min(1).max(MAX_TRIGGER_VALUE_LENGTH)).max(MAX_TRIGGER_VALUES),
+    patterns: z.array(z.string().min(1).max(MAX_PATTERN_LENGTH)).max(MAX_PATTERNS),
   }).strict(),
 }).strict();
 ```
@@ -271,9 +280,34 @@ export interface LessonFileGatewayPort {
 }
 ```
 
+#### Claude PreToolUse Hook Input Schema
+
+The `context` command validates Claude Code hook input from stdin before extracting the edited file path. The schema is intentionally narrow: unknown top-level and `tool_input` fields are allowed for forward compatibility, but only `Edit` and `Write` events with a safe printable `file_path` are used for matching.
+
+```typescript
+// packages/core/src/use-cases/claude-hook-input-schema.ts
+import { z } from 'zod';
+
+const MAX_HOOK_FILE_PATH_LENGTH = 4096;
+const SAFE_PRINTABLE_PATH = /^[^\u0000-\u001f\u007f]+$/;
+
+export const ClaudePreToolUseHookInputSchema = z.object({
+  hook_event_name: z.literal('PreToolUse'),
+  tool_name: z.enum(['Edit', 'Write']),
+  tool_input: z.object({
+    file_path: z.string()
+      .min(1)
+      .max(MAX_HOOK_FILE_PATH_LENGTH)
+      .regex(SAFE_PRINTABLE_PATH, 'file_path must not contain control characters'),
+  }).passthrough(),
+}).passthrough();
+```
+
+If stdin contains malformed JSON or hook input that does not match this schema, `lousy-agents context` follows the fail-open context policy: log a warning to stderr, emit the PreToolUse hook envelope with `additionalContext: ""`, and exit zero. If stdin is empty and no `--files` flags are provided, the command treats the invocation as the SessionStart invariant-injection path.
+
 #### CLI Stdout JSON Shape (Claude Code Hook Envelope)
 
-The `lousy-agents context` command emits the **Claude Code hook response envelope directly on stdout**. This avoids the need for a separate shell-script wrapper between Claude Code and the CLI: the hook configuration runs `lousy-agents context --files "$file"` and Claude Code consumes the stdout as the hook response. Confirmed against the [Claude Code hooks documentation](https://docs.claude.com/en/docs/claude-code/hooks): `additionalContext` is a **string** (not a structured array) nested inside `hookSpecificOutput` alongside a `hookEventName` field, and the value is capped at 10 000 characters before Claude Code spills it to a file.
+The `lousy-agents context` command emits the **Claude Code hook response envelope directly on stdout**. Claude Code runs the fixed hook command `lousy-agents context` and supplies hook input JSON on stdin; the command validates that JSON and extracts the edited file path internally instead of receiving a shell-interpolated path argument. Repeated `--files` flags remain supported for manual/debug invocations outside the hook path. Confirmed against the [Claude Code hooks documentation](https://docs.claude.com/en/docs/claude-code/hooks): `additionalContext` is a **string** (not a structured array) nested inside `hookSpecificOutput` alongside a `hookEventName` field, and the value is capped at 10 000 characters before Claude Code spills it to a file.
 
 ```json
 {
@@ -288,7 +322,7 @@ Rules:
 
 - The CLI emits exactly one JSON object on stdout. No surrounding prose, no markdown fences.
 - All diagnostic output (warnings, info messages) shall go to stderr; stdout is reserved exclusively for the single JSON object per invocation.
-- `hookEventName` is `"PreToolUse"` when invoked with `--files`, and `"SessionStart"` when invoked without `--files` (the SessionStart invariant-injection path).
+- `hookEventName` is `"PreToolUse"` when invoked from a PreToolUse hook input or with `--files`, and `"SessionStart"` when invoked without hook input or `--files` (the SessionStart invariant-injection path).
 - `additionalContext` is a **string** rendering of matched lessons (e.g., a concatenation of `## <title>\n\n<body>` blocks). It is **not** a JSON array — Claude Code expects a string here.
 - When no lessons match, the CLI emits `{ "hookSpecificOutput": { "hookEventName": "...", "additionalContext": "" } }` and exits zero. An empty string is the correct "no context" signal; omitting the field or printing nothing is also acceptable per Claude's docs but the explicit empty string keeps the contract uniform and easier to test.
 - The rendered `additionalContext` string is truncated to 10 000 characters total (matching Claude Code's documented cap) before being emitted. Per-lesson body truncation is applied first (see Design section), and the final assembled string is truncated again if the concatenation exceeds the cap.
@@ -407,8 +441,8 @@ sequenceDiagram
     Hook-->>Agent: Inject broad invariant lessons at session open
 
     Agent->>Hook: Attempt Edit/Write on file
-    Hook->>CLI: lousy-agents context --files <path>
-    CLI->>CLI: Validate path stays within cwd (reject traversal)
+    Hook->>CLI: lousy-agents context (hook JSON on stdin)
+    CLI->>CLI: Validate hook input and path stays within cwd (reject traversal)
     CLI->>Lessons: Read lesson frontmatter + prose (size-checked)
     CLI->>CLI: Match path globs, tags, fixed-length patterns (no model calls)
     CLI-->>Hook: hookSpecificOutput JSON (PreToolUse, additionalContext string)
@@ -423,7 +457,7 @@ sequenceDiagram
 
 ### Open Questions
 
-- [x] ~~Should `fire_count` and `last_fired` be auto-updated in PreToolUse, or remain manually maintained to keep the hot path passive and avoid noisy working-tree diffs?~~ **Resolved**: Auto-updated. The context command increments `fire_count` and sets `last_fired` to the current date for each matched lesson. Working-tree diffs are acceptable.
+- [x] ~~Should `fire_count` and `last_fired` be auto-updated in PreToolUse, or remain manually maintained to keep the hot path passive and avoid noisy working-tree diffs?~~ **Resolved**: Manually maintained. The context command remains read-only so PreToolUse never dirties the working tree or loses updates under concurrent hooks.
 - [x] ~~**BLOCKING for Task 5**: What is the exact JSON shape expected by Claude Code for `additionalContext` in hook responses? A proposed shape is defined in the Data Model section above; confirm against Claude Code documentation before Task 5 begins.~~ **Resolved**: Per the [Claude Code hooks documentation](https://docs.claude.com/en/docs/claude-code/hooks), `additionalContext` is a **string** nested inside `hookSpecificOutput` alongside `hookEventName`. Claude Code caps the value at 10 000 characters before spilling to a file. The CLI emits the protocol-compliant envelope directly on stdout (no separate wrapper script needed). Repo audit: `agent-shell`'s `policy-check.ts` is the only existing Claude hook-response producer and emits a different shape (`permissionDecision`); a small shared `buildAdditionalContextResponse` / `buildPermissionDecisionResponse` helper in `@lousy-agents/core` shall be introduced so both packages avoid duplicating the envelope-shaping logic. See the Data Model section for the canonical shape and the shared builder interface.
 - [x] ~~Should `lousy-agents context --files` accept comma-separated paths, repeated flags, or both?~~ **Resolved**: `--files` accepts repeated flags only (e.g., `--files path1 --files path2`). No comma-splitting — avoids the need to escape or parse commas in file paths.
 - [x] ~~Which hook takes priority for capture: `SubagentStop`, `Stop`, or both wired independently?~~ **Resolved**: Both Stop and SubagentStop are wired independently; neither takes priority. SubagentStop captures findings from a subagent's local context before that context is lost, while Stop captures main-agent and session-level findings. The capture prompt must be safe to run for either event and rely on the active agent to check existing lessons before writing or updating files.
@@ -433,8 +467,8 @@ sequenceDiagram
 
 ## Tasks
 
-> Each task is completable in a single coding agent session (~1–3 files, ~200–300 lines changed).
-> Complete tasks in order. Each task feeds the next.
+> Each task is a phase. If a task lists more than three affected files, assign its **Implementation slices** separately; each slice is the coding-agent-sized unit (~1–3 files, ~200–300 lines changed).
+> Complete tasks and slices in order. Each task feeds the next.
 > All test fixtures must use Chance.js for generated values. Never hardcode the same value in both test setup and assertions.
 
 ### Task 1: Lock v1 Architecture in DESIGN.md
@@ -450,12 +484,12 @@ sequenceDiagram
 - The document states the storage layout, lesson schema, lesson types, authorship model, capture trigger, injection mechanism, deterministic matching strategy, and v1 out-of-scope list.
 - The document does not exceed 150 lines — decisions, not alternatives.
 - The document explicitly states: no database, no hidden state, no model calls in PreToolUse, no custom lesson-authoring MCP API.
-- The document explicitly states the slug safety constraint (`^[a-z0-9-]+$`), the 200-character pattern limit, and the 1MB lesson file size limit.
+- The document explicitly states the slug safety constraint (`^[a-z0-9-]+$`), trigger/resource caps, the 200-character pattern limit, and the 1MB lesson file size limit.
 
 **Verification**:
 - [ ] `DESIGN.md` exists at the repository root.
 - [ ] The document addresses all seven architecture lock decisions.
-- [ ] The document states the slug format, pattern length, and file size constraints.
+- [ ] The document states the slug format, trigger/resource caps, pattern length, and file size constraints.
 - [ ] `mise run lint` passes.
 
 **Done when**:
@@ -482,7 +516,7 @@ sequenceDiagram
 
 **Requirements**:
 - `lesson.ts` contains only TypeScript `type` and `interface` declarations. No imports of any kind.
-- `lesson-schema.ts` defines the Zod schema using the constraints: slug `^[a-z0-9-]+$`, patterns `max(200)` per entry, patterns array `max(50)`, `type` enum `['invariant', 'pattern']`.
+- `lesson-schema.ts` defines the Zod schema using the constraints: slug `^[a-z0-9-]+$`, trigger path/tag arrays `max(100)`, trigger path/tag strings `max(200)`, patterns `max(200)` per entry, patterns array `max(50)`, and `type` enum `['invariant', 'pattern']`.
 - All required frontmatter fields are covered by the schema.
 - Invalid `type` values produce a descriptive Zod error.
 - Invalid slugs produce a descriptive Zod error that names the constraint.
@@ -495,6 +529,9 @@ sequenceDiagram
 - [ ] Tests cover rejection of a slug containing `/`.
 - [ ] Tests cover rejection of a slug containing `..`.
 - [ ] Tests cover rejection of a pattern exceeding 200 characters.
+- [ ] Tests cover rejection of too many content patterns.
+- [ ] Tests cover rejection of too many trigger paths or tags.
+- [ ] Tests cover rejection of trigger path/tag strings exceeding 200 characters.
 - [ ] Tests cover missing required fields.
 - [ ] `mise run test` passes.
 - [ ] `mise run lint` passes.
@@ -523,7 +560,7 @@ sequenceDiagram
 - Each slug matches `^[a-z0-9-]+$` exactly.
 - Each has valid frontmatter and human-readable markdown prose.
 - Trigger fields are populated with at least one path, tag, or pattern.
-- No single pattern exceeds 200 characters.
+- No single pattern exceeds 200 characters, no path/tag trigger exceeds 200 characters, and trigger arrays stay within documented schema caps.
 
 **Verification**:
 - [ ] Three or more lesson files exist.
@@ -552,6 +589,11 @@ sequenceDiagram
 - `packages/cli/src/commands/lint-lessons.ts` (new)
 - `packages/cli/src/commands/lint-lessons.test.ts` (new)
 
+**Implementation slices**:
+- Slice 4A: lesson file gateway and gateway tests (`lesson-file-gateway.ts`, `lesson-file-gateway.test.ts`).
+- Slice 4B: lint use case and use-case tests (`lint-lessons-use-case.ts`, `lint-lessons-use-case.test.ts`).
+- Slice 4C: CLI command and command tests (`lint-lessons.ts`, `lint-lessons.test.ts`).
+
 **Requirements**:
 - Gateway reads `.lousy-agents/lessons/` relative to the resolved project root (not raw `process.cwd()` string).
 - Before calling `readdir()`, the gateway shall use `assertPathHasNoSymbolicLinks(projectRoot, lessonsDir)` from `packages/core/src/gateways/file-system-utils.ts` to verify that no path segment from the project root to `.lousy-agents/lessons/` is a symbolic link. A plain `lstat()` on the final segment is insufficient — it follows symlinks in ancestor directories (e.g., `.lousy-agents/` itself could be a symlink). Any symlink detection shall throw a typed error; the CLI command is responsible for treating this as a fatal condition and setting a non-zero exit code.
@@ -571,6 +613,9 @@ sequenceDiagram
 - [ ] Tests cover a lesson with missing required fields (exit 1, message includes field name).
 - [ ] Tests cover malformed YAML frontmatter (exit 1).
 - [ ] Tests cover a file exceeding 1MB (exit 1, message includes file path).
+- [ ] Tests cover more than 500 lesson files causing exit 1 with a descriptive cap error.
+- [ ] Tests cover aggregate lesson bytes exceeding 20MB causing exit 1 with a descriptive cap error.
+- [ ] Tests cover trigger arrays exceeding schema caps causing exit 1 with a specific validation reason.
 - [ ] Tests cover a non-existent `.lousy-agents/lessons/` directory.
 - [ ] Tests cover `.lousy-agents/lessons/` path existing but not being a directory (exit 1, message includes path).
 - [ ] Tests cover `.lousy-agents/lessons/` path existing but unreadable/permission denied (exit 1, message includes path and reason).
@@ -585,30 +630,41 @@ sequenceDiagram
 
 ---
 
-### Task 5: Implement `lousy-agents context --files`
+### Task 5: Implement `lousy-agents context`
 
 **Depends on**: Task 4
 
 **Objective**: Return matching lessons as deterministic, model-free JSON for hook `additionalContext`.
 
-**Context**: This is the hot-path runtime feature. It must be fast, debuggable, and contain no model calls. All file paths from CLI args must be validated to stay within the working directory before any I/O.
+**Context**: This is the hot-path runtime feature. It must be fast, debuggable, and contain no model calls. File paths from Claude hook input or CLI args must be validated to stay within the working directory before any I/O.
 
 **Affected files**:
 - `packages/core/src/use-cases/claude-hook-response.ts` (new — shared hook envelope builder; see Data Model section)
 - `packages/core/src/use-cases/claude-hook-response.test.ts` (new)
+- `packages/core/src/use-cases/claude-hook-input-schema.ts` (new — stdin hook input validation; see Data Model section)
+- `packages/core/src/use-cases/claude-hook-input-schema.test.ts` (new)
 - `packages/core/src/use-cases/lesson-context-use-case.ts` (new)
 - `packages/core/src/use-cases/lesson-context-use-case.test.ts` (new)
 - `packages/cli/src/commands/context.ts` (new)
 - `packages/cli/src/commands/context.test.ts` (new)
 
+**Implementation slices**:
+- Slice 5A: hook response builder and tests (`claude-hook-response.ts`, `claude-hook-response.test.ts`).
+- Slice 5B: hook input schema and tests (`claude-hook-input-schema.ts`, `claude-hook-input-schema.test.ts`).
+- Slice 5C: lesson context use case and tests (`lesson-context-use-case.ts`, `lesson-context-use-case.test.ts`).
+- Slice 5D: CLI command and command tests (`context.ts`, `context.test.ts`).
+
 **Requirements**:
-- Accepts one or more file paths via repeated `--files` flags (e.g., `--files path1 --files path2`). Comma-separated values in a single flag are not supported.
-- When invoked without any `--files` arguments, returns all lessons with `type: invariant` without performing path, tag, or content matching. This is the SessionStart injection path; the emitted envelope shall use `hookEventName: "SessionStart"`.
-- When invoked with one or more `--files` arguments, the emitted envelope shall use `hookEventName: "PreToolUse"`.
-- Before any file I/O, validates each `--files` path using `path.resolve()` and applies a boundary-safe containment check: compute `const rel = path.relative(resolvedCwd, resolvedPath)` and reject if ``rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)`` — segment-aware `..` checks avoid false positives for valid in-root filenames like `..foo.ts` (where `rel === '..foo.ts'`), and the `path.isAbsolute` guard handles Windows cross-drive paths where `path.relative` returns an absolute path. `rel === ''` (file equals cwd) is treated as in-bounds. This prevents both path traversal and prefix-confusion attacks (e.g., `/repo` incorrectly matching `/repo2`). String `includes('..')`, `rel.startsWith('..')` without segment terminator, and simple full-path `startsWith` prefix checks must not be used for this check.
+- By default, reads Claude Code hook input JSON from stdin, validates it with `ClaudePreToolUseHookInputSchema`, and extracts only the Edit/Write file path fields needed for matching. The fixed hook command must not receive a shell-interpolated path argument.
+- If stdin contains malformed JSON or hook input that does not match `ClaudePreToolUseHookInputSchema`, logs a warning to stderr, emits the PreToolUse hook envelope with `additionalContext: ""`, and exits zero.
+- Accepts one or more file paths via repeated `--files` flags (e.g., `--files path1 --files path2`) for manual/debug invocations. Comma-separated values in a single flag are not supported.
+- When invoked without hook input or `--files` arguments, returns all lessons with `type: invariant` without performing path, tag, or content matching. This is the SessionStart injection path; the emitted envelope shall use `hookEventName: "SessionStart"`.
+- When invoked from validated PreToolUse hook input or with one or more `--files` arguments, the emitted envelope shall use `hookEventName: "PreToolUse"`.
+- Before any file I/O, validates each hook-input or `--files` path using `path.resolve()` and applies a boundary-safe containment check: compute `const rel = path.relative(resolvedCwd, resolvedPath)` and reject if ``rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)`` — segment-aware `..` checks avoid false positives for valid in-root filenames like `..foo.ts` (where `rel === '..foo.ts'`), and the `path.isAbsolute` guard handles Windows cross-drive paths where `path.relative` returns an absolute path. `rel === ''` (file equals cwd) is treated as in-bounds. This prevents both path traversal and prefix-confusion attacks (e.g., `/repo` incorrectly matching `/repo2`). String `includes('..')`, `rel.startsWith('..')` without segment terminator, and simple full-path `startsWith` prefix checks must not be used for this check.
 - File paths are normalized to forward-slash separators before glob matching.
-- If a `--files` target path cannot be read (e.g., file does not exist yet on new-file Write flows, or permission denied), it is treated as having empty content: content-pattern matching is skipped for that path, a warning is logged, and the command continues. This does not affect exit code. Path containment validation still applies before any read attempt.
-- Reads committed lesson files using the gateway from Task 4 (including size limit enforcement).
+- If a target path cannot be read (e.g., file does not exist yet on new-file Write flows, permission denied, or symlink target rejected), it is treated as having empty content: content-pattern matching is skipped for that path, a warning is logged, and the command continues. This does not affect exit code. Path containment and symlink validation still apply before any read attempt.
+- Before reading target file content, rejects symbolic links and verifies the target's real path remains within the resolved cwd. Symlinked targets are never followed for content matching; they are treated as empty content with a warning.
+- Reads committed lesson files using the gateway from Task 4 (including per-file size, lesson-count, aggregate-byte, and symlink enforcement).
 - Matches lessons by path globs, tag intersection, and literal substring content matching using the semantics defined in the Design section. Pattern matching uses `String.prototype.includes()` or equivalent linear-time search. Regex matching against file content is explicitly prohibited.
 - Empty trigger arrays (`paths: []`, `tags: []`, `patterns: []`) do not match any file — absence is not a wildcard.
 - The matched lesson result set is deduplicated by `slug` (a lesson matching multiple `--files` paths appears only once) and sorted deterministically by `type` ascending then `slug` ascending before being rendered into the envelope.
@@ -618,8 +674,8 @@ sequenceDiagram
 - Returns an envelope with `additionalContext: ""` (empty string) and exits zero when no lessons match.
 - Returns an envelope with `additionalContext: ""` and exits zero when the lessons directory cannot be read.
 - If the gateway throws a typed symlink error for `.lousy-agents/lessons/` (the shared gateway security check from Task 4), the context command shall catch that error, log a warning, and emit `additionalContext: ""` with exit 0. The symlink check is a security control in the shared gateway; the context command's fail-open policy means it must handle this condition gracefully rather than propagating it as a fatal error (contrast with `lint lessons` in Task 4, which treats the symlink error as a fatal condition).
-- If individual lesson files are invalid or oversized, skips them with a logged warning and continues.
-- After returning the matched lessons, the command shall update the frontmatter of each matched lesson file: increment `fire_count` by 1 and set `last_fired` to the current **local** date in `YYYY-MM-DD` format (system local timezone, not UTC). If any individual frontmatter write fails, log a warning and continue — this must not affect the JSON output or exit code.
+- If individual lesson files are invalid, oversized, or violate schema-level resource caps, skips them with a logged warning and continues. Directory-level resource cap violations emit `additionalContext: ""` with exit 0.
+- The command is read-only: it shall not update `fire_count`, `last_fired`, lesson files, or hidden runtime state as part of context injection.
 
 **Verification**:
 - [ ] Tests cover the shared `buildAdditionalContextResponse` helper producing `{ "hookSpecificOutput": { "hookEventName": "...", "additionalContext": "..." } }` for both `PreToolUse` and `SessionStart` event names.
@@ -637,15 +693,20 @@ sequenceDiagram
 - [ ] Tests cover a `--files` path resolving outside cwd being rejected with exit 1.
 - [ ] Tests cover path normalization: a `--files` path with backslash separators resolves correctly against cwd.
 - [ ] Tests cover path normalization: a lesson with path glob `src/policy/**` matches a `--files` path with backslash separators after normalization.
+- [ ] Tests cover validated Claude hook input on stdin extracting an Edit/Write file path and emitting `hookEventName: "PreToolUse"`.
+- [ ] Tests cover malformed stdin hook JSON emitting `additionalContext: ""`, warning on stderr, and exiting zero.
+- [ ] Tests cover stdin hook input missing `tool_input.file_path` emitting `additionalContext: ""`, warning on stderr, and exiting zero.
+- [ ] Tests cover a hook-input filename containing shell metacharacters (for example, `$(touch pwned).ts`) being treated as data, never interpolated into a shell command.
+- [ ] Tests cover an in-repo symlink target pointing outside cwd being treated as empty content with a warning, not read.
 - [ ] Tests cover an individual lesson body exceeding 10 000 characters being truncated before concatenation.
 - [ ] Tests cover the assembled `additionalContext` string being truncated to 10 000 characters when the concatenation of multiple matched lessons exceeds the cap.
 - [ ] Tests cover unreadable lessons directory emitting an envelope with `additionalContext: ""` and exiting zero.
+- [ ] Tests cover directory-level resource caps emitting an envelope with `additionalContext: ""`, logging a warning, and exiting zero.
 - [ ] Tests cover `.lousy-agents/lessons/` being a symlink emitting an envelope with `additionalContext: ""` and exiting zero (fail-open contrast with Task 4's fail-closed behavior).
 - [ ] Tests cover invoking the command without `--files` returning all `invariant` lessons with `hookEventName: "SessionStart"` (SessionStart path).
 - [ ] Tests cover invoking the command with `--files` emitting `hookEventName: "PreToolUse"`.
 - [ ] Output is valid JSON on stdout conforming to the Claude Code hook envelope shape in the Data Model section.
-- [ ] Tests cover `fire_count` being incremented and `last_fired` being set to the current date for each matched lesson after the command runs.
-- [ ] Tests cover a write failure during `fire_count`/`last_fired` update logging a warning without affecting the JSON output or exit code.
+- [ ] Tests cover matched lessons leaving `fire_count`, `last_fired`, and lesson file contents unchanged after the command runs.
 - [ ] `mise run test` passes.
 - [ ] `mise run lint` passes.
 
@@ -672,11 +733,17 @@ sequenceDiagram
 - `packages/cli/src/commands/init-hooks.ts` (new)
 - `packages/cli/src/commands/init-hooks.test.ts` (new)
 
+**Implementation slices**:
+- Slice 6A: hook config gateway and gateway tests (`hook-config-gateway.ts`, `hook-config-gateway.test.ts`).
+- Slice 6B: init-hooks use case and use-case tests (`init-hooks-use-case.ts`, `init-hooks-use-case.test.ts`).
+- Slice 6C: CLI command and command tests (`init-hooks.ts`, `init-hooks.test.ts`).
+
 **Requirements**:
-- Configures PreToolUse hook for Edit and Write operations invoking `lousy-agents context --files <path>`.
+- Configures PreToolUse hook for Edit and Write operations invoking the fixed command `lousy-agents context`; file paths are supplied only through Claude hook input JSON on stdin, not by shell interpolation.
 - Configures both Stop and SubagentStop capture hooks independently, with both invoking `lousy-agents capture`.
 - Supports optional SessionStart hook for broad invariant injection. The SessionStart hook shall invoke `lousy-agents context` without any `--files` arguments to return all `invariant` lessons.
-- Hook config gateway reads `.claude/settings.json` using `readFileNoFollow()`.
+- Before reading or writing `.claude/settings.json`, the hook config gateway shall use `assertPathHasNoSymbolicLinks(projectRoot, settingsPath)` to verify no path segment from the project root to the settings file is a symbolic link.
+- Hook config gateway reads `.claude/settings.json` using `readFileNoFollow()` and writes it without following symlinks. Writes shall be atomic within the `.claude` directory when possible.
 - Preserves unrelated existing settings in `.claude/settings.json` if the file already exists.
 - Does not overwrite existing hook entries for the same tool/event unless `--force` is passed.
 - If `.claude/settings.json` contains malformed JSON, exits non-zero with a descriptive error.
@@ -693,6 +760,8 @@ sequenceDiagram
 - [ ] Tests cover SubagentStop capture wiring.
 - [ ] Tests cover SessionStart invariant wiring.
 - [ ] Tests cover malformed existing JSON causing exit 1 with an error message.
+- [ ] Tests cover `.claude/` being a symlink causing exit 1 before reading or writing settings.
+- [ ] Tests cover `.claude/settings.json` being a symlink causing exit 1 before reading or writing settings.
 - [ ] Tests cover a settings file containing a top-level `__proto__` key being rejected with exit 1.
 - [ ] Tests cover a settings file containing a nested `__proto__` key (e.g., within a nested object) being rejected with exit 1.
 - [ ] `mise run test` passes.
@@ -718,6 +787,10 @@ sequenceDiagram
 - `packages/core/src/use-cases/capture-prompt-use-case.test.ts` (new)
 - `packages/cli/src/commands/capture.ts` (new)
 - `packages/cli/src/commands/capture.test.ts` (new)
+
+**Implementation slices**:
+- Slice 7A: capture prompt use case and tests (`capture-prompt-use-case.ts`, `capture-prompt-use-case.test.ts`).
+- Slice 7B: CLI command and command tests (`capture.ts`, `capture.test.ts`).
 
 **Requirements**:
 - Script reads hook input available from Stop or SubagentStop context.
@@ -760,17 +833,20 @@ sequenceDiagram
 
 **Requirements**:
 - A seeded lesson can be linted.
-- A matching file path returns that lesson through `lousy-agents context`.
+- A matching file path returns that lesson through `lousy-agents context` from both validated hook stdin and manual `--files` invocation.
 - A path traversal attempt via `--files` is rejected.
-- Hook config can be initialized without error.
+- A symlinked edit target pointing outside cwd is not read.
+- Hook config can be initialized without error and without shell-interpolated file path arguments.
 - The capture prompt can be produced from hook input.
 - No v1 out-of-scope features are present in the implementation.
 
 **Verification**:
 - [ ] `lousy-agents lint lessons` exits 0 for seed lessons.
 - [ ] `lousy-agents context --files <matching-path>` returns the expected lesson in JSON.
+- [ ] Piping representative PreToolUse hook JSON into `lousy-agents context` returns the expected lesson in JSON.
 - [ ] `lousy-agents context --files ../../etc/passwd` exits non-zero with a path traversal error.
-- [ ] `lousy-agents init-hooks` produces the expected hook wiring in `.claude/settings.json`.
+- [ ] A symlinked matching path pointing outside cwd does not cause out-of-repo content to be read.
+- [ ] `lousy-agents init-hooks` produces hook wiring that invokes `lousy-agents context` without interpolating a file path into the command string.
 - [ ] `mise run ci` passes.
 - [ ] `npm run build` passes.
 
