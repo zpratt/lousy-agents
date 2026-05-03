@@ -28,14 +28,14 @@ so that I can **reduce repeated mistakes without manually reviewing project conv
 
 #### Acceptance Criteria
 
-- When an agent attempts to edit or write a file, the PreToolUse hook shall invoke `lousy-agents context --files <path>` and return matching lessons as `additionalContext` (the CLI outputs `{ "context": [...] }` to stdout; the hook wraps that output into its `additionalContext` response to Claude — see the Data Model section for the CLI output shape and the BLOCKING open question on exact hook field naming).
+- When an agent attempts to edit or write a file, the PreToolUse hook shall invoke `lousy-agents context --files <path>` and return matching lessons to Claude Code as a `hookSpecificOutput.additionalContext` string (the CLI emits the protocol-compliant Claude Code hook envelope directly on stdout — see the Data Model section for the exact shape).
 - When no lessons match the file, the context command shall return `{"context": []}` on stdout and exit zero.
 - The context command shall not perform model calls, embedding similarity, or LLM-mediated relevance scoring.
 - When a SessionStart hook fires, the context command shall return all lessons with `type: invariant` without requiring a `--files` path argument.
 - If lesson files contain invalid frontmatter, then the context command shall skip those files, log a warning, and continue processing remaining lessons without crashing the hook.
 - If a `--files` path resolves outside the current working directory, then the context command shall reject the path with a boundary-safe containment check (e.g., ``const rel = path.relative(cwd, file); rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)`` — the segment-aware `..` checks avoid false positives for valid in-root filenames like `..foo.ts` (where `rel === '..foo.ts'`), and the `path.isAbsolute` guard handles Windows paths on different drive letters where `path.relative` returns an absolute path rather than a `..`-prefixed one; `rel === ''` means file equals cwd and shall be treated as a valid in-bounds path) and exit non-zero.
 - If the `.lousy-agents/lessons/` directory cannot be read for any reason (missing, not a directory, permission denied), the context command shall return an empty `context` array and exit zero rather than crashing the PreToolUse hook.
-- When a lesson's `triggers.tags` array contains a value matching any forward-slash-separated path segment OR the file extension of the file under edit, the context command shall include that lesson in `additionalContext`. For `src/rules.ts`, testable segments are `src`, `rules.ts`, and `ts`.
+- When a lesson's `triggers.tags` array contains a value matching any forward-slash-separated path segment OR the file extension of the file under edit, the context command shall include that lesson in the rendered `additionalContext` string. For `src/rules.ts`, testable segments are `src`, `rules.ts`, and `ts`.
 - After determining the set of matching lessons, the context command shall increment `fire_count` by 1 and set `last_fired` to the current date in `YYYY-MM-DD` format in the frontmatter of each matched lesson file on disk. If a write fails for any individual lesson (e.g., permission denied, read-only filesystem), the command shall log a warning and continue — the failure must not affect the JSON output or the exit code. Concurrent writes are not guarded; last-writer-wins is acceptable in v1.
 
 ---
@@ -271,27 +271,64 @@ export interface LessonFileGatewayPort {
 }
 ```
 
-#### CLI Stdout JSON Shape
+#### CLI Stdout JSON Shape (Claude Code Hook Envelope)
 
-> **BLOCKING open question for Task 5**: Confirm the exact field name(s) expected by Claude Code for `additionalContext` hook responses before Task 5 begins. The shape below defines the *lousy-agents* stdout output; field naming must conform to the Claude Code hook protocol once confirmed.
+The `lousy-agents context` command emits the **Claude Code hook response envelope directly on stdout**. This avoids the need for a separate shell-script wrapper between Claude Code and the CLI: the hook configuration runs `lousy-agents context --files "$file"` and Claude Code consumes the stdout as the hook response. Confirmed against the [Claude Code hooks documentation](https://docs.claude.com/en/docs/claude-code/hooks): `additionalContext` is a **string** (not a structured array) nested inside `hookSpecificOutput` alongside a `hookEventName` field, and the value is capped at 10 000 characters before Claude Code spills it to a file.
 
 ```json
 {
-  "context": [
-    {
-      "slug": "fail-closed-default",
-      "title": "Use fail-closed defaults for policy decisions",
-      "type": "invariant",
-      "body": "<lesson prose, truncated to 10 000 characters if longer>"
-    }
-  ]
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "additionalContext": "<rendered lesson prose, e.g. markdown sections per matching lesson>"
+  }
 }
 ```
 
 Rules:
-- `context` is an empty array (`[]`) when no lessons match — never `null` or absent.
-- Lesson body is truncated to 10 000 characters before injection to prevent context-window exhaustion.
+
+- The CLI emits exactly one JSON object on stdout. No surrounding prose, no markdown fences.
+- `hookEventName` is `"PreToolUse"` when invoked with `--files`, and `"SessionStart"` when invoked without `--files` (the SessionStart invariant-injection path).
+- `additionalContext` is a **string** rendering of matched lessons (e.g., a concatenation of `## <title>\n\n<body>` blocks). It is **not** a JSON array — Claude Code expects a string here.
+- When no lessons match, the CLI emits `{ "hookSpecificOutput": { "hookEventName": "...", "additionalContext": "" } }` and exits zero. An empty string is the correct "no context" signal; omitting the field or printing nothing is also acceptable per Claude's docs but the explicit empty string keeps the contract uniform and easier to test.
+- The rendered `additionalContext` string is truncated to 10 000 characters total (matching Claude Code's documented cap) before being emitted. Per-lesson body truncation is applied first (see Design section), and the final assembled string is truncated again if the concatenation exceeds the cap.
 - The command exits zero for all non-error conditions, including the no-match case.
+
+#### Shared Hook-Response Builder
+
+Both `@lousy-agents/agent-shell` (PreToolUse `permissionDecision` responses in `policy-check.ts`) and `@lousy-agents/cli` (the new `context` command's `additionalContext` responses) emit Claude Code hook envelopes. To avoid duplicating the envelope-shaping logic — and to keep both packages aligned with the documented `hookSpecificOutput` wrapper — a small shared builder shall live in `@lousy-agents/core` and be consumed by both packages:
+
+```typescript
+// packages/core/src/use-cases/claude-hook-response.ts
+export type ClaudeHookEventName =
+  | 'PreToolUse'
+  | 'PostToolUse'
+  | 'UserPromptSubmit'
+  | 'SessionStart'
+  | 'SubagentStart'
+  | 'Stop'
+  | 'SubagentStop';
+
+export interface AdditionalContextPayload {
+  readonly hookEventName: ClaudeHookEventName;
+  readonly additionalContext: string;
+}
+
+export interface PermissionDecisionPayload {
+  readonly hookEventName: 'PreToolUse';
+  readonly permissionDecision: 'allow' | 'deny' | 'ask';
+  readonly permissionDecisionReason?: string;
+}
+
+export function buildAdditionalContextResponse(
+  payload: AdditionalContextPayload,
+): string;
+
+export function buildPermissionDecisionResponse(
+  payload: PermissionDecisionPayload,
+): string;
+```
+
+Both functions return the JSON-stringified envelope `{ "hookSpecificOutput": { ... } }` ready for stdout. Both packages must consume this builder rather than hand-constructing the envelope — this is the architectural seam that prevents the two hook-response producers from drifting out of sync with the Claude Code protocol. Migrating `agent-shell/src/use-cases/policy-check.ts` to consume `buildPermissionDecisionResponse` is **out of scope for this spec** (its current bare-`permissionDecision` shape is accepted by Claude Code today), but the builder shall be designed to support that migration without API changes.
 
 ### Diagrams
 
@@ -342,7 +379,7 @@ flowchart TB
 
     SessionStart --> ContextCmd
     PreToolUse --> ContextCmd
-    ContextCmd --> AdditionalContext["additionalContext JSON\nmatching lesson prose + metadata"]
+    ContextCmd --> AdditionalContext["hookSpecificOutput JSON\nadditionalContext = rendered lesson prose"]
     AdditionalContext --> Agent
 
     StopHook --> CaptureCmd
@@ -365,7 +402,7 @@ sequenceDiagram
     Dev->>Agent: Start coding session
     Hook->>CLI: SessionStart — request invariant lessons
     CLI->>Lessons: Read type:invariant lessons (readFileNoFollow, max 1MB each)
-    CLI-->>Hook: additionalContext JSON
+    CLI-->>Hook: hookSpecificOutput JSON (SessionStart, additionalContext string)
     Hook-->>Agent: Inject broad invariant lessons at session open
 
     Agent->>Hook: Attempt Edit/Write on file
@@ -373,7 +410,7 @@ sequenceDiagram
     CLI->>CLI: Validate path stays within cwd (reject traversal)
     CLI->>Lessons: Read lesson frontmatter + prose (size-checked)
     CLI->>CLI: Match path globs, tags, fixed-length patterns (no model calls)
-    CLI-->>Hook: Matching lessons as additionalContext
+    CLI-->>Hook: hookSpecificOutput JSON (PreToolUse, additionalContext string)
     Hook-->>Agent: Provide relevant lessons before edit decision
 
     Agent->>Hook: Session ends (Stop / SubagentStop)
@@ -386,7 +423,7 @@ sequenceDiagram
 ### Open Questions
 
 - [x] ~~Should `fire_count` and `last_fired` be auto-updated in PreToolUse, or remain manually maintained to keep the hot path passive and avoid noisy working-tree diffs?~~ **Resolved**: Auto-updated. The context command increments `fire_count` and sets `last_fired` to the current date for each matched lesson. Working-tree diffs are acceptable.
-- [ ] **BLOCKING for Task 5**: What is the exact JSON shape expected by Claude Code for `additionalContext` in hook responses? A proposed shape is defined in the Data Model section above; confirm against Claude Code documentation before Task 5 begins.
+- [x] ~~**BLOCKING for Task 5**: What is the exact JSON shape expected by Claude Code for `additionalContext` in hook responses? A proposed shape is defined in the Data Model section above; confirm against Claude Code documentation before Task 5 begins.~~ **Resolved**: Per the [Claude Code hooks documentation](https://docs.claude.com/en/docs/claude-code/hooks), `additionalContext` is a **string** nested inside `hookSpecificOutput` alongside `hookEventName`. Claude Code caps the value at 10 000 characters before spilling to a file. The CLI emits the protocol-compliant envelope directly on stdout (no separate wrapper script needed). Repo audit: `agent-shell`'s `policy-check.ts` is the only existing Claude hook-response producer and emits a different shape (`permissionDecision`); a small shared `buildAdditionalContextResponse` / `buildPermissionDecisionResponse` helper in `@lousy-agents/core` shall be introduced so both packages avoid duplicating the envelope-shaping logic. See the Data Model section for the canonical shape and the shared builder interface.
 - [x] ~~Should `lousy-agents context --files` accept comma-separated paths, repeated flags, or both?~~ **Resolved**: `--files` accepts repeated flags only (e.g., `--files path1 --files path2`). No comma-splitting — avoids the need to escape or parse commas in file paths.
 - [ ] Which hook takes priority for capture: `SubagentStop`, `Stop`, or both wired independently?
 - [ ] **BLOCKING**: Is an existing YAML parser in the workspace sufficient for frontmatter parsing, or is a new dependency required? Do not begin Task 4 until this is resolved with explicit maintainer approval.
@@ -556,6 +593,8 @@ sequenceDiagram
 **Context**: This is the hot-path runtime feature. It must be fast, debuggable, and contain no model calls. All file paths from CLI args must be validated to stay within the working directory before any I/O.
 
 **Affected files**:
+- `packages/core/src/use-cases/claude-hook-response.ts` (new — shared hook envelope builder; see Data Model section)
+- `packages/core/src/use-cases/claude-hook-response.test.ts` (new)
 - `packages/core/src/use-cases/lesson-context-use-case.ts` (new)
 - `packages/core/src/use-cases/lesson-context-use-case.test.ts` (new)
 - `packages/cli/src/commands/context.ts` (new)
@@ -563,38 +602,42 @@ sequenceDiagram
 
 **Requirements**:
 - Accepts one or more file paths via repeated `--files` flags (e.g., `--files path1 --files path2`). Comma-separated values in a single flag are not supported.
-- When invoked without any `--files` arguments, returns all lessons with `type: invariant` without performing path, tag, or content matching. This is the SessionStart injection path.
+- When invoked without any `--files` arguments, returns all lessons with `type: invariant` without performing path, tag, or content matching. This is the SessionStart injection path; the emitted envelope shall use `hookEventName: "SessionStart"`.
+- When invoked with one or more `--files` arguments, the emitted envelope shall use `hookEventName: "PreToolUse"`.
 - Before any file I/O, validates each `--files` path using `path.resolve()` and applies a boundary-safe containment check: compute `const rel = path.relative(resolvedCwd, resolvedPath)` and reject if ``rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)`` — segment-aware `..` checks avoid false positives for valid in-root filenames like `..foo.ts` (where `rel === '..foo.ts'`), and the `path.isAbsolute` guard handles Windows cross-drive paths where `path.relative` returns an absolute path. `rel === ''` (file equals cwd) is treated as in-bounds. This prevents both path traversal and prefix-confusion attacks (e.g., `/repo` incorrectly matching `/repo2`). String `includes('..')`, `rel.startsWith('..')` without segment terminator, and simple full-path `startsWith` prefix checks must not be used for this check.
 - File paths are normalized to forward-slash separators before glob matching.
 - Reads committed lesson files using the gateway from Task 4 (including size limit enforcement).
 - Matches lessons by path globs, tag intersection, and literal substring content matching using the semantics defined in the Design section. Pattern matching uses `String.prototype.includes()` or equivalent linear-time search. Regex matching against file content is explicitly prohibited.
 - Empty trigger arrays (`paths: []`, `tags: []`, `patterns: []`) do not match any file — absence is not a wildcard.
-- Lesson body content is truncated to 10 000 characters before inclusion in the `additionalContext` output.
-- Returns CLI stdout JSON conforming to the `{ "context": [...] }` shape defined in the Data Model section. The PreToolUse hook is responsible for wrapping this output into the Claude Code `additionalContext` response format once field names are confirmed (see blocking open question in the Data Model section).
+- Each matched lesson's body is truncated to 10 000 characters before being rendered into the `additionalContext` string. After all matched lessons are concatenated into the rendered string, the final string is truncated again to 10 000 characters total to match Claude Code's documented `additionalContext` cap.
+- Emits the Claude Code hook envelope on stdout via the shared `buildAdditionalContextResponse` helper (defined in `packages/core/src/use-cases/claude-hook-response.ts`). The CLI must not hand-construct the `hookSpecificOutput` envelope; consuming the shared builder is mandatory so `agent-shell`'s policy hook and this command stay in sync with the protocol.
 - Performs no model calls, embedding lookup, or LLM relevance scoring.
-- Returns a valid empty `context` array (exits zero) when no lessons match.
-- Returns a valid empty `context` array (exits zero) when the lessons directory cannot be read.
-- If the gateway throws a typed symlink error for `.lousy-agents/lessons/` (the shared gateway security check from Task 4), the context command shall catch that error, log a warning, and return `{ context: [] }` with exit 0. The symlink check is a security control in the shared gateway; the context command's fail-open policy means it must handle this condition gracefully rather than propagating it as a fatal error (contrast with `lint lessons` in Task 4, which treats the symlink error as a fatal condition).
+- Returns an envelope with `additionalContext: ""` (empty string) and exits zero when no lessons match.
+- Returns an envelope with `additionalContext: ""` and exits zero when the lessons directory cannot be read.
+- If the gateway throws a typed symlink error for `.lousy-agents/lessons/` (the shared gateway security check from Task 4), the context command shall catch that error, log a warning, and emit `additionalContext: ""` with exit 0. The symlink check is a security control in the shared gateway; the context command's fail-open policy means it must handle this condition gracefully rather than propagating it as a fatal error (contrast with `lint lessons` in Task 4, which treats the symlink error as a fatal condition).
 - If individual lesson files are invalid or oversized, skips them with a logged warning and continues.
 - After returning the matched lessons, the command shall update the frontmatter of each matched lesson file: increment `fire_count` by 1 and set `last_fired` to the current date in `YYYY-MM-DD` format. If any individual frontmatter write fails, log a warning and continue — this must not affect the JSON output or exit code.
 
 **Verification**:
+- [ ] Tests cover the shared `buildAdditionalContextResponse` helper producing `{ "hookSpecificOutput": { "hookEventName": "...", "additionalContext": "..." } }` for both `PreToolUse` and `SessionStart` event names.
 - [ ] Tests cover a path-glob match (lesson fires for matching path).
 - [ ] Tests cover a tag match (lesson fires when a tag equals a path segment of the `--files` path).
 - [ ] Tests cover a content-pattern match (literal substring found in file content).
 - [ ] Tests cover a non-matching lesson being excluded.
 - [ ] Tests cover empty trigger arrays not matching any file.
-- [ ] Tests cover empty match result returning `{ context: [] }` and exiting zero.
+- [ ] Tests cover empty match result emitting an envelope with `additionalContext: ""` and exiting zero.
 - [ ] Tests cover multiple `--files` flags producing a merged match result.
 - [ ] Tests cover a `--files` path with `..` segments that resolves outside cwd being rejected with exit 1 (e.g., `../../etc/passwd`). A path with `..` segments that still resolves inside cwd (e.g., `src/../lib/safe.ts`) shall not be rejected.
 - [ ] Tests cover a `--files` path resolving outside cwd being rejected with exit 1.
 - [ ] Tests cover path normalization: a `--files` path with backslash separators resolves correctly against cwd.
 - [ ] Tests cover path normalization: a lesson with path glob `src/policy/**` matches a `--files` path with backslash separators after normalization.
-- [ ] Tests cover lesson body exceeding 10 000 characters being truncated in JSON output.
-- [ ] Tests cover unreadable lessons directory returning `{ context: [] }` and exiting zero.
-- [ ] Tests cover `.lousy-agents/lessons/` being a symlink returning `{ context: [] }` and exiting zero (fail-open contrast with Task 4's fail-closed behavior).
-- [ ] Tests cover invoking the command without `--files` returning all `invariant` lessons (SessionStart path).
-- [ ] Output is valid JSON on stdout conforming to the shape in the Data Model section.
+- [ ] Tests cover an individual lesson body exceeding 10 000 characters being truncated before concatenation.
+- [ ] Tests cover the assembled `additionalContext` string being truncated to 10 000 characters when the concatenation of multiple matched lessons exceeds the cap.
+- [ ] Tests cover unreadable lessons directory emitting an envelope with `additionalContext: ""` and exiting zero.
+- [ ] Tests cover `.lousy-agents/lessons/` being a symlink emitting an envelope with `additionalContext: ""` and exiting zero (fail-open contrast with Task 4's fail-closed behavior).
+- [ ] Tests cover invoking the command without `--files` returning all `invariant` lessons with `hookEventName: "SessionStart"` (SessionStart path).
+- [ ] Tests cover invoking the command with `--files` emitting `hookEventName: "PreToolUse"`.
+- [ ] Output is valid JSON on stdout conforming to the Claude Code hook envelope shape in the Data Model section.
 - [ ] Tests cover `fire_count` being incremented and `last_fired` being set to the current date for each matched lesson after the command runs.
 - [ ] Tests cover a write failure during `fire_count`/`last_fired` update logging a warning without affecting the JSON output or exit code.
 - [ ] `mise run test` passes.
