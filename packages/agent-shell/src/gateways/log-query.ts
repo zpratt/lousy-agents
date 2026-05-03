@@ -3,7 +3,11 @@ import { join, resolve } from "node:path";
 import type { ScriptEvent } from "../entities/types.js";
 import { ScriptEventSchema } from "../entities/types.js";
 import { hasProtoKey } from "../entities/validation.js";
-import { isPathNotFoundError, isWithinProjectRoot } from "../lib/path-utils.js";
+import {
+    isNameTooLongError,
+    isPathNotFoundError,
+    isWithinProjectRoot,
+} from "../lib/path-utils.js";
 
 export interface QueryDeps {
     readdir: (path: string) => Promise<string[]>;
@@ -90,11 +94,7 @@ export async function resolveReadEventsDir(
         try {
             resolved = await deps.realpath(candidate);
         } catch (err: unknown) {
-            const code =
-                typeof err === "object" && err !== null && "code" in err
-                    ? (err as { code: unknown }).code
-                    : undefined;
-            if (isPathNotFoundError(err) || code === "ENAMETOOLONG") {
+            if (isPathNotFoundError(err) || isNameTooLongError(err)) {
                 return {
                     dir: "",
                     error: "AGENTSHELL_LOG_DIR does not exist or is not a directory",
