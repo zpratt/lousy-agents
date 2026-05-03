@@ -16,7 +16,6 @@
  * ```
  */
 
-// ── Instruction quality result types (returned in LintOutput) ────────
 export type {
     CommandQualityScores,
     DiscoveredInstructionFile,
@@ -25,14 +24,14 @@ export type {
     InstructionSuggestion,
     ParsingError,
 } from "@lousy-agents/core/entities/instruction-quality.js";
-// ── Consumer-facing result types ─────────────────────────────────────
+
 export type {
     LintDiagnostic,
     LintOutput,
     LintSeverity,
     LintTarget,
 } from "@lousy-agents/core/entities/lint.js";
-// ── Lint rule configuration types (for advanced consumers) ───────────
+
 export type {
     LintRulesConfig,
     RuleConfigMap,
@@ -43,9 +42,9 @@ export type {
     LintFormatType,
     LintFormatter,
 } from "@lousy-agents/core/formatters/index.js";
-// ── Output formatters ────────────────────────────────────────────────
+
 export { createFormatter } from "@lousy-agents/core/formatters/index.js";
 export type { LintOptions, LintResult } from "./lint.js";
 export { runLint } from "./lint.js";
-// ── Public lint API (composition root) ───────────────────────────────
+
 export { LintValidationError } from "./lint-errors.js";

@@ -8,7 +8,6 @@ import { join } from "node:path";
 import type { AgentFileGateway } from "../use-cases/create-copilot-agent.js";
 import { fileExists, resolveSafePath } from "./file-system-utils.js";
 
-// Re-export port type for consumers
 export type { AgentFileGateway };
 
 /**

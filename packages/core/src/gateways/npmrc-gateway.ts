@@ -14,7 +14,6 @@ const MAX_NPMRC_BYTES = 64 * 1024;
 
 import type { NpmrcGateway } from "../use-cases/add-agent-shell.js";
 
-// Re-export port type for consumers
 export type { NpmrcGateway };
 
 /**

@@ -71,15 +71,12 @@ export class DiscoverFeedbackLoopsUseCase {
             throw new Error("Target directory is required");
         }
 
-        // Discover scripts from package.json
         const scripts = await this.scriptGateway.discoverScripts(
             input.targetDir,
         );
 
-        // Discover tools from GitHub Actions workflows
         const tools = await this.toolGateway.discoverTools(input.targetDir);
 
-        // Detect package manager
         const packageManagers =
             await this.packageManagerGateway.detectPackageManagers(
                 input.targetDir,

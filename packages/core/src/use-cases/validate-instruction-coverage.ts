@@ -55,7 +55,6 @@ export class ValidateInstructionCoverageUseCase {
             throw new Error("Target directory is required");
         }
 
-        // First, discover all feedback loops
         const discoveryResult: DiscoverFeedbackLoopsOutput =
             await this.discoverFeedbackLoops.execute({
                 targetDir: input.targetDir,
@@ -64,14 +63,12 @@ export class ValidateInstructionCoverageUseCase {
         const { scripts, tools, packageManager } =
             discoveryResult.feedbackLoops;
 
-        // Analyze instruction coverage
         const coverage = await this.instructionGateway.analyzeCoverage(
             input.targetDir,
             scripts,
             tools,
         );
 
-        // Generate suggestions for missing documentation
         const suggestions = this.generateSuggestions(
             coverage,
             packageManager || "npm",
@@ -102,7 +99,6 @@ export class ValidateInstructionCoverageUseCase {
         );
         suggestions.push("");
 
-        // Group by phase
         const byPhase = new Map<
             string,
             typeof coverage.missingInInstructions
@@ -113,17 +109,14 @@ export class ValidateInstructionCoverageUseCase {
             byPhase.set(item.phase, existing);
         }
 
-        // Generate suggestions per phase
         for (const [phase, items] of byPhase.entries()) {
             suggestions.push(`${phase.toUpperCase()} phase:`);
             for (const item of items) {
                 if ("command" in item) {
-                    // It's a script
                     suggestions.push(
                         `  - Document "${packageManager} run ${item.name}" (runs: ${item.command})`,
                     );
                 } else {
-                    // It's a tool
                     suggestions.push(`  - Document "${item.fullCommand}"`);
                 }
             }

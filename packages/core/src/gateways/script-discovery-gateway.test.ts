@@ -172,7 +172,6 @@ describe("FileSystemScriptDiscoveryGateway", () => {
 
     describe("when package.json contains malformed JSON", () => {
         it("should return empty array when JSON is malformed", async () => {
-            // Write invalid JSON
             await writeFile(
                 join(testDir, "package.json"),
                 '{ "scripts": { "test": "vitest" } invalid json',
@@ -202,9 +201,6 @@ describe("FileSystemScriptDiscoveryGateway", () => {
 
     describe("when package.json exceeds the size limit", () => {
         it("should return empty array for files over 1 MB", async () => {
-            // 1 MB + 1 byte — just over the internal MAX_PACKAGE_JSON_BYTES (1024 * 1024).
-            // Script discovery is best-effort: oversized manifests yield [] rather than
-            // aborting the lint run.
             const oversized = "x".repeat(1024 * 1024 + 1);
             await writeFile(join(testDir, "package.json"), oversized);
 
@@ -252,7 +248,6 @@ describe("FileSystemScriptDiscoveryGateway", () => {
 
     describe("when package.json scripts field fails schema validation", () => {
         it("should return empty array when a script value is not a string", async () => {
-            // Valid JSON but scripts values are not strings — schema rejects it
             await writeFile(
                 join(testDir, "package.json"),
                 JSON.stringify({
@@ -270,7 +265,6 @@ describe("FileSystemScriptDiscoveryGateway", () => {
 
 describe("createFeedbackLoopCommandsGateway", () => {
     it("filters to mandatory-only commands from the injected gateway", async () => {
-        // Arrange
         const chance = new Chance();
         const mandatoryName = chance.word();
         const optionalName = chance.word();
@@ -292,16 +286,13 @@ describe("createFeedbackLoopCommandsGateway", () => {
         };
         const gateway = createFeedbackLoopCommandsGateway(stubGateway);
 
-        // Act
         const result = await gateway.getMandatoryCommands("/any/dir");
 
-        // Assert
         expect(result).toEqual([mandatoryName]);
         expect(result).not.toContain(optionalName);
     });
 
     it("creates its own FileSystemScriptDiscoveryGateway when no gateway is provided", async () => {
-        // Arrange — empty dir, so discoverScripts returns []
         const dir = join(
             "/tmp",
             `test-feedback-gateway-${new Chance().guid()}`,
@@ -310,10 +301,8 @@ describe("createFeedbackLoopCommandsGateway", () => {
         const gateway = createFeedbackLoopCommandsGateway();
 
         try {
-            // Act
             const result = await gateway.getMandatoryCommands(dir);
 
-            // Assert
             expect(result).toEqual([]);
         } finally {
             await rm(dir, { recursive: true, force: true });

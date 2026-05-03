@@ -21,7 +21,6 @@ const PackageJsonSchema = z.object({
     scripts: z.record(z.string(), z.string()).optional(),
 });
 
-// Re-export port types for consumers
 export type { FeedbackLoopCommandsGateway, ScriptDiscoveryGateway };
 
 /**
@@ -35,11 +34,6 @@ export class FileSystemScriptDiscoveryGateway
     async discoverScripts(targetDir: string): Promise<DiscoveredScript[]> {
         const packageJsonPath = join(targetDir, "package.json");
 
-        // readFileNoFollow combines O_NOFOLLOW + fstat size check + read on the same fd,
-        // eliminating both the fileExists TOCTOU window and symlink attacks.
-        // Script discovery is best-effort: any read failure returns [] so a missing,
-        // unreadable, oversized, or symlinked manifest never aborts the lint run.
-        // Unexpected failures (EACCES, EIO, symlink, size) are logged at warn level.
         let content: string;
         try {
             content = await readFileNoFollow(
@@ -59,9 +53,6 @@ export class FileSystemScriptDiscoveryGateway
             return [];
         }
 
-        // Isolate JSON.parse — the only legitimate SyntaxError source — so
-        // entity-layer calls (determineScriptPhase, isScriptMandatory) are
-        // never accidentally swallowed by the SyntaxError guard.
         let parsed: unknown;
         try {
             parsed = JSON.parse(content);

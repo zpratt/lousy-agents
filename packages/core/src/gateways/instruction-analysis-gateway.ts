@@ -13,7 +13,6 @@ import type {
 import type { InstructionAnalysisGateway } from "../use-cases/validate-instruction-coverage.js";
 import { fileExists } from "./file-system-utils.js";
 
-// Re-export port type for consumers
 export type { InstructionAnalysisGateway };
 
 /**
@@ -27,10 +26,8 @@ export class FileSystemInstructionAnalysisGateway
         scripts: DiscoveredScript[],
         tools: DiscoveredTool[],
     ): Promise<FeedbackLoopCoverage> {
-        // Find all instruction files
         const instructionFiles = await this.findInstructionFiles(targetDir);
 
-        // Read and search instruction content
         const references: InstructionReference[] = [];
         const documentedTargets = new Set<string>();
 
@@ -38,7 +35,6 @@ export class FileSystemInstructionAnalysisGateway
             const content = await readFile(file, "utf-8");
             const lines = content.split("\n");
 
-            // Check for script references (e.g., "npm test", "npm run build")
             for (const script of scripts) {
                 const scriptRefs = this.findReferencesInContent(
                     script.name,
@@ -53,7 +49,6 @@ export class FileSystemInstructionAnalysisGateway
                 }
             }
 
-            // Check for tool references (e.g., "mise run test", "biome check")
             for (const tool of tools) {
                 const toolRefs = this.findReferencesInContent(
                     tool.name,
@@ -69,12 +64,10 @@ export class FileSystemInstructionAnalysisGateway
             }
         }
 
-        // Filter mandatory scripts/tools
         const mandatoryScripts = scripts.filter((s) => s.isMandatory);
         const mandatoryTools = tools.filter((t) => t.isMandatory);
         const allMandatory = [...mandatoryScripts, ...mandatoryTools];
 
-        // Categorize as missing or documented
         const missingInInstructions = allMandatory.filter(
             (item) => !documentedTargets.has(item.name),
         );
@@ -104,7 +97,6 @@ export class FileSystemInstructionAnalysisGateway
     private async findInstructionFiles(targetDir: string): Promise<string[]> {
         const files: string[] = [];
 
-        // Check for .github/copilot-instructions.md
         const copilotInstructions = join(
             targetDir,
             ".github",
@@ -114,7 +106,6 @@ export class FileSystemInstructionAnalysisGateway
             files.push(copilotInstructions);
         }
 
-        // Check for .github/instructions/*.md
         const instructionsDir = join(targetDir, ".github", "instructions");
         if (await fileExists(instructionsDir)) {
             try {
@@ -125,8 +116,6 @@ export class FileSystemInstructionAnalysisGateway
                     }
                 }
             } catch {
-                // Skip directory if we can't read it (e.g., permissions issues)
-                // Similar to how workflow parsing errors are handled
             }
         }
 
@@ -142,27 +131,19 @@ export class FileSystemInstructionAnalysisGateway
     ): InstructionReference[] {
         const references: InstructionReference[] = [];
 
-        // Build a case-insensitive, word-boundary-aware pattern for the target.
-        // This reduces false positives from simple substring matches like
-        // "test" in "testing" or "latest", while still matching common
-        // separators such as spaces, punctuation, etc.
         const escapedTarget = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const targetPattern = new RegExp(
             `(?:^|[^\\w])(${escapedTarget})(?=$|[^\\w])`,
             "i",
         );
 
-        // Fast path: skip line-by-line processing if the target pattern
-        // never appears in the full content.
         if (!targetPattern.test(content)) {
             return references;
         }
 
-        // Find line numbers where target appears
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             if (targetPattern.test(line)) {
-                // Get context (line before and after if available)
                 const contextLines: string[] = [];
                 if (i > 0) contextLines.push(lines[i - 1]);
                 contextLines.push(line);
@@ -173,7 +154,7 @@ export class FileSystemInstructionAnalysisGateway
                 references.push({
                     target,
                     file: relativePath,
-                    line: i + 1, // 1-indexed
+                    line: i + 1,
                     context: contextLines.join("\n"),
                 });
             }

@@ -98,7 +98,6 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
                 );
                 allCandidates.push(...candidates);
             } catch {
-                // Skip unreadable or malformed YAML workflow files while continuing scan.
             }
         }
 

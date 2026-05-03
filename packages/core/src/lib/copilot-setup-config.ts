@@ -177,10 +177,8 @@ export async function loadCopilotSetupConfig(
  * because configuration is no longer cached at module scope.
  */
 export function resetCopilotSetupConfigCache(): void {
-    // no in-memory cache to reset
 }
 
-// Re-export map helpers from entities for backward compatibility
 export {
     getVersionFileConfigKeyMap,
     getVersionTypeToActionMap,

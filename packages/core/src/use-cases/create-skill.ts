@@ -97,7 +97,6 @@ export class CreateSkillUseCase {
         targetDir: string,
         skillName: string,
     ): Promise<CreateSkillResult> {
-        // Validate the skill name using Zod schema
         const validationResult = SkillNameSchema.safeParse(skillName);
         if (!validationResult.success) {
             const errorMessage =
@@ -109,10 +108,8 @@ export class CreateSkillUseCase {
             };
         }
 
-        // Normalize the skill name
         const normalizedName = normalizeSkillName(validationResult.data);
 
-        // Validate that the normalized name is not empty (handles whitespace-only input)
         if (!normalizedName) {
             return {
                 success: false,
@@ -120,7 +117,6 @@ export class CreateSkillUseCase {
             };
         }
 
-        // Get the paths
         const skillDirectoryPath = this.gateway.getSkillDirectoryPath(
             targetDir,
             normalizedName,
@@ -130,7 +126,6 @@ export class CreateSkillUseCase {
             normalizedName,
         );
 
-        // Check if the skill directory already exists
         if (
             await this.gateway.skillDirectoryExists(targetDir, normalizedName)
         ) {
@@ -141,13 +136,10 @@ export class CreateSkillUseCase {
             };
         }
 
-        // Ensure the skill directory exists
         await this.gateway.ensureSkillDirectory(targetDir, normalizedName);
 
-        // Generate the content
         const content = generateSkillContent(normalizedName);
 
-        // Write the SKILL.md file
         await this.gateway.writeSkillFile(targetDir, normalizedName, content);
 
         return {
