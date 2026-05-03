@@ -29,6 +29,17 @@ import { ZodError, z } from "zod";
 import { LintValidationError } from "./lint-errors.js";
 import { validateDirectory } from "./validate-directory.js";
 
+/**
+ * Minimal logger interface for the public `LintOptions.logger` boundary.
+ *
+ * Intentionally structurally typed: any object with a `.warn` method
+ * (consola, pino, plain object) satisfies this contract. This keeps the
+ * published `@lousy-agents/lint` types free from a hard `consola` import.
+ */
+interface LintLogger {
+    warn(message: string, ...args: unknown[]): void;
+}
+
 const LintTargetsSchema = z
     .object({
         skills: z.boolean().optional(),
@@ -45,13 +56,15 @@ const LintOptionsSchema = z
         targets: LintTargetsSchema,
         // logger is a runtime object — `z.custom` validates its structural contract
         // at the boundary; TypeScript enforces it further at compile time.
+        // `v === undefined` is NOT needed here: ZodOptional intercepts undefined
+        // before the predicate is invoked, so the guard would be dead code.
         logger: z
-            .custom<ConsolaInstance>(
+            .custom<LintLogger>(
                 (v) =>
-                    v === undefined ||
-                    (v !== null &&
-                        typeof v === "object" &&
-                        typeof (v as ConsolaInstance).warn === "function"),
+                    v !== null &&
+                    typeof v === "object" &&
+                    typeof (v as LintLogger).warn === "function",
+                { message: "logger must be an object with a .warn method" },
             )
             .optional(),
     })
@@ -63,9 +76,9 @@ const LintOptionsSchema = z
  * @property directory - Path to the project directory to lint (absolute or relative).
  * @property targets - Optional selection of which lint targets to run.
  *   When omitted or when all flags are false, all targets are linted.
- * @property logger - Optional logger instance for gateway diagnostics (e.g. warnings
+ * @property logger - Optional logger for gateway diagnostics (e.g. warnings
  *   about unreadable or malformed package.json files). When omitted, the global
- *   `consola` instance is used.
+ *   `consola` instance is used. Must be an object with a `.warn` method.
  */
 export interface LintOptions {
     readonly directory: string;
@@ -75,7 +88,7 @@ export interface LintOptions {
         readonly hooks?: boolean;
         readonly instructions?: boolean;
     };
-    readonly logger?: ConsolaInstance;
+    readonly logger?: LintLogger;
 }
 
 /**
@@ -162,13 +175,15 @@ async function lintHooks(targetDir: string): Promise<LintOutput> {
 
 async function lintInstructions(
     targetDir: string,
-    logger?: ConsolaInstance,
+    logger?: LintLogger,
 ): Promise<LintOutput> {
     const discoveryGateway = createInstructionFileDiscoveryGateway();
     const astGateway = createMarkdownAstGateway();
+    // Cast to ConsolaInstance: the core gateway only calls `.warn()`, which is
+    // the entire contract of LintLogger. The cast is safe by construction.
     const commandsGateway = createFeedbackLoopCommandsGateway(
         undefined,
-        logger,
+        logger as ConsolaInstance | undefined,
     );
 
     const useCase = new AnalyzeInstructionQualityUseCase(

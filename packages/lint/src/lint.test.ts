@@ -253,4 +253,26 @@ describe("runLint", () => {
             await expect(runLint(options)).rejects.toThrow(LintValidationError);
         });
     });
+
+    describe("given a non-object as the logger option", () => {
+        it("rejects with a LintValidationError", async () => {
+            const options = {
+                directory: tempDir,
+                logger: "not-an-object",
+            } as unknown as LintOptions;
+
+            await expect(runLint(options)).rejects.toThrow(LintValidationError);
+        });
+    });
+
+    describe("given an object without a .warn method as the logger option", () => {
+        it("rejects with a LintValidationError", async () => {
+            const options = {
+                directory: tempDir,
+                logger: { noWarnMethod: true },
+            } as unknown as LintOptions;
+
+            await expect(runLint(options)).rejects.toThrow(LintValidationError);
+        });
+    });
 });
