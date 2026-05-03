@@ -5,7 +5,7 @@ Validates agent skills, custom agents, hook configurations, and instruction file
 ## Features
 
 - **Unified Linting**: Lint skills, agents, hook configurations, and instruction files through a single command
-- **Automatic Discovery**: Finds targets across `.github/skills/`, `.claude/skills/`, `.github/agents/`, `.github/hooks/agent-shell/`, `.claude/`, and instruction file locations
+- **Automatic Discovery**: Finds targets across `.github/skills/`, `.claude/skills/`, `.agents/skills/`, `.github/agents/`, `.github/hooks/agent-shell/`, `.claude/`, and instruction file locations
 - **Frontmatter Validation**: Checks for required fields and validates their format
 - **Hook Configuration Validation**: Validates JSON hook config files for Copilot and Claude Code against expected schemas
 - **Instruction Quality Analysis**: Scores feedback loop documentation across three dimensions (structural context, execution clarity, loop completeness)
@@ -92,7 +92,7 @@ Use flags to lint specific targets:
 
 | Flag | Description |
 | ------ | ------------- |
-| `--skills` | Lint skill frontmatter in `.github/skills/` and `.claude/skills/` |
+| `--skills` | Lint skill frontmatter in `.github/skills/`, `.claude/skills/`, and `.agents/skills/` |
 | `--agents` | Lint agent frontmatter in `.github/agents/` |
 | `--hooks` | Lint hook configuration files for Copilot and Claude Code |
 | `--instructions` | Analyze instruction quality across all instruction file formats |
@@ -119,7 +119,7 @@ npx @lousy-agents/cli lint
 
 ## Skill Linting (`--skills`)
 
-Validates YAML frontmatter in `.github/skills/*/SKILL.md` and `.claude/skills/*/SKILL.md` files.
+Validates YAML frontmatter in `.github/skills/*/SKILL.md`, `.claude/skills/*/SKILL.md`, and `.agents/skills/*/SKILL.md` files.
 
 ### What It Validates
 
@@ -458,7 +458,7 @@ When no target inputs are set, the action lints all targets (skills, agents, hoo
 | Input | Required | Default | Description |
 | ------- | ---------- | --------- | ------------- |
 | `github_token` | Yes | — | GitHub token for reviewdog API access |
-| `skills` | No | `false` | Lint skill frontmatter in `.github/skills/` and `.claude/skills/` |
+| `skills` | No | `false` | Lint skill frontmatter in `.github/skills/`, `.claude/skills/`, and `.agents/skills/` |
 | `agents` | No | `false` | Lint agent frontmatter in `.github/agents/` |
 | `hooks` | No | `false` | Lint hook configuration files for Copilot and Claude Code |
 | `instructions` | No | `false` | Lint instruction quality |
