@@ -16,7 +16,7 @@ AI coding agents repeat mistakes, forget project-specific conventions, and lose 
 
 - **Primary value**: Future — agents accumulate knowledge across sessions, reducing repeated mistakes and cutting debugging time over time.
 - **Secondary value**: Efficiency — lesson injection is deterministic and passive; no developer intervention required during the hot path.
-- **Secondary value**: Customer — agents produce more reliable code aligned with project-specific invariants, increasing confidence in AI-assisted development.
+- **Tertiary value**: Customer — agents produce more reliable code aligned with project-specific invariants, increasing confidence in AI-assisted development.
 
 ## User Stories
 
@@ -447,7 +447,7 @@ sequenceDiagram
 
 **Requirements**:
 - The document states the storage layout, lesson schema, lesson types, authorship model, capture trigger, injection mechanism, deterministic matching strategy, and v1 out-of-scope list.
-- The document is sized to fit on two screens — decisions, not alternatives.
+- The document does not exceed 150 lines — decisions, not alternatives.
 - The document explicitly states: no database, no hidden state, no model calls in PreToolUse, no custom lesson-authoring MCP API.
 - The document explicitly states the slug safety constraint (`^[a-z0-9-]+$`), the 200-character pattern limit, and the 1MB lesson file size limit.
 
@@ -606,9 +606,11 @@ sequenceDiagram
 - When invoked with one or more `--files` arguments, the emitted envelope shall use `hookEventName: "PreToolUse"`.
 - Before any file I/O, validates each `--files` path using `path.resolve()` and applies a boundary-safe containment check: compute `const rel = path.relative(resolvedCwd, resolvedPath)` and reject if ``rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)`` — segment-aware `..` checks avoid false positives for valid in-root filenames like `..foo.ts` (where `rel === '..foo.ts'`), and the `path.isAbsolute` guard handles Windows cross-drive paths where `path.relative` returns an absolute path. `rel === ''` (file equals cwd) is treated as in-bounds. This prevents both path traversal and prefix-confusion attacks (e.g., `/repo` incorrectly matching `/repo2`). String `includes('..')`, `rel.startsWith('..')` without segment terminator, and simple full-path `startsWith` prefix checks must not be used for this check.
 - File paths are normalized to forward-slash separators before glob matching.
+- If a `--files` target path cannot be read (e.g., file does not exist yet on new-file Write flows, or permission denied), it is treated as having empty content: content-pattern matching is skipped for that path, a warning is logged, and the command continues. This does not affect exit code. Path containment validation still applies before any read attempt.
 - Reads committed lesson files using the gateway from Task 4 (including size limit enforcement).
 - Matches lessons by path globs, tag intersection, and literal substring content matching using the semantics defined in the Design section. Pattern matching uses `String.prototype.includes()` or equivalent linear-time search. Regex matching against file content is explicitly prohibited.
 - Empty trigger arrays (`paths: []`, `tags: []`, `patterns: []`) do not match any file — absence is not a wildcard.
+- The matched lesson result set is deduplicated by `slug` (a lesson matching multiple `--files` paths appears only once) and sorted deterministically by `type` ascending then `slug` ascending before being rendered into the envelope.
 - Each matched lesson's body is truncated to 10 000 characters before being rendered into the `additionalContext` string. After all matched lessons are concatenated into the rendered string, the final string is truncated again to 10 000 characters total to match Claude Code's documented `additionalContext` cap.
 - Emits the Claude Code hook envelope on stdout via the shared `buildAdditionalContextResponse` helper (defined in `packages/core/src/use-cases/claude-hook-response.ts`). The CLI must not hand-construct the `hookSpecificOutput` envelope; consuming the shared builder is mandatory so `agent-shell`'s policy hook and this command stay in sync with the protocol.
 - Performs no model calls, embedding lookup, or LLM relevance scoring.
@@ -626,7 +628,10 @@ sequenceDiagram
 - [ ] Tests cover a non-matching lesson being excluded.
 - [ ] Tests cover empty trigger arrays not matching any file.
 - [ ] Tests cover empty match result emitting an envelope with `additionalContext: ""` and exiting zero.
-- [ ] Tests cover multiple `--files` flags producing a merged match result.
+- [ ] Tests cover multiple `--files` flags producing a merged match result deduplicated by `slug` (a lesson matching two different paths appears once in the output).
+- [ ] Tests cover the result set being sorted by `type` ascending then `slug` ascending (deterministic ordering).
+- [ ] Tests cover a `--files` target path that does not exist being treated as empty content (content-pattern matching skipped, no exit error, warning logged).
+- [ ] Tests cover a `--files` target path with unreadable permissions being treated as empty content (content-pattern matching skipped, no exit error, warning logged).
 - [ ] Tests cover a `--files` path with `..` segments that resolves outside cwd being rejected with exit 1 (e.g., `../../etc/passwd`). A path with `..` segments that still resolves inside cwd (e.g., `src/../lib/safe.ts`) shall not be rejected.
 - [ ] Tests cover a `--files` path resolving outside cwd being rejected with exit 1.
 - [ ] Tests cover path normalization: a `--files` path with backslash separators resolves correctly against cwd.
