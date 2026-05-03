@@ -318,10 +318,10 @@ export const ClaudeSessionStartHookInputSchema = z.object({
   hook_event_name: z.literal('SessionStart'),
 }).passthrough();
 
-// The CLI dispatches on `hook_event_name`. Stdin parsing tries the SessionStart
-// schema first when stdin is non-empty but does not contain `tool_name` /
-// `tool_input`, then falls back to the PreToolUse schema. If neither schema
-// matches, the CLI follows its fail-open policy.
+// The CLI dispatches on `hook_event_name`. Stdin parsing tries the PreToolUse
+// schema first (checking for `tool_name` / `tool_input`), then falls back to
+// the SessionStart schema. If neither schema matches, the CLI follows its
+// fail-open policy.
 ```
 
 **Dispatch rules**:
