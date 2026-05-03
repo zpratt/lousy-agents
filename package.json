@@ -36,7 +36,7 @@
         "start": "node packages/cli/dist/index.js",
         "test": "vitest run",
         "test:integration": "vitest run --config vitest.integration.config.ts",
-        "lint": "biome check . && npm run lint:architecture",
+        "lint": "biome check .; R=$?; npm run lint:architecture; S=$?; [ $R -eq 0 ] && [ $S -eq 0 ]",
         "lint:fix": "biome check --write .",
         "lint:architecture": "depcruise --config .dependency-cruiser.cjs packages/lint/src packages/core/src",
         "lint:workflows": "actionlint",

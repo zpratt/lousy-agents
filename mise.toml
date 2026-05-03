@@ -54,7 +54,7 @@ hide = true
 [tasks.format-check]
 description = "Checking code formatting + static analysis"
 hide = true
-run = "npm run lint"
+run = "npx biome check ."
 
 [tasks.lint]
 description = "Run all required linting tools (in parallel)"
