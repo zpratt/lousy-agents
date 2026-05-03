@@ -36,6 +36,7 @@ so that I can **reduce repeated mistakes without manually reviewing project conv
 - If a `--files` path resolves outside the current working directory, then the context command shall reject the path with a boundary-safe containment check (e.g., ``const rel = path.relative(cwd, file); rel === '..' || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)`` — the segment-aware `..` checks avoid false positives for valid in-root filenames like `..foo.ts` (where `rel === '..foo.ts'`), and the `path.isAbsolute` guard handles Windows paths on different drive letters where `path.relative` returns an absolute path rather than a `..`-prefixed one; `rel === ''` means file equals cwd and shall be treated as a valid in-bounds path) and exit non-zero.
 - If the `.lousy-agents/lessons/` directory cannot be read for any reason (missing, not a directory, permission denied), the context command shall return an empty `context` array and exit zero rather than crashing the PreToolUse hook.
 - When a lesson's `triggers.tags` array contains a value matching any forward-slash-separated path segment OR the file extension of the file under edit, the context command shall include that lesson in `additionalContext`. For `src/rules.ts`, testable segments are `src`, `rules.ts`, and `ts`.
+- After determining the set of matching lessons, the context command shall increment `fire_count` by 1 and set `last_fired` to the current date in `YYYY-MM-DD` format in the frontmatter of each matched lesson file on disk. If a write fails for any individual lesson (e.g., permission denied, read-only filesystem), the command shall log a warning and continue — the failure must not affect the JSON output or the exit code. Concurrent writes are not guarded; last-writer-wins is acceptable in v1.
 
 ---
 
@@ -110,7 +111,7 @@ Each component has an explicit fail-open or fail-closed stance. Reviewers should
 
 | Component | Stance | Rationale |
 | --- | --- | --- |
-| `lousy-agents context --files` | **Fail-open** — invalid/oversized lesson files skip with a warning; unreadable lessons directory returns empty result and exits zero | Crashing the hook blocks the agent entirely; partial injection is always preferable to blocking |
+| `lousy-agents context --files` | **Fail-open** — invalid/oversized lesson files skip with a warning; unreadable lessons directory returns empty result and exits zero; `fire_count`/`last_fired` write failures log a warning but do not affect output or exit code | Crashing the hook blocks the agent entirely; partial injection is always preferable to blocking |
 | `lousy-agents lint lessons` | **Fail-closed** — any invalid lesson → exit non-zero | Validation must be strict; a silent pass would mask broken lessons reaching the runtime |
 | `lousy-agents init-hooks` | **Fail-closed** — any settings read/write or parse error → exit non-zero | Hook misconfiguration silently breaks the lifecycle; fail loudly |
 | `lousy-agents capture` | **Fail-closed** — absent or unparseable hook input → exit non-zero | A silent failure could cause lesson loss with no indication to the developer |
@@ -384,7 +385,7 @@ sequenceDiagram
 
 ### Open Questions
 
-- [ ] Should `fire_count` and `last_fired` be auto-updated in PreToolUse, or remain manually maintained to keep the hot path passive and avoid noisy working-tree diffs?
+- [x] ~~Should `fire_count` and `last_fired` be auto-updated in PreToolUse, or remain manually maintained to keep the hot path passive and avoid noisy working-tree diffs?~~ **Resolved**: Auto-updated. The context command increments `fire_count` and sets `last_fired` to the current date for each matched lesson. Working-tree diffs are acceptable.
 - [ ] **BLOCKING for Task 5**: What is the exact JSON shape expected by Claude Code for `additionalContext` in hook responses? A proposed shape is defined in the Data Model section above; confirm against Claude Code documentation before Task 5 begins.
 - [x] ~~Should `lousy-agents context --files` accept comma-separated paths, repeated flags, or both?~~ **Resolved**: `--files` accepts repeated flags only (e.g., `--files path1 --files path2`). No comma-splitting — avoids the need to escape or parse commas in file paths.
 - [ ] Which hook takes priority for capture: `SubagentStop`, `Stop`, or both wired independently?
@@ -575,6 +576,7 @@ sequenceDiagram
 - Returns a valid empty `context` array (exits zero) when the lessons directory cannot be read.
 - If the gateway throws a typed symlink error for `.lousy-agents/lessons/` (the shared gateway security check from Task 4), the context command shall catch that error, log a warning, and return `{ context: [] }` with exit 0. The symlink check is a security control in the shared gateway; the context command's fail-open policy means it must handle this condition gracefully rather than propagating it as a fatal error (contrast with `lint lessons` in Task 4, which treats the symlink error as a fatal condition).
 - If individual lesson files are invalid or oversized, skips them with a logged warning and continues.
+- After returning the matched lessons, the command shall update the frontmatter of each matched lesson file: increment `fire_count` by 1 and set `last_fired` to the current date in `YYYY-MM-DD` format. If any individual frontmatter write fails, log a warning and continue — this must not affect the JSON output or exit code.
 
 **Verification**:
 - [ ] Tests cover a path-glob match (lesson fires for matching path).
@@ -593,6 +595,8 @@ sequenceDiagram
 - [ ] Tests cover `.lousy-agents/lessons/` being a symlink returning `{ context: [] }` and exiting zero (fail-open contrast with Task 4's fail-closed behavior).
 - [ ] Tests cover invoking the command without `--files` returning all `invariant` lessons (SessionStart path).
 - [ ] Output is valid JSON on stdout conforming to the shape in the Data Model section.
+- [ ] Tests cover `fire_count` being incremented and `last_fired` being set to the current date for each matched lesson after the command runs.
+- [ ] Tests cover a write failure during `fire_count`/`last_fired` update logging a warning without affecting the JSON output or exit code.
 - [ ] `mise run test` passes.
 - [ ] `mise run lint` passes.
 
@@ -739,11 +743,9 @@ sequenceDiagram
 - External lesson sources
 - Multi-repo lesson sharing
 - Telemetry, analytics, or lesson scoring
-- Automatic mutation of `fire_count` or `last_fired` in the hot path
 
 ## Future Considerations
 
-- Auto-updating `fire_count` and `last_fired` once the passive hot path is validated
 - `lousy-agents try-lesson <slug> --files <path>` to simulate what would fire on a given file
 - Retro command for bulk lesson authoring after a multi-session project phase
 - Multi-repo lesson sharing via a shareable `c12` configuration
