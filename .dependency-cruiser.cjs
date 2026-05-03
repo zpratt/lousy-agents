@@ -114,14 +114,17 @@ module.exports = {
         },
         // ── lint package: public API barrel isolation ───────────────────────────
         // The public barrel (index.ts) re-exports stable contracts. It must not
-        // depend on filesystem-backed implementation modules so consumers see only
-        // the declared API surface.
+        // directly depend on filesystem-backed implementation modules so consumers
+        // see only the declared API surface. The transitive path
+        // index.ts → lint.ts → validate-directory.ts is intentional: lint.ts is
+        // the composition root (Layer 4) and is explicitly permitted to import
+        // concrete implementations.
         {
             name: "lint-public-api-not-to-validation-infrastructure",
             severity: "error",
             comment:
                 "Keep the @lousy-agents/lint public barrel decoupled from " +
-                "filesystem-backed directory validation internals.",
+                "filesystem-backed directory validation internals (direct imports only).",
             from: {
                 path: "^packages/lint/src/index[.]ts$",
             },

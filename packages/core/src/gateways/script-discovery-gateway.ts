@@ -46,8 +46,10 @@ export class FileSystemScriptDiscoveryGateway
                     ? (error as { code?: unknown }).code
                     : undefined;
             if (code !== "ENOENT") {
+                const errorMsg =
+                    error instanceof Error ? error.message : String(error);
                 this.logger.warn(
-                    `script-discovery: could not read ${JSON.stringify(packageJsonPath)}: ${error instanceof Error ? error.message : String(error)}`,
+                    `script-discovery: could not read ${JSON.stringify(packageJsonPath)}: ${JSON.stringify(errorMsg)}`,
                 );
             }
             return [];
@@ -92,8 +94,10 @@ export class FileSystemScriptDiscoveryGateway
 /**
  * Creates and returns the default script discovery gateway
  */
-export function createScriptDiscoveryGateway(): ScriptDiscoveryGateway {
-    return new FileSystemScriptDiscoveryGateway();
+export function createScriptDiscoveryGateway(
+    logger?: ConsolaInstance,
+): ScriptDiscoveryGateway {
+    return new FileSystemScriptDiscoveryGateway(logger);
 }
 
 /**
@@ -101,8 +105,9 @@ export function createScriptDiscoveryGateway(): ScriptDiscoveryGateway {
  */
 export function createFeedbackLoopCommandsGateway(
     scriptGateway?: ScriptDiscoveryGateway,
+    logger?: ConsolaInstance,
 ): FeedbackLoopCommandsGateway {
-    const gateway = scriptGateway ?? createScriptDiscoveryGateway();
+    const gateway = scriptGateway ?? createScriptDiscoveryGateway(logger);
     return {
         async getMandatoryCommands(targetDir: string) {
             const scripts = await gateway.discoverScripts(targetDir);

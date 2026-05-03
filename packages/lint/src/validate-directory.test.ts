@@ -162,21 +162,35 @@ describe("validateDirectory", () => {
     });
 
     describe("given a path with a backslash traversal (Windows path separator)", () => {
-        it("rejects with a LintValidationError", async () => {
-            // On Linux, '\' is a filename character, not a separator. However,
-            // hasPathTraversalSegment splits on /[\\/]/ to apply the same conservative
-            // rejection on all platforms. This is an intentional trade-off: inputs mixing
-            // '\' and '..' are rejected even when they would be harmless on Linux.
+        it("rejects with a LintValidationError on all platforms", async () => {
+            // On Windows, '\' is a path separator and 'a\..\.\..\etc\passwd' is
+            // a path traversal that is rejected with "path traversal".
+            // On POSIX, '\' is a valid filename character (not a separator),
+            // so 'a\..\.\..\etc\passwd' is a single path segment — not a
+            // traversal. It still throws LintValidationError because the path
+            // does not exist as a real directory.
             await expect(
                 validateDirectory("a\\..\\.\\..\\etc\\passwd"),
             ).rejects.toThrow(LintValidationError);
         });
 
-        it("rejects with a path traversal error message", async () => {
-            await expect(
-                validateDirectory("a\\..\\.\\..\\etc\\passwd"),
-            ).rejects.toThrow("path traversal");
-        });
+        it.skipIf(process.platform !== "win32")(
+            "rejects with a path traversal error message on Windows",
+            async () => {
+                await expect(
+                    validateDirectory("a\\..\\.\\..\\etc\\passwd"),
+                ).rejects.toThrow("path traversal");
+            },
+        );
+
+        it.skipIf(process.platform === "win32")(
+            "rejects with a directory-does-not-exist error message on POSIX (backslash is a valid filename character, not a separator)",
+            async () => {
+                await expect(
+                    validateDirectory("a\\..\\.\\..\\etc\\passwd"),
+                ).rejects.toThrow("does not exist");
+            },
+        );
     });
 
     describe("given a path with double dots in a filename", () => {
