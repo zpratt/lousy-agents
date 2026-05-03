@@ -185,7 +185,7 @@ describe("FileSystemScriptDiscoveryGateway", () => {
     });
 
     describe("when package.json is a symlink", () => {
-        it("should return empty array rather than propagating the error", async () => {
+        it("should return empty array and log a warning", async () => {
             // Arrange — create a real file then symlink package.json to it.
             // readFileNoFollow uses O_NOFOLLOW so the kernel returns ELOOP,
             // which readFileNoFollow converts to "Symlinks are not allowed".
@@ -194,9 +194,20 @@ describe("FileSystemScriptDiscoveryGateway", () => {
             await writeFile(realFile, JSON.stringify({ name: "test" }));
             await symlink(realFile, join(testDir, "package.json"));
 
-            // Act & Assert
-            const result = await gateway.discoverScripts(testDir);
+            const logger = createConsola({ level: 0 });
+            vi.spyOn(logger, "warn").mockImplementation(() => {});
+            const gatewayWithLogger = new FileSystemScriptDiscoveryGateway(
+                logger,
+            );
+
+            // Act
+            const result = await gatewayWithLogger.discoverScripts(testDir);
+
+            // Assert
             expect(result).toEqual([]);
+            expect(logger.warn).toHaveBeenCalledWith(
+                expect.stringContaining("could not read"),
+            );
         });
     });
 

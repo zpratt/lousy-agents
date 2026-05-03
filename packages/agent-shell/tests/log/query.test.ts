@@ -672,6 +672,34 @@ describe("events directory resolution", () => {
             expect(result.dir).toBe("");
         });
     });
+
+    describe("given AGENTSHELL_LOG_DIR logical path escapes but realpath resolves inside the project", () => {
+        it("should return an error to match resolveWriteEventsDir rejection behavior", async () => {
+            // Arrange — realpath points the symlink back into the project, but the
+            // logical candidate still escapes.  resolveWriteEventsDir rejects at the
+            // logical check, so resolveReadEventsDir must also reject to keep reads
+            // and writes consistent.
+            const deps = createMockDeps(
+                {},
+                {
+                    realpath: vi.fn().mockImplementation(async (p: string) => {
+                        if (p === "/project") return "/project";
+                        if (p === "/outside-symlink") return "/project/events";
+                        return p;
+                    }),
+                },
+            );
+            // resolve("/project", "../../outside-symlink") = "/outside-symlink"
+            const env = { AGENTSHELL_LOG_DIR: "../../outside-symlink" };
+
+            // Act
+            const result = await resolveReadEventsDir(env, deps);
+
+            // Assert
+            expect(result.error).toContain("outside project root");
+            expect(result.dir).toBe("");
+        });
+    });
 });
 
 describe("session listing", () => {
