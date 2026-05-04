@@ -45,7 +45,7 @@
         "citty": "0.2.2",
         "consola": "3.4.2",
         "eta": "4.6.0",
-        "zod": "4.4.2"
+        "zod": "4.4.3"
     },
     "devDependencies": {
         "@lousy-agents/core": "*",
