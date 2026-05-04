@@ -115,11 +115,26 @@ export declare const DEFAULT_LINT_RULES: LintRulesConfig;
 // ── Lint options and result ──────────────────────────────────────────
 
 /**
+ * Minimal logger interface accepted by {@link LintOptions.logger}.
+ *
+ * Any object that satisfies this interface can be used — including a
+ * `consola` instance, a `pino` child logger, or a plain object with a
+ * `.warn` method. This keeps the `@lousy-agents/lint` package free from
+ * a hard dependency on any specific logger library.
+ */
+export interface LintLogger {
+    warn(message: string, ...args: unknown[]): void;
+}
+
+/**
  * Options for the public lint API.
  *
  * @property directory - Path to the project directory to lint.
  * @property targets - Optional selection of which lint targets to run.
  *   When omitted or when all flags are false, all targets are linted.
+ * @property logger - Optional logger for gateway diagnostics (e.g. warnings
+ *   about unreadable or malformed package.json files). When omitted, the global
+ *   `consola` instance is used. Must be an object with a `.warn` method.
  */
 export interface LintOptions {
     readonly directory: string;
@@ -129,6 +144,7 @@ export interface LintOptions {
         readonly hooks?: boolean;
         readonly instructions?: boolean;
     };
+    readonly logger?: LintLogger;
 }
 
 /**

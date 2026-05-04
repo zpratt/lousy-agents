@@ -1,8 +1,14 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { FileSystemScriptDiscoveryGateway } from "./script-discovery-gateway.js";
+import { createConsola } from "consola";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ScriptDiscoveryGateway } from "../use-cases/discover-feedback-loops.js";
+import {
+    createFeedbackLoopCommandsGateway,
+    FileSystemScriptDiscoveryGateway,
+} from "./script-discovery-gateway.js";
 
 const chance = new Chance();
 
@@ -12,7 +18,7 @@ describe("FileSystemScriptDiscoveryGateway", () => {
 
     beforeEach(async () => {
         gateway = new FileSystemScriptDiscoveryGateway();
-        testDir = join("/tmp", `test-script-discovery-${chance.guid()}`);
+        testDir = join(tmpdir(), `test-script-discovery-${chance.guid()}`);
         await mkdir(testDir, { recursive: true });
     });
 
@@ -166,16 +172,179 @@ describe("FileSystemScriptDiscoveryGateway", () => {
     });
 
     describe("when package.json contains malformed JSON", () => {
-        it("should return empty array and log warning", async () => {
-            // Write invalid JSON
+        it("should return empty array and log a warning when JSON is malformed", async () => {
             await writeFile(
                 join(testDir, "package.json"),
                 '{ "scripts": { "test": "vitest" } invalid json',
             );
 
-            const result = await gateway.discoverScripts(testDir);
+            const logger = createConsola({ level: 0 });
+            vi.spyOn(logger, "warn").mockImplementation(() => {});
+            const gatewayWithLogger = new FileSystemScriptDiscoveryGateway(
+                logger,
+            );
+
+            const result = await gatewayWithLogger.discoverScripts(testDir);
 
             expect(result).toEqual([]);
+            expect(logger.warn).toHaveBeenCalledWith(
+                expect.stringContaining("invalid JSON"),
+            );
         });
+    });
+
+    describe("when package.json is a symlink", () => {
+        it("should return empty array and log a warning", async () => {
+            // Arrange — create a real file then symlink package.json to it.
+            // readFileNoFollow uses O_NOFOLLOW so the kernel returns ELOOP,
+            // which readFileNoFollow converts to "Symlinks are not allowed".
+            // Script discovery is best-effort: any unreadable manifest yields [].
+            const realFile = join(testDir, "real-package.json");
+            await writeFile(realFile, JSON.stringify({ name: "test" }));
+            await symlink(realFile, join(testDir, "package.json"));
+
+            const logger = createConsola({ level: 0 });
+            vi.spyOn(logger, "warn").mockImplementation(() => {});
+            const gatewayWithLogger = new FileSystemScriptDiscoveryGateway(
+                logger,
+            );
+
+            // Act
+            const result = await gatewayWithLogger.discoverScripts(testDir);
+
+            // Assert
+            expect(result).toEqual([]);
+            expect(logger.warn).toHaveBeenCalledWith(
+                expect.stringContaining("could not read"),
+            );
+        });
+    });
+
+    describe("when package.json exceeds the size limit", () => {
+        it("should return empty array and log a warning for files over 1 MB", async () => {
+            const oversized = "x".repeat(1024 * 1024 + 1);
+            await writeFile(join(testDir, "package.json"), oversized);
+
+            const logger = createConsola({ level: 0 });
+            vi.spyOn(logger, "warn").mockImplementation(() => {});
+            const gatewayWithLogger = new FileSystemScriptDiscoveryGateway(
+                logger,
+            );
+
+            const result = await gatewayWithLogger.discoverScripts(testDir);
+            expect(result).toEqual([]);
+            expect(logger.warn).toHaveBeenCalledWith(
+                expect.stringContaining("could not read"),
+            );
+        });
+    });
+
+    describe("when package.json is unreadable (EACCES)", () => {
+        const isRoot = process.getuid?.() === 0;
+        it.skipIf(isRoot)(
+            "should return empty array and log a warning",
+            async () => {
+                // Arrange — chmod 000 makes the file unreadable to non-root users.
+                // Skipped when running as root (root bypasses file-permission checks).
+                const pkgPath = join(testDir, "package.json");
+                await writeFile(
+                    pkgPath,
+                    JSON.stringify({ scripts: { test: "vitest" } }),
+                );
+                await chmod(pkgPath, 0o000);
+
+                // Use a full real logger so no methods are missing; spy+mock on warn
+                // suppresses console noise while allowing assertion on call arguments.
+                const logger = createConsola({ level: 0 });
+                vi.spyOn(logger, "warn").mockImplementation(() => {});
+                const gatewayWithLogger = new FileSystemScriptDiscoveryGateway(
+                    logger,
+                );
+
+                // Act
+                const result = await gatewayWithLogger.discoverScripts(testDir);
+
+                // Restore permissions so afterEach cleanup can delete the file.
+                await chmod(pkgPath, 0o644);
+
+                // Assert
+                expect(result).toEqual([]);
+                expect(logger.warn).toHaveBeenCalledWith(
+                    expect.stringContaining("could not read"),
+                );
+            },
+        );
+    });
+
+    describe("when package.json scripts field fails schema validation", () => {
+        it("should return empty array and log a warning when a script value is not a string", async () => {
+            await writeFile(
+                join(testDir, "package.json"),
+                JSON.stringify({
+                    name: "test-package",
+                    scripts: { test: 42 },
+                }),
+            );
+
+            const logger = createConsola({ level: 0 });
+            vi.spyOn(logger, "warn").mockImplementation(() => {});
+            const gatewayWithLogger = new FileSystemScriptDiscoveryGateway(
+                logger,
+            );
+
+            const result = await gatewayWithLogger.discoverScripts(testDir);
+
+            expect(result).toEqual([]);
+            expect(logger.warn).toHaveBeenCalledWith(
+                expect.stringContaining("unexpected structure"),
+            );
+        });
+    });
+});
+
+describe("createFeedbackLoopCommandsGateway", () => {
+    it("filters to mandatory-only commands from the injected gateway", async () => {
+        const chance = new Chance();
+        const mandatoryName = chance.word();
+        const optionalName = chance.word();
+        const stubGateway: ScriptDiscoveryGateway = {
+            discoverScripts: vi.fn().mockResolvedValue([
+                {
+                    name: mandatoryName,
+                    command: "vitest run",
+                    phase: "test",
+                    isMandatory: true,
+                },
+                {
+                    name: optionalName,
+                    command: "tsx src/index.ts",
+                    phase: "dev",
+                    isMandatory: false,
+                },
+            ]),
+        };
+        const gateway = createFeedbackLoopCommandsGateway(stubGateway);
+
+        const result = await gateway.getMandatoryCommands("/any/dir");
+
+        expect(result).toEqual([mandatoryName]);
+        expect(result).not.toContain(optionalName);
+    });
+
+    it("creates its own FileSystemScriptDiscoveryGateway when no gateway is provided", async () => {
+        const dir = join(
+            tmpdir(),
+            `test-feedback-gateway-${new Chance().guid()}`,
+        );
+        await mkdir(dir, { recursive: true });
+        const gateway = createFeedbackLoopCommandsGateway();
+
+        try {
+            const result = await gateway.getMandatoryCommands(dir);
+
+            expect(result).toEqual([]);
+        } finally {
+            await rm(dir, { recursive: true, force: true });
+        }
     });
 });

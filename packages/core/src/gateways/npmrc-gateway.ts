@@ -12,22 +12,9 @@ import {
 
 const MAX_NPMRC_BYTES = 64 * 1024;
 
-/**
- * Port interface for `.npmrc` file operations.
- */
-export interface NpmrcGateway {
-    /**
-     * Reads the content of the `.npmrc` file in the target directory.
-     * @returns The file content as a string, or null if the file does not exist.
-     */
-    readNpmrc(targetDir: string): Promise<string | null>;
+import type { NpmrcGateway } from "../use-cases/add-agent-shell.js";
 
-    /**
-     * Writes content to the `.npmrc` file in the target directory.
-     * Creates the file if it does not exist.
-     */
-    writeNpmrc(targetDir: string, content: string): Promise<void>;
-}
+export type { NpmrcGateway };
 
 /**
  * File system implementation of the NpmrcGateway.

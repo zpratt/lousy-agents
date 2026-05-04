@@ -10,19 +10,10 @@ import {
     determineScriptPhase,
     isScriptMandatory,
 } from "../entities/feedback-loop.js";
+import type { ToolDiscoveryGateway } from "../use-cases/discover-feedback-loops.js";
 import { fileExists } from "./file-system-utils.js";
 
-/**
- * Gateway interface for discovering tools from workflows
- */
-export interface ToolDiscoveryGateway {
-    /**
-     * Discovers CLI tools and commands from GitHub Actions workflows
-     * @param targetDir The repository root directory
-     * @returns Array of discovered tools
-     */
-    discoverTools(targetDir: string): Promise<DiscoveredTool[]>;
-}
+export type { ToolDiscoveryGateway };
 
 /**
  * File system implementation of tool discovery gateway
@@ -49,9 +40,7 @@ export class FileSystemToolDiscoveryGateway implements ToolDiscoveryGateway {
                 const workflow = parseYaml(content);
                 const tools = this.extractToolsFromWorkflow(workflow, file);
                 allTools.push(...tools);
-            } catch {
-                // Skip files that can't be parsed as valid YAML
-            }
+            } catch {}
         }
 
         return this.deduplicateTools(allTools);
@@ -91,7 +80,6 @@ export class FileSystemToolDiscoveryGateway implements ToolDiscoveryGateway {
                 const run = stepObj.run;
 
                 if (typeof run === "string") {
-                    // Extract tools from run commands
                     const extractedTools = this.extractToolsFromRunCommand(
                         run,
                         sourceFile,
@@ -110,46 +98,35 @@ export class FileSystemToolDiscoveryGateway implements ToolDiscoveryGateway {
     ): DiscoveredTool[] {
         const tools: DiscoveredTool[] = [];
 
-        // Split by newlines and pipe tokens with surrounding whitespace to handle
-        // multi-line and piped commands without breaking on constructs like "cmd || true"
         const commands = runCommand
             .split(/\n|\s\|\s/)
             .map((c) => c.trim())
             .filter((c) => c.length > 0 && !c.startsWith("#"));
 
         for (const command of commands) {
-            // Extract the base command (first word)
             const parts = command.split(/\s+/);
             const baseCommand = parts[0];
 
-            // Skip shell built-ins and common utilities
             if (this.isShellBuiltin(baseCommand)) {
                 continue;
             }
 
-            // Determine tool name and full command
             let toolName: string;
             const fullCommand = command;
 
-            // Handle special cases like "npm run", "mise run", etc.
             if (
                 parts.length >= 2 &&
                 (baseCommand === "npm" || baseCommand === "mise") &&
                 parts[1] === "run"
             ) {
                 if (parts.length >= 3 && parts[2]) {
-                    // "npm run test" -> name: "npm run test"
                     toolName = parts.slice(0, 3).join(" ");
                 } else {
-                    // Handle commands like "npm run" without a script name
                     toolName = parts.slice(0, 2).join(" ");
                 }
             } else if (parts.length >= 2) {
-                // For most tools, include the subcommand for better specificity
-                // e.g., "npm test", "npx biome", "pnpm lint"
                 toolName = parts.slice(0, 2).join(" ");
             } else {
-                // Fallback to the base command if no subcommand is present
                 toolName = baseCommand;
             }
 
@@ -196,7 +173,6 @@ export class FileSystemToolDiscoveryGateway implements ToolDiscoveryGateway {
         toolName: string,
         fullCommand: string,
     ): ReturnType<typeof determineScriptPhase> {
-        // Use the same logic as script phase determination
         return determineScriptPhase(toolName, fullCommand);
     }
 
@@ -204,7 +180,6 @@ export class FileSystemToolDiscoveryGateway implements ToolDiscoveryGateway {
         const seen = new Map<string, DiscoveredTool>();
 
         for (const tool of tools) {
-            // Use full command as key for deduplication
             const key = tool.fullCommand;
             if (!seen.has(key)) {
                 seen.set(key, tool);

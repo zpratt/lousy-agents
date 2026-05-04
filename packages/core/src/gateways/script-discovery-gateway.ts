@@ -2,37 +2,35 @@
  * Gateway for discovering scripts from package.json manifests
  */
 
-import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { consola } from "consola";
+import { z } from "zod";
 import {
     type DiscoveredScript,
     determineScriptPhase,
     isScriptMandatory,
 } from "../entities/feedback-loop.js";
 import type { FeedbackLoopCommandsGateway } from "../use-cases/analyze-instruction-quality.js";
-import { fileExists } from "./file-system-utils.js";
+import type { ScriptDiscoveryGateway } from "../use-cases/discover-feedback-loops.js";
+import { readFileNoFollow } from "./file-system-utils.js";
 
-// Re-export port type for consumers
-export type { FeedbackLoopCommandsGateway };
+// 1 MB — covers even the largest real-world manifests
+const MAX_PACKAGE_JSON_BYTES = 1024 * 1024;
+
+const PackageJsonSchema = z.object({
+    scripts: z.record(z.string(), z.string()).optional(),
+});
+
+export type { FeedbackLoopCommandsGateway, ScriptDiscoveryGateway };
 
 /**
- * Interface for package.json scripts section
+ * Minimal logger interface used by this gateway. Only `.warn()` is ever
+ * called, so the gateway does not depend on the full `ConsolaInstance` type.
+ * Any object with a `.warn` method — including a consola instance, a pino
+ * child logger, or a plain object — satisfies this interface.
  */
-interface PackageJson {
-    scripts?: Record<string, string>;
-    name?: string;
-}
-
-/**
- * Gateway interface for discovering scripts
- */
-export interface ScriptDiscoveryGateway {
-    /**
-     * Discovers scripts from package.json in the target directory
-     * @param targetDir The directory to search for package.json
-     * @returns Array of discovered scripts
-     */
-    discoverScripts(targetDir: string): Promise<DiscoveredScript[]>;
+export interface ScriptDiscoveryLogger {
+    warn(message: string, ...args: unknown[]): void;
 }
 
 /**
@@ -41,57 +39,103 @@ export interface ScriptDiscoveryGateway {
 export class FileSystemScriptDiscoveryGateway
     implements ScriptDiscoveryGateway
 {
+    constructor(logger?: ScriptDiscoveryLogger) {
+        this.logger = logger ?? consola;
+    }
+
+    private readonly logger: ScriptDiscoveryLogger;
+
     async discoverScripts(targetDir: string): Promise<DiscoveredScript[]> {
         const packageJsonPath = join(targetDir, "package.json");
 
-        if (!(await fileExists(packageJsonPath))) {
+        let content: string;
+        try {
+            content = await readFileNoFollow(
+                packageJsonPath,
+                MAX_PACKAGE_JSON_BYTES,
+            );
+        } catch (error: unknown) {
+            const code =
+                error instanceof Error && "code" in error
+                    ? (error as { code?: unknown }).code
+                    : undefined;
+            if (code !== "ENOENT") {
+                this.logger.warn(
+                    `script-discovery: could not read ${JSON.stringify(packageJsonPath)}: ${JSON.stringify(error instanceof Error ? error.message : String(error))}`,
+                );
+            }
             return [];
         }
 
+        let parsed: unknown;
         try {
-            const content = await readFile(packageJsonPath, "utf-8");
-            const packageJson: PackageJson = JSON.parse(content);
-
-            if (!packageJson.scripts) {
+            parsed = JSON.parse(content);
+        } catch (e) {
+            if (e instanceof SyntaxError) {
+                this.logger.warn(
+                    `script-discovery: ${JSON.stringify(packageJsonPath)} contains invalid JSON — ${JSON.stringify(e.message)}`,
+                );
                 return [];
             }
+            throw e;
+        }
 
-            const scripts: DiscoveredScript[] = [];
+        const parseResult = PackageJsonSchema.safeParse(parsed);
 
-            for (const [name, command] of Object.entries(packageJson.scripts)) {
-                const phase = determineScriptPhase(name, command);
-                const isMandatory = isScriptMandatory(phase);
-
-                scripts.push({
-                    name,
-                    command,
-                    phase,
-                    isMandatory,
-                });
-            }
-
-            return scripts;
-        } catch {
-            // If package.json is malformed or cannot be parsed, return empty array
+        if (!parseResult.success) {
+            this.logger.warn(
+                `script-discovery: ${JSON.stringify(packageJsonPath)} has an unexpected structure — scripts field must be a record of strings`,
+            );
             return [];
         }
+
+        if (!parseResult.data.scripts) {
+            return [];
+        }
+
+        const scripts: DiscoveredScript[] = [];
+
+        for (const [name, command] of Object.entries(
+            parseResult.data.scripts,
+        )) {
+            const phase = determineScriptPhase(name, command);
+            const isMandatory = isScriptMandatory(phase);
+
+            scripts.push({
+                name,
+                command,
+                phase,
+                isMandatory,
+            });
+        }
+
+        return scripts;
     }
 }
 
 /**
  * Creates and returns the default script discovery gateway
  */
-export function createScriptDiscoveryGateway(): ScriptDiscoveryGateway {
-    return new FileSystemScriptDiscoveryGateway();
+export function createScriptDiscoveryGateway(
+    logger?: ScriptDiscoveryLogger,
+): ScriptDiscoveryGateway {
+    return new FileSystemScriptDiscoveryGateway(logger);
 }
 
 /**
  * Creates a FeedbackLoopCommandsGateway that discovers mandatory commands from package.json scripts.
+ *
+ * @param scriptGateway - Optional gateway implementation. If omitted, a default
+ *   `FileSystemScriptDiscoveryGateway` is created using `logger`.
+ * @param logger - Optional logger for the default gateway. Only used when
+ *   `scriptGateway` is omitted; if a custom `scriptGateway` is supplied, its
+ *   own logger configuration applies and this parameter is ignored.
  */
 export function createFeedbackLoopCommandsGateway(
     scriptGateway?: ScriptDiscoveryGateway,
+    logger?: ScriptDiscoveryLogger,
 ): FeedbackLoopCommandsGateway {
-    const gateway = scriptGateway ?? createScriptDiscoveryGateway();
+    const gateway = scriptGateway ?? createScriptDiscoveryGateway(logger);
     return {
         async getMandatoryCommands(targetDir: string) {
             const scripts = await gateway.discoverScripts(targetDir);

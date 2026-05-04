@@ -25,10 +25,19 @@ import { LintAgentFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-a
 import { LintHookConfigUseCase } from "@lousy-agents/core/use-cases/lint-hook-config.js";
 import { LintSkillFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-skill-frontmatter.js";
 import { ZodError, z } from "zod";
-import {
-    LintValidationError,
-    validateDirectory,
-} from "./validate-directory.js";
+import { LintValidationError } from "./lint-errors.js";
+import { validateDirectory } from "./validate-directory.js";
+
+/**
+ * Minimal logger interface for the public `LintOptions.logger` boundary.
+ *
+ * Intentionally structurally typed: any object with a `.warn` method
+ * (consola, pino, plain object) satisfies this contract. This keeps the
+ * published `@lousy-agents/lint` types free from a hard `consola` import.
+ */
+export interface LintLogger {
+    warn(message: string, ...args: unknown[]): void;
+}
 
 const LintTargetsSchema = z
     .object({
@@ -44,6 +53,19 @@ const LintOptionsSchema = z
     .object({
         directory: z.string().min(1, "directory must not be empty"),
         targets: LintTargetsSchema,
+        // logger is a runtime object — `z.custom` validates its structural contract
+        // at the boundary; TypeScript enforces it further at compile time.
+        // `v === undefined` is NOT needed here: ZodOptional intercepts undefined
+        // before the predicate is invoked, so the guard would be dead code.
+        logger: z
+            .custom<LintLogger>(
+                (v) =>
+                    v !== null &&
+                    typeof v === "object" &&
+                    typeof (v as LintLogger).warn === "function",
+                { message: "logger must be an object with a .warn method" },
+            )
+            .optional(),
     })
     .strict();
 
@@ -53,6 +75,9 @@ const LintOptionsSchema = z
  * @property directory - Path to the project directory to lint (absolute or relative).
  * @property targets - Optional selection of which lint targets to run.
  *   When omitted or when all flags are false, all targets are linted.
+ * @property logger - Optional logger for gateway diagnostics (e.g. warnings
+ *   about unreadable or malformed package.json files). When omitted, the global
+ *   `consola` instance is used. Must be an object with a `.warn` method.
  */
 export interface LintOptions {
     readonly directory: string;
@@ -62,6 +87,7 @@ export interface LintOptions {
         readonly hooks?: boolean;
         readonly instructions?: boolean;
     };
+    readonly logger?: LintLogger;
 }
 
 /**
@@ -146,10 +172,16 @@ async function lintHooks(targetDir: string): Promise<LintOutput> {
     return toLintOutput(output, "hook", output.totalFiles);
 }
 
-async function lintInstructions(targetDir: string): Promise<LintOutput> {
+async function lintInstructions(
+    targetDir: string,
+    logger?: LintLogger,
+): Promise<LintOutput> {
     const discoveryGateway = createInstructionFileDiscoveryGateway();
     const astGateway = createMarkdownAstGateway();
-    const commandsGateway = createFeedbackLoopCommandsGateway();
+    const commandsGateway = createFeedbackLoopCommandsGateway(
+        undefined,
+        logger,
+    );
 
     const useCase = new AnalyzeInstructionQualityUseCase(
         discoveryGateway,
@@ -186,13 +218,6 @@ interface LintTargetDefinition {
     readonly key: TargetKey;
     readonly execute: (targetDir: string) => Promise<LintOutput>;
 }
-
-const LINT_TARGETS: readonly LintTargetDefinition[] = [
-    { key: "skills", execute: lintSkills },
-    { key: "agents", execute: lintAgents },
-    { key: "hooks", execute: lintHooks },
-    { key: "instructions", execute: lintInstructions },
-];
 
 function isTargetEnabled(
     key: TargetKey,
@@ -249,7 +274,17 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
         throw error;
     }
 
-    const enabledTargets = LINT_TARGETS.filter((t) =>
+    const lintTargets: readonly LintTargetDefinition[] = [
+        { key: "skills", execute: lintSkills },
+        { key: "agents", execute: lintAgents },
+        { key: "hooks", execute: lintHooks },
+        {
+            key: "instructions",
+            execute: (dir) => lintInstructions(dir, parsed.logger),
+        },
+    ];
+
+    const enabledTargets = lintTargets.filter((t) =>
         isTargetEnabled(t.key, parsed.targets),
     );
 

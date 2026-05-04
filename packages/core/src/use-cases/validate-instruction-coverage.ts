@@ -2,8 +2,11 @@
  * Use case for validating instruction coverage of feedback loops
  */
 
-import type { FeedbackLoopCoverage } from "../entities/feedback-loop.js";
-import type { InstructionAnalysisGateway } from "../gateways/instruction-analysis-gateway.js";
+import type {
+    DiscoveredScript,
+    DiscoveredTool,
+    FeedbackLoopCoverage,
+} from "../entities/feedback-loop.js";
 import type {
     DiscoverFeedbackLoopsOutput,
     DiscoverFeedbackLoopsUseCase,
@@ -26,6 +29,17 @@ export interface ValidateInstructionCoverageOutput {
 }
 
 /**
+ * Port for analyzing repository instruction coverage.
+ */
+export interface InstructionAnalysisGateway {
+    analyzeCoverage(
+        targetDir: string,
+        scripts: DiscoveredScript[],
+        tools: DiscoveredTool[],
+    ): Promise<FeedbackLoopCoverage>;
+}
+
+/**
  * Use case for validating that repository instructions cover mandatory feedback loops
  */
 export class ValidateInstructionCoverageUseCase {
@@ -41,7 +55,6 @@ export class ValidateInstructionCoverageUseCase {
             throw new Error("Target directory is required");
         }
 
-        // First, discover all feedback loops
         const discoveryResult: DiscoverFeedbackLoopsOutput =
             await this.discoverFeedbackLoops.execute({
                 targetDir: input.targetDir,
@@ -50,14 +63,12 @@ export class ValidateInstructionCoverageUseCase {
         const { scripts, tools, packageManager } =
             discoveryResult.feedbackLoops;
 
-        // Analyze instruction coverage
         const coverage = await this.instructionGateway.analyzeCoverage(
             input.targetDir,
             scripts,
             tools,
         );
 
-        // Generate suggestions for missing documentation
         const suggestions = this.generateSuggestions(
             coverage,
             packageManager || "npm",
@@ -88,7 +99,6 @@ export class ValidateInstructionCoverageUseCase {
         );
         suggestions.push("");
 
-        // Group by phase
         const byPhase = new Map<
             string,
             typeof coverage.missingInInstructions
@@ -99,17 +109,14 @@ export class ValidateInstructionCoverageUseCase {
             byPhase.set(item.phase, existing);
         }
 
-        // Generate suggestions per phase
         for (const [phase, items] of byPhase.entries()) {
             suggestions.push(`${phase.toUpperCase()} phase:`);
             for (const item of items) {
                 if ("command" in item) {
-                    // It's a script
                     suggestions.push(
                         `  - Document "${packageManager} run ${item.name}" (runs: ${item.command})`,
                     );
                 } else {
-                    // It's a tool
                     suggestions.push(`  - Document "${item.fullCommand}"`);
                 }
             }

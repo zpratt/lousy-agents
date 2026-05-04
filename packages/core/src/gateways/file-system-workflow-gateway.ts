@@ -10,6 +10,7 @@ import {
     type CopilotSetupConfig,
     loadCopilotSetupConfig,
 } from "../lib/copilot-setup-config.js";
+import type { WorkflowGateway } from "../use-cases/init-copilot-setup-workflow.js";
 import {
     deduplicateCandidates,
     extractSetupStepsFromWorkflow,
@@ -19,7 +20,6 @@ import {
     fileExists,
     resolveSafePath,
 } from "./file-system-utils.js";
-import type { WorkflowGateway } from "./workflow-gateway.js";
 
 const COPILOT_SETUP_WORKFLOW_FILENAMES = [
     "copilot-setup-steps.yml",
@@ -97,9 +97,7 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
                     config.setupActionPatterns,
                 );
                 allCandidates.push(...candidates);
-            } catch {
-                // Skip unreadable or malformed YAML workflow files while continuing scan.
-            }
+            } catch {}
         }
 
         return deduplicateCandidates(allCandidates);

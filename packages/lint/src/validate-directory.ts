@@ -8,19 +8,7 @@
 
 import { lstat, realpath } from "node:fs/promises";
 import { resolve } from "node:path";
-
-/**
- * Thrown when user-supplied directory input fails validation.
- *
- * Consumers can catch this type to distinguish user-input errors
- * (bad path, missing directory) from system-level errors (EACCES, EMFILE).
- */
-export class LintValidationError extends Error {
-    constructor(message: string) {
-        super(message);
-        this.name = "LintValidationError";
-    }
-}
+import { LintValidationError } from "./lint-errors.js";
 
 function isControlCharacter(code: number): boolean {
     if (code >= 0x00 && code <= 0x1f) return true;
@@ -45,8 +33,21 @@ function sanitizeForErrorMessage(value: string): string {
     return JSON.stringify(value);
 }
 
-function hasPathTraversalSegment(directory: string): boolean {
-    return directory.split(/[\\/]/).includes("..");
+/**
+ * Detects path traversal segments in a user-supplied directory string.
+ *
+ * On Windows, both '/' and '\' are path separators, so the check splits on
+ * both. On POSIX, '\' is a valid filename character (not a separator), so only
+ * '/' is used as the split boundary to avoid false-rejecting legitimate paths
+ * whose names contain backslashes. Any `platform` value other than `'win32'`
+ * is treated as POSIX.
+ */
+function hasPathTraversalSegment(
+    directory: string,
+    platform: NodeJS.Platform = process.platform,
+): boolean {
+    const separator = platform === "win32" ? /[\\/]/ : "/";
+    return directory.split(separator).includes("..");
 }
 
 /**
@@ -58,10 +59,18 @@ function hasPathTraversalSegment(directory: string): boolean {
  * the canonicalized absolute path (all symlinks resolved) so downstream
  * code always operates on real paths.
  *
+ * @param directory - The path to validate.
+ * @param platform - The platform identifier used for path-separator detection.
+ *   Defaults to `process.platform`. Only `'win32'` uses `\` as a separator;
+ *   all other values are treated as POSIX. Overridable for cross-platform unit
+ *   tests so that both branches can be exercised on any host OS.
  * @throws {LintValidationError} If the path is empty, contains control
  *   characters, traversal segments, does not exist, or is not a directory.
  */
-export async function validateDirectory(directory: string): Promise<string> {
+export async function validateDirectory(
+    directory: string,
+    platform: NodeJS.Platform = process.platform,
+): Promise<string> {
     if (directory.length === 0) {
         throw new LintValidationError("directory must not be empty");
     }
@@ -74,7 +83,7 @@ export async function validateDirectory(directory: string): Promise<string> {
         );
     }
 
-    if (hasPathTraversalSegment(directory)) {
+    if (hasPathTraversalSegment(directory, platform)) {
         throw new LintValidationError(
             `Invalid directory path (path traversal detected): ${safeDir}`,
         );

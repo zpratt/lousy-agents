@@ -24,3 +24,11 @@ export function isPathNotFoundError(err: unknown): boolean {
     }
     return false;
 }
+
+export function isNameTooLongError(err: unknown): boolean {
+    if (typeof err === "object" && err !== null && "code" in err) {
+        const { code } = err as { code: unknown };
+        return code === "ENAMETOOLONG";
+    }
+    return false;
+}

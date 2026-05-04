@@ -10,10 +10,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-    LintValidationError,
-    validateDirectory,
-} from "./validate-directory.js";
+import { LintValidationError } from "./lint-errors.js";
+import { validateDirectory } from "./validate-directory.js";
 
 const chance = new Chance();
 
@@ -134,11 +132,50 @@ describe("validateDirectory", () => {
     });
 
     describe("given a path with traversal segments", () => {
-        it("rejects with a path traversal error", async () => {
+        it("rejects with a LintValidationError", async () => {
+            await expect(
+                validateDirectory("/tmp/../etc/passwd"),
+            ).rejects.toThrow(LintValidationError);
+        });
+
+        it("rejects with a path traversal error message", async () => {
             await expect(
                 validateDirectory("/tmp/../etc/passwd"),
             ).rejects.toThrow("path traversal");
         });
+    });
+
+    describe("given a path with a forward-slash traversal on Windows-style input", () => {
+        it("rejects with a LintValidationError", async () => {
+            // On Windows, path.sep is '\\' but '/' is also a valid separator.
+            // A path like 'a/../../etc/passwd' must be caught on all platforms.
+            await expect(
+                validateDirectory("a/../../etc/passwd"),
+            ).rejects.toThrow(LintValidationError);
+        });
+
+        it("rejects with a path traversal error message", async () => {
+            await expect(
+                validateDirectory("a/../../etc/passwd"),
+            ).rejects.toThrow("path traversal");
+        });
+    });
+
+    describe("given a path with a backslash traversal (Windows path separator)", () => {
+        it("rejects with a LintValidationError on all platforms", async () => {
+            // On Windows, '\' is a path separator and 'a\..\.\..\etc\passwd' is
+            // a path traversal that is rejected with "path traversal".
+            // On POSIX, '\' is a valid filename character (not a separator),
+            // so 'a\..\.\..\etc\passwd' is a single path segment — not a
+            // traversal. It still throws LintValidationError because the path
+            // does not exist as a real directory.
+            await expect(
+                validateDirectory("a\\..\\.\\..\\etc\\passwd"),
+            ).rejects.toThrow(LintValidationError);
+        });
+        // Platform-specific error message assertions are covered by the
+        // platform-injection tests at the bottom of this file, which run
+        // unconditionally on all CI platforms.
     });
 
     describe("given a path with double dots in a filename", () => {
@@ -285,5 +322,59 @@ describe("validateDirectory", () => {
                 }
             },
         );
+    });
+});
+
+// ── Platform-specific traversal branch coverage ──────────────────────────────
+// These tests exercise the Windows ('\'-as-separator) and POSIX ('/'-only)
+// branches of hasPathTraversalSegment via the public validateDirectory API,
+// injecting `platform` so both branches run unconditionally in Linux CI.
+describe("validateDirectory — platform-specific traversal detection", () => {
+    describe("given the win32 platform", () => {
+        it("rejects backslash-separated traversal with a path traversal error", async () => {
+            await expect(
+                validateDirectory("a\\..\\.\\..\\etc\\passwd", "win32"),
+            ).rejects.toThrow("path traversal");
+        });
+
+        it("rejects forward-slash traversal with a path traversal error", async () => {
+            await expect(
+                validateDirectory("a/../../etc/passwd", "win32"),
+            ).rejects.toThrow("path traversal");
+        });
+
+        it("does not reject a simple relative path as traversal", async () => {
+            // 'foo\bar\baz' contains no '..', so traversal check passes.
+            // The directory does not exist, so it fails with "does not exist"
+            // — confirming the traversal check did NOT reject it.
+            await expect(
+                validateDirectory("foo\\bar\\baz", "win32"),
+            ).rejects.toThrow("does not exist");
+        });
+    });
+
+    describe("given a POSIX platform", () => {
+        it("rejects forward-slash traversal with a path traversal error", async () => {
+            await expect(
+                validateDirectory("a/../../etc/passwd", "linux"),
+            ).rejects.toThrow("path traversal");
+        });
+
+        it("does not treat backslash as a separator — path fails with does-not-exist, not path-traversal", async () => {
+            // On POSIX, '\' is a valid filename character. The path
+            // 'a\..\.\..\etc\passwd' is a single segment, not traversal.
+            // validateDirectory will still reject it because the directory
+            // does not exist, but the error must be "does not exist", not
+            // "path traversal".
+            await expect(
+                validateDirectory("a\\..\\.\\..\\etc\\passwd", "linux"),
+            ).rejects.toThrow("does not exist");
+        });
+
+        it("does not reject a simple relative path as traversal", async () => {
+            await expect(
+                validateDirectory("foo/bar/baz", "linux"),
+            ).rejects.toThrow("does not exist");
+        });
     });
 });

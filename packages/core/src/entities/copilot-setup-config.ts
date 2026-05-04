@@ -249,3 +249,31 @@ export const DEFAULT_COPILOT_SETUP_CONFIG: CopilotSetupConfig = {
     setupActionPatterns: DEFAULT_SETUP_ACTION_PATTERNS,
     packageManagers: DEFAULT_PACKAGE_MANAGERS,
 };
+
+/**
+ * Gets a version type to action name mapping from config.
+ * Returns a partial record as not all types may be configured.
+ */
+export function getVersionTypeToActionMap(
+    config: CopilotSetupConfig,
+): Partial<Record<VersionFileType, string>> {
+    const map: Partial<Record<VersionFileType, string>> = {};
+    for (const action of config.setupActions) {
+        map[action.type] = action.action;
+    }
+    return map;
+}
+
+/**
+ * Gets a version file type to config key mapping from config.
+ * Returns a partial record as not all types may be configured.
+ */
+export function getVersionFileConfigKeyMap(
+    config: CopilotSetupConfig,
+): Partial<Record<VersionFileType, string>> {
+    const map: Partial<Record<VersionFileType, string>> = {};
+    for (const action of config.setupActions) {
+        map[action.type] = action.versionFileKey;
+    }
+    return map;
+}

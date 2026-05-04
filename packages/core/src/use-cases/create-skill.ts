@@ -5,7 +5,57 @@
 
 import { z } from "zod";
 import { generateSkillContent, normalizeSkillName } from "../entities/skill.js";
-import type { SkillFileGateway } from "../gateways/skill-file-gateway.js";
+
+/**
+ * Port for skill file operations.
+ */
+export interface SkillFileGateway {
+    /**
+     * Checks if a skill directory already exists
+     * @param targetDir The root directory of the repository
+     * @param skillName The normalized name of the skill
+     * @returns true if the skill directory exists
+     */
+    skillDirectoryExists(
+        targetDir: string,
+        skillName: string,
+    ): Promise<boolean>;
+
+    /**
+     * Ensures the .github/skills/<name> directory exists
+     * @param targetDir The root directory of the repository
+     * @param skillName The normalized name of the skill
+     */
+    ensureSkillDirectory(targetDir: string, skillName: string): Promise<void>;
+
+    /**
+     * Writes content to a SKILL.md file
+     * @param targetDir The root directory of the repository
+     * @param skillName The normalized name of the skill
+     * @param content The content to write to the file
+     */
+    writeSkillFile(
+        targetDir: string,
+        skillName: string,
+        content: string,
+    ): Promise<void>;
+
+    /**
+     * Returns the full path to a skill directory
+     * @param targetDir The root directory of the repository
+     * @param skillName The normalized name of the skill
+     * @returns The full path to the skill directory
+     */
+    getSkillDirectoryPath(targetDir: string, skillName: string): string;
+
+    /**
+     * Returns the full path to a SKILL.md file
+     * @param targetDir The root directory of the repository
+     * @param skillName The normalized name of the skill
+     * @returns The full path to the SKILL.md file
+     */
+    getSkillFilePath(targetDir: string, skillName: string): string;
+}
 
 /**
  * Schema for validating skill name input
@@ -47,7 +97,6 @@ export class CreateSkillUseCase {
         targetDir: string,
         skillName: string,
     ): Promise<CreateSkillResult> {
-        // Validate the skill name using Zod schema
         const validationResult = SkillNameSchema.safeParse(skillName);
         if (!validationResult.success) {
             const errorMessage =
@@ -59,10 +108,8 @@ export class CreateSkillUseCase {
             };
         }
 
-        // Normalize the skill name
         const normalizedName = normalizeSkillName(validationResult.data);
 
-        // Validate that the normalized name is not empty (handles whitespace-only input)
         if (!normalizedName) {
             return {
                 success: false,
@@ -70,7 +117,6 @@ export class CreateSkillUseCase {
             };
         }
 
-        // Get the paths
         const skillDirectoryPath = this.gateway.getSkillDirectoryPath(
             targetDir,
             normalizedName,
@@ -80,7 +126,6 @@ export class CreateSkillUseCase {
             normalizedName,
         );
 
-        // Check if the skill directory already exists
         if (
             await this.gateway.skillDirectoryExists(targetDir, normalizedName)
         ) {
@@ -91,13 +136,10 @@ export class CreateSkillUseCase {
             };
         }
 
-        // Ensure the skill directory exists
         await this.gateway.ensureSkillDirectory(targetDir, normalizedName);
 
-        // Generate the content
         const content = generateSkillContent(normalizedName);
 
-        // Write the SKILL.md file
         await this.gateway.writeSkillFile(targetDir, normalizedName, content);
 
         return {

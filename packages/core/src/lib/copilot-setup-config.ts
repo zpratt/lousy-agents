@@ -176,37 +176,12 @@ export async function loadCopilotSetupConfig(
  * This function is retained for backwards compatibility but is a no-op
  * because configuration is no longer cached at module scope.
  */
-export function resetCopilotSetupConfigCache(): void {
-    // no in-memory cache to reset
-}
+export function resetCopilotSetupConfigCache(): void {}
 
-/**
- * Gets a version file type to action mapping from config.
- * Returns a partial record as not all types may be configured.
- */
-export function getVersionTypeToActionMap(
-    config: CopilotSetupConfig,
-): Partial<Record<VersionFileType, string>> {
-    const map: Partial<Record<VersionFileType, string>> = {};
-    for (const action of config.setupActions) {
-        map[action.type] = action.action;
-    }
-    return map;
-}
-
-/**
- * Gets a version file type to config key mapping from config.
- * Returns a partial record as not all types may be configured.
- */
-export function getVersionFileConfigKeyMap(
-    config: CopilotSetupConfig,
-): Partial<Record<VersionFileType, string>> {
-    const map: Partial<Record<VersionFileType, string>> = {};
-    for (const action of config.setupActions) {
-        map[action.type] = action.versionFileKey;
-    }
-    return map;
-}
+export {
+    getVersionFileConfigKeyMap,
+    getVersionTypeToActionMap,
+} from "../entities/copilot-setup-config.js";
 
 /**
  * Gets a filename to version type mapping from config.

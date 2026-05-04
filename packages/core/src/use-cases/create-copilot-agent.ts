@@ -8,7 +8,45 @@ import {
     generateAgentContent,
     normalizeAgentName,
 } from "../entities/copilot-agent.js";
-import type { AgentFileGateway } from "../gateways/agent-file-gateway.js";
+
+/**
+ * Port for agent file operations.
+ */
+export interface AgentFileGateway {
+    /**
+     * Checks if an agent file already exists
+     * @param targetDir The root directory of the repository
+     * @param agentName The normalized name of the agent
+     * @returns true if the agent file exists
+     */
+    agentFileExists(targetDir: string, agentName: string): Promise<boolean>;
+
+    /**
+     * Ensures the .github/agents directory exists
+     * @param targetDir The root directory of the repository
+     */
+    ensureAgentsDirectory(targetDir: string): Promise<void>;
+
+    /**
+     * Writes content to an agent file
+     * @param targetDir The root directory of the repository
+     * @param agentName The normalized name of the agent
+     * @param content The content to write to the file
+     */
+    writeAgentFile(
+        targetDir: string,
+        agentName: string,
+        content: string,
+    ): Promise<void>;
+
+    /**
+     * Returns the full path to an agent file
+     * @param targetDir The root directory of the repository
+     * @param agentName The normalized name of the agent
+     * @returns The full path to the agent file
+     */
+    getAgentFilePath(targetDir: string, agentName: string): string;
+}
 
 /**
  * Schema for validating agent name input
@@ -49,7 +87,6 @@ export class CreateCopilotAgentUseCase {
         targetDir: string,
         agentName: string,
     ): Promise<CreateCopilotAgentResult> {
-        // Validate the agent name using Zod schema
         const validationResult = AgentNameSchema.safeParse(agentName);
         if (!validationResult.success) {
             const errorMessage =
@@ -61,10 +98,8 @@ export class CreateCopilotAgentUseCase {
             };
         }
 
-        // Normalize the agent name
         const normalizedName = normalizeAgentName(validationResult.data);
 
-        // Validate that the normalized name is not empty (handles whitespace-only input)
         if (!normalizedName) {
             return {
                 success: false,
@@ -72,13 +107,11 @@ export class CreateCopilotAgentUseCase {
             };
         }
 
-        // Get the file path
         const filePath = this.gateway.getAgentFilePath(
             targetDir,
             normalizedName,
         );
 
-        // Check if the file already exists
         if (await this.gateway.agentFileExists(targetDir, normalizedName)) {
             return {
                 success: false,
@@ -87,13 +120,10 @@ export class CreateCopilotAgentUseCase {
             };
         }
 
-        // Ensure the directory exists
         await this.gateway.ensureAgentsDirectory(targetDir);
 
-        // Generate the content
         const content = generateAgentContent(normalizedName);
 
-        // Write the file
         await this.gateway.writeAgentFile(targetDir, normalizedName, content);
 
         return {

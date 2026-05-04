@@ -38,6 +38,7 @@
         "test:integration": "vitest run --config vitest.integration.config.ts",
         "lint": "biome check .",
         "lint:fix": "biome check --write .",
+        "lint:architecture": "depcruise --config .dependency-cruiser.cjs packages/lint/src packages/core/src",
         "lint:workflows": "actionlint",
         "lint:yaml": "yamllint ."
     },
@@ -51,6 +52,7 @@
         "@types/node": "25.6.0",
         "@upstash/context7-mcp": "2.2.3",
         "chance": "1.1.13",
+        "dependency-cruiser": "17.3.10",
         "fast-check": "4.7.0",
         "testcontainers": "11.14.0",
         "tsx": "4.21.0",
