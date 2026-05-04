@@ -57,6 +57,11 @@ export {
     type CreateSkillResult,
     CreateSkillUseCase,
 } from "./create-skill.js";
+export type {
+    InitHooksConfig,
+    InitHooksConfigGatewayPort,
+    InitHooksResult,
+} from "./init-hooks-gateway-port.js";
 export {
     type InitHooksInput,
     type InitHooksOutput,

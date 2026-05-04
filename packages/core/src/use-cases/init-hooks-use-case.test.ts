@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { InitHooksConfigGatewayPort } from "../gateways/init-hooks-config-gateway.js";
+import type { InitHooksConfigGatewayPort } from "./init-hooks-gateway-port.js";
 import { InitHooksUseCase } from "./init-hooks-use-case.js";
 
 function makeGateway(
@@ -60,6 +60,36 @@ describe("InitHooksUseCase", () => {
                     force: false,
                 }),
             ).rejects.toThrow("Write failed");
+        });
+    });
+
+    describe("given an empty rootDir", () => {
+        it("throws without calling the gateway", async () => {
+            const gateway = makeGateway();
+            const useCase = new InitHooksUseCase(gateway);
+
+            await expect(
+                useCase.execute({
+                    rootDir: "",
+                    addSessionStart: false,
+                    force: false,
+                }),
+            ).rejects.toThrow("rootDir");
+        });
+    });
+
+    describe("given a whitespace-only rootDir", () => {
+        it("throws without calling the gateway", async () => {
+            const gateway = makeGateway();
+            const useCase = new InitHooksUseCase(gateway);
+
+            await expect(
+                useCase.execute({
+                    rootDir: "   ",
+                    addSessionStart: false,
+                    force: false,
+                }),
+            ).rejects.toThrow("rootDir");
         });
     });
 

@@ -13,10 +13,10 @@ describe("buildCapturePrompt", () => {
             expect(result.prompt).toBe(STOP_CAPTURE_TEMPLATE);
         });
 
-        it("does not include 'Subagent' in the template", () => {
+        it("does not include 'subagent' references in the template", () => {
             const result = buildCapturePrompt({ hookEventName: "Stop" });
 
-            expect(result.prompt).not.toContain("Subagent");
+            expect(result.prompt).not.toContain("subagent");
         });
     });
 
@@ -29,21 +29,27 @@ describe("buildCapturePrompt", () => {
             expect(result.prompt).toBe(SUBAGENT_STOP_CAPTURE_TEMPLATE);
         });
 
-        it("includes 'Subagent' in the template", () => {
+        it("includes 'subagent' references in the template", () => {
             const result = buildCapturePrompt({
                 hookEventName: "SubagentStop",
             });
 
-            expect(result.prompt).toContain("Subagent");
+            expect(result.prompt).toContain("subagent");
         });
     });
 
     describe("given either event type", () => {
-        it("includes lesson lint command instructions", () => {
+        it("instructs the agent to check existing lessons before creating new ones", () => {
+            for (const event of ["Stop", "SubagentStop"] as const) {
+                const result = buildCapturePrompt({ hookEventName: event });
+                expect(result.prompt).toContain("List existing lessons");
+            }
+        });
+
+        it("references the lessons directory path", () => {
             for (const event of ["Stop", "SubagentStop"] as const) {
                 const result = buildCapturePrompt({ hookEventName: event });
                 expect(result.prompt).toContain(".lousy-agents/lessons/");
-                expect(result.prompt).toContain("lint lessons");
             }
         });
     });

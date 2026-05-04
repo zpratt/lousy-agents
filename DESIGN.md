@@ -22,11 +22,11 @@ Stop and SubagentStop hooks are wired independently; neither takes priority. Sub
 
 ### Injection
 
-PreToolUse hook for Edit/Write calls the fixed command `lousy-agents context` and passes Claude Code hook input JSON on stdin. The command extracts the file path from validated hook input internally — file paths are never interpolated into shell command strings. Manual/debug invocations may use repeated `--files` flags. SessionStart hook injects all `invariant` lessons at session open.
+PreToolUse hook for Edit/Write calls the fixed command `lousy-agents context` and passes Claude Code hook input JSON on stdin. The command extracts the file path from validated hook input internally — file paths are never interpolated into shell command strings. Manual/debug invocations may use a single comma-separated `--files` flag. SessionStart hook injects all `invariant` lessons at session open.
 
 ### Matching
 
-Path globs (picomatch@4.0.4, `{ dot: false, nocase: false }`), tag matches (against Claude `tool_name`), and literal substring search against file content only. No regex matching on untrusted file content. No model calls in PreToolUse. No embedding similarity.
+Path globs (picomatch@4.0.2, `{ dot: false, nocase: false }`), tag matches (against file path segments and extensions, e.g., a tag of `ts` matches files ending in `.ts`, and a tag of `src` matches files under a `src/` directory), and literal substring search against file content only. No regex matching on untrusted file content. No model calls in PreToolUse. No embedding similarity.
 
 ## Constraints
 

@@ -83,9 +83,9 @@ describe("capture command", () => {
                 }),
             );
 
-            expect(stdout).toContain("Lesson Capture Template");
+            expect(stdout).toContain("finished a coding session");
             expect(stdout).toContain(".lousy-agents/lessons/");
-            expect(stdout).not.toContain("Subagent");
+            expect(stdout).not.toContain("subagent");
         });
     });
 
@@ -98,7 +98,7 @@ describe("capture command", () => {
                 }),
             );
 
-            expect(stdout).toContain("Subagent");
+            expect(stdout).toContain("subagent");
             expect(stdout).toContain(".lousy-agents/lessons/");
         });
     });

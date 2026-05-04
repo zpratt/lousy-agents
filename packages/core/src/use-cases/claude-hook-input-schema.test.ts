@@ -42,7 +42,7 @@ describe("ClaudePreToolUseHookInputSchema", () => {
     });
 
     describe("given a payload with extra fields", () => {
-        it("parses successfully (passthrough: forward-compatible with new Claude API fields)", () => {
+        it("parses successfully (strips unknown fields; forward-compatible with new Claude API fields)", () => {
             const payload = {
                 hook_event_name: "PreToolUse",
                 session_id: chance.guid(),

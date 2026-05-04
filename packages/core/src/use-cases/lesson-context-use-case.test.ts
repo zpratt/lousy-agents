@@ -121,11 +121,11 @@ describe("LessonContextUseCase", () => {
         });
     });
 
-    describe("given a lesson with a tag trigger matching the tool name", () => {
-        it("includes the lesson when tool_name matches a tag", async () => {
+    describe("given a lesson with a tag matching a path directory segment", () => {
+        it("includes the lesson when a tag matches a forward-slash path segment", async () => {
             const parsed = makeLesson({
-                title: "Bash Lesson",
-                triggers: { tags: ["Bash"], paths: [], patterns: [] },
+                title: "Src Lesson",
+                triggers: { tags: ["src"], paths: [], patterns: [] },
             });
             const gateway = makeGateway([parsed]);
             const useCase = new LessonContextUseCase(gateway);
@@ -133,18 +133,18 @@ describe("LessonContextUseCase", () => {
             const result = await useCase.execute({
                 rootDir: "/repo",
                 hookEventName: "PreToolUse",
-                toolName: "Bash",
+                filePaths: ["src/rules.ts"],
             });
 
-            expect(result.additionalContext).toContain("## Bash Lesson");
+            expect(result.additionalContext).toContain("## Src Lesson");
         });
     });
 
-    describe("given a lesson with a tag trigger not matching the tool name", () => {
-        it("excludes the lesson when tool_name does not match", async () => {
+    describe("given a lesson with a tag matching a file extension", () => {
+        it("includes the lesson when a tag matches the file extension", async () => {
             const parsed = makeLesson({
-                title: "Write Lesson",
-                triggers: { tags: ["Write"], paths: [], patterns: [] },
+                title: "TS Ext Lesson",
+                triggers: { tags: ["ts"], paths: [], patterns: [] },
             });
             const gateway = makeGateway([parsed]);
             const useCase = new LessonContextUseCase(gateway);
@@ -152,10 +152,71 @@ describe("LessonContextUseCase", () => {
             const result = await useCase.execute({
                 rootDir: "/repo",
                 hookEventName: "PreToolUse",
-                toolName: "Bash",
+                filePaths: ["src/rules.ts"],
             });
 
-            expect(result.additionalContext).not.toContain("## Write Lesson");
+            expect(result.additionalContext).toContain("## TS Ext Lesson");
+        });
+    });
+
+    describe("given a lesson with a tag matching the full filename", () => {
+        it("includes the lesson when a tag matches the full filename segment", async () => {
+            const parsed = makeLesson({
+                title: "Rules File Lesson",
+                triggers: { tags: ["rules.ts"], paths: [], patterns: [] },
+            });
+            const gateway = makeGateway([parsed]);
+            const useCase = new LessonContextUseCase(gateway);
+
+            const result = await useCase.execute({
+                rootDir: "/repo",
+                hookEventName: "PreToolUse",
+                filePaths: ["src/rules.ts"],
+            });
+
+            expect(result.additionalContext).toContain("## Rules File Lesson");
+        });
+    });
+
+    describe("given a lesson with a tag that does not match any path segment or extension", () => {
+        it("excludes the lesson when a tag is a tool name, not a path segment", async () => {
+            const parsed = makeLesson({
+                title: "Edit Tool Lesson",
+                triggers: { tags: ["Edit"], paths: [], patterns: [] },
+            });
+            const gateway = makeGateway([parsed]);
+            const useCase = new LessonContextUseCase(gateway);
+
+            const result = await useCase.execute({
+                rootDir: "/repo",
+                hookEventName: "PreToolUse",
+                filePaths: ["src/rules.ts"],
+            });
+
+            expect(result.additionalContext).not.toContain(
+                "## Edit Tool Lesson",
+            );
+        });
+    });
+
+    describe("given a lesson with a tag trigger and a Windows-style backslash path", () => {
+        it("includes the lesson after normalizing backslashes to forward slashes", async () => {
+            const parsed = makeLesson({
+                title: "Windows Path Lesson",
+                triggers: { tags: ["src"], paths: [], patterns: [] },
+            });
+            const gateway = makeGateway([parsed]);
+            const useCase = new LessonContextUseCase(gateway);
+
+            const result = await useCase.execute({
+                rootDir: "/repo",
+                hookEventName: "PreToolUse",
+                filePaths: ["src\\rules.ts"],
+            });
+
+            expect(result.additionalContext).toContain(
+                "## Windows Path Lesson",
+            );
         });
     });
 
@@ -175,6 +236,27 @@ describe("LessonContextUseCase", () => {
             });
 
             expect(result.additionalContext).toContain("## TS Lesson");
+        });
+    });
+
+    describe("given a lesson with a path trigger and a Windows-style backslash path", () => {
+        it("includes the lesson after normalizing backslashes to forward slashes for picomatch", async () => {
+            const parsed = makeLesson({
+                title: "Windows Glob Lesson",
+                triggers: { tags: [], paths: ["**/*.ts"], patterns: [] },
+            });
+            const gateway = makeGateway([parsed]);
+            const useCase = new LessonContextUseCase(gateway);
+
+            const result = await useCase.execute({
+                rootDir: "/repo",
+                hookEventName: "PreToolUse",
+                filePaths: ["src\\rules.ts"],
+            });
+
+            expect(result.additionalContext).toContain(
+                "## Windows Glob Lesson",
+            );
         });
     });
 
@@ -304,7 +386,7 @@ describe("LessonContextUseCase", () => {
     });
 
     describe("given the gateway throws an error", () => {
-        it("returns empty additionalContext and zero truncated count (fail-open)", async () => {
+        it("returns empty additionalContext and surfaces the thrown error in gatewayErrors (fail-open)", async () => {
             const gateway = makeGateway([], true);
             const useCase = new LessonContextUseCase(gateway);
 
@@ -315,7 +397,9 @@ describe("LessonContextUseCase", () => {
 
             expect(result.additionalContext).toBe("");
             expect(result.truncatedCount).toBe(0);
-            expect(result.gatewayErrors).toHaveLength(0);
+            expect(result.gatewayErrors).toHaveLength(1);
+            expect(result.gatewayErrors[0].filePath).toBe("/repo");
+            expect(result.gatewayErrors[0].reason).toBeTruthy();
         });
     });
 
@@ -341,6 +425,70 @@ describe("LessonContextUseCase", () => {
                 filePath: errFilePath,
                 reason: errReason,
             });
+        });
+    });
+
+    describe("given two matched lessons with the same slug", () => {
+        it("includes the lesson only once (dedup by slug)", async () => {
+            const slug = "duplicate-slug";
+            const lesson1 = makeLesson({
+                slug,
+                title: "First Duplicate",
+                type: "invariant",
+            });
+            const lesson2 = makeLesson({
+                slug,
+                title: "Second Duplicate",
+                type: "invariant",
+            });
+            const gateway = makeGateway([lesson1, lesson2]);
+            const useCase = new LessonContextUseCase(gateway);
+
+            const result = await useCase.execute({
+                rootDir: "/repo",
+                hookEventName: "SessionStart",
+            });
+
+            const occurrences = (
+                result.additionalContext.match(/## First Duplicate/g) ?? []
+            ).length;
+            expect(occurrences).toBe(1);
+            expect(result.additionalContext).not.toContain(
+                "## Second Duplicate",
+            );
+        });
+    });
+
+    describe("given matched lessons of mixed types", () => {
+        it("sorts invariant before pattern (type ascending)", async () => {
+            const patternLesson = makeLesson({
+                title: "Pattern Type Lesson",
+                type: "pattern",
+                triggers: { tags: [], paths: ["**/*.ts"], patterns: [] },
+            });
+            const invariantLesson = makeLesson({
+                title: "Invariant Type Lesson",
+                type: "invariant",
+                triggers: { tags: [], paths: ["**/*.ts"], patterns: [] },
+            });
+            const gateway = makeGateway([patternLesson, invariantLesson]);
+            const useCase = new LessonContextUseCase(gateway);
+
+            const result = await useCase.execute({
+                rootDir: "/repo",
+                hookEventName: "PreToolUse",
+                filePaths: ["src/foo.ts"],
+            });
+
+            const invariantPos = result.additionalContext.indexOf(
+                "## Invariant Type Lesson",
+            );
+            const patternPos = result.additionalContext.indexOf(
+                "## Pattern Type Lesson",
+            );
+            expect(invariantPos).toBeGreaterThanOrEqual(0);
+            expect(patternPos).toBeGreaterThanOrEqual(0);
+            expect(invariantPos).toBeLessThan(patternPos);
         });
     });
 });

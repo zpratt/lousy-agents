@@ -129,6 +129,14 @@ export const lintCommand = defineCommand({
                 ? context.data.targetDir
                 : process.cwd();
 
+        // citty runs both the subcommand's run function and the parent's run function.
+        // Exit early when a known subcommand was invoked to avoid double-execution.
+        // Use .includes() rather than [0] because citty may place flags before the
+        // subcommand name in rawArgs (e.g., ["--format", "lessons"]).
+        if (context.rawArgs.includes("lessons")) {
+            return; // Subcommand was handled by lintLessonsCommand.run
+        }
+
         const lintSkillsFlag =
             context.args?.skills === true || context.data?.skills === true;
         const lintAgentsFlag =

@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { InitHooksConfigGateway } from "./init-hooks-config-gateway.js";
@@ -163,15 +163,13 @@ describe("InitHooksConfigGateway", () => {
         it("preserves existing settings while adding hooks", async () => {
             const claudeDir = join(testDir, ".claude");
             await mkdir(claudeDir, { recursive: true });
-            await import("node:fs/promises").then((fs) =>
-                fs.writeFile(
-                    join(claudeDir, "settings.json"),
-                    JSON.stringify({
-                        model: "claude-opus-4-5",
-                        someOtherKey: 42,
-                    }),
-                    "utf8",
-                ),
+            await writeFile(
+                join(claudeDir, "settings.json"),
+                JSON.stringify({
+                    model: "claude-opus-4-5",
+                    someOtherKey: 42,
+                }),
+                "utf8",
             );
 
             const gateway = new InitHooksConfigGateway();
@@ -190,6 +188,191 @@ describe("InitHooksConfigGateway", () => {
             expect(parsed.hooks.PreToolUse).toBeDefined();
             expect(parsed.hooks.Stop).toBeDefined();
             expect(parsed.hooks.SubagentStop).toBeDefined();
+        });
+    });
+
+    describe("when hooks are written, commands do not use npx prefix", () => {
+        it("hook commands use lousy-agents directly without npx", async () => {
+            const gateway = new InitHooksConfigGateway();
+
+            await gateway.initHooks(testDir, {
+                addSessionStart: true,
+                force: false,
+            });
+
+            const content = await readFile(
+                join(testDir, ".claude", "settings.json"),
+                "utf8",
+            );
+            const parsed = JSON.parse(content);
+            const allCommands: string[] = [];
+
+            for (const event of [
+                "PreToolUse",
+                "Stop",
+                "SubagentStop",
+                "SessionStart",
+            ] as const) {
+                const entries = parsed.hooks[event];
+                if (!Array.isArray(entries)) continue;
+                for (const entry of entries as Array<{
+                    hooks?: Array<{ command?: string }>;
+                }>) {
+                    for (const hook of entry.hooks ?? []) {
+                        if (hook.command) allCommands.push(hook.command);
+                    }
+                }
+            }
+
+            expect(allCommands.length).toBeGreaterThan(0);
+            for (const cmd of allCommands) {
+                expect(cmd).not.toMatch(/^npx /);
+            }
+        });
+    });
+
+    describe("when settings.json already has a PreToolUse hook for Bash but not Edit or Write", () => {
+        it("adds Edit and Write matchers while preserving the existing Bash matcher", async () => {
+            const claudeDir = join(testDir, ".claude");
+            await mkdir(claudeDir, { recursive: true });
+            await writeFile(
+                join(claudeDir, "settings.json"),
+                JSON.stringify({
+                    hooks: {
+                        // biome-ignore lint/style/useNamingConvention: Claude settings JSON requires PascalCase hook event names
+                        PreToolUse: [
+                            {
+                                matcher: "Bash",
+                                hooks: [
+                                    {
+                                        type: "command",
+                                        command: "bash-command",
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                }),
+                "utf8",
+            );
+
+            const gateway = new InitHooksConfigGateway();
+            const result = await gateway.initHooks(testDir, {
+                addSessionStart: false,
+                force: false,
+            });
+
+            expect(result.written).toHaveLength(1);
+
+            const content = await readFile(
+                join(claudeDir, "settings.json"),
+                "utf8",
+            );
+            const parsed = JSON.parse(content);
+            const matchers = (
+                parsed.hooks.PreToolUse as Array<{ matcher: string }>
+            ).map((e) => e.matcher);
+            expect(matchers).toContain("Bash");
+            expect(matchers).toContain("Edit");
+            expect(matchers).toContain("Write");
+        });
+    });
+
+    describe("when --force is used on a config that already has Edit/Write hooks", () => {
+        it("replaces existing Edit/Write matchers without duplicating them", async () => {
+            const gateway = new InitHooksConfigGateway();
+
+            await gateway.initHooks(testDir, {
+                addSessionStart: false,
+                force: false,
+            });
+
+            await gateway.initHooks(testDir, {
+                addSessionStart: false,
+                force: true,
+            });
+
+            const content = await readFile(
+                join(testDir, ".claude", "settings.json"),
+                "utf8",
+            );
+            const parsed = JSON.parse(content);
+            const matchers = (
+                parsed.hooks.PreToolUse as Array<{ matcher: string }>
+            ).map((e) => e.matcher);
+
+            const editCount = matchers.filter((m) => m === "Edit").length;
+            const writeCount = matchers.filter((m) => m === "Write").length;
+            expect(editCount).toBe(1);
+            expect(writeCount).toBe(1);
+        });
+    });
+
+    describe("when --force is used on a config with Edit/Write and a third-party matcher", () => {
+        it("replaces Edit/Write matchers without duplicating them and preserves the third-party matcher", async () => {
+            const claudeDir = join(testDir, ".claude");
+            await mkdir(claudeDir, { recursive: true });
+            await writeFile(
+                join(claudeDir, "settings.json"),
+                JSON.stringify({
+                    hooks: {
+                        // biome-ignore lint/style/useNamingConvention: Claude settings JSON requires PascalCase hook event names
+                        PreToolUse: [
+                            {
+                                matcher: "Bash",
+                                hooks: [
+                                    {
+                                        type: "command",
+                                        command: "some-other-command",
+                                    },
+                                ],
+                            },
+                            {
+                                matcher: "Edit",
+                                hooks: [
+                                    {
+                                        type: "command",
+                                        command: "old-edit-command",
+                                    },
+                                ],
+                            },
+                            {
+                                matcher: "Write",
+                                hooks: [
+                                    {
+                                        type: "command",
+                                        command: "old-write-command",
+                                    },
+                                ],
+                            },
+                        ],
+                    },
+                }),
+                "utf8",
+            );
+
+            const gateway = new InitHooksConfigGateway();
+            await gateway.initHooks(testDir, {
+                addSessionStart: false,
+                force: true,
+            });
+
+            const content = await readFile(
+                join(claudeDir, "settings.json"),
+                "utf8",
+            );
+            const parsed = JSON.parse(content);
+            const matchers = (
+                parsed.hooks.PreToolUse as Array<{ matcher: string }>
+            ).map((e) => e.matcher);
+
+            // Third-party Bash matcher must be preserved
+            expect(matchers).toContain("Bash");
+            // Edit and Write must appear exactly once (no duplicates)
+            const editCount = matchers.filter((m) => m === "Edit").length;
+            const writeCount = matchers.filter((m) => m === "Write").length;
+            expect(editCount).toBe(1);
+            expect(writeCount).toBe(1);
         });
     });
 });

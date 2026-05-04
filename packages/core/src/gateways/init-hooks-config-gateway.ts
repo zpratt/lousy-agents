@@ -1,27 +1,17 @@
 import { constants } from "node:fs";
 import { lstat, mkdir, open, realpath, rename } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
+import type {
+    InitHooksConfig,
+    InitHooksConfigGatewayPort,
+    InitHooksResult,
+} from "../use-cases/init-hooks-gateway-port.js";
 import {
     assertPathHasNoSymbolicLinks,
     readFileNoFollow,
 } from "./file-system-utils.js";
 
-export interface InitHooksConfig {
-    readonly addSessionStart: boolean;
-    readonly force: boolean;
-}
-
-export interface InitHooksResult {
-    readonly written: readonly string[];
-    readonly skipped: readonly string[];
-}
-
-export interface InitHooksConfigGatewayPort {
-    initHooks(
-        rootDir: string,
-        config: InitHooksConfig,
-    ): Promise<InitHooksResult>;
-}
+export type { InitHooksConfig, InitHooksConfigGatewayPort, InitHooksResult };
 
 const CLAUDE_SETTINGS_PATH = join(".claude", "settings.json");
 
@@ -36,7 +26,7 @@ const PRE_TOOL_USE_HOOKS = [
         hooks: [
             {
                 type: "command",
-                command: "npx lousy-agents context",
+                command: "lousy-agents context",
             },
         ],
     },
@@ -45,7 +35,7 @@ const PRE_TOOL_USE_HOOKS = [
         hooks: [
             {
                 type: "command",
-                command: "npx lousy-agents context",
+                command: "lousy-agents context",
             },
         ],
     },
@@ -56,7 +46,7 @@ const SESSION_START_HOOKS = [
         hooks: [
             {
                 type: "command",
-                command: "npx lousy-agents context",
+                command: "lousy-agents context",
             },
         ],
     },
@@ -67,7 +57,7 @@ const STOP_HOOKS = [
         hooks: [
             {
                 type: "command",
-                command: "npx lousy-agents capture",
+                command: "lousy-agents capture",
             },
         ],
     },
@@ -78,7 +68,7 @@ const SUBAGENT_STOP_HOOKS = [
         hooks: [
             {
                 type: "command",
-                command: "npx lousy-agents capture",
+                command: "lousy-agents capture",
             },
         ],
     },
@@ -110,6 +100,23 @@ function safeJoin(rootDir: string, relativePath: string): string {
         );
     }
     return resolved;
+}
+
+function getExistingMatchers(
+    hooks: Record<string, unknown>,
+    event: string,
+): Set<string> {
+    const entries = hooks[event];
+    if (!Array.isArray(entries)) return new Set();
+    return new Set(
+        entries
+            .filter(
+                (e): e is Record<string, unknown> =>
+                    e !== null && typeof e === "object",
+            )
+            .map((e) => e.matcher)
+            .filter((m): m is string => typeof m === "string"),
+    );
 }
 
 export class InitHooksConfigGateway implements InitHooksConfigGatewayPort {
@@ -171,8 +178,14 @@ export class InitHooksConfigGateway implements InitHooksConfigGatewayPort {
                 ? (rawHooks as Record<string, unknown>)
                 : {};
 
-        const alreadyHasPreToolUse =
-            "PreToolUse" in existingHooks && !config.force;
+        const existingPreToolUseMatchers = getExistingMatchers(
+            existingHooks,
+            "PreToolUse",
+        );
+        const alreadyHasEditHook =
+            existingPreToolUseMatchers.has("Edit") && !config.force;
+        const alreadyHasWriteHook =
+            existingPreToolUseMatchers.has("Write") && !config.force;
         const alreadyHasStop = "Stop" in existingHooks && !config.force;
         const alreadyHasSubagentStop =
             "SubagentStop" in existingHooks && !config.force;
@@ -182,7 +195,8 @@ export class InitHooksConfigGateway implements InitHooksConfigGatewayPort {
             !config.force;
 
         const allAlreadyPresent =
-            alreadyHasPreToolUse &&
+            alreadyHasEditHook &&
+            alreadyHasWriteHook &&
             alreadyHasStop &&
             alreadyHasSubagentStop &&
             (!config.addSessionStart || alreadyHasSessionStart);
@@ -194,8 +208,30 @@ export class InitHooksConfigGateway implements InitHooksConfigGatewayPort {
 
         const updatedHooks: Record<string, unknown> = { ...existingHooks };
 
-        if (!alreadyHasPreToolUse) {
-            updatedHooks.PreToolUse = PRE_TOOL_USE_HOOKS;
+        const missingPreToolUseHooks = PRE_TOOL_USE_HOOKS.filter(
+            (h) =>
+                !(h.matcher === "Edit" && alreadyHasEditHook) &&
+                !(h.matcher === "Write" && alreadyHasWriteHook),
+        );
+        if (missingPreToolUseHooks.length > 0) {
+            // In --force mode, remove any existing Edit/Write matchers before
+            // appending the new ones so we never produce duplicate entries.
+            const existing_: unknown[] = Array.isArray(existingHooks.PreToolUse)
+                ? config.force
+                    ? (existingHooks.PreToolUse as unknown[]).filter((e) => {
+                          if (
+                              e === null ||
+                              typeof e !== "object" ||
+                              Array.isArray(e)
+                          ) {
+                              return true;
+                          }
+                          const m = (e as Record<string, unknown>).matcher;
+                          return m !== "Edit" && m !== "Write";
+                      })
+                    : (existingHooks.PreToolUse as unknown[])
+                : [];
+            updatedHooks.PreToolUse = [...existing_, ...missingPreToolUseHooks];
         }
 
         if (!alreadyHasStop) {

@@ -61,6 +61,7 @@ async function runContext(options: {
     const origExitCode = process.exitCode;
     process.exitCode = 0;
 
+    let exitCode = 0;
     try {
         await contextCommand.run?.({
             rawArgs: [],
@@ -69,12 +70,13 @@ async function runContext(options: {
             data: { targetDir: options.targetDir ?? "/repo" },
         });
     } finally {
+        exitCode = process.exitCode as number;
         writeSpy.mockRestore();
         process.exitCode = origExitCode;
     }
 
     const stdout = stdoutChunks.join("");
-    return { stdout };
+    return { stdout, exitCode };
 }
 
 describe("context command", () => {
@@ -200,20 +202,71 @@ describe("context command", () => {
         });
     });
 
-    describe("when --files contains a path that escapes rootDir", () => {
-        it("silently skips the out-of-scope file and emits valid hook JSON (path confinement, fail-open)", async () => {
-            // "../outside.ts" resolves outside rootDir; resolveSafePath rejects it
-            const { stdout } = await runContext({
-                files: "../outside.ts",
-                targetDir: tmpdir(),
+    describe("when stdin is a valid PreToolUse Edit payload with file_path that escapes rootDir", () => {
+        it("fails open: emits a PreToolUse JSON response (out-of-root path is silently dropped)", async () => {
+            const stdinPayload = JSON.stringify({
+                hook_event_name: "PreToolUse",
+                session_id: chance.guid(),
+                tool_name: "Edit",
+                tool_input: {
+                    file_path: "../../etc/passwd",
+                    old_string: "before",
+                    new_string: "after",
+                },
             });
 
-            // stdout must be exactly one valid JSON object — not corrupted by the traversal path
+            const { stdout } = await runContext({
+                stdin: stdinPayload,
+                targetDir: "/repo",
+            });
+
+            // Should still emit a valid JSON response (fail-open)
             const parsed = JSON.parse(stdout);
             expect(parsed.hookSpecificOutput.hookEventName).toBe("PreToolUse");
             expect(typeof parsed.hookSpecificOutput.additionalContext).toBe(
                 "string",
             );
+        });
+    });
+
+    describe("when --files contains a path that escapes rootDir (only path)", () => {
+        it("exits 1 when all supplied paths are rejected (all paths out-of-root)", async () => {
+            const { exitCode, stdout } = await runContext({
+                files: "../outside.ts",
+                targetDir: tmpdir(),
+            });
+
+            expect(exitCode).toBe(1);
+            // stdout is empty — no JSON written when all paths are rejected
+            expect(stdout).toBe("");
+        });
+    });
+
+    describe("when --files contains a mix of valid and invalid paths", () => {
+        it("drops only the out-of-root path, keeps the valid one, and emits a JSON response", async () => {
+            const warnSpy = vi.spyOn((await import("consola")).default, "warn");
+
+            const { exitCode, stdout } = await runContext({
+                files: "src/foo.ts,../../etc/passwd",
+                targetDir: tmpdir(),
+            });
+
+            expect(exitCode).not.toBe(1);
+            // A valid JSON response must still be emitted (fail-open)
+            const parsed = JSON.parse(stdout);
+            expect(parsed.hookSpecificOutput).toBeDefined();
+            // The out-of-root path must have been dropped with a warning
+            const dropWarnings = warnSpy.mock.calls
+                .map((args) => String(args[0]))
+                .filter((msg) => msg.includes("--files path dropped"));
+            expect(dropWarnings).toHaveLength(1);
+            expect(dropWarnings[0]).toContain("../../etc/passwd");
+            // The valid path must NOT have been dropped
+            expect(dropWarnings.some((msg) => msg.includes("src/foo.ts"))).toBe(
+                false,
+            );
+
+            warnSpy.mockRestore();
         });
     });
 });
