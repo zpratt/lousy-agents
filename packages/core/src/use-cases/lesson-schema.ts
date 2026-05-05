@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const SAFE_SLUG = /^[a-z0-9-]+$/;
+const MAX_TITLE_LENGTH = 200;
 const MAX_PATTERN_LENGTH = 200;
 const MAX_PATTERNS = 50;
 const MAX_TRIGGER_VALUES = 100;
@@ -9,7 +10,7 @@ const MAX_TRIGGER_VALUE_LENGTH = 200;
 export const LessonFrontmatterSchema = z
     .object({
         slug: z.string().regex(SAFE_SLUG, "slug must match ^[a-z0-9-]+$"),
-        title: z.string().min(1),
+        title: z.string().min(1).max(MAX_TITLE_LENGTH),
         type: z.enum(["invariant", "pattern"]),
         created: z
             .string()

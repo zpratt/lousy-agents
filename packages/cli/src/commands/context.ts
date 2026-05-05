@@ -1,4 +1,4 @@
-import { resolve, sep } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import {
     readFileNoFollow,
     resolveSafePath,
@@ -13,22 +13,7 @@ import { LessonContextUseCase } from "@lousy-agents/core/use-cases/lesson-contex
 import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
-
-function readStdin(): Promise<string> {
-    return new Promise((resolve) => {
-        if (process.stdin.isTTY) {
-            resolve("");
-            return;
-        }
-
-        const chunks: Buffer[] = [];
-        process.stdin.on("data", (chunk: Buffer) => chunks.push(chunk));
-        process.stdin.on("end", () =>
-            resolve(Buffer.concat(chunks).toString("utf8")),
-        );
-        process.stdin.on("error", () => resolve(""));
-    });
-}
+import { readStdin, STDIN_MAX_BYTES } from "../lib/stdin.js";
 
 /** Maximum bytes to read per file when building pattern-match contents. */
 const FILE_CONTENT_MAX_BYTES = 1_048_576; // 1 MB
@@ -63,24 +48,37 @@ async function readFileContents(
 
 /**
  * Filters explicit --files paths to those resolving within rootDir using
- * pure path arithmetic (no filesystem access required).
- * Logs a warning and drops each path that escapes rootDir (fail-open).
+ * pure path arithmetic (no filesystem access required), and normalizes each
+ * accepted path to a workspace-relative form so trigger globs (e.g.
+ * `src/**\/*.ts`) match correctly regardless of whether the input was
+ * absolute or relative.
+ * Logs a warning and drops each path that escapes rootDir or is the root
+ * itself (a directory, not a readable file), following fail-open semantics.
  */
 function filterExplicitFilePaths(
     rootDir: string,
     filePaths: readonly string[],
 ): string[] {
     const root = resolve(rootDir);
-    return filePaths.filter((fp) => {
+    return filePaths.flatMap((fp) => {
         const resolved = resolve(root, fp);
-        const inRoot =
-            resolved.startsWith(`${root}${sep}`) || resolved === root;
-        if (!inRoot) {
+        const rel = relative(root, resolved);
+        if (rel === "") {
+            consola.warn(
+                `context: --files path dropped (is the workspace root, not a readable file): ${fp}`,
+            );
+            return [];
+        }
+        if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
             consola.warn(
                 `context: --files path dropped (escapes rootDir): ${fp}`,
             );
+            return [];
         }
-        return inRoot;
+        // Normalize to workspace-relative so trigger path globs (e.g. src/**/*.ts)
+        // match correctly regardless of whether the input was absolute or relative.
+        // path.relative handles cross-platform separator differences correctly.
+        return [rel];
     });
 }
 
@@ -115,15 +113,42 @@ export const contextCommand = defineCommand({
         const rawFiles =
             typeof context.args?.files === "string" ? context.args.files : "";
 
-        const gateway = createLessonFileGateway();
-        const useCase = new LessonContextUseCase(gateway);
+        // Support test injection via context.data.useCase; fall back to production instance
+        const useCase =
+            context.data?.useCase instanceof LessonContextUseCase
+                ? context.data.useCase
+                : new LessonContextUseCase(createLessonFileGateway());
 
         let hookEventName: "PreToolUse" | "SessionStart" = "SessionStart";
         let filePaths: string[] = [];
         let fromExplicitFiles = false;
 
         // Always read stdin first (Claude Code pipes hook JSON unconditionally)
-        const stdinRaw = await readStdin();
+        const { text: stdinRaw, capped: stdinCapped } = await readStdin();
+
+        // Fail-open when stdin is oversized and no --files override: emit empty
+        // context and return immediately rather than falling through to SessionStart
+        // lesson injection (which would contradict the intent of discarding the
+        // oversized payload). The warning is emitted here (not inside readStdin)
+        // so the message can accurately describe the actual fallback behaviour.
+        if (stdinCapped) {
+            if (rawFiles.length === 0) {
+                consola.warn(
+                    `context: stdin exceeds ${STDIN_MAX_BYTES} bytes; discarding oversized input and returning empty context`,
+                );
+                process.stdout.write(
+                    buildAdditionalContextResponse({
+                        hookEventName: "PreToolUse",
+                        additionalContext: "",
+                    }),
+                );
+                return;
+            }
+            consola.warn(
+                `context: stdin exceeds ${STDIN_MAX_BYTES} bytes; discarding oversized stdin and using --files paths for PreToolUse dispatch`,
+            );
+        }
+
         const trimmedStdin = stdinRaw.trim();
 
         if (trimmedStdin.length > 0) {
@@ -133,7 +158,7 @@ export const contextCommand = defineCommand({
             } catch {
                 if (rawFiles.length > 0) {
                     // --files is a debug override: proceed with PreToolUse even when stdin is not valid JSON
-                    consola.warn(
+                    consola.info(
                         "context: stdin is not valid JSON; --files provided, switching to PreToolUse dispatch",
                     );
                     hookEventName = "PreToolUse";
@@ -145,7 +170,7 @@ export const contextCommand = defineCommand({
                     );
                     process.stdout.write(
                         buildAdditionalContextResponse({
-                            hookEventName: "SessionStart",
+                            hookEventName: "PreToolUse",
                             additionalContext: "",
                         }),
                     );
@@ -153,70 +178,86 @@ export const contextCommand = defineCommand({
                 }
             }
 
-            const preToolResult =
-                ClaudePreToolUseHookInputSchema.safeParse(parsed);
-            if (preToolResult.success) {
-                hookEventName = "PreToolUse";
-                // Extract file path from tool_input for real hook invocations,
-                // confining it to rootDir to prevent out-of-workspace path leakage.
-                const fp = preToolResult.data.tool_input.file_path;
-                if (typeof fp === "string" && fp.length > 0) {
-                    const root = resolve(rootDir);
-                    const resolved = resolve(root, fp);
-                    if (
-                        resolved.startsWith(`${root}${sep}`) ||
-                        resolved === root
-                    ) {
-                        filePaths = [fp];
-                    } else {
-                        consola.warn(
-                            `context: stdin file_path rejected (escapes rootDir): ${fp}`,
-                        );
+            if (!fromExplicitFiles) {
+                const preToolResult =
+                    ClaudePreToolUseHookInputSchema.safeParse(parsed);
+                if (preToolResult.success) {
+                    hookEventName = "PreToolUse";
+                    // Extract file path from tool_input for real hook invocations,
+                    // confining it to rootDir to prevent out-of-workspace path leakage.
+                    const fp = preToolResult.data.tool_input.file_path;
+                    if (typeof fp === "string" && fp.length > 0) {
+                        const root = resolve(rootDir);
+                        const resolved = resolve(root, fp);
+                        const rel = relative(root, resolved);
+                        if (rel === "") {
+                            // file_path points to the workspace root itself — not a
+                            // readable file; skip rather than passing "." to the
+                            // use case, which would cause an EISDIR on content reads.
+                            consola.warn(
+                                "context: stdin file_path is the workspace root; skipping",
+                            );
+                        } else if (
+                            rel === ".." ||
+                            rel.startsWith(`..${sep}`) ||
+                            isAbsolute(rel)
+                        ) {
+                            consola.warn(
+                                `context: stdin file_path rejected (escapes rootDir): ${fp}`,
+                            );
+                        } else {
+                            // Normalize to a workspace-relative path so trigger
+                            // path globs (e.g. src/**/*.ts) match correctly
+                            // regardless of whether the hook sends an absolute or
+                            // relative path. path.relative handles cross-platform
+                            // separator differences correctly.
+                            filePaths = [rel];
+                        }
                     }
-                }
-                if (rawFiles.length > 0) {
-                    // --files overrides stdin paths (debug mode)
-                    consola.warn(
-                        "context: --files provided alongside PreToolUse stdin; --files path set takes precedence",
-                    );
-                    filePaths = parseExplicitFiles(rawFiles);
-                    fromExplicitFiles = true;
-                }
-            } else {
-                const sessionResult =
-                    ClaudeSessionStartHookInputSchema.safeParse(parsed);
-                if (sessionResult.success) {
-                    hookEventName = "SessionStart";
                     if (rawFiles.length > 0) {
-                        // --files is an explicit debug override: always forces PreToolUse
-                        // regardless of what the stdin event name says.
-                        consola.warn(
-                            "context: --files provided alongside SessionStart stdin; switching to PreToolUse dispatch",
+                        // --files overrides stdin paths (debug mode)
+                        consola.info(
+                            "context: --files provided alongside PreToolUse stdin; --files path set takes precedence",
                         );
-                        hookEventName = "PreToolUse";
                         filePaths = parseExplicitFiles(rawFiles);
                         fromExplicitFiles = true;
                     }
                 } else {
-                    if (rawFiles.length > 0) {
-                        // --files is a debug override: proceed with PreToolUse even when stdin schema is unrecognised
-                        consola.warn(
-                            "context: stdin did not match any known hook schema; --files provided, switching to PreToolUse dispatch",
-                        );
-                        hookEventName = "PreToolUse";
-                        filePaths = parseExplicitFiles(rawFiles);
-                        fromExplicitFiles = true;
+                    const sessionResult =
+                        ClaudeSessionStartHookInputSchema.safeParse(parsed);
+                    if (sessionResult.success) {
+                        hookEventName = "SessionStart";
+                        if (rawFiles.length > 0) {
+                            // --files is an explicit debug override: always forces PreToolUse
+                            // regardless of what the stdin event name says.
+                            consola.info(
+                                "context: --files provided alongside SessionStart stdin; switching to PreToolUse dispatch",
+                            );
+                            hookEventName = "PreToolUse";
+                            filePaths = parseExplicitFiles(rawFiles);
+                            fromExplicitFiles = true;
+                        }
                     } else {
-                        consola.warn(
-                            "context: stdin did not match any known hook schema; falling back to empty additionalContext",
-                        );
-                        process.stdout.write(
-                            buildAdditionalContextResponse({
-                                hookEventName: "SessionStart",
-                                additionalContext: "",
-                            }),
-                        );
-                        return;
+                        if (rawFiles.length > 0) {
+                            // --files is a debug override: proceed with PreToolUse even when stdin schema is unrecognised
+                            consola.info(
+                                "context: stdin did not match any known hook schema; --files provided, switching to PreToolUse dispatch",
+                            );
+                            hookEventName = "PreToolUse";
+                            filePaths = parseExplicitFiles(rawFiles);
+                            fromExplicitFiles = true;
+                        } else {
+                            consola.warn(
+                                "context: stdin did not match any known hook schema; falling back to empty additionalContext",
+                            );
+                            process.stdout.write(
+                                buildAdditionalContextResponse({
+                                    hookEventName: "PreToolUse",
+                                    additionalContext: "",
+                                }),
+                            );
+                            return;
+                        }
                     }
                 }
             }
@@ -225,6 +266,23 @@ export const contextCommand = defineCommand({
             hookEventName = "PreToolUse";
             filePaths = parseExplicitFiles(rawFiles);
             fromExplicitFiles = true;
+        }
+
+        if (fromExplicitFiles && filePaths.length === 0) {
+            // --files was supplied but parsed to no tokens (e.g. all-whitespace or
+            // all-blank entries). Always emit the hook envelope so Claude's hook
+            // contract is satisfied, then exit 1 to signal misconfiguration.
+            consola.error(
+                "context: --files produced no valid paths after parsing; exiting 1",
+            );
+            process.stdout.write(
+                buildAdditionalContextResponse({
+                    hookEventName,
+                    additionalContext: "",
+                }),
+            );
+            process.exitCode = 1;
+            return;
         }
 
         if (fromExplicitFiles && filePaths.length > 0) {
@@ -236,6 +294,12 @@ export const contextCommand = defineCommand({
             if (filePaths.length === 0) {
                 consola.error(
                     "context: all --files paths were rejected (all escaped rootDir); exiting 1",
+                );
+                process.stdout.write(
+                    buildAdditionalContextResponse({
+                        hookEventName,
+                        additionalContext: "",
+                    }),
                 );
                 process.exitCode = 1;
                 return;

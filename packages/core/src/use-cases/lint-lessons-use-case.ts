@@ -20,14 +20,23 @@ export class LintLessonsUseCase {
     constructor(private readonly gateway: LessonFileGatewayPort) {}
 
     async execute(input: LintLessonsInput): Promise<LintLessonsOutput> {
-        if (!input.rootDir) {
-            throw new Error("Root directory is required");
+        if (!input.rootDir || input.rootDir.trim() === "") {
+            throw new Error("rootDir is required and must not be empty");
         }
 
         let result: Awaited<ReturnType<typeof this.gateway.readLessons>>;
         try {
             result = await this.gateway.readLessons(input.rootDir);
         } catch (error: unknown) {
+            // Propagate OS-level errors that are not "directory not found".
+            // Permission errors (EACCES) are infrastructure failures and must
+            // surface to the caller, not masquerade as lint results.
+            if (error instanceof Error && "code" in error) {
+                const code = (error as NodeJS.ErrnoException).code;
+                if (code !== "ENOENT" && code !== "ENOTDIR") {
+                    throw error;
+                }
+            }
             const reason =
                 error instanceof Error ? error.message : String(error);
             return {

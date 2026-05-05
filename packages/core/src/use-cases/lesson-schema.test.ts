@@ -228,4 +228,24 @@ describe("LessonFrontmatterSchema", () => {
             expect(result.success).toBe(true);
         });
     });
+
+    describe("when given a title with exactly 200 characters", () => {
+        it("should accept the lesson", () => {
+            const data = { ...validFrontmatter(), title: "a".repeat(200) };
+            const result = LessonFrontmatterSchema.safeParse(data);
+            expect(result.success).toBe(true);
+        });
+    });
+
+    describe("when given a title exceeding 200 characters", () => {
+        it("should reject with a validation error", () => {
+            const data = { ...validFrontmatter(), title: "a".repeat(201) };
+            const result = LessonFrontmatterSchema.safeParse(data);
+            expect(result.success).toBe(false);
+            if (!result.success) {
+                const paths = result.error.issues.map((i) => i.path.join("."));
+                expect(paths).toContain("title");
+            }
+        });
+    });
 });

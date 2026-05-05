@@ -375,4 +375,40 @@ describe("InitHooksConfigGateway", () => {
             expect(writeCount).toBe(1);
         });
     });
+
+    describe("when settings.json has Stop/SubagentStop as non-array values (invalid shape)", () => {
+        it("overwrites the invalid Stop and SubagentStop entries with valid arrays", async () => {
+            const claudeDir = join(testDir, ".claude");
+            await mkdir(claudeDir, { recursive: true });
+            await writeFile(
+                join(claudeDir, "settings.json"),
+                JSON.stringify({
+                    hooks: {
+                        // biome-ignore lint/style/useNamingConvention: Claude settings JSON requires PascalCase hook event names
+                        Stop: null,
+                        // biome-ignore lint/style/useNamingConvention: Claude settings JSON requires PascalCase hook event names
+                        SubagentStop: "not-an-array",
+                    },
+                }),
+                "utf8",
+            );
+
+            const gateway = new InitHooksConfigGateway();
+            const result = await gateway.initHooks(testDir, {
+                addSessionStart: false,
+                force: false,
+            });
+
+            expect(result.written).toHaveLength(1);
+
+            const content = await readFile(
+                join(claudeDir, "settings.json"),
+                "utf8",
+            );
+            const parsed = JSON.parse(content);
+            // Invalid shapes must be replaced with valid arrays
+            expect(Array.isArray(parsed.hooks.Stop)).toBe(true);
+            expect(Array.isArray(parsed.hooks.SubagentStop)).toBe(true);
+        });
+    });
 });

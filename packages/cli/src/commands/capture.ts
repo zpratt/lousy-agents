@@ -6,21 +6,19 @@ import {
 import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
+import { readStdin, STDIN_MAX_BYTES } from "../lib/stdin.js";
 
-function readStdin(): Promise<string> {
-    return new Promise((resolve) => {
-        if (process.stdin.isTTY) {
-            resolve("");
-            return;
-        }
+/** Minimal logger interface required by this command. */
+interface CaptureLogger {
+    warn: (...args: unknown[]) => void;
+}
 
-        const chunks: Buffer[] = [];
-        process.stdin.on("data", (chunk: Buffer) => chunks.push(chunk));
-        process.stdin.on("end", () =>
-            resolve(Buffer.concat(chunks).toString("utf8")),
-        );
-        process.stdin.on("error", () => resolve(""));
-    });
+function isCaptureLogger(value: unknown): value is CaptureLogger {
+    return (
+        value !== null &&
+        typeof value === "object" &&
+        typeof (value as Record<string, unknown>).warn === "function"
+    );
 }
 
 export const captureCommand = defineCommand({
@@ -29,12 +27,24 @@ export const captureCommand = defineCommand({
         description:
             "Generate a lesson capture prompt for Stop/SubagentStop Claude hooks",
     },
-    run: async (_context: CommandContext) => {
-        const stdinRaw = await readStdin();
+    run: async (context: CommandContext) => {
+        const logger: CaptureLogger = isCaptureLogger(context.data?.logger)
+            ? context.data.logger
+            : consola;
+
+        const { text: stdinRaw, capped } = await readStdin();
+
+        if (capped) {
+            logger.warn(
+                `capture: stdin exceeds ${STDIN_MAX_BYTES} bytes; discarding input`,
+            );
+            return;
+        }
+
         const trimmed = stdinRaw.trim();
 
         if (trimmed.length === 0) {
-            consola.warn(
+            logger.warn(
                 "capture: no hook input provided via stdin; nothing to capture",
             );
             return;
@@ -44,9 +54,7 @@ export const captureCommand = defineCommand({
         try {
             parsed = JSON.parse(trimmed);
         } catch {
-            consola.warn(
-                "capture: stdin is not valid JSON; nothing to capture",
-            );
+            logger.warn("capture: stdin is not valid JSON; nothing to capture");
             return;
         }
 
@@ -67,7 +75,7 @@ export const captureCommand = defineCommand({
             return;
         }
 
-        consola.warn(
+        logger.warn(
             "capture: stdin did not match Stop or SubagentStop hook schema; nothing to capture",
         );
     },

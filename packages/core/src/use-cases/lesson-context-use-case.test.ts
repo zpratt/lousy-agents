@@ -459,6 +459,38 @@ describe("LessonContextUseCase", () => {
         });
     });
 
+    describe("given two lessons sharing a slug but with different triggers.paths", () => {
+        it("evaluates each lesson against its own path triggers (no slug-collision matcher overwrite)", async () => {
+            const slug = "shared-slug";
+            const tsLesson = makeLesson({
+                slug,
+                title: "TypeScript Lesson",
+                type: "pattern",
+                triggers: { tags: [], paths: ["**/*.ts"], patterns: [] },
+            });
+            const pyLesson = makeLesson({
+                slug,
+                title: "Python Lesson",
+                type: "pattern",
+                triggers: { tags: [], paths: ["**/*.py"], patterns: [] },
+            });
+            const gateway = makeGateway([tsLesson, pyLesson]);
+            const useCase = new LessonContextUseCase(gateway);
+
+            // src/foo.ts should match tsLesson's "**/*.ts" path glob
+            const result = await useCase.execute({
+                rootDir: "/repo",
+                hookEventName: "PreToolUse",
+                filePaths: ["src/foo.ts"],
+            });
+
+            // tsLesson must match (its "**/*.ts" glob covers src/foo.ts)
+            expect(result.additionalContext).toContain("## TypeScript Lesson");
+            // pyLesson must NOT match (its "**/*.py" glob does not cover src/foo.ts)
+            expect(result.additionalContext).not.toContain("## Python Lesson");
+        });
+    });
+
     describe("given matched lessons of mixed types", () => {
         it("sorts invariant before pattern (type ascending)", async () => {
             const patternLesson = makeLesson({

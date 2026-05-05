@@ -87,9 +87,17 @@ export class LessonFileGateway implements LessonFileGatewayPort {
         } catch (error: unknown) {
             const reason =
                 error instanceof Error ? error.message : String(error);
-            throw new Error(
+            const wrapped = new Error(
                 `Cannot read lessons directory ${lessonsDir}: ${reason}`,
             );
+            // Preserve the OS error code so callers can distinguish EACCES
+            // (permission denied) from other failures without parsing the message.
+            if (error instanceof Error && "code" in error) {
+                (wrapped as NodeJS.ErrnoException).code = (
+                    error as NodeJS.ErrnoException
+                ).code;
+            }
+            throw wrapped;
         }
 
         const mdFiles = entries

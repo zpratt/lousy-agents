@@ -1,6 +1,7 @@
+import { randomBytes } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat, mkdir, open, realpath, rename } from "node:fs/promises";
-import { join, resolve, sep } from "node:path";
+import { mkdir, open, realpath, rename, unlink } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type {
     InitHooksConfig,
     InitHooksConfigGatewayPort,
@@ -74,12 +75,13 @@ const SUBAGENT_STOP_HOOKS = [
     },
 ];
 
+const DANGEROUS_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 function hasPrototypePollutionKey(obj: unknown, depth = 0): boolean {
     if (depth > 20) return false;
     if (obj === null || typeof obj !== "object") return false;
-    const DangerousKeys = new Set(["__proto__", "constructor", "prototype"]);
     for (const key of Object.keys(obj as Record<string, unknown>)) {
-        if (DangerousKeys.has(key)) return true;
+        if (DANGEROUS_KEYS.has(key)) return true;
         if (
             hasPrototypePollutionKey(
                 (obj as Record<string, unknown>)[key],
@@ -94,10 +96,13 @@ function hasPrototypePollutionKey(obj: unknown, depth = 0): boolean {
 function safeJoin(rootDir: string, relativePath: string): string {
     const resolved = resolve(rootDir, relativePath);
     const root = resolve(rootDir);
-    if (!resolved.startsWith(`${root}${sep}`) && resolved !== root) {
-        throw new Error(
-            `Resolved path is outside target directory: ${relativePath}`,
-        );
+    if (resolved !== root) {
+        const rel = relative(root, resolved);
+        if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+            throw new Error(
+                `Resolved path is outside target directory: ${relativePath}`,
+            );
+        }
     }
     return resolved;
 }
@@ -186,12 +191,13 @@ export class InitHooksConfigGateway implements InitHooksConfigGatewayPort {
             existingPreToolUseMatchers.has("Edit") && !config.force;
         const alreadyHasWriteHook =
             existingPreToolUseMatchers.has("Write") && !config.force;
-        const alreadyHasStop = "Stop" in existingHooks && !config.force;
+        const alreadyHasStop =
+            Array.isArray(existingHooks.Stop) && !config.force;
         const alreadyHasSubagentStop =
-            "SubagentStop" in existingHooks && !config.force;
+            Array.isArray(existingHooks.SubagentStop) && !config.force;
         const alreadyHasSessionStart =
             config.addSessionStart &&
-            "SessionStart" in existingHooks &&
+            Array.isArray(existingHooks.SessionStart) &&
             !config.force;
 
         const allAlreadyPresent =
@@ -234,6 +240,8 @@ export class InitHooksConfigGateway implements InitHooksConfigGatewayPort {
             updatedHooks.PreToolUse = [...existing_, ...missingPreToolUseHooks];
         }
 
+        // Stop/SubagentStop: written if not already configured with a valid
+        // array. Use --force to replace them.
         if (!alreadyHasStop) {
             updatedHooks.Stop = STOP_HOOKS;
         }
@@ -255,76 +263,63 @@ export class InitHooksConfigGateway implements InitHooksConfigGatewayPort {
 
         await mkdir(claudeDir, { recursive: true });
 
-        const tmpPath = `${settingsPath}.tmp`;
+        // Re-check after mkdir: a race between the initial check and directory
+        // creation could allow an attacker to replace .claude/ with a symlink.
+        // By the time mkdir returns, the directory exists; if .claude (or any
+        // ancestor) is now a symlink the walk will reach it and throw.
+        await assertPathHasNoSymbolicLinks(realRootDir, settingsPath);
 
-        // Write the temp file without following symlinks to prevent a
-        // pre-created symlink from redirecting the write to an arbitrary path.
-        // O_NOFOLLOW is available on all targeted platforms (Linux/macOS/BSD).
-        // On platforms that lack it (e.g., Windows), we fall back to an
-        // explicit lstat check, accepting the narrow TOCTOU window.
+        // Use a random suffix so the temp path is unpredictable, combined with
+        // O_EXCL so the open fails rather than truncating a pre-existing file.
+        // Together these defeat hardlink pre-creation attacks: an attacker cannot
+        // predict the path to hardlink, and even if they did O_EXCL would reject it.
+        const tmpPath = `${settingsPath}.${randomBytes(8).toString("hex")}.tmp`;
+
+        // O_NOFOLLOW prevents following a symlink that races between open and write.
+        // O_EXCL guarantees the file is newly created (no truncate of an existing target).
         const hasNoFollow =
             typeof constants.O_NOFOLLOW === "number" &&
             constants.O_NOFOLLOW !== 0;
 
-        if (hasNoFollow) {
-            const openFlags =
-                constants.O_WRONLY |
-                constants.O_CREAT |
-                constants.O_TRUNC |
-                constants.O_NOFOLLOW;
+        const openFlags =
+            constants.O_WRONLY |
+            constants.O_CREAT |
+            constants.O_EXCL |
+            (hasNoFollow ? constants.O_NOFOLLOW : 0);
 
-            let tmpFileHandle: Awaited<ReturnType<typeof open>>;
-            try {
-                tmpFileHandle = await open(tmpPath, openFlags);
-            } catch (error: unknown) {
-                if (
-                    error instanceof Error &&
-                    "code" in error &&
-                    error.code === "ELOOP"
-                ) {
+        let tmpFileHandle: Awaited<ReturnType<typeof open>>;
+        try {
+            tmpFileHandle = await open(tmpPath, openFlags);
+        } catch (error: unknown) {
+            if (error instanceof Error && "code" in error) {
+                if (error.code === "ELOOP") {
                     throw new Error(
                         `Symlinks are not allowed for temp path: ${JSON.stringify(tmpPath)}`,
                     );
                 }
-                throw error;
-            }
-            try {
-                await tmpFileHandle.writeFile(content, "utf8");
-            } finally {
-                await tmpFileHandle.close();
-            }
-        } else {
-            // Fallback: lstat-based symlink check before write (accepts narrow TOCTOU)
-            try {
-                const tmpStat = await lstat(tmpPath);
-                if (tmpStat.isSymbolicLink()) {
+                if (error.code === "EEXIST") {
+                    // With 8 random bytes (2^64 possibilities) this is astronomically
+                    // rare; if it happens it likely indicates a targeted attack.
                     throw new Error(
-                        `Symlinks are not allowed for temp path: ${JSON.stringify(tmpPath)}`,
+                        `Temp file already exists (possible collision or attack): ${JSON.stringify(tmpPath)}`,
                     );
                 }
-            } catch (error: unknown) {
-                if (
-                    !(
-                        error instanceof Error &&
-                        "code" in error &&
-                        (error as NodeJS.ErrnoException).code === "ENOENT"
-                    )
-                ) {
-                    throw error;
-                }
-                // ENOENT: temp file doesn't exist yet — safe to create
             }
-            const tmpFileHandle = await open(
-                tmpPath,
-                constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC,
-            );
-            try {
-                await tmpFileHandle.writeFile(content, "utf8");
-            } finally {
-                await tmpFileHandle.close();
-            }
+            throw error;
         }
-        await rename(tmpPath, settingsPath);
+        try {
+            await tmpFileHandle.writeFile(content, "utf8");
+        } finally {
+            await tmpFileHandle.close();
+        }
+        try {
+            await rename(tmpPath, settingsPath);
+        } catch (error: unknown) {
+            // Best-effort cleanup: remove the random temp file so it does not
+            // accumulate on repeated failures (e.g. settingsPath unwritable).
+            await unlink(tmpPath).catch(() => {});
+            throw error;
+        }
 
         written.push(settingsPath);
         return { written, skipped };

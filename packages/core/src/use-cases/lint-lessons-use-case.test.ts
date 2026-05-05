@@ -66,6 +66,17 @@ describe("LintLessonsUseCase", () => {
         });
     });
 
+    describe("when rootDir is whitespace-only", () => {
+        it("throws without calling the gateway", async () => {
+            const gateway = makeGateway({ lessons: [], errors: [] });
+            const useCase = new LintLessonsUseCase(gateway);
+
+            await expect(useCase.execute({ rootDir: "   " })).rejects.toThrow(
+                "rootDir",
+            );
+        });
+    });
+
     describe("when the directory does not exist", () => {
         it("should return valid: true with a no-lessons message", async () => {
             const gateway = makeGateway({ lessons: [], errors: [] });
@@ -76,6 +87,21 @@ describe("LintLessonsUseCase", () => {
             expect(result.valid).toBe(true);
             expect(result.totalFiles).toBe(0);
             expect(result.message).toContain("No lessons configured");
+        });
+    });
+
+    describe("when the gateway throws with EACCES (permission denied)", () => {
+        it("propagates the error without converting it to a lint result", async () => {
+            const permError = Object.assign(
+                new Error("EACCES: permission denied, realpath '/protected'"),
+                { code: "EACCES" },
+            );
+            const gateway = makeGateway(permError);
+            const useCase = new LintLessonsUseCase(gateway);
+
+            await expect(
+                useCase.execute({ rootDir: "/protected" }),
+            ).rejects.toThrow("permission denied");
         });
     });
 

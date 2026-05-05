@@ -41,11 +41,11 @@ describe("lint command — lessons subcommand guard", () => {
     });
 
     describe("when a flag precedes the 'lessons' subcommand in rawArgs", () => {
-        it("returns without calling runLint (guard uses .includes, not [0])", async () => {
+        it("returns without calling runLint (guard checks index, not --format value)", async () => {
             const { lintCommand } = await import("./lint.js");
 
             await lintCommand.run?.({
-                rawArgs: ["--format", "lessons"],
+                rawArgs: ["--format", "human", "lessons"],
                 args: { _: [] },
                 cmd: lintCommand,
                 data: { targetDir: "/repo" },
@@ -55,7 +55,37 @@ describe("lint command — lessons subcommand guard", () => {
         });
     });
 
-    describe("when rawArgs does not start with 'lessons'", () => {
+    describe("when 'lessons' is the value of the --format flag (not a subcommand)", () => {
+        it("calls runLint normally (preceding --format token suppresses guard)", async () => {
+            const { lintCommand } = await import("./lint.js");
+
+            await lintCommand.run?.({
+                rawArgs: ["--format", "lessons"],
+                args: { _: [], skills: true },
+                cmd: lintCommand,
+                data: { targetDir: "/repo", skills: true },
+            });
+
+            expect(mockRunLint).toHaveBeenCalledOnce();
+        });
+    });
+
+    describe("when --format value and subcommand name collide (--format lessons lessons)", () => {
+        it("returns without calling runLint (second 'lessons' is the subcommand)", async () => {
+            const { lintCommand } = await import("./lint.js");
+
+            await lintCommand.run?.({
+                rawArgs: ["--format", "lessons", "lessons"],
+                args: { _: [] },
+                cmd: lintCommand,
+                data: { targetDir: "/repo" },
+            });
+
+            expect(mockRunLint).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("when rawArgs does not contain 'lessons'", () => {
         it("calls runLint normally", async () => {
             const { lintCommand } = await import("./lint.js");
 

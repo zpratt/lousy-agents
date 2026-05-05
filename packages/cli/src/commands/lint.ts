@@ -130,10 +130,18 @@ export const lintCommand = defineCommand({
                 : process.cwd();
 
         // citty runs both the subcommand's run function and the parent's run function.
-        // Exit early when a known subcommand was invoked to avoid double-execution.
-        // Use .includes() rather than [0] because citty may place flags before the
-        // subcommand name in rawArgs (e.g., ["--format", "lessons"]).
-        if (context.rawArgs.includes("lessons")) {
+        // Exit early when the `lessons` subcommand was invoked to avoid double-execution.
+        //
+        // Detection strategy: "lessons" must appear in rawArgs as a positional token,
+        // i.e. NOT as the value of --format (where the preceding token is "--format").
+        // Using the index check here is robust to any combination of flags and avoids
+        // relying on context.args.format which could collide (e.g. --format lessons lessons).
+        const rawArgs_ = context.rawArgs ?? [];
+        const lessonsIsSubcommand = rawArgs_.some(
+            (token, idx) =>
+                token === "lessons" && rawArgs_[idx - 1] !== "--format",
+        );
+        if (lessonsIsSubcommand) {
             return; // Subcommand was handled by lintLessonsCommand.run
         }
 
