@@ -59,6 +59,19 @@ if (existsSync("/tmp/config.json")) {
     console.log(data);
 }
 
+// ── KNOWN LIMITATION: for-loop condition not detected by toctou rule ─────────
+// Only if/while blocks are matched; for-loop conditions are out of scope.
+// avoid-exists-sync still fires on the existsSync call.
+
+const paths = ["/tmp/a.json", "/tmp/b.json"];
+// ok: toctou-exists-sync-read
+// ruleid: avoid-exists-sync
+for (let i = 0; fs.existsSync(paths[i]); i++) {
+    const data = fs.readFileSync(paths[i], "utf-8");
+    console.log(data);
+    break;
+}
+
 // ── TRUE NEGATIVES (safe try/catch pattern — no TOCTOU) ─────────────────────
 
 // ok: toctou-exists-sync-read

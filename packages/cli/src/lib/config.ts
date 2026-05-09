@@ -20,8 +20,7 @@ function findPackageRoot(startDir: string): string {
     // __dirname is always an absolute path derived from import.meta.url, never
     // user-controlled input. Do NOT export this function or call it with
     // external input without removing this suppression and adding path validation.
-    // nosemgrep: avoid-exists-sync
-    while (!existsSync(join(dir, "package.json"))) {
+    while (!existsSync(join(dir, "package.json"))) { // nosemgrep: avoid-exists-sync
         const parent = dirname(dir);
         if (parent === dir) {
             throw new Error(`Could not find package root from ${startDir}`);
