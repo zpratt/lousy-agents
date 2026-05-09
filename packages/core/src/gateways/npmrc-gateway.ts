@@ -2,11 +2,11 @@
  * Gateway for reading and writing `.npmrc` configuration files.
  */
 
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { type ConsolaInstance, consola } from "consola";
 import {
-    assertFileSizeWithinLimit,
-    fileExists,
+    pathExistsWithinRoot,
+    readTextWithinRoot,
     resolveSafePath,
 } from "./file-system-utils.js";
 
@@ -26,19 +26,11 @@ export class FileSystemNpmrcGateway implements NpmrcGateway {
     ) {}
 
     async readNpmrc(targetDir: string): Promise<string | null> {
-        const npmrcPath = await resolveSafePath(targetDir, ".npmrc");
-
-        if (!(await fileExists(npmrcPath))) {
+        if (!(await pathExistsWithinRoot(targetDir, ".npmrc"))) {
             return null;
         }
 
-        await assertFileSizeWithinLimit(
-            npmrcPath,
-            MAX_NPMRC_BYTES,
-            "`.npmrc` file",
-        );
-
-        return readFile(npmrcPath, "utf-8");
+        return readTextWithinRoot(targetDir, ".npmrc", MAX_NPMRC_BYTES);
     }
 
     async writeNpmrc(targetDir: string, content: string): Promise<void> {

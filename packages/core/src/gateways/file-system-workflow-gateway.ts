@@ -2,7 +2,7 @@
  * File system implementation of the workflow gateway.
  */
 
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { SetupStepCandidate } from "../entities/copilot-setup.js";
@@ -16,8 +16,10 @@ import {
     extractSetupStepsFromWorkflow,
 } from "../use-cases/setup-step-discovery.js";
 import {
-    assertFileSizeWithinLimit,
-    fileExists,
+    isFsSafeViolation,
+    listDirectoryWithinRoot,
+    pathExistsWithinRoot,
+    readTextWithinRoot,
     resolveSafePath,
 } from "./file-system-utils.js";
 
@@ -46,12 +48,9 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
         targetDir: string,
     ): Promise<string | null> {
         for (const filename of COPILOT_SETUP_WORKFLOW_FILENAMES) {
-            const workflowPath = await resolveSafePath(
-                targetDir,
-                `.github/workflows/${filename}`,
-            );
-            if (await fileExists(workflowPath)) {
-                return workflowPath;
+            const relativePath = `.github/workflows/${filename}`;
+            if (await pathExistsWithinRoot(targetDir, relativePath)) {
+                return resolveSafePath(targetDir, relativePath);
             }
         }
         return null;
@@ -60,44 +59,44 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
     async parseWorkflowsForSetupActions(
         targetDir: string,
     ): Promise<SetupStepCandidate[]> {
-        const workflowsDir = await resolveSafePath(
-            targetDir,
-            ".github/workflows",
-        );
-
-        if (!(await fileExists(workflowsDir))) {
+        const workflowsRelativeDir = ".github/workflows";
+        if (!(await pathExistsWithinRoot(targetDir, workflowsRelativeDir))) {
             return [];
         }
 
-        const files = await readdir(workflowsDir);
+        const files = await listDirectoryWithinRoot(
+            targetDir,
+            workflowsRelativeDir,
+        );
         const yamlFiles = files.filter(
-            (f) => f.endsWith(".yml") || f.endsWith(".yaml"),
+            (f) =>
+                f.isFile() &&
+                (f.name.endsWith(".yml") || f.name.endsWith(".yaml")),
         );
 
         const config = await this.getConfig();
         const allCandidates: SetupStepCandidate[] = [];
 
         for (const file of yamlFiles) {
-            const filePath = await resolveSafePath(
-                targetDir,
-                `.github/workflows/${file}`,
-            );
-
-            await assertFileSizeWithinLimit(
-                filePath,
-                MAX_WORKFLOW_FILE_BYTES,
-                `Workflow file '${file}'`,
-            );
-
+            const relativePath = `.github/workflows/${file.name}`;
             try {
-                const content = await readFile(filePath, "utf-8");
+                const content = await readTextWithinRoot(
+                    targetDir,
+                    relativePath,
+                    MAX_WORKFLOW_FILE_BYTES,
+                );
                 const workflow = parseYaml(content);
                 const candidates = extractSetupStepsFromWorkflow(
                     workflow,
                     config.setupActionPatterns,
                 );
                 allCandidates.push(...candidates);
-            } catch {}
+            } catch (error: unknown) {
+                if (isFsSafeViolation(error)) {
+                    throw error;
+                }
+                // Skip workflow files with YAML parse errors or transient I/O failures
+            }
         }
 
         return deduplicateCandidates(allCandidates);
@@ -127,12 +126,16 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
             return null;
         }
 
-        await assertFileSizeWithinLimit(
-            workflowPath,
+        const workflowRelativePath = workflowPath.endsWith(
+            "copilot-setup-steps.yaml",
+        )
+            ? ".github/workflows/copilot-setup-steps.yaml"
+            : ".github/workflows/copilot-setup-steps.yml";
+        const content = await readTextWithinRoot(
+            targetDir,
+            workflowRelativePath,
             MAX_WORKFLOW_FILE_BYTES,
-            "Copilot setup workflow",
         );
-        const content = await readFile(workflowPath, "utf-8");
         return parseYaml(content);
     }
 

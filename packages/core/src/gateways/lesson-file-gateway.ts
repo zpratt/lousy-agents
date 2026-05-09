@@ -2,7 +2,6 @@
  * Gateway for reading lesson files from .lousy-agents/lessons/.
  */
 
-import { lstat, readdir, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import type { Lesson } from "../entities/lesson.js";
 import { parseFrontmatterWithError } from "../lib/frontmatter.js";
@@ -14,8 +13,10 @@ import type {
 } from "../use-cases/lesson-file-gateway-port.js";
 import { LessonFrontmatterSchema } from "../use-cases/lesson-schema.js";
 import {
-    assertPathHasNoSymbolicLinks,
-    readFileNoFollow,
+    listDirectoryWithinRoot,
+    pathExistsWithinRoot,
+    readTextWithinRoot,
+    statWithinRoot,
 } from "./file-system-utils.js";
 
 const MAX_LESSON_FILE_BYTES = 1_048_576; // 1 MB
@@ -56,14 +57,14 @@ function extractBody(content: string): string {
 
 export class LessonFileGateway implements LessonFileGatewayPort {
     async readLessons(rootDir: string): Promise<ReadLessonsResult> {
-        const realRootDir = await realpath(rootDir);
-        const lessonsDir = join(realRootDir, LESSONS_RELATIVE_PATH);
+        const lessonsDir = join(rootDir, LESSONS_RELATIVE_PATH);
+        if (!(await pathExistsWithinRoot(rootDir, LESSONS_RELATIVE_PATH))) {
+            return { lessons: [], errors: [] };
+        }
 
-        await assertPathHasNoSymbolicLinks(realRootDir, lessonsDir);
-
-        let dirStat: Awaited<ReturnType<typeof lstat>>;
+        let lessonsStat: Awaited<ReturnType<typeof statWithinRoot>>;
         try {
-            dirStat = await lstat(lessonsDir);
+            lessonsStat = await statWithinRoot(rootDir, LESSONS_RELATIVE_PATH);
         } catch (error: unknown) {
             if (
                 error instanceof Error &&
@@ -74,16 +75,18 @@ export class LessonFileGateway implements LessonFileGatewayPort {
             }
             throw error;
         }
-
-        if (!dirStat.isDirectory()) {
+        if (!lessonsStat.isDirectory) {
             throw new Error(
                 `Lessons path exists but is not a directory: ${lessonsDir}`,
             );
         }
 
-        let entries: import("node:fs").Dirent[];
+        let entries: Awaited<ReturnType<typeof listDirectoryWithinRoot>>;
         try {
-            entries = await readdir(lessonsDir, { withFileTypes: true });
+            entries = await listDirectoryWithinRoot(
+                rootDir,
+                LESSONS_RELATIVE_PATH,
+            );
         } catch (error: unknown) {
             const reason =
                 error instanceof Error ? error.message : String(error);
@@ -102,7 +105,7 @@ export class LessonFileGateway implements LessonFileGatewayPort {
 
         const mdFiles = entries
             .filter((e) => e.isFile() && e.name.endsWith(".md"))
-            .map((e) => join(lessonsDir, e.name))
+            .map((e) => join(LESSONS_RELATIVE_PATH, e.name))
             .sort();
 
         if (mdFiles.length > MAX_LESSON_FILES) {
@@ -116,16 +119,18 @@ export class LessonFileGateway implements LessonFileGatewayPort {
         let aggregateBytes = 0;
 
         for (const filePath of mdFiles) {
+            const absoluteFilePath = join(rootDir, filePath);
             let content: string;
             try {
-                content = await readFileNoFollow(
+                content = await readTextWithinRoot(
+                    rootDir,
                     filePath,
                     MAX_LESSON_FILE_BYTES,
                 );
             } catch (error: unknown) {
                 const reason =
                     error instanceof Error ? error.message : String(error);
-                errors.push({ filePath, reason });
+                errors.push({ filePath: absoluteFilePath, reason });
                 continue;
             }
 
@@ -145,7 +150,7 @@ export class LessonFileGateway implements LessonFileGatewayPort {
                     parseResult.reason === "invalid"
                         ? `Invalid YAML frontmatter: ${parseResult.detail}`
                         : "Missing YAML frontmatter";
-                errors.push({ filePath, reason });
+                errors.push({ filePath: absoluteFilePath, reason });
                 continue;
             }
 
@@ -157,7 +162,7 @@ export class LessonFileGateway implements LessonFileGatewayPort {
                 const reason = schemaResult.error.issues
                     .map((i) => `${i.path.join(".")}: ${i.message}`)
                     .join("; ");
-                errors.push({ filePath, reason });
+                errors.push({ filePath: absoluteFilePath, reason });
                 continue;
             }
 
@@ -179,7 +184,7 @@ export class LessonFileGateway implements LessonFileGatewayPort {
                 body,
             };
 
-            lessons.push({ lesson, filePath });
+            lessons.push({ lesson, filePath: absoluteFilePath });
         }
 
         return { lessons, errors };

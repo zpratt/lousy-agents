@@ -1,7 +1,8 @@
 import type { LessonFileGatewayPort } from "@lousy-agents/core/use-cases/lesson-file-gateway-port.js";
 import type { LintLessonsOutput } from "@lousy-agents/core/use-cases/lint-lessons-use-case.js";
+import { LintLessonsUseCase } from "@lousy-agents/core/use-cases/lint-lessons-use-case.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { lintLessonsCommand } from "./lint-lessons.js";
+import { createLintLessonsCommand } from "./lint-lessons.js";
 
 function makeGateway(result: LintLessonsOutput | Error): LessonFileGatewayPort {
     return {
@@ -45,16 +46,20 @@ async function runLintLessons(
     result: LintLessonsOutput | Error,
     targetDir = "/repo",
 ) {
+    const gateway = makeGateway(result);
+    const useCase = new LintLessonsUseCase(gateway);
+    const command = createLintLessonsCommand(useCase);
+
     const origExitCode = process.exitCode;
     process.exitCode = 0;
     let code: number | undefined;
 
     try {
-        await lintLessonsCommand.run?.({
+        await command.run?.({
             rawArgs: [],
             args: { _: [] },
-            cmd: lintLessonsCommand,
-            data: { targetDir, gateway: makeGateway(result) },
+            cmd: command,
+            data: { targetDir },
         });
     } finally {
         code = process.exitCode;

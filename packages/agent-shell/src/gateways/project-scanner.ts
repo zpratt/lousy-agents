@@ -1,5 +1,10 @@
-import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
+import {
+    listDirectoryWithinRoot,
+    pathExistsWithinRoot,
+    readTextWithinRoot,
+    statWithinRoot,
+} from "../lib/safe-fs.js";
 
 const MAX_WORKFLOW_FILES = 100;
 const MAX_FILE_SIZE_BYTES = 524_288;
@@ -50,37 +55,53 @@ const LANGUAGE_MARKERS: Record<string, string> = {
     "build.gradle.kts": "java",
 };
 
-async function fileExists(path: string): Promise<boolean> {
+async function fileExists(
+    rootDir: string,
+    relativePath: string,
+): Promise<boolean> {
     try {
-        const s = await stat(path);
-        return s.isFile();
+        if (!(await pathExistsWithinRoot(rootDir, relativePath))) {
+            return false;
+        }
+        const s = await statWithinRoot(rootDir, relativePath);
+        return s.isFile;
     } catch {
         return false;
     }
 }
 
-async function dirExists(path: string): Promise<boolean> {
+async function dirExists(
+    rootDir: string,
+    relativePath: string,
+): Promise<boolean> {
     try {
-        const s = await stat(path);
-        return s.isDirectory();
+        if (!(await pathExistsWithinRoot(rootDir, relativePath))) {
+            return false;
+        }
+        const s = await statWithinRoot(rootDir, relativePath);
+        return s.isDirectory;
     } catch {
         return false;
     }
 }
 
 async function discoverScripts(targetDir: string): Promise<DiscoveredScript[]> {
-    const packageJsonPath = join(targetDir, "package.json");
+    const packageJsonPath = "package.json";
 
-    if (!(await fileExists(packageJsonPath))) {
+    if (!(await fileExists(targetDir, packageJsonPath))) {
         return [];
     }
 
     try {
-        const fileStat = await stat(packageJsonPath);
+        const fileStat = await statWithinRoot(targetDir, packageJsonPath);
         if (fileStat.size > MAX_FILE_SIZE_BYTES) {
             return [];
         }
-        const content = await readFile(packageJsonPath, "utf-8");
+        const content = await readTextWithinRoot(
+            targetDir,
+            packageJsonPath,
+            MAX_FILE_SIZE_BYTES,
+        );
         const parsed: unknown = JSON.parse(content);
 
         if (
@@ -118,15 +139,18 @@ async function discoverScripts(targetDir: string): Promise<DiscoveredScript[]> {
 }
 
 async function discoverWorkflowCommands(targetDir: string): Promise<string[]> {
-    const workflowsDir = join(targetDir, ".github", "workflows");
+    const workflowsDir = join(".github", "workflows");
 
-    if (!(await dirExists(workflowsDir))) {
+    if (!(await dirExists(targetDir, workflowsDir))) {
         return [];
     }
 
     let files: string[];
     try {
-        files = await readdir(workflowsDir);
+        const entries = await listDirectoryWithinRoot(targetDir, workflowsDir);
+        files = entries
+            .filter((entry) => entry.isFile())
+            .map((entry) => entry.name);
     } catch {
         return [];
     }
@@ -140,11 +164,15 @@ async function discoverWorkflowCommands(targetDir: string): Promise<string[]> {
     for (const file of yamlFiles) {
         try {
             const filePath = join(workflowsDir, file);
-            const fileStat = await stat(filePath);
+            const fileStat = await statWithinRoot(targetDir, filePath);
             if (fileStat.size > MAX_FILE_SIZE_BYTES) {
                 continue;
             }
-            const content = await readFile(filePath, "utf-8");
+            const content = await readTextWithinRoot(
+                targetDir,
+                filePath,
+                MAX_FILE_SIZE_BYTES,
+            );
             const commands = extractRunCommandsFromYaml(content);
             allCommands.push(...commands);
         } catch {}
@@ -296,18 +324,22 @@ function extractRunCommandsFromYaml(content: string): string[] {
  * Uses simple line-based parsing for [tasks.*] sections.
  */
 async function discoverMiseTasks(targetDir: string): Promise<MiseTask[]> {
-    const miseTomlPath = join(targetDir, "mise.toml");
+    const miseTomlPath = "mise.toml";
 
-    if (!(await fileExists(miseTomlPath))) {
+    if (!(await fileExists(targetDir, miseTomlPath))) {
         return [];
     }
 
     try {
-        const fileStat = await stat(miseTomlPath);
+        const fileStat = await statWithinRoot(targetDir, miseTomlPath);
         if (fileStat.size > MAX_FILE_SIZE_BYTES) {
             return [];
         }
-        const content = await readFile(miseTomlPath, "utf-8");
+        const content = await readTextWithinRoot(
+            targetDir,
+            miseTomlPath,
+            MAX_FILE_SIZE_BYTES,
+        );
         return parseMiseTomlTasks(content);
     } catch {
         return [];
@@ -388,7 +420,7 @@ async function detectLanguages(targetDir: string): Promise<string[]> {
     const detected = new Set<string>();
 
     for (const [filename, language] of Object.entries(LANGUAGE_MARKERS)) {
-        if (await fileExists(join(targetDir, filename))) {
+        if (await fileExists(targetDir, filename)) {
             detected.add(language);
         }
     }

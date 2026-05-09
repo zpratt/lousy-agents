@@ -143,3 +143,5 @@ packages/action/dist/*.map
 # Optional: Ignore cache to keep repo size down (sacrifices local build speed)
 **/graphify-out/cache/
 
+# Beads / Dolt files (added by bd init)
+.beads-credential-key

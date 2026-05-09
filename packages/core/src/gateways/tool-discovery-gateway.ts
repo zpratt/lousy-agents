@@ -2,7 +2,6 @@
  * Gateway for discovering CLI tools and commands from GitHub Actions workflows
  */
 
-import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import {
@@ -11,36 +10,56 @@ import {
     isScriptMandatory,
 } from "../entities/feedback-loop.js";
 import type { ToolDiscoveryGateway } from "../use-cases/discover-feedback-loops.js";
-import { fileExists } from "./file-system-utils.js";
+import {
+    isFsSafeViolation,
+    listDirectoryWithinRoot,
+    pathExistsWithinRoot,
+    readTextWithinRoot,
+} from "./file-system-utils.js";
 
 export type { ToolDiscoveryGateway };
+
+const MAX_WORKFLOW_FILE_BYTES = 1_048_576;
 
 /**
  * File system implementation of tool discovery gateway
  */
 export class FileSystemToolDiscoveryGateway implements ToolDiscoveryGateway {
     async discoverTools(targetDir: string): Promise<DiscoveredTool[]> {
-        const workflowsDir = join(targetDir, ".github", "workflows");
+        const workflowsDir = join(".github", "workflows");
 
-        if (!(await fileExists(workflowsDir))) {
+        if (!(await pathExistsWithinRoot(targetDir, workflowsDir))) {
             return [];
         }
 
-        const files = await readdir(workflowsDir);
+        const files = await listDirectoryWithinRoot(targetDir, workflowsDir);
         const yamlFiles = files.filter(
-            (f) => f.endsWith(".yml") || f.endsWith(".yaml"),
+            (f) =>
+                f.isFile() &&
+                (f.name.endsWith(".yml") || f.name.endsWith(".yaml")),
         );
 
         const allTools: DiscoveredTool[] = [];
 
         for (const file of yamlFiles) {
-            const filePath = join(workflowsDir, file);
+            const filePath = join(workflowsDir, file.name);
             try {
-                const content = await readFile(filePath, "utf-8");
+                const content = await readTextWithinRoot(
+                    targetDir,
+                    filePath,
+                    MAX_WORKFLOW_FILE_BYTES,
+                );
                 const workflow = parseYaml(content);
-                const tools = this.extractToolsFromWorkflow(workflow, file);
+                const tools = this.extractToolsFromWorkflow(
+                    workflow,
+                    file.name,
+                );
                 allTools.push(...tools);
-            } catch {}
+            } catch (error: unknown) {
+                if (isFsSafeViolation(error)) {
+                    throw error;
+                }
+            }
         }
 
         return this.deduplicateTools(allTools);

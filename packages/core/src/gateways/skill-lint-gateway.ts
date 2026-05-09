@@ -3,7 +3,6 @@
  * Discovers skill files and parses YAML frontmatter.
  */
 
-import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import type {
     DiscoveredSkillFile,
@@ -11,7 +10,11 @@ import type {
 } from "../entities/skill.js";
 import { parseFrontmatter } from "../lib/frontmatter.js";
 import type { SkillLintGateway } from "../use-cases/lint-skill-frontmatter.js";
-import { readFileNoFollow } from "./file-system-utils.js";
+import {
+    listDirectoryWithinRoot,
+    pathExistsWithinRoot,
+    readFileNoFollow,
+} from "./file-system-utils.js";
 
 /** Maximum skill file size: 1 MB */
 const MAX_SKILL_FILE_BYTES = 1_048_576;
@@ -33,8 +36,10 @@ export class FileSystemSkillLintGateway implements SkillLintGateway {
         const skills: DiscoveredSkillFile[] = [];
 
         for (const relativeDir of SKILL_DIRECTORIES) {
-            const skillsDir = join(targetDir, relativeDir);
-            const discovered = await this.discoverSkillsInDir(skillsDir);
+            const discovered = await this.discoverSkillsInDir(
+                targetDir,
+                relativeDir,
+            );
             skills.push(...discovered);
         }
 
@@ -42,29 +47,20 @@ export class FileSystemSkillLintGateway implements SkillLintGateway {
     }
 
     private async discoverSkillsInDir(
+        targetDir: string,
         skillsDir: string,
     ): Promise<DiscoveredSkillFile[]> {
-        let dirStats: Awaited<ReturnType<typeof lstat>>;
         try {
-            dirStats = await lstat(skillsDir);
-        } catch (error: unknown) {
-            if (
-                error instanceof Error &&
-                "code" in error &&
-                (error.code === "ENOENT" || error.code === "ENOTDIR")
-            ) {
+            if (!(await pathExistsWithinRoot(targetDir, skillsDir))) {
                 return [];
             }
-            throw error;
-        }
-
-        if (dirStats.isSymbolicLink() || !dirStats.isDirectory()) {
+        } catch {
             return [];
         }
 
-        let entries: import("node:fs").Dirent[];
+        let entries: Awaited<ReturnType<typeof listDirectoryWithinRoot>>;
         try {
-            entries = await readdir(skillsDir, { withFileTypes: true });
+            entries = await listDirectoryWithinRoot(targetDir, skillsDir);
         } catch (error: unknown) {
             if (
                 error instanceof Error &&
@@ -91,29 +87,19 @@ export class FileSystemSkillLintGateway implements SkillLintGateway {
                 continue;
             }
 
-            const skillFilePath = join(skillsDir, entry.name, "SKILL.md");
-
-            let skillStat: Awaited<ReturnType<typeof lstat>> | null;
+            const skillRelativePath = join(skillsDir, entry.name, "SKILL.md");
+            let hasSkillFile = false;
             try {
-                skillStat = await lstat(skillFilePath);
-            } catch (error: unknown) {
-                if (
-                    error instanceof Error &&
-                    "code" in error &&
-                    (error.code === "ENOENT" || error.code === "ENOTDIR")
-                ) {
-                    skillStat = null;
-                } else {
-                    throw error;
-                }
+                hasSkillFile = await pathExistsWithinRoot(
+                    targetDir,
+                    skillRelativePath,
+                );
+            } catch {
+                hasSkillFile = false;
             }
-            if (
-                skillStat &&
-                !skillStat.isSymbolicLink() &&
-                skillStat.isFile()
-            ) {
+            if (hasSkillFile) {
                 skills.push({
-                    filePath: skillFilePath,
+                    filePath: join(targetDir, skillRelativePath),
                     skillName: entry.name,
                 });
             }

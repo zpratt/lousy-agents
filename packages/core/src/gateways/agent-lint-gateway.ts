@@ -3,7 +3,6 @@
  * Discovers agent files and parses YAML frontmatter.
  */
 
-import { lstat, readdir } from "node:fs/promises";
 import { basename, join, relative, resolve, sep } from "node:path";
 import type { ParsedFrontmatter } from "../entities/skill.js";
 import { parseFrontmatter } from "../lib/frontmatter.js";
@@ -11,7 +10,11 @@ import type {
     AgentLintGateway,
     DiscoveredAgentFile,
 } from "../use-cases/lint-agent-frontmatter.js";
-import { readFileNoFollow } from "./file-system-utils.js";
+import {
+    listDirectoryWithinRoot,
+    pathExistsWithinRoot,
+    readFileNoFollow,
+} from "./file-system-utils.js";
 
 /** Maximum agent file size: 1 MB */
 const MAX_AGENT_FILE_BYTES = 1_048_576;
@@ -21,31 +24,21 @@ const MAX_AGENT_FILE_BYTES = 1_048_576;
  */
 export class FileSystemAgentLintGateway implements AgentLintGateway {
     async discoverAgents(targetDir: string): Promise<DiscoveredAgentFile[]> {
-        const agentsDir = join(targetDir, ".github", "agents");
+        const agentsDir = join(".github", "agents");
 
-        let agentsDirStats: Awaited<ReturnType<typeof lstat>>;
         try {
-            agentsDirStats = await lstat(agentsDir);
-        } catch (error: unknown) {
-            if (
-                error instanceof Error &&
-                "code" in error &&
-                (error.code === "ENOENT" || error.code === "ENOTDIR")
-            ) {
+            if (!(await pathExistsWithinRoot(targetDir, agentsDir))) {
                 return [];
             }
-            throw error;
-        }
-
-        if (agentsDirStats.isSymbolicLink() || !agentsDirStats.isDirectory()) {
+        } catch {
             return [];
         }
 
-        const resolvedAgentsDir = resolve(agentsDir);
+        const resolvedAgentsDir = resolve(targetDir, agentsDir);
         const agents: DiscoveredAgentFile[] = [];
 
         const walk = async (dir: string): Promise<void> => {
-            const entries = await readdir(dir, { withFileTypes: true });
+            const entries = await listDirectoryWithinRoot(targetDir, dir);
 
             for (const entry of entries) {
                 const name = entry.name;
@@ -58,7 +51,8 @@ export class FileSystemAgentLintGateway implements AgentLintGateway {
                 }
 
                 const entryPath = join(dir, name);
-                const resolvedPath = resolve(entryPath);
+                const absoluteEntryPath = join(targetDir, entryPath);
+                const resolvedPath = resolve(absoluteEntryPath);
                 const rel = relative(resolvedAgentsDir, resolvedPath);
                 if (rel.startsWith("..") || rel.startsWith(sep)) {
                     continue;
@@ -84,7 +78,7 @@ export class FileSystemAgentLintGateway implements AgentLintGateway {
                 const agentName = name.endsWith(".agent.md")
                     ? basename(name, ".agent.md")
                     : basename(name, ".md");
-                agents.push({ filePath: entryPath, agentName });
+                agents.push({ filePath: absoluteEntryPath, agentName });
             }
         };
 

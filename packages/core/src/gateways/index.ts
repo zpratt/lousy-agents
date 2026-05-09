@@ -26,8 +26,12 @@ export {
     assertFileSizeWithinLimit,
     assertPathHasNoSymbolicLinks,
     fileExists,
+    listDirectoryWithinRoot,
+    pathExistsWithinRoot,
+    readTextWithinRoot,
     resolvePathWithinRoot,
     resolveSafePath,
+    statWithinRoot,
 } from "./file-system-utils.js";
 export {
     createGitHubRulesetGateway,

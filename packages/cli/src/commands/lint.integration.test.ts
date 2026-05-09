@@ -11,8 +11,16 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import Chance from "chance";
+import { defineCommand } from "citty";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { lintCommand } from "./lint.js";
+import { createLintCommand } from "./lint.js";
+
+const stubLessonsCmd = defineCommand({
+    meta: { name: "lessons", description: "stub" },
+    run: async () => {},
+});
+
+const lintCommand = createLintCommand(stubLessonsCmd);
 
 const execFileAsync = promisify(execFile);
 const chance = new Chance();

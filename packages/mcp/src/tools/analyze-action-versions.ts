@@ -2,9 +2,13 @@
  * MCP tool handler for analyzing GitHub Action versions across workflows.
  */
 
-import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { fileExists } from "@lousy-agents/core/gateways/index.js";
+import {
+    fileExists,
+    listDirectoryWithinRoot,
+    pathExistsWithinRoot,
+    readTextWithinRoot,
+} from "@lousy-agents/core/gateways/index.js";
 import {
     type ActionReference,
     extractActionsFromWorkflow,
@@ -29,10 +33,15 @@ interface WorkflowActions {
  * Parses a workflow file and extracts action references.
  */
 async function parseWorkflowFile(
-    filePath: string,
+    rootDir: string,
+    relativePath: string,
 ): Promise<ActionReference[] | null> {
     try {
-        const content = await readFile(filePath, "utf-8");
+        const content = await readTextWithinRoot(
+            rootDir,
+            relativePath,
+            1_048_576,
+        );
         const workflow = parseYaml(content);
         return extractActionsFromWorkflow(workflow);
     } catch {
@@ -73,8 +82,8 @@ export const analyzeActionVersionsHandler: ToolHandler = async (
         return errorResponse(`Target directory does not exist: ${dir}`);
     }
 
-    const workflowsDir = join(dir, ".github", "workflows");
-    if (!(await fileExists(workflowsDir))) {
+    const workflowsRelativeDir = join(".github", "workflows");
+    if (!(await pathExistsWithinRoot(dir, workflowsRelativeDir))) {
         return successResponse({
             workflows: [],
             uniqueActions: [],
@@ -84,7 +93,10 @@ export const analyzeActionVersionsHandler: ToolHandler = async (
     }
 
     // Read all workflow files
-    const files = await readdir(workflowsDir);
+    const entries = await listDirectoryWithinRoot(dir, workflowsRelativeDir);
+    const files = entries
+        .filter((entry) => entry.isFile())
+        .map((entry) => entry.name);
     const yamlFiles = files.filter(
         (f) => f.endsWith(".yml") || f.endsWith(".yaml"),
     );
@@ -92,8 +104,8 @@ export const analyzeActionVersionsHandler: ToolHandler = async (
     const workflows: WorkflowActions[] = [];
 
     for (const file of yamlFiles) {
-        const filePath = join(workflowsDir, file);
-        const actions = await parseWorkflowFile(filePath);
+        const filePath = join(workflowsRelativeDir, file);
+        const actions = await parseWorkflowFile(dir, filePath);
         if (actions && actions.length > 0) {
             workflows.push({ file, actions });
         }
