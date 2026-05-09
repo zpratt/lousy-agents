@@ -15,7 +15,6 @@
             "!.beads",
             "!graphify-out",
             "!.semgrep",
-            "!.gemini",
             "!**/graphify-out"
         ]
     },

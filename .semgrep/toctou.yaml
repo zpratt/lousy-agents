@@ -67,9 +67,10 @@ rules:
       category: security
       cwe: "CWE-367: Time-Of-Check Time-Of-Use (TOCTOU) Race Condition"
       known-limitation: >
-        Coverage of standalone destructured `existsSync()` calls (named imports
-        without a namespace prefix) depends on semgrep import-aware analysis
-        available in 1.162.0+. Upgrading semgrep may silently change whether
-        these forms are detected. The rule is verified against both call forms
-        in `.semgrep/toctou.ts` — run `semgrep scan --test` after any semgrep
-        upgrade to confirm coverage is intact.
+        The bare `existsSync(...)` pattern matches any function call with that
+        name regardless of semgrep version — no import-aware analysis is
+        required. What is NOT detected by any pattern in this rule: aliased
+        imports (`import { existsSync as checkExists } from "node:fs"`) where
+        `checkExists(...)` is the actual call site. Treat any renamed import as
+        an undetected gap and suppress manually only after confirming there is
+        no subsequent read on the same path.
