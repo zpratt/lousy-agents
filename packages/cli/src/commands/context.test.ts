@@ -5,6 +5,7 @@ import { LessonContextUseCase } from "@lousy-agents/core/use-cases/lesson-contex
 import type { LessonFileGatewayPort } from "@lousy-agents/core/use-cases/lesson-file-gateway-port.js";
 import Chance from "chance";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createContextCommand } from "./context.js";
 
 const chance = new Chance();
 
@@ -40,13 +41,21 @@ function makeStdinMock(data: string): StdinMock {
     return mock;
 }
 
+function makeDefaultUseCase(): LessonContextUseCase {
+    const stubGateway: LessonFileGatewayPort = {
+        readLessons: async () => ({ lessons: [], errors: [] }),
+    };
+    return new LessonContextUseCase(stubGateway);
+}
+
 async function runContext(options: {
     stdin?: string;
     files?: string;
     targetDir?: string;
-    data?: Record<string, unknown>;
+    useCase?: LessonContextUseCase;
 }) {
-    const { contextCommand } = await import("./context.js");
+    const useCase = options.useCase ?? makeDefaultUseCase();
+    const contextCommand = createContextCommand(useCase);
 
     const stdoutChunks: string[] = [];
     const writeSpy = vi
@@ -72,7 +81,6 @@ async function runContext(options: {
             cmd: contextCommand,
             data: {
                 targetDir: options.targetDir ?? "/repo",
-                ...options.data,
             },
         });
     } finally {
@@ -409,7 +417,7 @@ describe("context command", () => {
             const { exitCode, stdout } = await runContext({
                 files: "/repo/src/foo.ts",
                 targetDir: "/repo",
-                data: { useCase: stubbedUseCase },
+                useCase: stubbedUseCase,
             });
 
             expect(exitCode).not.toBe(1);
@@ -509,7 +517,7 @@ describe("context command", () => {
             // Act
             const { stdout, exitCode } = await runContext({
                 stdin: oversized,
-                data: { useCase: injectedUseCase },
+                useCase: injectedUseCase,
             });
 
             // Assert — the capped stdin must NOT fall through to SessionStart lesson
@@ -541,7 +549,7 @@ describe("context command", () => {
 
             const { stdout, exitCode } = await runContext({
                 stdin: oversizedSessionStart,
-                data: { useCase: injectedUseCase },
+                useCase: injectedUseCase,
             });
 
             const parsed = JSON.parse(stdout);
@@ -572,7 +580,7 @@ describe("context command", () => {
             const { stdout, exitCode } = await runContext({
                 stdin: oversized,
                 files: "src/foo.ts",
-                data: { useCase: injectedUseCase },
+                useCase: injectedUseCase,
             });
 
             // Assert — with --files provided the command must NOT early-return on cap;

@@ -5,6 +5,7 @@
  * the subcommand's `run`.
  */
 
+import { defineCommand } from "citty";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockRunLint } = vi.hoisted(() => ({
@@ -20,6 +21,11 @@ vi.mock("@lousy-agents/lint", () => ({
     LintValidationError: class LintValidationError extends Error {},
 }));
 
+const stubLessonsCmd = defineCommand({
+    meta: { name: "lessons", description: "stub" },
+    run: async () => {},
+});
+
 describe("lint command — lessons subcommand guard", () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -27,7 +33,8 @@ describe("lint command — lessons subcommand guard", () => {
 
     describe("when rawArgs starts with 'lessons'", () => {
         it("returns without calling runLint (avoids double-execution)", async () => {
-            const { lintCommand } = await import("./lint.js");
+            const { createLintCommand } = await import("./lint.js");
+            const lintCommand = createLintCommand(stubLessonsCmd);
 
             await lintCommand.run?.({
                 rawArgs: ["lessons"],
@@ -42,7 +49,8 @@ describe("lint command — lessons subcommand guard", () => {
 
     describe("when a flag precedes the 'lessons' subcommand in rawArgs", () => {
         it("returns without calling runLint (guard checks index, not --format value)", async () => {
-            const { lintCommand } = await import("./lint.js");
+            const { createLintCommand } = await import("./lint.js");
+            const lintCommand = createLintCommand(stubLessonsCmd);
 
             await lintCommand.run?.({
                 rawArgs: ["--format", "human", "lessons"],
@@ -57,7 +65,8 @@ describe("lint command — lessons subcommand guard", () => {
 
     describe("when 'lessons' is the value of the --format flag (not a subcommand)", () => {
         it("calls runLint normally (preceding --format token suppresses guard)", async () => {
-            const { lintCommand } = await import("./lint.js");
+            const { createLintCommand } = await import("./lint.js");
+            const lintCommand = createLintCommand(stubLessonsCmd);
 
             await lintCommand.run?.({
                 rawArgs: ["--format", "lessons"],
@@ -72,7 +81,8 @@ describe("lint command — lessons subcommand guard", () => {
 
     describe("when --format value and subcommand name collide (--format lessons lessons)", () => {
         it("returns without calling runLint (second 'lessons' is the subcommand)", async () => {
-            const { lintCommand } = await import("./lint.js");
+            const { createLintCommand } = await import("./lint.js");
+            const lintCommand = createLintCommand(stubLessonsCmd);
 
             await lintCommand.run?.({
                 rawArgs: ["--format", "lessons", "lessons"],
@@ -87,7 +97,8 @@ describe("lint command — lessons subcommand guard", () => {
 
     describe("when rawArgs does not contain 'lessons'", () => {
         it("calls runLint normally", async () => {
-            const { lintCommand } = await import("./lint.js");
+            const { createLintCommand } = await import("./lint.js");
+            const lintCommand = createLintCommand(stubLessonsCmd);
 
             await lintCommand.run?.({
                 rawArgs: [],

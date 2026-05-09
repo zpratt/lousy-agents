@@ -9,10 +9,9 @@ import {
     LintValidationError,
     runLint,
 } from "@lousy-agents/lint";
-import type { CommandContext } from "citty";
+import type { CommandContext, CommandDef } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
-import { lintLessonsCommand } from "./lint-lessons.js";
 
 /**
  * Formats and displays a LintOutput using consola.
@@ -84,171 +83,175 @@ function displayInstructionQuality(output: LintOutput): void {
  * The `lint` command for validating agent skills, custom agents, and instruction files.
  * Also exposes `lint lessons` as a subcommand for lesson frontmatter validation.
  */
-export const lintCommand = defineCommand({
-    meta: {
-        name: "lint",
-        description:
-            "Lint agent skills, custom agents, instruction files, and hook configurations. Validates frontmatter, instruction quality, and hook config schemas. Run `lint lessons` to validate lesson files.",
-    },
-    subCommands: {
-        lessons: lintLessonsCommand,
-    },
-    args: {
-        skills: {
-            type: "boolean",
+export function createLintCommand(lintLessonsCmd: CommandDef) {
+    return defineCommand({
+        meta: {
+            name: "lint",
             description:
-                "Lint skill frontmatter in .github/skills/ and .claude/skills/",
-            default: false,
+                "Lint agent skills, custom agents, instruction files, and hook configurations. Validates frontmatter, instruction quality, and hook config schemas. Run `lint lessons` to validate lesson files.",
         },
-        agents: {
-            type: "boolean",
-            description: "Lint custom agent frontmatter in .github/agents/",
-            default: false,
+        subCommands: {
+            lessons: lintLessonsCmd,
         },
-        hooks: {
-            type: "boolean",
-            description:
-                "Lint pre-tool-use hook configurations in .github/hooks/agent-shell/hooks.json, .claude/settings.json, and .claude/settings.local.json",
-            default: false,
+        args: {
+            skills: {
+                type: "boolean",
+                description:
+                    "Lint skill frontmatter in .github/skills/ and .claude/skills/",
+                default: false,
+            },
+            agents: {
+                type: "boolean",
+                description: "Lint custom agent frontmatter in .github/agents/",
+                default: false,
+            },
+            hooks: {
+                type: "boolean",
+                description:
+                    "Lint pre-tool-use hook configurations in .github/hooks/agent-shell/hooks.json, .claude/settings.json, and .claude/settings.local.json",
+                default: false,
+            },
+            instructions: {
+                type: "boolean",
+                description:
+                    "Analyze instruction quality across all instruction file formats",
+                default: false,
+            },
+            format: {
+                type: "string",
+                description: "Output format: human (default), json, or rdjsonl",
+                default: "human",
+            },
         },
-        instructions: {
-            type: "boolean",
-            description:
-                "Analyze instruction quality across all instruction file formats",
-            default: false,
-        },
-        format: {
-            type: "string",
-            description: "Output format: human (default), json, or rdjsonl",
-            default: "human",
-        },
-    },
-    run: async (context: CommandContext) => {
-        const rawTargetDir =
-            typeof context.data?.targetDir === "string"
-                ? context.data.targetDir
-                : process.cwd();
+        run: async (context: CommandContext) => {
+            const rawTargetDir =
+                typeof context.data?.targetDir === "string"
+                    ? context.data.targetDir
+                    : process.cwd();
 
-        // citty runs both the subcommand's run function and the parent's run function.
-        // Exit early when the `lessons` subcommand was invoked to avoid double-execution.
-        //
-        // Detection strategy: "lessons" must appear in rawArgs as a positional token,
-        // i.e. NOT as the value of --format (where the preceding token is "--format").
-        // Using the index check here is robust to any combination of flags and avoids
-        // relying on context.args.format which could collide (e.g. --format lessons lessons).
-        const rawArgs_ = context.rawArgs ?? [];
-        const lessonsIsSubcommand = rawArgs_.some(
-            (token, idx) =>
-                token === "lessons" && rawArgs_[idx - 1] !== "--format",
-        );
-        if (lessonsIsSubcommand) {
-            return; // Subcommand was handled by lintLessonsCommand.run
-        }
-
-        const lintSkillsFlag =
-            context.args?.skills === true || context.data?.skills === true;
-        const lintAgentsFlag =
-            context.args?.agents === true || context.data?.agents === true;
-        const lintHooksFlag =
-            context.args?.hooks === true || context.data?.hooks === true;
-        const lintInstructionsFlag =
-            context.args?.instructions === true ||
-            context.data?.instructions === true;
-
-        const rawFormat =
-            typeof context.args?.format === "string"
-                ? context.args.format
-                : typeof context.data?.format === "string"
-                  ? context.data.format
-                  : "human";
-        const validFormats = new Set<LintFormatType>([
-            "human",
-            "json",
-            "rdjsonl",
-        ]);
-        function isLintFormatType(value: string): value is LintFormatType {
-            return validFormats.has(value as LintFormatType);
-        }
-        const format: LintFormatType = isLintFormatType(rawFormat)
-            ? rawFormat
-            : "human";
-
-        let result: Awaited<ReturnType<typeof runLint>>;
-        try {
-            result = await runLint({
-                directory: rawTargetDir,
-                targets: {
-                    skills: lintSkillsFlag,
-                    agents: lintAgentsFlag,
-                    hooks: lintHooksFlag,
-                    instructions: lintInstructionsFlag,
-                },
-            });
-        } catch (error) {
-            if (error instanceof LintValidationError) {
-                consola.error(`Lint failed: ${error.message}`);
-                process.exitCode = 1;
-                return;
+            // citty runs both the subcommand's run function and the parent's run function.
+            // Exit early when the `lessons` subcommand was invoked to avoid double-execution.
+            //
+            // Detection strategy: "lessons" must appear in rawArgs as a positional token,
+            // i.e. NOT as the value of --format (where the preceding token is "--format").
+            // Using the index check here is robust to any combination of flags and avoids
+            // relying on context.args.format which could collide (e.g. --format lessons lessons).
+            const rawArgs_ = context.rawArgs ?? [];
+            const lessonsIsSubcommand = rawArgs_.some(
+                (token, idx) =>
+                    token === "lessons" && rawArgs_[idx - 1] !== "--format",
+            );
+            if (lessonsIsSubcommand) {
+                return; // Subcommand was handled by lintLessonsCommand.run
             }
-            throw error;
-        }
 
-        const { outputs, hasErrors } = result;
+            const lintSkillsFlag =
+                context.args?.skills === true || context.data?.skills === true;
+            const lintAgentsFlag =
+                context.args?.agents === true || context.data?.agents === true;
+            const lintHooksFlag =
+                context.args?.hooks === true || context.data?.hooks === true;
+            const lintInstructionsFlag =
+                context.args?.instructions === true ||
+                context.data?.instructions === true;
 
-        let totalWarnings = 0;
-        for (const output of outputs) {
-            totalWarnings += output.summary.totalWarnings;
-        }
-
-        const targetLabels: Record<string, string> = {
-            skill: "skill(s)",
-            agent: "agent(s)",
-            hook: "hook config(s)",
-            instruction: "instruction file(s)",
-        };
-
-        if (format !== "human") {
-            const formatter = createFormatter(format);
-            const formatted = formatter.format(outputs);
-            if (formatted) {
-                process.stdout.write(`${formatted}\n`);
+            const rawFormat =
+                typeof context.args?.format === "string"
+                    ? context.args.format
+                    : typeof context.data?.format === "string"
+                      ? context.data.format
+                      : "human";
+            const validFormats = new Set<LintFormatType>([
+                "human",
+                "json",
+                "rdjsonl",
+            ]);
+            function isLintFormatType(value: string): value is LintFormatType {
+                return validFormats.has(value as LintFormatType);
             }
-        } else {
+            const format: LintFormatType = isLintFormatType(rawFormat)
+                ? rawFormat
+                : "human";
+
+            let result: Awaited<ReturnType<typeof runLint>>;
+            try {
+                result = await runLint({
+                    directory: rawTargetDir,
+                    targets: {
+                        skills: lintSkillsFlag,
+                        agents: lintAgentsFlag,
+                        hooks: lintHooksFlag,
+                        instructions: lintInstructionsFlag,
+                    },
+                });
+            } catch (error) {
+                if (error instanceof LintValidationError) {
+                    consola.error(`Lint failed: ${error.message}`);
+                    process.exitCode = 1;
+                    return;
+                }
+                throw error;
+            }
+
+            const { outputs, hasErrors } = result;
+
+            let totalWarnings = 0;
             for (const output of outputs) {
-                const label = targetLabels[output.target] ?? output.target;
-                if (output.target === "instruction") {
-                    displayInstructionQuality(output);
-                } else {
-                    displayLintOutput(output, label);
+                totalWarnings += output.summary.totalWarnings;
+            }
+
+            const targetLabels: Record<string, string> = {
+                skill: "skill(s)",
+                agent: "agent(s)",
+                hook: "hook config(s)",
+                instruction: "instruction file(s)",
+            };
+
+            if (format !== "human") {
+                const formatter = createFormatter(format);
+                const formatted = formatter.format(outputs);
+                if (formatted) {
+                    process.stdout.write(`${formatted}\n`);
+                }
+            } else {
+                for (const output of outputs) {
+                    const label = targetLabels[output.target] ?? output.target;
+                    if (output.target === "instruction") {
+                        displayInstructionQuality(output);
+                    } else {
+                        displayLintOutput(output, label);
+                    }
                 }
             }
-        }
 
-        if (hasErrors) {
-            process.exitCode = 1;
+            if (hasErrors) {
+                process.exitCode = 1;
+
+                if (format === "human") {
+                    const totalErrors = outputs.reduce(
+                        (sum, o) => sum + o.summary.totalErrors,
+                        0,
+                    );
+                    consola.error(
+                        `lint failed: ${totalErrors} error(s), ${totalWarnings} warning(s)`,
+                    );
+                }
+
+                return;
+            }
 
             if (format === "human") {
-                const totalErrors = outputs.reduce(
-                    (sum, o) => sum + o.summary.totalErrors,
-                    0,
-                );
-                consola.error(
-                    `lint failed: ${totalErrors} error(s), ${totalWarnings} warning(s)`,
-                );
+                if (totalWarnings > 0) {
+                    consola.warn(
+                        `Lint passed with ${totalWarnings} warning(s)`,
+                    );
+                } else {
+                    const targets = outputs
+                        .map((o) => targetLabels[o.target] ?? o.target)
+                        .join(", ");
+                    consola.success(`All ${targets} passed lint checks`);
+                }
             }
-
-            return;
-        }
-
-        if (format === "human") {
-            if (totalWarnings > 0) {
-                consola.warn(`Lint passed with ${totalWarnings} warning(s)`);
-            } else {
-                const targets = outputs
-                    .map((o) => targetLabels[o.target] ?? o.target)
-                    .join(", ");
-                consola.success(`All ${targets} passed lint checks`);
-            }
-        }
-    },
-});
+        },
+    });
+}

@@ -2,8 +2,16 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
+import { defineCommand } from "citty";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { lintCommand } from "./lint.js";
+import { createLintCommand } from "./lint.js";
+
+const stubLessonsCmd = defineCommand({
+    meta: { name: "lessons", description: "stub" },
+    run: async () => {},
+});
+
+const lintCommand = createLintCommand(stubLessonsCmd);
 
 const chance = new Chance();
 
