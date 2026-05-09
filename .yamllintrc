@@ -5,6 +5,7 @@ extends: default
 ignore:
   - node_modules/
   - .beads/
+  - graphify-out/
 
 rules:
   braces:
