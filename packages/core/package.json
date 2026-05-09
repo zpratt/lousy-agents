@@ -37,6 +37,6 @@
     },
     "devDependencies": {
         "@types/mdast": "4.0.4",
-        "@types/picomatch": "4.0.0"
+        "@types/picomatch": "4.0.3"
     }
 }
