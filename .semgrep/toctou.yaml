@@ -1,0 +1,35 @@
+rules:
+  - id: toctou-exists-sync-read
+    patterns:
+      - pattern: |
+          if ($FS.existsSync($PATH)) {
+            ...
+            $FS.readFileSync($PATH, ...)
+            ...
+          }
+    message: >
+      TOCTOU race condition: a file-existence check (`existsSync`) followed by a
+      read (`readFileSync`) is not atomic. Another process can delete or replace
+      the file between the check and the read. Use `readFileSync` inside a
+      `try/catch` block instead.
+    languages:
+      - typescript
+      - javascript
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-367: Time-Of-Check Time-Of-Use (TOCTOU) Race Condition"
+
+  - id: avoid-exists-sync
+    pattern: $FS.existsSync(...)
+    message: >
+      `existsSync` is a blocking call that can introduce TOCTOU
+      (Time-Of-Check Time-Of-Use) race conditions. Prefer `try/catch` with
+      `readFileSync` or `fs.promises.access` for async-safe existence checks.
+    languages:
+      - typescript
+      - javascript
+    severity: INFO
+    metadata:
+      category: security
+      cwe: "CWE-367: Time-Of-Check Time-Of-Use (TOCTOU) Race Condition"

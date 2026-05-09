@@ -1,0 +1,13 @@
+# Semgrep ignore rules (same syntax as .gitignore)
+
+# Build artifacts
+dist/
+coverage/
+
+# Dependencies
+node_modules/
+
+# Test files — TOCTOU in tests is lower risk
+*.test.ts
+*.spec.ts
+*.integration.test.ts
