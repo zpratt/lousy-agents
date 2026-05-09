@@ -44,7 +44,7 @@ hide = true
 
 [tasks.semgrep]
 description = "Run semgrep TOCTOU detection rules"
-run = "semgrep scan --config .semgrep/ --error --severity WARNING --metrics=off"
+run = "semgrep scan --config .semgrep/ --error --severity WARNING --metrics=off --disable-version-check"
 hide = true
 
 [tasks.dependency-cruiser]
