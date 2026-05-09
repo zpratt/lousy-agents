@@ -58,24 +58,23 @@ function extractBody(content: string): string {
 export class LessonFileGateway implements LessonFileGatewayPort {
     async readLessons(rootDir: string): Promise<ReadLessonsResult> {
         const lessonsDir = join(rootDir, LESSONS_RELATIVE_PATH);
+        if (!(await pathExistsWithinRoot(rootDir, LESSONS_RELATIVE_PATH))) {
+            return { lessons: [], errors: [] };
+        }
+
+        let lessonsStat: Awaited<ReturnType<typeof statWithinRoot>>;
         try {
-            if (!(await pathExistsWithinRoot(rootDir, LESSONS_RELATIVE_PATH))) {
-                return { lessons: [], errors: [] };
-            }
+            lessonsStat = await statWithinRoot(rootDir, LESSONS_RELATIVE_PATH);
         } catch (error: unknown) {
             if (
                 error instanceof Error &&
-                error.message.includes("does not exist")
+                "code" in error &&
+                error.code === "ENOENT"
             ) {
                 return { lessons: [], errors: [] };
             }
             throw error;
         }
-
-        const lessonsStat = await statWithinRoot(
-            rootDir,
-            LESSONS_RELATIVE_PATH,
-        );
         if (!lessonsStat.isDirectory) {
             throw new Error(
                 `Lessons path exists but is not a directory: ${lessonsDir}`,

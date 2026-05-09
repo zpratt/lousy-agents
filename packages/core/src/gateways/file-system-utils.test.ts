@@ -8,6 +8,7 @@ import {
     pathExistsWithinRoot,
     readFileNoFollow,
     readTextWithinRoot,
+    statWithinRoot,
 } from "./file-system-utils.js";
 
 const chance = new Chance();
@@ -243,6 +244,76 @@ describe("pathExistsWithinRoot", () => {
             await expect(
                 pathExistsWithinRoot(testDir, "../missing.txt"),
             ).rejects.toThrow("outside target directory");
+        });
+    });
+});
+
+describe("statWithinRoot", () => {
+    let testDir: string;
+
+    beforeEach(async () => {
+        testDir = join(
+            tmpdir(),
+            `file-system-utils-stat-test-${chance.hash({ length: 8 })}`,
+        );
+        await mkdir(testDir, { recursive: true });
+    });
+
+    afterEach(async () => {
+        await rm(testDir, { recursive: true, force: true });
+    });
+
+    describe("given a regular file within the root", () => {
+        it("should return stat with isFile true and correct size", async () => {
+            const content = chance.paragraph();
+            await writeFile(join(testDir, "file.txt"), content);
+
+            const result = await statWithinRoot(testDir, "file.txt");
+
+            expect(result.isFile).toBe(true);
+            expect(result.isDirectory).toBe(false);
+            expect(result.size).toBe(Buffer.byteLength(content));
+        });
+
+        it("should return a numeric mtimeMs representing the modification time", async () => {
+            const before = Date.now();
+            await writeFile(join(testDir, "file.txt"), chance.word());
+
+            const result = await statWithinRoot(testDir, "file.txt");
+
+            expect(typeof result.mtimeMs).toBe("number");
+            expect(result.mtimeMs).toBeGreaterThanOrEqual(before - 1);
+        });
+    });
+
+    describe("given a directory within the root", () => {
+        it("should return stat with isDirectory true", async () => {
+            await mkdir(join(testDir, "subdir"));
+
+            const result = await statWithinRoot(testDir, "subdir");
+
+            expect(result.isDirectory).toBe(true);
+            expect(result.isFile).toBe(false);
+        });
+    });
+
+    describe("given a traversal path", () => {
+        it("should reject with an outside-root error", async () => {
+            await expect(
+                statWithinRoot(testDir, "../outside.txt"),
+            ).rejects.toThrow("outside target directory");
+        });
+    });
+
+    describe("given a symlink within the root", () => {
+        it("should reject with a symlinks-not-allowed error", async () => {
+            const target = join(testDir, "real.txt");
+            await writeFile(target, "content");
+            await symlink(target, join(testDir, "link.txt"));
+
+            await expect(statWithinRoot(testDir, "link.txt")).rejects.toThrow(
+                /symlinks are not allowed/i,
+            );
         });
     });
 });

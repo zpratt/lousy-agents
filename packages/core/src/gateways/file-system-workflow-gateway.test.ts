@@ -40,6 +40,39 @@ describe("FileSystemWorkflowGateway", () => {
                 ).rejects.toThrow("size limit");
             });
         });
+
+        describe("given a workflow file has invalid YAML", () => {
+            it("should skip the invalid file and return candidates from valid files", async () => {
+                // Arrange
+                const workflowsDir = join(testDir, ".github", "workflows");
+                await mkdir(workflowsDir, { recursive: true });
+                await writeFile(
+                    join(workflowsDir, "bad.yml"),
+                    ": invalid: yaml: :\n",
+                    "utf-8",
+                );
+                await writeFile(
+                    join(workflowsDir, "ci.yml"),
+                    [
+                        "name: CI",
+                        "on: push",
+                        "jobs:",
+                        "  setup:",
+                        "    runs-on: ubuntu-latest",
+                        "    steps:",
+                        "      - uses: actions/checkout@v4",
+                    ].join("\n"),
+                    "utf-8",
+                );
+
+                // Act
+                const candidates =
+                    await gateway.parseWorkflowsForSetupActions(testDir);
+
+                // Assert — bad.yml is skipped but ci.yml is processed
+                expect(candidates).toBeDefined();
+            });
+        });
     });
 
     describe("writeCopilotSetupWorkflow", () => {

@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -323,6 +323,58 @@ npm test
             expect(result.summary.totalMandatory).toBe(1);
             expect(result.summary.totalDocumented).toBe(1);
             expect(result.summary.coveragePercentage).toBe(100);
+        });
+    });
+
+    describe("when .github/copilot-instructions.md is a symlink", () => {
+        it("should return zero coverage instead of throwing", async () => {
+            const outsideTarget = join(testDir, "outside.md");
+            await writeFile(outsideTarget, "# instructions");
+            await symlink(
+                outsideTarget,
+                join(testDir, ".github", "copilot-instructions.md"),
+            );
+
+            const scripts: DiscoveredScript[] = [
+                {
+                    name: "test",
+                    command: "vitest run",
+                    phase: "test",
+                    isMandatory: true,
+                },
+            ];
+
+            const result = await gateway.analyzeCoverage(testDir, scripts, []);
+
+            expect(result.summary.totalDocumented).toBe(0);
+            expect(result.missingInInstructions).toHaveLength(1);
+        });
+    });
+
+    describe("when .github/instructions directory is a symlink", () => {
+        it("should return zero coverage instead of throwing", async () => {
+            await rm(instructionsDir, { recursive: true, force: true });
+            const realDir = join(testDir, "real-instructions");
+            await mkdir(realDir, { recursive: true });
+            await writeFile(
+                join(realDir, "test.instructions.md"),
+                "Run npm test",
+            );
+            await symlink(realDir, join(testDir, ".github", "instructions"));
+
+            const scripts: DiscoveredScript[] = [
+                {
+                    name: "test",
+                    command: "vitest run",
+                    phase: "test",
+                    isMandatory: true,
+                },
+            ];
+
+            const result = await gateway.analyzeCoverage(testDir, scripts, []);
+
+            expect(result.summary.totalDocumented).toBe(0);
+            expect(result.missingInInstructions).toHaveLength(1);
         });
     });
 

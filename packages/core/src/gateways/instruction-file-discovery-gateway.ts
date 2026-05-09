@@ -30,7 +30,7 @@ export class FileSystemInstructionFileDiscoveryGateway
 
         // .github/copilot-instructions.md
         const copilotInstructions = join(".github", "copilot-instructions.md");
-        if (await pathExistsWithinRoot(targetDir, copilotInstructions)) {
+        if (await this.safePathExists(targetDir, copilotInstructions)) {
             files.push({
                 filePath: join(targetDir, copilotInstructions),
                 format: "copilot-instructions",
@@ -57,7 +57,7 @@ export class FileSystemInstructionFileDiscoveryGateway
 
         // AGENTS.md at repo root
         const agentsMd = "AGENTS.md";
-        if (await pathExistsWithinRoot(targetDir, agentsMd)) {
+        if (await this.safePathExists(targetDir, agentsMd)) {
             files.push({
                 filePath: join(targetDir, agentsMd),
                 format: "agents-md",
@@ -66,7 +66,7 @@ export class FileSystemInstructionFileDiscoveryGateway
 
         // CLAUDE.md at repo root
         const claudeMd = "CLAUDE.md";
-        if (await pathExistsWithinRoot(targetDir, claudeMd)) {
+        if (await this.safePathExists(targetDir, claudeMd)) {
             files.push({
                 filePath: join(targetDir, claudeMd),
                 format: "claude-md",
@@ -76,13 +76,24 @@ export class FileSystemInstructionFileDiscoveryGateway
         return files;
     }
 
+    private async safePathExists(
+        targetDir: string,
+        relativePath: string,
+    ): Promise<boolean> {
+        try {
+            return await pathExistsWithinRoot(targetDir, relativePath);
+        } catch {
+            return false;
+        }
+    }
+
     private async discoverMdFilesInDir(
         targetDir: string,
         dirPath: string,
         format: InstructionFileFormat,
         files: DiscoveredInstructionFile[],
     ): Promise<void> {
-        if (!(await pathExistsWithinRoot(targetDir, dirPath))) {
+        if (!(await this.safePathExists(targetDir, dirPath))) {
             return;
         }
 

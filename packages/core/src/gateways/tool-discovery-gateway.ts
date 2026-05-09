@@ -11,6 +11,7 @@ import {
 } from "../entities/feedback-loop.js";
 import type { ToolDiscoveryGateway } from "../use-cases/discover-feedback-loops.js";
 import {
+    isFsSafeViolation,
     listDirectoryWithinRoot,
     pathExistsWithinRoot,
     readTextWithinRoot,
@@ -54,7 +55,11 @@ export class FileSystemToolDiscoveryGateway implements ToolDiscoveryGateway {
                     file.name,
                 );
                 allTools.push(...tools);
-            } catch {}
+            } catch (error: unknown) {
+                if (isFsSafeViolation(error)) {
+                    throw error;
+                }
+            }
         }
 
         return this.deduplicateTools(allTools);

@@ -103,16 +103,27 @@ export class FileSystemInstructionAnalysisGateway
         };
     }
 
+    private async safePathExists(
+        targetDir: string,
+        relativePath: string,
+    ): Promise<boolean> {
+        try {
+            return await pathExistsWithinRoot(targetDir, relativePath);
+        } catch {
+            return false;
+        }
+    }
+
     private async findInstructionFiles(targetDir: string): Promise<string[]> {
         const files: string[] = [];
 
         const copilotInstructions = join(".github", "copilot-instructions.md");
-        if (await pathExistsWithinRoot(targetDir, copilotInstructions)) {
+        if (await this.safePathExists(targetDir, copilotInstructions)) {
             files.push(copilotInstructions);
         }
 
         const instructionsDir = join(".github", "instructions");
-        if (await pathExistsWithinRoot(targetDir, instructionsDir)) {
+        if (await this.safePathExists(targetDir, instructionsDir)) {
             try {
                 const instructionFiles = await listDirectoryWithinRoot(
                     targetDir,

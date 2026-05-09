@@ -1,5 +1,7 @@
+import { createReadStream } from "node:fs";
 import { realpath } from "node:fs/promises";
-import { isAbsolute, relative, sep } from "node:path";
+import { isAbsolute, join, relative, sep } from "node:path";
+import { createInterface } from "node:readline";
 import type { QueryDeps } from "../gateways/log-query.js";
 import {
     listSessions,
@@ -12,11 +14,7 @@ import {
     formatEventsTable,
     formatSessionsTable,
 } from "../lib/log-format.js";
-import {
-    listDirectoryWithinRoot,
-    readTextWithinRoot,
-    statWithinRoot,
-} from "../lib/safe-fs.js";
+import { listDirectoryWithinRoot, statWithinRoot } from "../lib/safe-fs.js";
 
 export interface LogOptions {
     last?: string;
@@ -101,8 +99,12 @@ async function* readSafeFileLines(
     path: string,
 ): AsyncIterable<string> {
     const relativePath = relativePathUnderRoot(rootDir, path);
-    const content = await readTextWithinRoot(rootDir, relativePath, 20_971_520);
-    for (const line of content.split(/\r?\n/)) {
+    await statWithinRoot(rootDir, relativePath);
+    const rl = createInterface({
+        input: createReadStream(join(rootDir, relativePath)),
+        crlfDelay: Infinity,
+    });
+    for await (const line of rl) {
         yield line;
     }
 }

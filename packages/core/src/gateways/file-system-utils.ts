@@ -19,6 +19,8 @@ export interface SafePathStat {
     readonly isDirectory: boolean;
     readonly isFile: boolean;
     readonly isSymbolicLink: boolean;
+    readonly mtimeMs: number;
+    readonly size: number;
 }
 
 /**
@@ -122,6 +124,16 @@ export async function pathExistsWithinRoot(
     } catch (error: unknown) {
         mapFsSafeError(error, relativePath);
     }
+}
+
+/**
+ * Returns true if the error originated from an fs-safe security check
+ * (symlink, traversal, or size-limit violation). These errors carry a
+ * FsSafeError as their `cause` and should be re-thrown rather than
+ * silently swallowed by per-file error handlers.
+ */
+export function isFsSafeViolation(error: unknown): boolean {
+    return error instanceof Error && error.cause instanceof FsSafeError;
 }
 
 export async function statWithinRoot(

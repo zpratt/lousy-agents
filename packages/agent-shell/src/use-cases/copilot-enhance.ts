@@ -1,4 +1,4 @@
-import { normalize, resolve } from "node:path";
+import { normalize, relative, resolve } from "node:path";
 import { z } from "zod/v4";
 import type { ProjectScanResult } from "../gateways/project-scanner.js";
 import { resolveSdkPath } from "../gateways/resolve-sdk.js";
@@ -86,17 +86,19 @@ export async function readProjectFileSafe(
     if (safePath === null) {
         return { error: "Path is outside the repository" };
     }
+    const cleanRoot = repoRoot.replace(/\/+$/, "") || "/";
+    const relPath = relative(cleanRoot, safePath);
     let fileBuffer: Buffer;
     let truncated = false;
     try {
-        const fileStat = await statWithinRoot(repoRoot, pathArg);
+        const fileStat = await statWithinRoot(repoRoot, relPath);
         truncated = fileStat.size > MAX_FILE_READ_BYTES;
         if (fileStat.size > MAX_PROJECT_FILE_BYTES) {
             return { error: "File not found or unreadable" };
         }
         fileBuffer = await readBytesWithinRoot(
             repoRoot,
-            pathArg,
+            relPath,
             MAX_PROJECT_FILE_BYTES,
         );
     } catch (error: unknown) {

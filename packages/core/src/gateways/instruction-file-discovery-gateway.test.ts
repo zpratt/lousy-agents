@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
@@ -113,6 +113,59 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
             // Assert
             expect(files).toHaveLength(1);
             expect(files[0].format).toBe("claude-md");
+        });
+    });
+
+    describe("when .github/copilot-instructions.md is a symbolic link", () => {
+        it("should return an empty array without throwing", async () => {
+            // Arrange
+            const githubDir = join(testDir, ".github");
+            await mkdir(githubDir, { recursive: true });
+            const externalFile = join(testDir, "external.md");
+            await writeFile(externalFile, "# External\n");
+            await symlink(
+                externalFile,
+                join(githubDir, "copilot-instructions.md"),
+            );
+
+            // Act
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            // Assert
+            expect(files).toEqual([]);
+        });
+    });
+
+    describe("when AGENTS.md is a symbolic link", () => {
+        it("should return an empty array without throwing", async () => {
+            // Arrange
+            const externalFile = join(testDir, "external.md");
+            await writeFile(externalFile, "# External\n");
+            await symlink(externalFile, join(testDir, "AGENTS.md"));
+
+            // Act
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            // Assert
+            expect(files).toEqual([]);
+        });
+    });
+
+    describe("when .github/instructions/ is a symbolic link", () => {
+        it("should return an empty array without throwing", async () => {
+            // Arrange
+            const githubDir = join(testDir, ".github");
+            await mkdir(githubDir, { recursive: true });
+            const externalDir = join(testDir, "external-instructions");
+            await mkdir(externalDir, { recursive: true });
+            await writeFile(join(externalDir, "test.md"), "# Test\n");
+            await symlink(externalDir, join(githubDir, "instructions"));
+
+            // Act
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            // Assert
+            expect(files).toEqual([]);
         });
     });
 

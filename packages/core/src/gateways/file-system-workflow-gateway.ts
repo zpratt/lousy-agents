@@ -16,6 +16,7 @@ import {
     extractSetupStepsFromWorkflow,
 } from "../use-cases/setup-step-discovery.js";
 import {
+    isFsSafeViolation,
     listDirectoryWithinRoot,
     pathExistsWithinRoot,
     readTextWithinRoot,
@@ -78,20 +79,24 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
 
         for (const file of yamlFiles) {
             const relativePath = `.github/workflows/${file.name}`;
-            const content = await readTextWithinRoot(
-                targetDir,
-                relativePath,
-                MAX_WORKFLOW_FILE_BYTES,
-            );
-
             try {
+                const content = await readTextWithinRoot(
+                    targetDir,
+                    relativePath,
+                    MAX_WORKFLOW_FILE_BYTES,
+                );
                 const workflow = parseYaml(content);
                 const candidates = extractSetupStepsFromWorkflow(
                     workflow,
                     config.setupActionPatterns,
                 );
                 allCandidates.push(...candidates);
-            } catch {}
+            } catch (error: unknown) {
+                if (isFsSafeViolation(error)) {
+                    throw error;
+                }
+                // Skip workflow files with YAML parse errors or transient I/O failures
+            }
         }
 
         return deduplicateCandidates(allCandidates);
