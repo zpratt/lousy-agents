@@ -32,7 +32,8 @@ rules:
         between the two calls will not be detected. Logical-AND short-circuits
         (`existsSync(p) && readFileSync(p)`) and ternary forms are also out
         of scope. `for`-loop conditions (`for (; existsSync(p);)`) are not
-        matched. Mixed import styles — namespace `fs.existsSync` paired with
+        matched. Negated conditions (`if (!existsSync(p)) { ... } else { readFileSync(p) }`)
+        are not detected. Mixed import styles — namespace `fs.existsSync` paired with
         a destructured `readFileSync`, or vice versa — are not detected because
         the `$FS` metavariable must resolve identically in both calls.
         Use `try/catch` around `readFileSync` as the authoritative fix regardless.

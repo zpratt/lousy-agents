@@ -9,11 +9,3 @@ node_modules/
 
 # Generated output directories
 graphify-out/
-
-# Test files — TOCTOU in tests is lower risk
-*.test.ts
-*.spec.ts
-*.integration.test.ts
-*.test.js
-*.spec.js
-*.integration.test.js
