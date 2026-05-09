@@ -10,6 +10,9 @@ node_modules/
 # Generated output directories
 graphify-out/
 
+# Semgrep rule fixtures — intentional violations; excluded from enforcement scan
+.semgrep/
+
 # Test files — TOCTOU in tests is lower risk
 *.test.ts
 *.spec.ts

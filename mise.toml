@@ -45,7 +45,7 @@ hide = true
 [tasks.semgrep]
 description = "Run semgrep TOCTOU detection rules"
 run = [
-    "semgrep scan --test --config .semgrep/toctou.yaml .semgrep/toctou.ts --metrics=off --disable-version-check",
+    "semgrep scan --test --config .semgrep/ .semgrep/ --metrics=off --disable-version-check",
     "semgrep scan --config .semgrep/ --error --severity WARNING --metrics=off --disable-version-check packages/",
 ]
 hide = true
