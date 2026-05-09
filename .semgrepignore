@@ -11,3 +11,6 @@ node_modules/
 *.test.ts
 *.spec.ts
 *.integration.test.ts
+*.test.js
+*.spec.js
+*.integration.test.js
