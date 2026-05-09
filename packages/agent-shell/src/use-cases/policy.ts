@@ -1,4 +1,4 @@
-import { isAbsolute, join } from "node:path";
+import { isAbsolute, join, relative, sep } from "node:path";
 import { type PolicyConfig, PolicyConfigSchema } from "../entities/types.js";
 import { hasProtoKey } from "../entities/validation.js";
 import { isPathNotFoundError, isWithinProjectRoot } from "../lib/path-utils.js";
@@ -7,6 +7,11 @@ import { SHELL_METACHAR_PATTERN } from "../lib/sanitize.js";
 export interface PolicyDeps {
     realpath: (path: string) => Promise<string>;
     readFile: (path: string, encoding: string) => Promise<string>;
+    readFileWithinRoot?: (
+        rootDir: string,
+        relativePath: string,
+        maxBytes: number,
+    ) => Promise<string>;
     getRepositoryRoot: () => string;
 }
 
@@ -116,6 +121,19 @@ function resolvePolicyPath(
     return { path: join(repoRoot, DEFAULT_POLICY_SUBPATH), isOverride: false };
 }
 
+function relativePathUnderRoot(repoRoot: string, path: string): string | null {
+    const relativePath = relative(repoRoot, path);
+    if (
+        relativePath === "" ||
+        relativePath === ".." ||
+        relativePath.startsWith(`..${sep}`) ||
+        isAbsolute(relativePath)
+    ) {
+        return null;
+    }
+    return relativePath;
+}
+
 export async function loadPolicy(
     env: Record<string, string | undefined>,
     deps: PolicyDeps,
@@ -149,8 +167,21 @@ export async function loadPolicy(
     }
 
     let content: string;
+    const relativePolicyPath = relativePathUnderRoot(repoRoot, candidatePath);
+    if (relativePolicyPath === null) {
+        throw new Error(
+            `Policy file path resolves outside the repository root: ${sanitizePath(candidatePath)}`,
+        );
+    }
+
     try {
-        content = await deps.readFile(resolvedPath, "utf-8");
+        content = deps.readFileWithinRoot
+            ? await deps.readFileWithinRoot(
+                  repoRoot,
+                  relativePolicyPath,
+                  524_288,
+              )
+            : await deps.readFile(resolvedPath, "utf-8");
     } catch (error: unknown) {
         if (isPathNotFoundError(error)) {
             if (isOverride) {

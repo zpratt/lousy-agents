@@ -21,6 +21,7 @@ import {
     emitShimErrorEvent,
 } from "./gateways/telemetry.js";
 import { resolveMode } from "./lib/mode.js";
+import { readTextWithinRoot } from "./lib/safe-fs.js";
 import { sanitizeForStderr } from "./lib/sanitize.js";
 import { handleInit } from "./use-cases/init-command.js";
 import { runLog } from "./use-cases/log-command.js";
@@ -81,6 +82,8 @@ async function main(): Promise<void> {
                 policyDeps: {
                     realpath: (path) => realpath(path),
                     readFile: (path, encoding) => readFile(path, encoding),
+                    readFileWithinRoot: (rootDir, relativePath, maxBytes) =>
+                        readTextWithinRoot(rootDir, relativePath, maxBytes),
                     getRepositoryRoot,
                 },
                 telemetryDeps: createDefaultDeps(),
@@ -191,6 +194,8 @@ async function main(): Promise<void> {
                         writeStdout: (data) => process.stdout.write(data),
                         writeStderr: (data) => process.stderr.write(data),
                         readFile: (path, encoding) => readFile(path, encoding),
+                        readFileWithinRoot: (rootDir, relativePath, maxBytes) =>
+                            readTextWithinRoot(rootDir, relativePath, maxBytes),
                         writeFile: (path, content, options) =>
                             writeFile(path, content, options),
                         rename: (oldPath, newPath) => rename(oldPath, newPath),

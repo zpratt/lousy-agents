@@ -1,6 +1,5 @@
-import { createReadStream } from "node:fs";
-import { readdir, realpath, stat } from "node:fs/promises";
-import { createInterface } from "node:readline";
+import { realpath } from "node:fs/promises";
+import { isAbsolute, relative, sep } from "node:path";
 import type { QueryDeps } from "../gateways/log-query.js";
 import {
     listSessions,
@@ -13,6 +12,11 @@ import {
     formatEventsTable,
     formatSessionsTable,
 } from "../lib/log-format.js";
+import {
+    listDirectoryWithinRoot,
+    readTextWithinRoot,
+    statWithinRoot,
+} from "../lib/safe-fs.js";
 
 export interface LogOptions {
     last?: string;
@@ -79,16 +83,49 @@ export function parseLogArgs(args: string[]): LogOptions {
     return options;
 }
 
+function relativePathUnderRoot(rootDir: string, path: string): string {
+    const relativePath = relative(rootDir, path);
+    if (
+        relativePath === "" ||
+        relativePath === ".." ||
+        relativePath.startsWith(`..${sep}`) ||
+        isAbsolute(relativePath)
+    ) {
+        throw new Error("Path resolves outside project root");
+    }
+    return relativePath;
+}
+
+async function* readSafeFileLines(
+    rootDir: string,
+    path: string,
+): AsyncIterable<string> {
+    const relativePath = relativePathUnderRoot(rootDir, path);
+    const content = await readTextWithinRoot(rootDir, relativePath, 20_971_520);
+    for (const line of content.split(/\r?\n/)) {
+        yield line;
+    }
+}
+
 function createDefaultQueryDeps(): QueryDeps {
+    const rootDir = process.cwd();
     return {
-        readdir: (path) => readdir(path),
-        stat: (path) => stat(path).then((s) => ({ mtimeMs: s.mtimeMs })),
+        readdir: async (path) => {
+            const relativePath = relativePathUnderRoot(rootDir, path);
+            const entries = await listDirectoryWithinRoot(
+                rootDir,
+                relativePath,
+            );
+            return entries.map((entry) => entry.name);
+        },
+        stat: async (path) => {
+            const relativePath = relativePathUnderRoot(rootDir, path);
+            const s = await statWithinRoot(rootDir, relativePath);
+            return { mtimeMs: s.mtimeMs };
+        },
         realpath: (path) => realpath(path),
         cwd: () => process.cwd(),
-        readFileLines: (path) =>
-            createInterface({
-                input: createReadStream(path, { encoding: "utf-8" }),
-            }),
+        readFileLines: (path) => readSafeFileLines(rootDir, path),
         writeStderr: (msg) => {
             process.stderr.write(msg);
         },

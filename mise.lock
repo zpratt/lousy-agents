@@ -34,7 +34,7 @@ checksum = "sha256:6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f
 url = "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_windows_amd64.zip"
 
 [[tools.devcontainer-cli]]
-version = "0.86.0"
+version = "0.86.1"
 backend = "npm:@devcontainers/cli"
 
 [[tools.jq]]

@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { readFileNoFollow } from "./file-system-utils.js";
+import {
+    listDirectoryWithinRoot,
+    pathExistsWithinRoot,
+    readFileNoFollow,
+    readTextWithinRoot,
+} from "./file-system-utils.js";
 
 const chance = new Chance();
 
@@ -121,5 +126,123 @@ describe("readFileNoFollow", () => {
                 expect.unreachable("expected an error to be thrown");
             },
         );
+    });
+});
+
+describe("readTextWithinRoot", () => {
+    let testDir: string;
+
+    beforeEach(async () => {
+        testDir = join(
+            tmpdir(),
+            `file-system-utils-root-test-${chance.hash({ length: 8 })}`,
+        );
+        await mkdir(testDir, { recursive: true });
+    });
+
+    afterEach(async () => {
+        await rm(testDir, { recursive: true, force: true });
+    });
+
+    describe("given a relative file path inside the root", () => {
+        it("should return the file content", async () => {
+            const content = chance.sentence();
+            await writeFile(join(testDir, "config.json"), content);
+
+            const result = await readTextWithinRoot(
+                testDir,
+                "config.json",
+                1_048_576,
+            );
+
+            expect(result).toBe(content);
+        });
+    });
+
+    describe("given a traversal path", () => {
+        it("should reject before reading outside the root", async () => {
+            await expect(
+                readTextWithinRoot(testDir, "../outside.txt", 1_048_576),
+            ).rejects.toThrow("outside target directory");
+        });
+    });
+
+    describe("given a symlinked file", () => {
+        it.skipIf(process.platform === "win32")(
+            "should reject the symlink",
+            async () => {
+                await writeFile(join(testDir, "real.txt"), chance.sentence());
+                await symlink(
+                    join(testDir, "real.txt"),
+                    join(testDir, "link.txt"),
+                );
+
+                await expect(
+                    readTextWithinRoot(testDir, "link.txt", 1_048_576),
+                ).rejects.toThrow("Symlinks are not allowed");
+            },
+        );
+    });
+});
+
+describe("listDirectoryWithinRoot", () => {
+    let testDir: string;
+
+    beforeEach(async () => {
+        testDir = join(
+            tmpdir(),
+            `file-system-utils-list-test-${chance.hash({ length: 8 })}`,
+        );
+        await mkdir(join(testDir, "nested"), { recursive: true });
+    });
+
+    afterEach(async () => {
+        await rm(testDir, { recursive: true, force: true });
+    });
+
+    describe("given a directory inside the root", () => {
+        it("should return directory entries", async () => {
+            await writeFile(join(testDir, "nested", "one.md"), "");
+            await writeFile(join(testDir, "nested", "two.txt"), "");
+
+            const entries = await listDirectoryWithinRoot(testDir, "nested");
+
+            expect(entries.map((entry) => entry.name).sort()).toEqual([
+                "one.md",
+                "two.txt",
+            ]);
+        });
+    });
+});
+
+describe("pathExistsWithinRoot", () => {
+    let testDir: string;
+
+    beforeEach(async () => {
+        testDir = join(
+            tmpdir(),
+            `file-system-utils-exists-test-${chance.hash({ length: 8 })}`,
+        );
+        await mkdir(testDir, { recursive: true });
+    });
+
+    afterEach(async () => {
+        await rm(testDir, { recursive: true, force: true });
+    });
+
+    describe("given a missing path inside the root", () => {
+        it("should return false", async () => {
+            const exists = await pathExistsWithinRoot(testDir, "missing.txt");
+
+            expect(exists).toBe(false);
+        });
+    });
+
+    describe("given a traversal path", () => {
+        it("should reject instead of returning false", async () => {
+            await expect(
+                pathExistsWithinRoot(testDir, "../missing.txt"),
+            ).rejects.toThrow("outside target directory");
+        });
     });
 });

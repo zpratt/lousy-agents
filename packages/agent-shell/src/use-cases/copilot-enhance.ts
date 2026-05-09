@@ -1,14 +1,15 @@
-import { readFile, realpath } from "node:fs/promises";
 import { normalize, resolve } from "node:path";
 import { z } from "zod/v4";
 import type { ProjectScanResult } from "../gateways/project-scanner.js";
 import { resolveSdkPath } from "../gateways/resolve-sdk.js";
+import { readBytesWithinRoot, statWithinRoot } from "../lib/safe-fs.js";
 import { isSafeCommand, sanitizeForStderr } from "../lib/sanitize.js";
 import { buildAnalysisPrompt, buildSystemMessage } from "./copilot-prompt.js";
 
 const DEFAULT_MODEL = "claude-sonnet-4-6";
 
 const MAX_FILE_READ_BYTES = 102_400;
+const MAX_PROJECT_FILE_BYTES = 20 * 1024 * 1024;
 
 const AnalysisResponseSchema = z.object({
     additionalAllowRules: z.array(z.string().max(512)).max(100),
@@ -86,24 +87,29 @@ export async function readProjectFileSafe(
         return { error: "Path is outside the repository" };
     }
     let fileBuffer: Buffer;
+    let truncated = false;
     try {
-        const root = repoRoot.replace(/\/+$/, "") || "/";
-        const [realRoot, realPath] = await Promise.all([
-            realpath(root),
-            realpath(safePath),
-        ]);
-        const realPrefix = realRoot === "/" ? "/" : `${realRoot}/`;
-        if (!realPath.startsWith(realPrefix) && realPath !== realRoot) {
+        const fileStat = await statWithinRoot(repoRoot, pathArg);
+        truncated = fileStat.size > MAX_FILE_READ_BYTES;
+        if (fileStat.size > MAX_PROJECT_FILE_BYTES) {
+            return { error: "File not found or unreadable" };
+        }
+        fileBuffer = await readBytesWithinRoot(
+            repoRoot,
+            pathArg,
+            MAX_PROJECT_FILE_BYTES,
+        );
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (message.includes("symbolic link")) {
             return { error: "Path is outside the repository" };
         }
-        fileBuffer = await readFile(realPath);
-    } catch {
         return { error: "File not found or unreadable" };
     }
 
     // Buffer processing outside I/O catch — programming bugs in
     // findUtf8Boundary propagate instead of being silently swallowed.
-    if (fileBuffer.length <= MAX_FILE_READ_BYTES) {
+    if (!truncated) {
         return { content: fileBuffer.toString("utf-8"), truncated: false };
     }
 
