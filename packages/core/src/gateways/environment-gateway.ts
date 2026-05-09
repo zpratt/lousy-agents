@@ -3,7 +3,6 @@
  * This module abstracts file system access for environment configuration detection.
  */
 
-import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type {
     DetectedEnvironment,
@@ -20,8 +19,8 @@ import {
     loadCopilotSetupConfig,
 } from "../lib/copilot-setup-config.js";
 import {
-    assertFileSizeWithinLimit,
-    fileExists,
+    pathExistsWithinRoot,
+    readTextWithinRoot,
     resolveSafePath,
 } from "./file-system-utils.js";
 
@@ -31,13 +30,15 @@ import type { EnvironmentGateway } from "../use-cases/init-copilot-setup-workflo
 
 export type { EnvironmentGateway };
 
-async function readVersionFileContent(filePath: string): Promise<string> {
-    await assertFileSizeWithinLimit(
-        filePath,
+async function readVersionFileContent(
+    targetDir: string,
+    relativePath: string,
+): Promise<string> {
+    const content = await readTextWithinRoot(
+        targetDir,
+        relativePath,
         MAX_VERSION_FILE_BYTES,
-        `Version file '${filePath}'`,
     );
-    const content = await readFile(filePath, "utf-8");
     return content.trim();
 }
 
@@ -76,8 +77,7 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
     }
 
     private async detectMise(targetDir: string): Promise<boolean> {
-        const miseTomlPath = await resolveSafePath(targetDir, "mise.toml");
-        return fileExists(miseTomlPath);
+        return pathExistsWithinRoot(targetDir, "mise.toml");
     }
 
     private async detectVersionFiles(
@@ -88,12 +88,11 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
         const versionFiles: VersionFile[] = [];
 
         for (const fileConfig of config.versionFiles) {
-            const filePath = await resolveSafePath(
-                targetDir,
-                fileConfig.filename,
-            );
-            if (await fileExists(filePath)) {
-                const version = await readVersionFileContent(filePath);
+            if (await pathExistsWithinRoot(targetDir, fileConfig.filename)) {
+                const version = await readVersionFileContent(
+                    targetDir,
+                    fileConfig.filename,
+                );
                 versionFiles.push({
                     type: filenameToType[fileConfig.filename],
                     filename: fileConfig.filename,
@@ -157,11 +156,7 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
         targetDir: string,
         nodePackageManagers: CopilotSetupConfig["packageManagers"],
     ): Promise<PackageManagerFile | null> {
-        const packageJsonPath = await resolveSafePath(
-            targetDir,
-            "package.json",
-        );
-        if (!(await fileExists(packageJsonPath))) {
+        if (!(await pathExistsWithinRoot(targetDir, "package.json"))) {
             return null;
         }
 
@@ -175,11 +170,7 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
                 continue;
             }
 
-            const lockfilePath = await resolveSafePath(
-                targetDir,
-                pmConfig.lockfile,
-            );
-            if (await fileExists(lockfilePath)) {
+            if (await pathExistsWithinRoot(targetDir, pmConfig.lockfile)) {
                 return {
                     type: pmConfig.type,
                     filename: pmConfig.manifestFile,
@@ -212,16 +203,12 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
                 continue;
             }
 
-            const manifestPath = await resolveSafePath(
-                targetDir,
-                pmConfig.manifestFile,
-            );
-            if (await fileExists(manifestPath)) {
+            if (await pathExistsWithinRoot(targetDir, pmConfig.manifestFile)) {
                 const lockfilePath = pmConfig.lockfile
                     ? await resolveSafePath(targetDir, pmConfig.lockfile)
                     : undefined;
                 const hasLockfile = lockfilePath
-                    ? await fileExists(lockfilePath)
+                    ? await pathExistsWithinRoot(targetDir, pmConfig.lockfile)
                     : false;
 
                 if (pmConfig.requiresLockfile && !hasLockfile) {
@@ -246,16 +233,12 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
         const packageManagers: PackageManagerFile[] = [];
 
         for (const pmConfig of otherPackageManagers) {
-            const manifestPath = await resolveSafePath(
-                targetDir,
-                pmConfig.manifestFile,
-            );
-            if (await fileExists(manifestPath)) {
+            if (await pathExistsWithinRoot(targetDir, pmConfig.manifestFile)) {
                 const lockfilePath = pmConfig.lockfile
                     ? await resolveSafePath(targetDir, pmConfig.lockfile)
                     : undefined;
                 const hasLockfile = lockfilePath
-                    ? await fileExists(lockfilePath)
+                    ? await pathExistsWithinRoot(targetDir, pmConfig.lockfile)
                     : false;
 
                 if (pmConfig.requiresLockfile && !hasLockfile) {

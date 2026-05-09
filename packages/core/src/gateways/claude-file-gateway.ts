@@ -3,9 +3,16 @@
  * Handles reading and writing .claude/settings.json and CLAUDE.md files.
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import type { ClaudeSettings } from "../entities/claude-setup.js";
-import { fileExists, resolveSafePath } from "./file-system-utils.js";
+import {
+    pathExistsWithinRoot,
+    readTextWithinRoot,
+    resolveSafePath,
+} from "./file-system-utils.js";
+
+const MAX_CLAUDE_SETTINGS_BYTES = 1_048_576;
+const MAX_CLAUDE_DOC_BYTES = 1_048_576;
 
 /**
  * Interface for Claude file gateway
@@ -46,17 +53,16 @@ export interface ClaudeFileGateway {
  */
 export class FileSystemClaudeFileGateway implements ClaudeFileGateway {
     async readSettings(targetDir: string): Promise<ClaudeSettings | null> {
-        const settingsPath = await resolveSafePath(
-            targetDir,
-            ".claude/settings.json",
-        );
-
-        if (!(await fileExists(settingsPath))) {
+        if (!(await pathExistsWithinRoot(targetDir, ".claude/settings.json"))) {
             return null;
         }
 
+        const content = await readTextWithinRoot(
+            targetDir,
+            ".claude/settings.json",
+            MAX_CLAUDE_SETTINGS_BYTES,
+        );
         try {
-            const content = await readFile(settingsPath, "utf-8");
             return JSON.parse(content) as ClaudeSettings;
         } catch {
             // If JSON parsing fails, treat as if file doesn't exist
@@ -83,13 +89,11 @@ export class FileSystemClaudeFileGateway implements ClaudeFileGateway {
     }
 
     async readDocumentation(targetDir: string): Promise<string | null> {
-        const docPath = await resolveSafePath(targetDir, "CLAUDE.md");
-
-        if (!(await fileExists(docPath))) {
+        if (!(await pathExistsWithinRoot(targetDir, "CLAUDE.md"))) {
             return null;
         }
 
-        return readFile(docPath, "utf-8");
+        return readTextWithinRoot(targetDir, "CLAUDE.md", MAX_CLAUDE_DOC_BYTES);
     }
 
     async writeDocumentation(

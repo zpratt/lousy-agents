@@ -221,6 +221,18 @@ describe("readProjectFileSafe", () => {
         });
     });
 
+    describe("given an absolute path within the repository", () => {
+        it("reads and returns file content", async () => {
+            const content = "hello from absolute path";
+            await writeFile(join(tempDir, "test.txt"), content);
+            const absolutePath = join(tempDir, "test.txt");
+
+            const result = await readProjectFileSafe(tempDir, absolutePath);
+
+            expect(result).toEqual({ content, truncated: false });
+        });
+    });
+
     describe("given a repoRoot that is itself a symlink", () => {
         it("reads files correctly when the root is a symlinked directory", async () => {
             const realDir = await mkdtemp(

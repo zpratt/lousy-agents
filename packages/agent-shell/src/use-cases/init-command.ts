@@ -17,6 +17,11 @@ export interface InitDeps {
     writeStdout: (data: string) => void;
     writeStderr: (data: string) => void;
     readFile: (path: string, encoding: "utf-8") => Promise<string>;
+    readFileWithinRoot?: (
+        rootDir: string,
+        relativePath: string,
+        maxBytes: number,
+    ) => Promise<string>;
     writeFile: (
         path: string,
         content: string,
@@ -138,11 +143,14 @@ function detectExistingFeatures(config: HooksConfig): DetectedFeatures {
 }
 
 async function loadExistingHooksConfig(
+    repoRoot: string,
     hooksPath: string,
-    deps: Pick<InitDeps, "readFile" | "writeStderr">,
+    deps: Pick<InitDeps, "readFile" | "readFileWithinRoot" | "writeStderr">,
 ): Promise<{ config: HooksConfig | null; error: boolean }> {
     try {
-        const raw = await deps.readFile(hooksPath, "utf-8");
+        const raw = deps.readFileWithinRoot
+            ? await deps.readFileWithinRoot(repoRoot, HOOKS_SUBPATH, 524_288)
+            : await deps.readFile(hooksPath, "utf-8");
         const parsed: unknown = JSON.parse(raw);
         if (hasProtoKey(parsed)) {
             throw new Error("hooks schema validation failed");
@@ -329,7 +337,7 @@ export async function handleInit(
     const hooksPath = join(repoRoot, HOOKS_SUBPATH);
 
     const { config: existingConfig, error: loadError } =
-        await loadExistingHooksConfig(hooksPath, deps);
+        await loadExistingHooksConfig(repoRoot, hooksPath, deps);
 
     if (loadError) {
         return false;
@@ -457,7 +465,13 @@ export async function handleInit(
         let existingContent: string | null = null;
 
         try {
-            existingContent = await deps.readFile(policyPath, "utf-8");
+            existingContent = deps.readFileWithinRoot
+                ? await deps.readFileWithinRoot(
+                      repoRoot,
+                      POLICY_SUBPATH,
+                      524_288,
+                  )
+                : await deps.readFile(policyPath, "utf-8");
         } catch (error: unknown) {
             if (!isPathNotFoundError(error)) {
                 throw error;

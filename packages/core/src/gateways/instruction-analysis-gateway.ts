@@ -2,7 +2,6 @@
  * Gateway for analyzing repository instructions for feedback loop coverage
  */
 
-import { readdir, readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import type {
     DiscoveredScript,
@@ -11,9 +10,15 @@ import type {
     InstructionReference,
 } from "../entities/feedback-loop.js";
 import type { InstructionAnalysisGateway } from "../use-cases/validate-instruction-coverage.js";
-import { fileExists } from "./file-system-utils.js";
+import {
+    listDirectoryWithinRoot,
+    pathExistsWithinRoot,
+    readTextWithinRoot,
+} from "./file-system-utils.js";
 
 export type { InstructionAnalysisGateway };
+
+const MAX_INSTRUCTION_FILE_BYTES = 1_048_576;
 
 /**
  * File system implementation of instruction analysis gateway
@@ -32,7 +37,11 @@ export class FileSystemInstructionAnalysisGateway
         const documentedTargets = new Set<string>();
 
         for (const file of instructionFiles) {
-            const content = await readFile(file, "utf-8");
+            const content = await readTextWithinRoot(
+                targetDir,
+                file,
+                MAX_INSTRUCTION_FILE_BYTES,
+            );
             const lines = content.split("\n");
 
             for (const script of scripts) {
@@ -40,7 +49,7 @@ export class FileSystemInstructionAnalysisGateway
                     script.name,
                     content,
                     lines,
-                    file,
+                    join(targetDir, file),
                     targetDir,
                 );
                 if (scriptRefs.length > 0) {
@@ -54,7 +63,7 @@ export class FileSystemInstructionAnalysisGateway
                     tool.name,
                     content,
                     lines,
-                    file,
+                    join(targetDir, file),
                     targetDir,
                 );
                 if (toolRefs.length > 0) {
@@ -94,25 +103,35 @@ export class FileSystemInstructionAnalysisGateway
         };
     }
 
+    private async safePathExists(
+        targetDir: string,
+        relativePath: string,
+    ): Promise<boolean> {
+        try {
+            return await pathExistsWithinRoot(targetDir, relativePath);
+        } catch {
+            return false;
+        }
+    }
+
     private async findInstructionFiles(targetDir: string): Promise<string[]> {
         const files: string[] = [];
 
-        const copilotInstructions = join(
-            targetDir,
-            ".github",
-            "copilot-instructions.md",
-        );
-        if (await fileExists(copilotInstructions)) {
+        const copilotInstructions = join(".github", "copilot-instructions.md");
+        if (await this.safePathExists(targetDir, copilotInstructions)) {
             files.push(copilotInstructions);
         }
 
-        const instructionsDir = join(targetDir, ".github", "instructions");
-        if (await fileExists(instructionsDir)) {
+        const instructionsDir = join(".github", "instructions");
+        if (await this.safePathExists(targetDir, instructionsDir)) {
             try {
-                const instructionFiles = await readdir(instructionsDir);
+                const instructionFiles = await listDirectoryWithinRoot(
+                    targetDir,
+                    instructionsDir,
+                );
                 for (const file of instructionFiles) {
-                    if (file.endsWith(".md")) {
-                        files.push(join(instructionsDir, file));
+                    if (file.isFile() && file.name.endsWith(".md")) {
+                        files.push(join(instructionsDir, file.name));
                     }
                 }
             } catch {}

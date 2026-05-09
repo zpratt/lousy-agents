@@ -1,35 +1,36 @@
+import type { InitHooksConfigGatewayPort } from "@lousy-agents/core/use-cases/init-hooks-gateway-port.js";
+import { InitHooksUseCase } from "@lousy-agents/core/use-cases/init-hooks-use-case.js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createInitHooksCommand } from "./init-hooks.js";
 
-const { mockInitHooks } = vi.hoisted(() => ({
-    mockInitHooks: vi.fn(),
-}));
+const mockInitHooks = vi.fn();
 
-vi.mock("@lousy-agents/core/gateways/init-hooks-config-gateway.js", () => ({
-    createInitHooksConfigGateway: vi.fn(() => ({
-        initHooks: mockInitHooks,
-    })),
-}));
+function makeCommand() {
+    const gateway: InitHooksConfigGatewayPort = { initHooks: mockInitHooks };
+    const useCase = new InitHooksUseCase(gateway);
+    return createInitHooksCommand(useCase);
+}
 
 async function runInitHooks(options: {
     force?: boolean;
     noSessionStart?: boolean;
     targetDir?: string;
 }) {
-    const { initHooksCommand } = await import("./init-hooks.js");
+    const command = makeCommand();
 
     const origExitCode = process.exitCode;
     process.exitCode = 0;
     let code: number | undefined;
 
     try {
-        await initHooksCommand.run?.({
+        await command.run?.({
             rawArgs: [],
             args: {
                 _: [],
                 force: options.force ?? false,
                 "no-session-start": options.noSessionStart ?? false,
             },
-            cmd: initHooksCommand,
+            cmd: command,
             data: { targetDir: options.targetDir ?? "/repo" },
         });
     } finally {

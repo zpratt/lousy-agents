@@ -137,8 +137,11 @@ packages/action/dist/*.map
 *.db
 
 # Ignore local machine states and API costs
-graphify-out/manifest.json
-graphify-out/cost.json
+**/graphify-out/manifest.json
+**/graphify-out/cost.json
 
 # Optional: Ignore cache to keep repo size down (sacrifices local build speed)
-graphify-out/cache/
+**/graphify-out/cache/
+
+# Beads / Dolt files (added by bd init)
+.beads-credential-key

@@ -1,5 +1,5 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import type { ScriptEvent } from "../entities/types.js";
 import { ScriptEventSchema } from "../entities/types.js";
 import { hasProtoKey } from "../entities/validation.js";
@@ -81,6 +81,7 @@ export async function resolveReadEventsDir(
         const candidate = resolve(projectRoot, logDir);
 
         if (
+            !isAbsolute(logDir) &&
             !isWithinProjectRoot(candidate, projectRoot) &&
             !isWithinProjectRoot(candidate, projectRootReal)
         ) {

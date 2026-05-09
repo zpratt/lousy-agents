@@ -294,6 +294,19 @@ npm run build`,
         });
     });
 
+    describe("when a workflow file exceeds the size limit", () => {
+        it("should throw an fs-safe violation rather than silently skip", async () => {
+            await writeFile(
+                join(workflowsDir, "oversized.yml"),
+                "x".repeat(1_048_577),
+            );
+
+            await expect(gateway.discoverTools(testDir)).rejects.toThrow(
+                /exceeds size limit/i,
+            );
+        });
+    });
+
     describe("when workflow file is malformed", () => {
         it("should skip malformed files and continue", async () => {
             await writeFile(

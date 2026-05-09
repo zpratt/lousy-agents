@@ -13,7 +13,8 @@
             "!packages/cli/cli/copilot-with-citty/src",
             "!packages/action/dist",
             "!.beads",
-            "!graphify-out"
+            "!graphify-out",
+            "!**/graphify-out"
         ]
     },
     "formatter": {
