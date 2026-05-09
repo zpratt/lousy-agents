@@ -15,7 +15,11 @@ import type {
 function findPackageRoot(startDir: string): string {
     let dir = startDir;
     // Safe: existence-only stop-condition for directory traversal; no readFileSync
-    // on the same path inside this loop; caller is always __dirname at module init.
+    // on the same path inside this loop. This function is private (not exported)
+    // and its only call site is `findPackageRoot(__dirname)` at module init —
+    // __dirname is always an absolute path derived from import.meta.url, never
+    // user-controlled input. Do NOT export this function or call it with
+    // external input without removing this suppression and adding path validation.
     // nosemgrep: avoid-exists-sync
     while (!existsSync(join(dir, "package.json"))) {
         const parent = dirname(dir);

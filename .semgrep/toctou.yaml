@@ -40,8 +40,9 @@ rules:
     pattern: $FS.existsSync(...)
     message: >
       `existsSync` is a blocking call that can introduce TOCTOU
-      (Time-Of-Check Time-Of-Use) race conditions. Prefer `try/catch` with
-      `readFileSync` or `fs.promises.access` for async-safe existence checks.
+      (Time-Of-Check Time-Of-Use) race conditions. Use `readFileSync` inside a
+      `try/catch` block instead — `fs.promises.access` is also a check-then-act
+      pattern and does not eliminate the race window.
     languages:
       - typescript
       - javascript
@@ -49,3 +50,10 @@ rules:
     metadata:
       category: security
       cwe: "CWE-367: Time-Of-Check Time-Of-Use (TOCTOU) Race Condition"
+      known-limitation: >
+        Coverage of standalone destructured `existsSync()` calls (named imports
+        without a namespace prefix) depends on semgrep import-aware analysis
+        available in 1.162.0+. Upgrading semgrep may silently change whether
+        these forms are detected. The rule is verified against both call forms
+        in `.semgrep/toctou.ts` — run `semgrep scan --test` after any semgrep
+        upgrade to confirm coverage is intact.
