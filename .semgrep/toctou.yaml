@@ -1,8 +1,14 @@
 rules:
   - id: toctou-exists-sync-read
-    patterns:
+    pattern-either:
       - pattern: |
           if ($FS.existsSync($PATH)) {
+            ...
+            $FS.readFileSync($PATH, ...)
+            ...
+          }
+      - pattern: |
+          while ($FS.existsSync($PATH)) {
             ...
             $FS.readFileSync($PATH, ...)
             ...
@@ -20,11 +26,13 @@ rules:
       category: security
       cwe: "CWE-367: Time-Of-Check Time-Of-Use (TOCTOU) Race Condition"
       known-limitation: >
-        This rule requires the exact same expression to appear in both
-        `existsSync` and `readFileSync`. Paths that are reassigned or
-        reconstructed via `path.join()`/`path.resolve()` between the two calls
-        will not be detected. Use `try/catch` around `readFileSync` as the
-        authoritative fix regardless.
+        This rule matches `if` and `while` blocks where the exact same
+        expression appears in both `existsSync` and `readFileSync`. Paths
+        that are reassigned or reconstructed via `path.join()`/`path.resolve()`
+        between the two calls will not be detected. Logical-AND short-circuits
+        (`existsSync(p) && readFileSync(p)`) and ternary forms are also out
+        of scope. Use `try/catch` around `readFileSync` as the authoritative fix
+        regardless.
 
   - id: avoid-exists-sync
     pattern: $FS.existsSync(...)
