@@ -23,7 +23,7 @@ const cliPackageDir = resolve(
     "..",
 );
 const distPath = join(cliPackageDir, "dist", "index.js");
-const distExists = existsSync(distPath);
+const distExists = existsSync(distPath); // nosemgrep: avoid-exists-sync
 
 describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
     let packDir: string;
@@ -103,9 +103,9 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
             );
             expect(packageJson).toContain(projectName);
             expect(packageJson).toContain("citty");
-            expect(existsSync(join(outputDir, "tsconfig.json"))).toBe(true);
+            expect(existsSync(join(outputDir, "tsconfig.json"))).toBe(true); // nosemgrep: avoid-exists-sync
             expect(
-                existsSync(
+                existsSync( // nosemgrep: avoid-exists-sync
                     join(outputDir, ".github", "copilot-instructions.md"),
                 ),
             ).toBe(true);
@@ -186,7 +186,7 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
             );
             expect(packageJson).toContain(projectName);
             expect(packageJson).toContain("next");
-            expect(existsSync(join(outputDir, "tsconfig.json"))).toBe(true);
+            expect(existsSync(join(outputDir, "tsconfig.json"))).toBe(true); // nosemgrep: avoid-exists-sync
         });
 
         it("should scaffold an API project from the unpacked package", async () => {
@@ -217,7 +217,7 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
             );
             expect(packageJson).toContain(projectName);
             expect(packageJson).toContain("fastify");
-            expect(existsSync(join(outputDir, "tsconfig.json"))).toBe(true);
+            expect(existsSync(join(outputDir, "tsconfig.json"))).toBe(true); // nosemgrep: avoid-exists-sync
         });
 
         it("should produce an API project that passes lint and tests after install", async () => {

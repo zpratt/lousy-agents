@@ -13,6 +13,18 @@ rules:
             $FS.readFileSync($PATH, ...)
             ...
           }
+      - pattern: |
+          if (existsSync($PATH)) {
+            ...
+            readFileSync($PATH, ...)
+            ...
+          }
+      - pattern: |
+          while (existsSync($PATH)) {
+            ...
+            readFileSync($PATH, ...)
+            ...
+          }
     message: >
       TOCTOU race condition: a file-existence check (`existsSync`) followed by a
       read (`readFileSync`) is not atomic. Another process can delete or replace
@@ -39,7 +51,9 @@ rules:
         Use `try/catch` around `readFileSync` as the authoritative fix regardless.
 
   - id: avoid-exists-sync
-    pattern: $FS.existsSync(...)
+    pattern-either:
+      - pattern: $FS.existsSync(...)
+      - pattern: existsSync(...)
     message: >
       `existsSync` is a blocking call that can introduce TOCTOU
       (Time-Of-Check Time-Of-Use) race conditions. Use `readFileSync` inside a
