@@ -1,0 +1,119 @@
+rules:
+  - id: detect-child-process
+    message: >-
+      Detected calls to child_process from a function argument `$FUNC`. This could lead to a command injection
+      if the input is user controllable. Try to avoid calls to child_process, and if it is needed
+      ensure user input is correctly sanitized or sandboxed.
+    metadata:
+      cwe:
+        - "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      owasp:
+        - A01:2017 - Injection
+        - A03:2021 - Injection
+        - A05:2025 - Injection
+      references:
+        - https://cheatsheetseries.owasp.org/cheatsheets/Nodejs_Security_Cheat_Sheet.html#do-not-use-dangerous-functions
+      source-rule-url: https://github.com/nodesecurity/eslint-plugin-security/blob/master/rules/detect-child-process.js
+      category: security
+      technology:
+        - javascript
+      cwe2022-top25: true
+      cwe2021-top25: true
+      subcategory:
+        - audit
+      likelihood: LOW
+      impact: HIGH
+      confidence: LOW
+    languages:
+      - javascript
+      - typescript
+    severity: ERROR
+    mode: taint
+    pattern-sources:
+      - patterns:
+          - pattern-inside: |
+              function ... (...,$FUNC,...) {
+                ...
+              }
+          - focus-metavariable: $FUNC
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  $CP = require('child_process')
+                  ...
+              - pattern-inside: |
+                  import * as $CP from 'child_process'
+                  ...
+              - pattern-inside: |
+                  import $CP from 'child_process'
+                  ...
+          - pattern-either:
+              - pattern: $CP.exec($CMD,...)
+              - pattern: $CP.execSync($CMD,...)
+              - pattern: $CP.spawn($CMD,...)
+              - pattern: $CP.spawnSync($CMD,...)
+          - pattern-not-inside: $CP.$EXEC("...",...)
+          - pattern-not-inside: $CP.$EXEC(["...",...],...)
+          - pattern-not-inside: |
+              $CMD = "..."
+              ...
+          - pattern-not-inside: |
+              $CMD = ["...",...]
+              ...
+          - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
+              - pattern: child_process.exec($CMD,...)
+              - pattern: child_process.execSync($CMD,...)
+              - pattern: child_process.spawn($CMD,...)
+              - pattern: child_process.spawnSync($CMD,...)
+          - pattern-not-inside: child_process.$EXEC("...",...)
+          - pattern-not-inside: child_process.$EXEC(["...",...],...)
+          - pattern-not-inside: |
+              $CMD = "..."
+              ...
+          - pattern-not-inside: |
+              $CMD = ["...",...]
+              ...
+          - focus-metavariable: $CMD
+
+  - id: spawn-git-clone
+    message: >-
+      Git allows shell commands to be specified in ext URLs for remote repositories.
+      For example, git clone 'ext::sh -c whoami% >&2' will execute the whoami command
+      to try to connect to a remote repository.
+      Make sure that the URL is not controlled by external input.
+    metadata:
+      cwe:
+        - "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      owasp:
+        - A01:2017 - Injection
+        - A03:2021 - Injection
+        - A05:2025 - Injection
+      category: security
+      technology:
+        - git
+      cwe2022-top25: true
+      cwe2021-top25: true
+      subcategory:
+        - audit
+      likelihood: LOW
+      impact: LOW
+      confidence: LOW
+      references:
+        - https://owasp.org/Top10/A03_2021-Injection
+    languages:
+      - javascript
+      - typescript
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern: spawn('git', ['clone',...,$F])
+          - pattern: $X.spawn('git', ['clone',...,$F])
+          - pattern: spawn('git', ['clone',...,$P,$F])
+          - pattern: $X.spawn('git', ['clone',...,$P,$F])
+      - pattern-not: spawn('git', ['clone',...,"..."])
+      - pattern-not: $X.spawn('git', ['clone',...,"..."])
+      - pattern-not: spawn('git', ['clone',...,"...","..."])
+      - pattern-not: $X.spawn('git', ['clone',...,"...","..."])
