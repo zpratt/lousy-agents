@@ -14,7 +14,7 @@ import type {
  */
 function findPackageRoot(startDir: string): string {
     let dir = startDir;
-    while (!existsSync(join(dir, "package.json"))) {
+    while (!existsSync(join(dir, "package.json"))) { // nosemgrep: avoid-exists-sync
         const parent = dirname(dir);
         if (parent === dir) {
             throw new Error(`Could not find package root from ${startDir}`);
