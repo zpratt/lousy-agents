@@ -20,6 +20,7 @@ function findPackageRoot(startDir: string): string {
     // __dirname is always an absolute path derived from import.meta.url, never
     // user-controlled input. Do NOT export this function or call it with
     // external input without removing this suppression and adding path validation.
+    // biome-ignore format: nosemgrep suppression requires inline trailing comment
     while (!existsSync(join(dir, "package.json"))) { // nosemgrep: avoid-exists-sync
         const parent = dirname(dir);
         if (parent === dir) {

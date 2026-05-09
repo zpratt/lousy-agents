@@ -104,11 +104,12 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
             expect(packageJson).toContain(projectName);
             expect(packageJson).toContain("citty");
             expect(existsSync(join(outputDir, "tsconfig.json"))).toBe(true); // nosemgrep: avoid-exists-sync
-            expect(
-                existsSync( // nosemgrep: avoid-exists-sync
-                    join(outputDir, ".github", "copilot-instructions.md"),
-                ),
-            ).toBe(true);
+            const copilotInstructionsPath = join(
+                outputDir,
+                ".github",
+                "copilot-instructions.md",
+            );
+            expect(existsSync(copilotInstructionsPath)).toBe(true); // nosemgrep: avoid-exists-sync
         });
 
         it("should produce a CLI project that passes lint and tests after install", async () => {
