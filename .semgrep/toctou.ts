@@ -41,6 +41,24 @@ while (existsSync(filePath)) {
     break;
 }
 
+// ── KNOWN LIMITATION: mixed import styles not detected by toctou rule ────────
+// The $FS metavariable must resolve identically in both calls.
+// avoid-exists-sync still fires on the existsSync call.
+
+// ok: toctou-exists-sync-read
+// ruleid: avoid-exists-sync
+if (fs.existsSync("/tmp/config.json")) {
+    const data = readFileSync("/tmp/config.json", "utf-8");
+    console.log(data);
+}
+
+// ok: toctou-exists-sync-read
+// ruleid: avoid-exists-sync
+if (existsSync("/tmp/config.json")) {
+    const data = fs.readFileSync("/tmp/config.json", "utf-8");
+    console.log(data);
+}
+
 // ── TRUE NEGATIVES (safe try/catch pattern — no TOCTOU) ─────────────────────
 
 // ok: toctou-exists-sync-read

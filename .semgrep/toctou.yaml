@@ -31,8 +31,10 @@ rules:
         that are reassigned or reconstructed via `path.join()`/`path.resolve()`
         between the two calls will not be detected. Logical-AND short-circuits
         (`existsSync(p) && readFileSync(p)`) and ternary forms are also out
-        of scope. Use `try/catch` around `readFileSync` as the authoritative fix
-        regardless.
+        of scope. Mixed import styles — namespace `fs.existsSync` paired with
+        a destructured `readFileSync`, or vice versa — are not detected because
+        the `$FS` metavariable must resolve identically in both calls.
+        Use `try/catch` around `readFileSync` as the authoritative fix regardless.
 
   - id: avoid-exists-sync
     pattern: $FS.existsSync(...)
