@@ -16,7 +16,8 @@ function findPackageRoot(startDir: string): string {
     let dir = startDir;
     // Safe: existence-only stop-condition for directory traversal; no readFileSync
     // on the same path inside this loop; caller is always __dirname at module init.
-    while (!existsSync(join(dir, "package.json"))) { // nosemgrep: avoid-exists-sync
+    // nosemgrep: avoid-exists-sync
+    while (!existsSync(join(dir, "package.json"))) {
         const parent = dirname(dir);
         if (parent === dir) {
             throw new Error(`Could not find package root from ${startDir}`);
