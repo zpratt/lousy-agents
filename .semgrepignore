@@ -1,0 +1,11 @@
+# Semgrep ignore rules (same syntax as .gitignore)
+
+# Build artifacts
+dist/
+coverage/
+
+# Dependencies
+node_modules/
+
+# Generated output directories
+graphify-out/

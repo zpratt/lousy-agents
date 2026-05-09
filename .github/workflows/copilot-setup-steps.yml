@@ -53,5 +53,6 @@ jobs:
           echo "=== Linting Tools ==="
           actionlint --version
           yamllint --version
+          semgrep --version
 
           echo "=== Development environment ready! ==="

@@ -1,0 +1,76 @@
+rules:
+  - id: toctou-exists-sync-read
+    pattern-either:
+      - pattern: |
+          if ($FS.existsSync($PATH)) {
+            ...
+            $FS.readFileSync($PATH, ...)
+            ...
+          }
+      - pattern: |
+          while ($FS.existsSync($PATH)) {
+            ...
+            $FS.readFileSync($PATH, ...)
+            ...
+          }
+      - pattern: |
+          if (existsSync($PATH)) {
+            ...
+            readFileSync($PATH, ...)
+            ...
+          }
+      - pattern: |
+          while (existsSync($PATH)) {
+            ...
+            readFileSync($PATH, ...)
+            ...
+          }
+    message: >
+      TOCTOU race condition: a file-existence check (`existsSync`) followed by a
+      read (`readFileSync`) is not atomic. Another process can delete or replace
+      the file between the check and the read. Use `readFileSync` inside a
+      `try/catch` block instead.
+    languages:
+      - typescript
+      - javascript
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-367: Time-Of-Check Time-Of-Use (TOCTOU) Race Condition"
+      known-limitation: >
+        This rule matches `if` and `while` blocks where the exact same
+        expression appears in both `existsSync` and `readFileSync`. Paths
+        that are reassigned or reconstructed via `path.join()`/`path.resolve()`
+        between the two calls will not be detected. Logical-AND short-circuits
+        (`existsSync(p) && readFileSync(p)`) and ternary forms are also out
+        of scope. `for`-loop conditions (`for (; existsSync(p);)`) are not
+        matched. Negated conditions (`if (!existsSync(p)) { ... } else { readFileSync(p) }`)
+        are not detected. Mixed import styles — namespace `fs.existsSync` paired with
+        a destructured `readFileSync`, or vice versa — are not detected because
+        the `$FS` metavariable must resolve identically in both calls.
+        Use `try/catch` around `readFileSync` as the authoritative fix regardless.
+
+  - id: avoid-exists-sync
+    pattern-either:
+      - pattern: $FS.existsSync(...)
+      - pattern: existsSync(...)
+    message: >
+      `existsSync` is a blocking call that can introduce TOCTOU
+      (Time-Of-Check Time-Of-Use) race conditions. Use `readFileSync` inside a
+      `try/catch` block instead — `fs.promises.access` is also a check-then-act
+      pattern and does not eliminate the race window.
+    languages:
+      - typescript
+      - javascript
+    severity: WARNING
+    metadata:
+      category: security
+      cwe: "CWE-367: Time-Of-Check Time-Of-Use (TOCTOU) Race Condition"
+      known-limitation: >
+        The bare `existsSync(...)` pattern matches any function call with that
+        name regardless of semgrep version — no import-aware analysis is
+        required. What is NOT detected by any pattern in this rule: aliased
+        imports (`import { existsSync as checkExists } from "node:fs"`) where
+        `checkExists(...)` is the actual call site. Treat any renamed import as
+        an undetected gap and suppress manually only after confirming there is
+        no subsequent read on the same path.
