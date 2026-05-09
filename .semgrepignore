@@ -7,6 +7,9 @@ coverage/
 # Dependencies
 node_modules/
 
+# Generated output directories
+graphify-out/
+
 # Test files — TOCTOU in tests is lower risk
 *.test.ts
 *.spec.ts
