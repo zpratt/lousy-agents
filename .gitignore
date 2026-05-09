@@ -135,3 +135,10 @@ packages/action/dist/*.map
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# Ignore local machine states and API costs
+graphify-out/manifest.json
+graphify-out/cost.json
+
+# Optional: Ignore cache to keep repo size down (sacrifices local build speed)
+graphify-out/cache/

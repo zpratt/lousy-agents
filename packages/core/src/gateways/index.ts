@@ -34,10 +34,21 @@ export {
     OctokitRulesetGateway,
 } from "./github-ruleset-gateway.js";
 export {
+    createInitHooksConfigGateway,
+    type InitHooksConfig,
+    InitHooksConfigGateway,
+    type InitHooksConfigGatewayPort,
+    type InitHooksResult,
+} from "./init-hooks-config-gateway.js";
+export {
     createInstructionAnalysisGateway,
     FileSystemInstructionAnalysisGateway,
     type InstructionAnalysisGateway,
 } from "./instruction-analysis-gateway.js";
+export {
+    createLessonFileGateway,
+    LessonFileGateway,
+} from "./lesson-file-gateway.js";
 export {
     createNpmrcGateway,
     FileSystemNpmrcGateway,
