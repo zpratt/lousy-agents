@@ -147,8 +147,8 @@ function runExecFileSync(cmd: string): void {
     execFileSync(cmd, []);
 }
 
-// ── TRUE POSITIVES (detect-child-process — reassignment bypass regression) ───
-// pattern-not-inside filters were removed so taint correctly tracks reassignment.
+// ── TRUE POSITIVES (detect-child-process — reassignment taint tracking) ──────
+// Ensures taint propagates correctly through reassignment (e.g. let cmd = "safe"; cmd = userInput).
 
 function runReassigned(userInput: string): void {
     let cmd = "safe";
