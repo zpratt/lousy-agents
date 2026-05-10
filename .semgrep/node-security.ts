@@ -1,4 +1,4 @@
-import { exec, execFile, execFileSync, execSync, spawn, spawnSync } from "node:child_process";
+import { exec, execFile, execFileSync, execSync, fork, spawn, spawnSync } from "node:child_process";
 import * as cp from "node:child_process";
 
 // CJS-style namespace require — Semgrep matches $CP = require(...) against
@@ -42,6 +42,11 @@ function runExec(cmd: string): void {
 function runViaNamespace(cmd: string): void {
     // ruleid: detect-child-process
     cp.execSync(cmd);
+}
+
+function runForkViaNamespace(cmd: string): void {
+    // ruleid: detect-child-process
+    cp.fork(cmd);
 }
 
 // ── TRUE POSITIVES (detect-child-process — CJS require, node:child_process) ──
@@ -147,6 +152,14 @@ function runExecFileSync(cmd: string): void {
     execFileSync(cmd, []);
 }
 
+// ── TRUE POSITIVES (detect-child-process — named import fork) ────────────────
+// fork() loads a module by path; a tainted path enables module injection (CWE-78).
+
+function runFork(modulePath: string): void {
+    // ruleid: detect-child-process
+    fork(modulePath);
+}
+
 // ── TRUE POSITIVES (detect-child-process — reassignment taint tracking) ──────
 // Ensures taint propagates correctly through reassignment (e.g. let cmd = "safe"; cmd = userInput).
 
@@ -191,3 +204,18 @@ spawn("git", ["clone", "https://github.com/org/repo.git", "./dest"]);
 
 // ok: spawn-git-clone
 spawnSync("git", ["clone", "https://github.com/org/repo.git", "./dest"]);
+
+// ── TRUE POSITIVES (spawn-git-clone — known FP: literal URL, variable destDir) ─
+// Pattern 1 ($URL as last element) binds to destDir when it is the trailing arg.
+// This is a known false positive; the URL injection risk is absent, but a CWE-22
+// path-traversal risk remains on destDir. The rule message and known-limitation
+// field both document this. This annotation locks in current behavior so a future
+// rule change that silently eliminates this detection is caught.
+declare function getDestDir(): string;
+const destDir = getDestDir();
+
+// ruleid: spawn-git-clone
+spawn("git", ["clone", "https://github.com/org/repo.git", destDir]);
+
+// ruleid: spawn-git-clone
+spawnSync("git", ["clone", "https://github.com/org/repo.git", destDir]);

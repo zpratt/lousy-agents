@@ -29,8 +29,13 @@ rules:
         immediately-invoked function expressions (IIFEs) called with a
         runtime-computed argument may not be detected. Named function
         declarations, arrow functions, function expressions, and class/object
-        methods are covered via Semgrep taint normalization. This is an audit
-        rule; review all child_process usage manually regardless of findings.
+        methods are covered via Semgrep taint normalization. Aliased named
+        imports (e.g. import { execSync as shell } from 'node:child_process')
+        are not detected — only the original exported function name is matched.
+        Values sourced from process.env, process.argv, or config files that do
+        not flow through a function parameter are also out of scope.
+        This is an audit rule; review all child_process usage manually
+        regardless of findings.
     languages:
       - javascript
       - typescript
@@ -62,6 +67,7 @@ rules:
               - pattern: $CP.execFileSync($CMD,...)
               - pattern: $CP.spawn($CMD,...)
               - pattern: $CP.spawnSync($CMD,...)
+              - pattern: $CP.fork($CMD,...)
           - pattern-not: $CP.$EXEC("...",...)
           - pattern-not: $CP.$EXEC(["...",...],...)
           - focus-metavariable: $CMD
@@ -83,6 +89,7 @@ rules:
               - pattern: $CP.execFileSync($CMD,...)
               - pattern: $CP.spawn($CMD,...)
               - pattern: $CP.spawnSync($CMD,...)
+              - pattern: $CP.fork($CMD,...)
           - pattern-not: $CP.$EXEC("...",...)
           - pattern-not: $CP.$EXEC(["...",...],...)
           - focus-metavariable: $CMD
@@ -94,6 +101,7 @@ rules:
               - pattern: child_process.execFileSync($CMD,...)
               - pattern: child_process.spawn($CMD,...)
               - pattern: child_process.spawnSync($CMD,...)
+              - pattern: child_process.fork($CMD,...)
           - pattern-not: child_process.$EXEC("...",...)
           - pattern-not: child_process.$EXEC(["...",...],...)
           - focus-metavariable: $CMD
@@ -169,6 +177,17 @@ rules:
           - pattern-not: spawnSync("...",...)
           - pattern-not: spawnSync(["...",...],...)
           - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import {fork} from 'child_process'
+                  ...
+              - pattern-inside: |
+                  import {fork} from 'node:child_process'
+                  ...
+          - pattern: fork($CMD,...)
+          - pattern-not: fork("...",...)
+          - focus-metavariable: $CMD
 
   - id: spawn-git-clone
     message: >-
@@ -176,6 +195,9 @@ rules:
       For example, git clone 'ext::sh -c whoami% >&2' will execute the whoami command
       to try to connect to a remote repository.
       Make sure that the URL is not controlled by external input.
+      If the URL is a literal but the destination directory argument is a variable,
+      validate the destination directory against an allowlist — a path traversal risk
+      (CWE-22) may still exist on the destination argument.
     metadata:
       cwe:
         - "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
