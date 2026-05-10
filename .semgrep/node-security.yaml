@@ -199,12 +199,13 @@ rules:
       known-limitation: >
         The rule may produce a false positive when a literal repo URL is
         combined with a variable destination directory
-        (e.g. spawn('git', ['clone', 'https://url.com', destDir])). In that
-        case the URL injection risk is absent but a path traversal risk
-        (CWE-22) may exist on the destination directory — validate destDir
-        against an allowlist of permitted destination directories before
-        suppressing. Confirm that the URL argument is not user-controlled
-        before suppressing.
+        (e.g. spawn('git', ['clone', 'https://url.com', destDir])). This fires
+        because the last-element pattern ($URL) matches the variable destDir
+        rather than the literal URL. In that case the URL injection risk is
+        absent but a path traversal risk (CWE-22) may exist on the destination
+        directory — validate destDir against an allowlist of permitted
+        destination directories before suppressing. Confirm that the URL
+        argument is not user-controlled before suppressing.
     languages:
       - javascript
       - typescript

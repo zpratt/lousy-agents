@@ -1,6 +1,14 @@
 import { exec, execFile, execFileSync, execSync, spawn, spawnSync } from "node:child_process";
 import * as cp from "node:child_process";
 
+// CJS-style namespace require — Semgrep matches $CP = require(...) against
+// const/let/var declarations too (AST normalization). Fixture cases below
+// prove this and prevent regressions.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const cpCJS = require("node:child_process");
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const cpCJSBare = require("child_process");
+
 // ── TRUE POSITIVES (detect-child-process — named import execSync) ─────────────
 
 function runExecSync(cmd: string): void {
@@ -34,6 +42,28 @@ function runExec(cmd: string): void {
 function runViaNamespace(cmd: string): void {
     // ruleid: detect-child-process
     cp.execSync(cmd);
+}
+
+// ── TRUE POSITIVES (detect-child-process — CJS require, node:child_process) ──
+// Semgrep normalizes `const $CP = require(...)` to the same AST node as
+// assignment, so $CP = require(...) pattern-inside matches both forms.
+
+function runViaCJSNodePrefix(cmd: string): void {
+    // ruleid: detect-child-process
+    cpCJS.execSync(cmd);
+}
+
+function runViaCJSBare(cmd: string): void {
+    // ruleid: detect-child-process
+    cpCJSBare.exec(cmd);
+}
+
+// ── TRUE NEGATIVES (detect-child-process — CJS require with literal command) ──
+
+function safeCJSExec(userInput: string): void {
+    const _ = userInput;
+    // ok: detect-child-process
+    cpCJS.execSync("git status");
 }
 
 // ── TRUE POSITIVES (detect-child-process — arrow function) ───────────────────
