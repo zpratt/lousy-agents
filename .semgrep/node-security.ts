@@ -1,4 +1,4 @@
-import { exec, execSync, spawn, spawnSync } from "node:child_process";
+import { exec, execFile, execFileSync, execSync, spawn, spawnSync } from "node:child_process";
 import * as cp from "node:child_process";
 
 // ── TRUE POSITIVES (detect-child-process — named import execSync) ─────────────
@@ -85,6 +85,37 @@ spawn("git", ["clone", "--depth", "1", repoUrl, "./dest"]);
 
 // ruleid: spawn-git-clone
 spawnSync("git", ["clone", "--depth", "1", repoUrl, "./dest"]);
+
+// ── TRUE POSITIVES (detect-child-process — named import execFile) ────────────
+
+function runExecFile(cmd: string): void {
+    // ruleid: detect-child-process
+    execFile(cmd, []);
+}
+
+// ── TRUE POSITIVES (detect-child-process — named import execFileSync) ────────
+
+function runExecFileSync(cmd: string): void {
+    // ruleid: detect-child-process
+    execFileSync(cmd, []);
+}
+
+// ── TRUE POSITIVES (detect-child-process — reassignment bypass regression) ───
+// pattern-not-inside filters were removed so taint correctly tracks reassignment.
+
+function runReassigned(userInput: string): void {
+    let cmd = "safe";
+    cmd = userInput;
+    // ruleid: detect-child-process
+    execSync(cmd);
+}
+
+function runConditionalReassign(userInput: string, flag: boolean): void {
+    let cmd = "safe";
+    if (flag) cmd = userInput;
+    // ruleid: detect-child-process
+    execSync(cmd);
+}
 
 // ── TRUE NEGATIVES (detect-child-process — safe literal string argument) ─────
 

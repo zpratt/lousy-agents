@@ -59,16 +59,12 @@ rules:
           - pattern-either:
               - pattern: $CP.exec($CMD,...)
               - pattern: $CP.execSync($CMD,...)
+              - pattern: $CP.execFile($CMD,...)
+              - pattern: $CP.execFileSync($CMD,...)
               - pattern: $CP.spawn($CMD,...)
               - pattern: $CP.spawnSync($CMD,...)
           - pattern-not-inside: $CP.$EXEC("...",...)
           - pattern-not-inside: $CP.$EXEC(["...",...],...)
-          - pattern-not-inside: |
-              $CMD = "..."
-              ...
-          - pattern-not-inside: |
-              $CMD = ["...",...]
-              ...
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -84,31 +80,23 @@ rules:
           - pattern-either:
               - pattern: $CP.exec($CMD,...)
               - pattern: $CP.execSync($CMD,...)
+              - pattern: $CP.execFile($CMD,...)
+              - pattern: $CP.execFileSync($CMD,...)
               - pattern: $CP.spawn($CMD,...)
               - pattern: $CP.spawnSync($CMD,...)
           - pattern-not-inside: $CP.$EXEC("...",...)
           - pattern-not-inside: $CP.$EXEC(["...",...],...)
-          - pattern-not-inside: |
-              $CMD = "..."
-              ...
-          - pattern-not-inside: |
-              $CMD = ["...",...]
-              ...
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
               - pattern: child_process.exec($CMD,...)
               - pattern: child_process.execSync($CMD,...)
+              - pattern: child_process.execFile($CMD,...)
+              - pattern: child_process.execFileSync($CMD,...)
               - pattern: child_process.spawn($CMD,...)
               - pattern: child_process.spawnSync($CMD,...)
           - pattern-not-inside: child_process.$EXEC("...",...)
           - pattern-not-inside: child_process.$EXEC(["...",...],...)
-          - pattern-not-inside: |
-              $CMD = "..."
-              ...
-          - pattern-not-inside: |
-              $CMD = ["...",...]
-              ...
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -121,12 +109,6 @@ rules:
           - pattern: exec($CMD,...)
           - pattern-not: exec("...",...)
           - pattern-not: exec(["...",...],...)
-          - pattern-not-inside: |
-              $CMD = "..."
-              ...
-          - pattern-not-inside: |
-              $CMD = ["...",...]
-              ...
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -139,12 +121,30 @@ rules:
           - pattern: execSync($CMD,...)
           - pattern-not: execSync("...",...)
           - pattern-not: execSync(["...",...],...)
-          - pattern-not-inside: |
-              $CMD = "..."
-              ...
-          - pattern-not-inside: |
-              $CMD = ["...",...]
-              ...
+          - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import {execFile} from 'child_process'
+                  ...
+              - pattern-inside: |
+                  import {execFile} from 'node:child_process'
+                  ...
+          - pattern: execFile($CMD,...)
+          - pattern-not: execFile("...",...)
+          - pattern-not: execFile(["...",...],...)
+          - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import {execFileSync} from 'child_process'
+                  ...
+              - pattern-inside: |
+                  import {execFileSync} from 'node:child_process'
+                  ...
+          - pattern: execFileSync($CMD,...)
+          - pattern-not: execFileSync("...",...)
+          - pattern-not: execFileSync(["...",...],...)
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -157,12 +157,6 @@ rules:
           - pattern: spawn($CMD,...)
           - pattern-not: spawn("...",...)
           - pattern-not: spawn(["...",...],...)
-          - pattern-not-inside: |
-              $CMD = "..."
-              ...
-          - pattern-not-inside: |
-              $CMD = ["...",...]
-              ...
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -175,12 +169,6 @@ rules:
           - pattern: spawnSync($CMD,...)
           - pattern-not: spawnSync("...",...)
           - pattern-not: spawnSync(["...",...],...)
-          - pattern-not-inside: |
-              $CMD = "..."
-              ...
-          - pattern-not-inside: |
-              $CMD = ["...",...]
-              ...
           - focus-metavariable: $CMD
 
   - id: spawn-git-clone
@@ -211,8 +199,10 @@ rules:
       known-limitation: >
         The rule may produce a false positive when a literal repo URL is
         combined with a variable destination directory
-        (e.g. spawn('git', ['clone', 'https://url.com', destDir])) because
-        the destination-dir variable matches the last-element pattern.
+        (e.g. spawn('git', ['clone', 'https://url.com', destDir])). In that
+        case the URL injection risk is absent but a path traversal risk
+        (CWE-22) may exist on the destination directory — validate destDir
+        against an allowlist of permitted clone targets before suppressing.
         Confirm that the URL argument is not user-controlled before suppressing.
     languages:
       - javascript
