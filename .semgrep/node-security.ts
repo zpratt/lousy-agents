@@ -212,6 +212,21 @@ function runConditionalReassign(userInput: string, flag: boolean): void {
     execSync(cmd);
 }
 
+// ── TRUE POSITIVES (detect-child-process — process.env source) ───────────────
+// process.env is a primary external input surface in CLI tools.
+
+// ruleid: detect-child-process
+execSync(process.env.BUILD_CMD as string);
+
+// ruleid: detect-child-process
+spawn(process.env.DEPLOY_SCRIPT as string, []);
+
+// ── TRUE POSITIVES (detect-child-process — process.argv source) ──────────────
+// process.argv is the CLI argument vector; argv[2] and beyond are user-controlled.
+
+// ruleid: detect-child-process
+execSync(process.argv[2]);
+
 // ── TRUE NEGATIVES (detect-child-process — safe literal string argument) ─────
 
 function safeExecWithLiteral(userInput: string): void {

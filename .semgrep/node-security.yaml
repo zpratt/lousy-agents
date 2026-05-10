@@ -32,8 +32,6 @@ rules:
         methods are covered via Semgrep taint normalization. Aliased named
         imports (e.g. import { execSync as shell } from 'node:child_process')
         are not detected — only the original exported function name is matched.
-        Values sourced from process.env, process.argv, or config files that do
-        not flow through a function parameter are also out of scope.
         This is an audit rule; review all child_process usage manually
         regardless of findings.
     languages:
@@ -48,6 +46,8 @@ rules:
                 ...
               }
           - focus-metavariable: $FUNC
+      - pattern: process.env.$VAR
+      - pattern: process.argv[$INDEX]
     pattern-sinks:
       - patterns:
           - pattern-either:
