@@ -49,6 +49,23 @@ const runArrowSpawn = (cmd: string): void => {
     spawn(cmd, []);
 };
 
+// ── TRUE POSITIVES (detect-child-process — class method) ─────────────────────
+// Semgrep taint normalizes class/object methods to function declarations.
+
+class ShellRunner {
+    run(cmd: string): void {
+        // ruleid: detect-child-process
+        execSync(cmd);
+    }
+}
+
+const shellObj = {
+    run(cmd: string): void {
+        // ruleid: detect-child-process
+        execSync(cmd);
+    },
+};
+
 // ── TRUE POSITIVES (spawn-git-clone — spawn with variable URL, no dir) ───────
 
 declare function getRepoUrl(): string;
