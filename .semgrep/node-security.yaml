@@ -25,13 +25,13 @@ rules:
       impact: HIGH
       confidence: LOW
       known-limitation: >
-        pattern-sources cover named function declarations, arrow functions,
-        function expressions, and class/object methods via Semgrep taint
-        normalization. Callback patterns where the tainted value is captured
-        from an outer scope (closure over a non-parameter variable) and
+        Callback patterns where the tainted value is captured from an outer
+        scope (closure over a non-parameter variable) and
         immediately-invoked function expressions (IIFEs) called with a
-        runtime-computed argument may not be detected. This is an audit rule;
-        review all child_process usage manually regardless of findings.
+        runtime-computed argument may not be detected. Named function
+        declarations, arrow functions, function expressions, and class/object
+        methods are covered via Semgrep taint normalization. This is an audit
+        rule; review all child_process usage manually regardless of findings.
     languages:
       - javascript
       - typescript
@@ -202,8 +202,9 @@ rules:
         (e.g. spawn('git', ['clone', 'https://url.com', destDir])). In that
         case the URL injection risk is absent but a path traversal risk
         (CWE-22) may exist on the destination directory — validate destDir
-        against an allowlist of permitted clone targets before suppressing.
-        Confirm that the URL argument is not user-controlled before suppressing.
+        against an allowlist of permitted destination directories before
+        suppressing. Confirm that the URL argument is not user-controlled
+        before suppressing.
     languages:
       - javascript
       - typescript
