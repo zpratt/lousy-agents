@@ -27,7 +27,7 @@ rules:
     languages:
       - javascript
       - typescript
-    severity: ERROR
+    severity: WARNING
     mode: taint
     pattern-sources:
       - patterns:
@@ -64,12 +64,109 @@ rules:
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
+              - pattern-inside: |
+                  $CP = require('node:child_process')
+                  ...
+              - pattern-inside: |
+                  import * as $CP from 'node:child_process'
+                  ...
+              - pattern-inside: |
+                  import $CP from 'node:child_process'
+                  ...
+          - pattern-either:
+              - pattern: $CP.exec($CMD,...)
+              - pattern: $CP.execSync($CMD,...)
+              - pattern: $CP.spawn($CMD,...)
+              - pattern: $CP.spawnSync($CMD,...)
+          - pattern-not-inside: $CP.$EXEC("...",...)
+          - pattern-not-inside: $CP.$EXEC(["...",...],...)
+          - pattern-not-inside: |
+              $CMD = "..."
+              ...
+          - pattern-not-inside: |
+              $CMD = ["...",...]
+              ...
+          - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
               - pattern: child_process.exec($CMD,...)
               - pattern: child_process.execSync($CMD,...)
               - pattern: child_process.spawn($CMD,...)
               - pattern: child_process.spawnSync($CMD,...)
           - pattern-not-inside: child_process.$EXEC("...",...)
           - pattern-not-inside: child_process.$EXEC(["...",...],...)
+          - pattern-not-inside: |
+              $CMD = "..."
+              ...
+          - pattern-not-inside: |
+              $CMD = ["...",...]
+              ...
+          - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import {exec} from 'child_process'
+                  ...
+              - pattern-inside: |
+                  import {exec} from 'node:child_process'
+                  ...
+          - pattern: exec($CMD,...)
+          - pattern-not: exec("...",...)
+          - pattern-not: exec(["...",...],...)
+          - pattern-not-inside: |
+              $CMD = "..."
+              ...
+          - pattern-not-inside: |
+              $CMD = ["...",...]
+              ...
+          - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import {execSync} from 'child_process'
+                  ...
+              - pattern-inside: |
+                  import {execSync} from 'node:child_process'
+                  ...
+          - pattern: execSync($CMD,...)
+          - pattern-not: execSync("...",...)
+          - pattern-not: execSync(["...",...],...)
+          - pattern-not-inside: |
+              $CMD = "..."
+              ...
+          - pattern-not-inside: |
+              $CMD = ["...",...]
+              ...
+          - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import {spawn} from 'child_process'
+                  ...
+              - pattern-inside: |
+                  import {spawn} from 'node:child_process'
+                  ...
+          - pattern: spawn($CMD,...)
+          - pattern-not: spawn("...",...)
+          - pattern-not: spawn(["...",...],...)
+          - pattern-not-inside: |
+              $CMD = "..."
+              ...
+          - pattern-not-inside: |
+              $CMD = ["...",...]
+              ...
+          - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import {spawnSync} from 'child_process'
+                  ...
+              - pattern-inside: |
+                  import {spawnSync} from 'node:child_process'
+                  ...
+          - pattern: spawnSync($CMD,...)
+          - pattern-not: spawnSync("...",...)
+          - pattern-not: spawnSync(["...",...],...)
           - pattern-not-inside: |
               $CMD = "..."
               ...
@@ -106,14 +203,22 @@ rules:
     languages:
       - javascript
       - typescript
-    severity: ERROR
+    severity: WARNING
     patterns:
       - pattern-either:
           - pattern: spawn('git', ['clone',...,$F])
           - pattern: $X.spawn('git', ['clone',...,$F])
           - pattern: spawn('git', ['clone',...,$P,$F])
           - pattern: $X.spawn('git', ['clone',...,$P,$F])
+          - pattern: spawnSync('git', ['clone',...,$F])
+          - pattern: $X.spawnSync('git', ['clone',...,$F])
+          - pattern: spawnSync('git', ['clone',...,$P,$F])
+          - pattern: $X.spawnSync('git', ['clone',...,$P,$F])
       - pattern-not: spawn('git', ['clone',...,"..."])
       - pattern-not: $X.spawn('git', ['clone',...,"..."])
       - pattern-not: spawn('git', ['clone',...,"...","..."])
       - pattern-not: $X.spawn('git', ['clone',...,"...","..."])
+      - pattern-not: spawnSync('git', ['clone',...,"..."])
+      - pattern-not: $X.spawnSync('git', ['clone',...,"..."])
+      - pattern-not: spawnSync('git', ['clone',...,"...","..."])
+      - pattern-not: $X.spawnSync('git', ['clone',...,"...","..."])
