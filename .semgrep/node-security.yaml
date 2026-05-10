@@ -62,8 +62,8 @@ rules:
               - pattern: $CP.execFileSync($CMD,...)
               - pattern: $CP.spawn($CMD,...)
               - pattern: $CP.spawnSync($CMD,...)
-          - pattern-not-inside: $CP.$EXEC("...",...)
-          - pattern-not-inside: $CP.$EXEC(["...",...],...)
+          - pattern-not: $CP.$EXEC("...",...)
+          - pattern-not: $CP.$EXEC(["...",...],...)
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -83,8 +83,8 @@ rules:
               - pattern: $CP.execFileSync($CMD,...)
               - pattern: $CP.spawn($CMD,...)
               - pattern: $CP.spawnSync($CMD,...)
-          - pattern-not-inside: $CP.$EXEC("...",...)
-          - pattern-not-inside: $CP.$EXEC(["...",...],...)
+          - pattern-not: $CP.$EXEC("...",...)
+          - pattern-not: $CP.$EXEC(["...",...],...)
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -94,8 +94,8 @@ rules:
               - pattern: child_process.execFileSync($CMD,...)
               - pattern: child_process.spawn($CMD,...)
               - pattern: child_process.spawnSync($CMD,...)
-          - pattern-not-inside: child_process.$EXEC("...",...)
-          - pattern-not-inside: child_process.$EXEC(["...",...],...)
+          - pattern-not: child_process.$EXEC("...",...)
+          - pattern-not: child_process.$EXEC(["...",...],...)
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -190,7 +190,7 @@ rules:
       subcategory:
         - audit
       likelihood: LOW
-      impact: LOW
+      impact: HIGH
       confidence: LOW
       references:
         - https://owasp.org/Top10/A03_2021-Injection
