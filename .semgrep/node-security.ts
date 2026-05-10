@@ -1,5 +1,14 @@
 import { exec, execFile, execFileSync, execSync, fork, spawn, spawnSync } from "node:child_process";
+import { execSync as execSyncBare } from "child_process";
 import * as cp from "node:child_process";
+import * as cpBareNS from "child_process";
+// Default-form imports are uncommon but valid in semgrep patterns; child_process
+// is a CJS module so esModuleInterop must be enabled for this to compile, but
+// semgrep parses the AST regardless of compilation outcome.
+// @ts-expect-error — default import for semgrep pattern coverage only
+import cpDefault from "child_process";
+// @ts-expect-error — default import for semgrep pattern coverage only
+import cpDefaultNode from "node:child_process";
 
 // CJS-style namespace require — Semgrep matches $CP = require(...) against
 // const/let/var declarations too (AST normalization). Fixture cases below
@@ -69,6 +78,32 @@ function safeCJSExec(userInput: string): void {
     const _ = userInput;
     // ok: detect-child-process
     cpCJS.execSync("git status");
+}
+
+// ── TRUE POSITIVES (detect-child-process — namespace import bare child_process)
+
+function runViaBareNS(cmd: string): void {
+    // ruleid: detect-child-process
+    cpBareNS.execSync(cmd);
+}
+
+// ── TRUE POSITIVES (detect-child-process — default import child_process) ──────
+
+function runViaDefaultBare(cmd: string): void {
+    // ruleid: detect-child-process
+    cpDefault.execSync(cmd);
+}
+
+function runViaDefaultNode(cmd: string): void {
+    // ruleid: detect-child-process
+    cpDefaultNode.exec(cmd);
+}
+
+// ── TRUE POSITIVES (detect-child-process — named import from bare child_process)
+
+function runExecSyncBare(cmd: string): void {
+    // ruleid: detect-child-process
+    execSyncBare(cmd);
 }
 
 // ── TRUE POSITIVES (detect-child-process — arrow function) ───────────────────

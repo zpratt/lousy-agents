@@ -201,6 +201,7 @@ rules:
     metadata:
       cwe:
         - "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
       owasp:
         - A01:2017 - Injection
         - A03:2021 - Injection
