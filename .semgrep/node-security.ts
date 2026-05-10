@@ -36,7 +36,20 @@ function runViaNamespace(cmd: string): void {
     cp.execSync(cmd);
 }
 
-// ── TRUE POSITIVES (spawn-git-clone — spawn with variable URL) ───────────────
+// ── TRUE POSITIVES (detect-child-process — arrow function) ───────────────────
+// Semgrep taint normalizes arrow functions to function declarations internally.
+
+const runArrowExecSync = (cmd: string): void => {
+    // ruleid: detect-child-process
+    execSync(cmd);
+};
+
+const runArrowSpawn = (cmd: string): void => {
+    // ruleid: detect-child-process
+    spawn(cmd, []);
+};
+
+// ── TRUE POSITIVES (spawn-git-clone — spawn with variable URL, no dir) ───────
 
 declare function getRepoUrl(): string;
 const repoUrl = getRepoUrl();
@@ -44,10 +57,34 @@ const repoUrl = getRepoUrl();
 // ruleid: spawn-git-clone
 spawn("git", ["clone", repoUrl]);
 
-// ── TRUE POSITIVES (spawn-git-clone — spawnSync with variable URL) ───────────
+// ── TRUE POSITIVES (spawn-git-clone — spawnSync with variable URL, no dir) ───
 
 // ruleid: spawn-git-clone
 spawnSync("git", ["clone", repoUrl]);
+
+// ── TRUE POSITIVES (spawn-git-clone — options before variable URL) ────────────
+
+// ruleid: spawn-git-clone
+spawn("git", ["clone", "--depth", "1", repoUrl]);
+
+// ruleid: spawn-git-clone
+spawnSync("git", ["clone", "--depth", "1", repoUrl]);
+
+// ── TRUE POSITIVES (spawn-git-clone — variable URL, literal dest dir) ────────
+
+// ruleid: spawn-git-clone
+spawn("git", ["clone", repoUrl, "./dest"]);
+
+// ruleid: spawn-git-clone
+spawnSync("git", ["clone", repoUrl, "./dest"]);
+
+// ── TRUE POSITIVES (spawn-git-clone — options, variable URL, literal dest dir)
+
+// ruleid: spawn-git-clone
+spawn("git", ["clone", "--depth", "1", repoUrl, "./dest"]);
+
+// ruleid: spawn-git-clone
+spawnSync("git", ["clone", "--depth", "1", repoUrl, "./dest"]);
 
 // ── TRUE NEGATIVES (detect-child-process — safe literal string argument) ─────
 
@@ -70,3 +107,9 @@ spawn("git", ["clone", "https://github.com/org/repo.git"]);
 
 // ok: spawn-git-clone
 spawnSync("git", ["clone", "https://github.com/org/repo.git"]);
+
+// ok: spawn-git-clone
+spawn("git", ["clone", "https://github.com/org/repo.git", "./dest"]);
+
+// ok: spawn-git-clone
+spawnSync("git", ["clone", "https://github.com/org/repo.git", "./dest"]);

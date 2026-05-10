@@ -24,6 +24,14 @@ rules:
       likelihood: LOW
       impact: HIGH
       confidence: LOW
+      known-limitation: >
+        pattern-sources cover named function declarations, arrow functions,
+        function expressions, and class/object methods via Semgrep taint
+        normalization. Callback patterns where the tainted value is captured
+        from an outer scope (closure over a non-parameter variable) and
+        immediately-invoked function expressions (IIFEs) called with a
+        runtime-computed argument may not be detected. This is an audit rule;
+        review all child_process usage manually regardless of findings.
     languages:
       - javascript
       - typescript
@@ -200,25 +208,36 @@ rules:
       confidence: LOW
       references:
         - https://owasp.org/Top10/A03_2021-Injection
+      known-limitation: >
+        The rule may produce a false positive when a literal repo URL is
+        combined with a variable destination directory
+        (e.g. spawn('git', ['clone', 'https://url.com', destDir])) because
+        the destination-dir variable matches the last-element pattern.
+        Confirm that the URL argument is not user-controlled before suppressing.
     languages:
       - javascript
       - typescript
     severity: WARNING
-    patterns:
-      - pattern-either:
-          - pattern: spawn('git', ['clone',...,$F])
-          - pattern: $X.spawn('git', ['clone',...,$F])
-          - pattern: spawn('git', ['clone',...,$P,$F])
-          - pattern: $X.spawn('git', ['clone',...,$P,$F])
-          - pattern: spawnSync('git', ['clone',...,$F])
-          - pattern: $X.spawnSync('git', ['clone',...,$F])
-          - pattern: spawnSync('git', ['clone',...,$P,$F])
-          - pattern: $X.spawnSync('git', ['clone',...,$P,$F])
-      - pattern-not: spawn('git', ['clone',...,"..."])
-      - pattern-not: $X.spawn('git', ['clone',...,"..."])
-      - pattern-not: spawn('git', ['clone',...,"...","..."])
-      - pattern-not: $X.spawn('git', ['clone',...,"...","..."])
-      - pattern-not: spawnSync('git', ['clone',...,"..."])
-      - pattern-not: $X.spawnSync('git', ['clone',...,"..."])
-      - pattern-not: spawnSync('git', ['clone',...,"...","..."])
-      - pattern-not: $X.spawnSync('git', ['clone',...,"...","..."])
+    pattern-either:
+      - patterns:
+          # Variable URL as the last argument: git clone [options...] <url>
+          - pattern-either:
+              - pattern: spawn('git', ['clone',...,$URL])
+              - pattern: $X.spawn('git', ['clone',...,$URL])
+              - pattern: spawnSync('git', ['clone',...,$URL])
+              - pattern: $X.spawnSync('git', ['clone',...,$URL])
+          - pattern-not: spawn('git', ['clone',...,"..."])
+          - pattern-not: $X.spawn('git', ['clone',...,"..."])
+          - pattern-not: spawnSync('git', ['clone',...,"..."])
+          - pattern-not: $X.spawnSync('git', ['clone',...,"..."])
+      - patterns:
+          # Variable URL as the second-to-last argument: git clone [options...] <url> <dir>
+          - pattern-either:
+              - pattern: spawn('git', ['clone',...,$REPO,"..."])
+              - pattern: $X.spawn('git', ['clone',...,$REPO,"..."])
+              - pattern: spawnSync('git', ['clone',...,$REPO,"..."])
+              - pattern: $X.spawnSync('git', ['clone',...,$REPO,"..."])
+          - pattern-not: spawn('git', ['clone',...,"...","..."])
+          - pattern-not: $X.spawn('git', ['clone',...,"...","..."])
+          - pattern-not: spawnSync('git', ['clone',...,"...","..."])
+          - pattern-not: $X.spawnSync('git', ['clone',...,"...","..."])
