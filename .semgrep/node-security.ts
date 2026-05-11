@@ -14,9 +14,7 @@ import cpDefaultNode from "node:child_process";
 // CJS-style namespace require — Semgrep matches $CP = require(...) against
 // const/let/var declarations too (AST normalization). Fixture cases below
 // prove this and prevent regressions.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const cpCJS = require("node:child_process");
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const cpCJSBare = require("child_process");
 
 // ── TRUE POSITIVES (detect-child-process — named import execSync) ─────────────
@@ -84,7 +82,6 @@ function safeCJSExec(userInput: string): void {
 // ── TRUE POSITIVES (detect-child-process — global child_process variable) ─────
 // The rule matches child_process.$fn(...) regardless of how the variable was bound.
 // Semgrep matches on the literal identifier name 'child_process'.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const child_process = require("child_process");
 
 function runViaGlobalChildProcess(cmd: string): void {
