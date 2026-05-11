@@ -39,6 +39,11 @@ rules:
         process.argv[$INDEX] (subscript notation) is a taint source; however
         process.argv.slice(...) and spread/destructuring of argv are not —
         track taint through argv slice/spread patterns manually.
+        Assigning process.env (the whole object) to an intermediate variable
+        and then accessing a property (e.g. const env = process.env;
+        execSync(env.BUILD_CMD)) is not tracked — only direct process.env.VAR
+        or process.env[KEY] access expressions are taint sources. Review all
+        indirect process.env object assignments manually.
         This is an audit rule; review all child_process usage manually
         regardless of findings.
     languages:
@@ -259,24 +264,32 @@ rules:
     severity: WARNING
     pattern-either:
       - patterns:
-          # Variable URL as the last argument: git clone [options...] <url>
+          # Bare calls — variable URL as the last argument: git clone [options...] <url>
           - pattern-either:
               - pattern: spawn('git', ['clone',...,$URL])
-              - pattern: $X.spawn('git', ['clone',...,$URL])
               - pattern: spawnSync('git', ['clone',...,$URL])
-              - pattern: $X.spawnSync('git', ['clone',...,$URL])
           - pattern-not: spawn('git', ['clone',...,"..."])
-          - pattern-not: $X.spawn('git', ['clone',...,"..."])
           - pattern-not: spawnSync('git', ['clone',...,"..."])
+      - patterns:
+          # Namespace/receiver calls — variable URL as the last argument
+          # $X is bound by the positive pattern, so pattern-not: $X.* is safe
+          - pattern-either:
+              - pattern: $X.spawn('git', ['clone',...,$URL])
+              - pattern: $X.spawnSync('git', ['clone',...,$URL])
+          - pattern-not: $X.spawn('git', ['clone',...,"..."])
           - pattern-not: $X.spawnSync('git', ['clone',...,"..."])
       - patterns:
-          # Variable URL as the second-to-last argument: git clone [options...] <url> <dir>
+          # Bare calls — variable URL as the second-to-last argument: git clone [options...] <url> <dir>
           - pattern-either:
               - pattern: spawn('git', ['clone',...,$REPO,"..."])
-              - pattern: $X.spawn('git', ['clone',...,$REPO,"..."])
               - pattern: spawnSync('git', ['clone',...,$REPO,"..."])
-              - pattern: $X.spawnSync('git', ['clone',...,$REPO,"..."])
           - pattern-not: spawn('git', ['clone',...,"...","..."])
-          - pattern-not: $X.spawn('git', ['clone',...,"...","..."])
           - pattern-not: spawnSync('git', ['clone',...,"...","..."])
+      - patterns:
+          # Namespace/receiver calls — variable URL as the second-to-last argument
+          # $X is bound by the positive pattern, so pattern-not: $X.* is safe
+          - pattern-either:
+              - pattern: $X.spawn('git', ['clone',...,$REPO,"..."])
+              - pattern: $X.spawnSync('git', ['clone',...,$REPO,"..."])
+          - pattern-not: $X.spawn('git', ['clone',...,"...","..."])
           - pattern-not: $X.spawnSync('git', ['clone',...,"...","..."])

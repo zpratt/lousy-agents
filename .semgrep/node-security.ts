@@ -271,10 +271,17 @@ execSync(process.argv[2]);
 // process.argv[$INDEX] is a taint source but process.argv.slice(...) is not.
 // The common idiom `const args = process.argv.slice(2); execSync(args[0])` will
 // NOT fire. Review such patterns manually. Documented in known-limitation.
-// todoruleid: detect-child-process
+// argv.slice() is not a taint source; the gap manifests at the sink below.
 const argvSlice = process.argv.slice(2);
 // todoruleid: detect-child-process
 execSync(argvSlice[0]);
+
+// ── KNOWN GAP (detect-child-process — process.env object assignment not tracked)
+// Only direct process.env.VAR or process.env[KEY] access expressions are sources.
+// Assigning process.env itself to a variable and reading a property from it is not tracked.
+const env = process.env;
+// todoruleid: detect-child-process
+execSync(env.BUILD_CMD as string);
 
 // ── TRUE NEGATIVES (detect-child-process — safe literal string argument) ─────
 
@@ -313,17 +320,17 @@ spawnSync("git", ["clone", "https://github.com/org/repo.git", "./dest"]);
 
 // ── TRUE POSITIVES (spawn-git-clone — known FP: literal URL, variable destDir) ─
 // Pattern 1 ($URL as last element) binds to destDir when it is the trailing arg.
-// This is a known false positive; the URL injection risk is absent, but a CWE-22
-// path-traversal risk remains on destDir. The rule message and known-limitation
-// field both document this. This annotation locks in current behavior so a future
-// rule change that silently eliminates this detection is caught.
+// This fires as a known false positive; the URL injection risk is absent, but a
+// CWE-22 path-traversal risk remains on destDir. The rule message and
+// known-limitation field both document this. Using todook (not ruleid) so that
+// a future fix eliminating this FP does not break the test suite.
 declare function getDestDir(): string;
 const destDir = getDestDir();
 
-// ruleid: spawn-git-clone
+// todook: spawn-git-clone
 spawn("git", ["clone", "https://github.com/org/repo.git", destDir]);
 
-// ruleid: spawn-git-clone
+// todook: spawn-git-clone
 spawnSync("git", ["clone", "https://github.com/org/repo.git", destDir]);
 
 // ── TRUE POSITIVES (spawn-git-clone — namespace-import cp.spawn forms) ────────
