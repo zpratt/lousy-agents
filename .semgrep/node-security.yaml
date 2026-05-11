@@ -76,7 +76,13 @@ rules:
               - pattern: $CP.spawn($CMD,...)
               - pattern: $CP.spawnSync($CMD,...)
               - pattern: $CP.fork($CMD,...)
-          - pattern-not: $CP.$EXEC("...",...)
+          - pattern-not: $CP.exec("...",...)
+          - pattern-not: $CP.execSync("...",...)
+          - pattern-not: $CP.execFile("...",...)
+          - pattern-not: $CP.execFileSync("...",...)
+          - pattern-not: $CP.spawn("...",...)
+          - pattern-not: $CP.spawnSync("...",...)
+          - pattern-not: $CP.fork("...",...)
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -97,7 +103,13 @@ rules:
               - pattern: $CP.spawn($CMD,...)
               - pattern: $CP.spawnSync($CMD,...)
               - pattern: $CP.fork($CMD,...)
-          - pattern-not: $CP.$EXEC("...",...)
+          - pattern-not: $CP.exec("...",...)
+          - pattern-not: $CP.execSync("...",...)
+          - pattern-not: $CP.execFile("...",...)
+          - pattern-not: $CP.execFileSync("...",...)
+          - pattern-not: $CP.spawn("...",...)
+          - pattern-not: $CP.spawnSync("...",...)
+          - pattern-not: $CP.fork("...",...)
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -108,7 +120,13 @@ rules:
               - pattern: child_process.spawn($CMD,...)
               - pattern: child_process.spawnSync($CMD,...)
               - pattern: child_process.fork($CMD,...)
-          - pattern-not: child_process.$EXEC("...",...)
+          - pattern-not: child_process.exec("...",...)
+          - pattern-not: child_process.execSync("...",...)
+          - pattern-not: child_process.execFile("...",...)
+          - pattern-not: child_process.execFileSync("...",...)
+          - pattern-not: child_process.spawn("...",...)
+          - pattern-not: child_process.spawnSync("...",...)
+          - pattern-not: child_process.fork("...",...)
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
