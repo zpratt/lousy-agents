@@ -81,6 +81,23 @@ function safeCJSExec(userInput: string): void {
     cpCJS.execSync("git status");
 }
 
+// ── TRUE POSITIVES (detect-child-process — global child_process variable) ─────
+// The rule matches child_process.$fn(...) regardless of how the variable was bound.
+// Semgrep matches on the literal identifier name 'child_process'.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const child_process = require("child_process");
+
+function runViaGlobalChildProcess(cmd: string): void {
+    // ruleid: detect-child-process
+    child_process.execSync(cmd);
+}
+
+function safeGlobalChildProcess(userInput: string): void {
+    const _ = userInput;
+    // ok: detect-child-process
+    child_process.execSync("git status");
+}
+
 // ── TRUE POSITIVES (detect-child-process — namespace import bare child_process)
 
 function runViaBareNS(cmd: string): void {
@@ -230,6 +247,14 @@ execSync(process.env.BUILD_CMD as string);
 // ruleid: detect-child-process
 spawn(process.env.DEPLOY_SCRIPT as string, []);
 
+// Cross-source × namespace-import sink: env + cp.*
+// ruleid: detect-child-process
+cp.execSync(process.env.BUILD_CMD as string);
+
+// Cross-source × CJS-require sink: argv + cpCJS.*
+// ruleid: detect-child-process
+cpCJS.exec(process.argv[2]);
+
 // ── TRUE POSITIVES (detect-child-process — process.env bracket notation) ─────
 // process.env[$KEY] is the bracket form; both dot and bracket access are sources.
 
@@ -249,6 +274,13 @@ function safeExecWithLiteral(userInput: string): void {
     // ok: detect-child-process
     execSync("git status");
 }
+
+// ── KNOWN GAP (detect-child-process — tainted args array, not first arg) ─────
+// The rule only tracks taint in position 0 (command/path). spawn('/bin/sh', ['-c', userInput])
+// will NOT fire because the first arg '/bin/sh' is a literal string. This is a
+// documented limitation — review such patterns manually.
+// todoruleid: detect-child-process
+spawn("/bin/sh", ["-c", process.argv[2]]);
 
 function safeSpawnWithLiteralArray(userInput: string): void {
     const _ = userInput;

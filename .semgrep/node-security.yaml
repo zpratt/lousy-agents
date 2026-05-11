@@ -31,8 +31,13 @@ rules:
         runtime-computed argument may not be detected. Named function
         declarations, arrow functions, function expressions, class/object
         methods, and aliased named imports are covered via Semgrep taint
-        normalization. This is an audit rule; review all child_process usage
-        manually regardless of findings.
+        normalization. The rule tracks taint in the first argument (command/path)
+        of each sink; taint in the arguments array (second argument) is not
+        tracked — patterns such as spawn('/bin/sh', ['-c', userInput]) or
+        execFile('/usr/bin/env', ['node', userInput]) will not fire. Review all
+        child_process calls with a tainted arguments array manually.
+        This is an audit rule; review all child_process usage manually
+        regardless of findings.
     languages:
       - javascript
       - typescript
@@ -69,7 +74,6 @@ rules:
               - pattern: $CP.spawnSync($CMD,...)
               - pattern: $CP.fork($CMD,...)
           - pattern-not: $CP.$EXEC("...",...)
-          - pattern-not: $CP.$EXEC(["...",...],...)
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -91,7 +95,6 @@ rules:
               - pattern: $CP.spawnSync($CMD,...)
               - pattern: $CP.fork($CMD,...)
           - pattern-not: $CP.$EXEC("...",...)
-          - pattern-not: $CP.$EXEC(["...",...],...)
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -103,7 +106,6 @@ rules:
               - pattern: child_process.spawnSync($CMD,...)
               - pattern: child_process.fork($CMD,...)
           - pattern-not: child_process.$EXEC("...",...)
-          - pattern-not: child_process.$EXEC(["...",...],...)
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -115,7 +117,6 @@ rules:
                   ...
           - pattern: exec($CMD,...)
           - pattern-not: exec("...",...)
-          - pattern-not: exec(["...",...],...)
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -127,7 +128,6 @@ rules:
                   ...
           - pattern: execSync($CMD,...)
           - pattern-not: execSync("...",...)
-          - pattern-not: execSync(["...",...],...)
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -139,7 +139,6 @@ rules:
                   ...
           - pattern: execFile($CMD,...)
           - pattern-not: execFile("...",...)
-          - pattern-not: execFile(["...",...],...)
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -151,7 +150,6 @@ rules:
                   ...
           - pattern: execFileSync($CMD,...)
           - pattern-not: execFileSync("...",...)
-          - pattern-not: execFileSync(["...",...],...)
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -163,7 +161,6 @@ rules:
                   ...
           - pattern: spawn($CMD,...)
           - pattern-not: spawn("...",...)
-          - pattern-not: spawn(["...",...],...)
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
@@ -175,7 +172,6 @@ rules:
                   ...
           - pattern: spawnSync($CMD,...)
           - pattern-not: spawnSync("...",...)
-          - pattern-not: spawnSync(["...",...],...)
           - focus-metavariable: $CMD
       - patterns:
           - pattern-either:
