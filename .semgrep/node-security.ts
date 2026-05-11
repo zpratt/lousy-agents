@@ -1,5 +1,5 @@
 import { exec, execFile, execFileSync, execSync, fork, spawn, spawnSync } from "node:child_process";
-import { execSync as execSyncBare } from "child_process"; // aliased — not detected by rule (known limitation)
+import { execSync as execSyncBare } from "child_process"; // aliased — Semgrep tracks aliases; still detected
 import { exec as execBare } from "child_process";
 import * as cp from "node:child_process";
 import * as cpBareNS from "child_process";
