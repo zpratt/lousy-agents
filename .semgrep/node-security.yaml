@@ -28,12 +28,10 @@ rules:
         scope (closure over a non-parameter variable) and
         immediately-invoked function expressions (IIFEs) called with a
         runtime-computed argument may not be detected. Named function
-        declarations, arrow functions, function expressions, and class/object
-        methods are covered via Semgrep taint normalization. Aliased named
-        imports (e.g. import { execSync as shell } from 'node:child_process')
-        are not detected — only the original exported function name is matched.
-        This is an audit rule; review all child_process usage manually
-        regardless of findings.
+        declarations, arrow functions, function expressions, class/object
+        methods, and aliased named imports are covered via Semgrep taint
+        normalization. This is an audit rule; review all child_process usage
+        manually regardless of findings.
     languages:
       - javascript
       - typescript

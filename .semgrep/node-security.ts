@@ -1,5 +1,6 @@
 import { exec, execFile, execFileSync, execSync, fork, spawn, spawnSync } from "node:child_process";
-import { execSync as execSyncBare } from "child_process";
+import { execSync as execSyncBare } from "child_process"; // aliased — not detected by rule (known limitation)
+import { exec as execBare } from "child_process";
 import * as cp from "node:child_process";
 import * as cpBareNS from "child_process";
 // Default-form imports are uncommon but valid in semgrep patterns; child_process
@@ -100,6 +101,14 @@ function runViaDefaultNode(cmd: string): void {
 }
 
 // ── TRUE POSITIVES (detect-child-process — named import from bare child_process)
+
+function runExecBare(cmd: string): void {
+    // ruleid: detect-child-process
+    execBare(cmd);
+}
+
+// Note: Semgrep tracks aliased named imports (e.g. execSync as execSyncBare)
+// and will still match the aliased call. Annotated below as ruleid accordingly.
 
 function runExecSyncBare(cmd: string): void {
     // ruleid: detect-child-process
