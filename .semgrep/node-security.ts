@@ -267,6 +267,15 @@ execSync(process.env["BUILD_CMD"] as string);
 // ruleid: detect-child-process
 execSync(process.argv[2]);
 
+// ── KNOWN GAP (detect-child-process — process.argv.slice() not tracked) ──────
+// process.argv[$INDEX] is a taint source but process.argv.slice(...) is not.
+// The common idiom `const args = process.argv.slice(2); execSync(args[0])` will
+// NOT fire. Review such patterns manually. Documented in known-limitation.
+// todoruleid: detect-child-process
+const argvSlice = process.argv.slice(2);
+// todoruleid: detect-child-process
+execSync(argvSlice[0]);
+
 // ── TRUE NEGATIVES (detect-child-process — safe literal string argument) ─────
 
 function safeExecWithLiteral(userInput: string): void {

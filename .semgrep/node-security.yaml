@@ -36,6 +36,9 @@ rules:
         tracked — patterns such as spawn('/bin/sh', ['-c', userInput]) or
         execFile('/usr/bin/env', ['node', userInput]) will not fire. Review all
         child_process calls with a tainted arguments array manually.
+        process.argv[$INDEX] (subscript notation) is a taint source; however
+        process.argv.slice(...) and spread/destructuring of argv are not —
+        track taint through argv slice/spread patterns manually.
         This is an audit rule; review all child_process usage manually
         regardless of findings.
     languages:
@@ -227,6 +230,11 @@ rules:
         (e.g. spawn('git', userControlledArgs)), the rule will not fire because
         it cannot match the literal 'clone' command inside the array. Review all
         spawn/spawnSync calls with a dynamic arguments array manually.
+        This rule only matches spawn/spawnSync. The same git ext-protocol URL
+        injection risk applies to exec('git clone ' + url),
+        execFile('git', ['clone', url]), and execFileSync('git', ['clone', url]).
+        Those forms are not matched; review all git clone invocations manually
+        regardless of the invocation style.
     languages:
       - javascript
       - typescript
