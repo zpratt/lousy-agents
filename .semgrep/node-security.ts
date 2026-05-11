@@ -230,6 +230,12 @@ execSync(process.env.BUILD_CMD as string);
 // ruleid: detect-child-process
 spawn(process.env.DEPLOY_SCRIPT as string, []);
 
+// ── TRUE POSITIVES (detect-child-process — process.env bracket notation) ─────
+// process.env[$KEY] is the bracket form; both dot and bracket access are sources.
+
+// ruleid: detect-child-process
+execSync(process.env["BUILD_CMD"] as string);
+
 // ── TRUE POSITIVES (detect-child-process — process.argv source) ──────────────
 // process.argv is the CLI argument vector; argv[2] and beyond are user-controlled.
 
@@ -278,3 +284,38 @@ spawn("git", ["clone", "https://github.com/org/repo.git", destDir]);
 
 // ruleid: spawn-git-clone
 spawnSync("git", ["clone", "https://github.com/org/repo.git", destDir]);
+
+// ── TRUE POSITIVES (spawn-git-clone — namespace-import cp.spawn forms) ────────
+
+// ruleid: spawn-git-clone
+cp.spawn("git", ["clone", repoUrl]);
+
+// ruleid: spawn-git-clone
+cp.spawnSync("git", ["clone", repoUrl]);
+
+// ruleid: spawn-git-clone
+cp.spawn("git", ["clone", repoUrl, "./dest"]);
+
+// ruleid: spawn-git-clone
+cp.spawnSync("git", ["clone", repoUrl, "./dest"]);
+
+// ── TRUE NEGATIVES (spawn-git-clone — namespace-import cp.spawn, literal URL) ─
+
+// ok: spawn-git-clone
+cp.spawn("git", ["clone", "https://github.com/org/repo.git"]);
+
+// ok: spawn-git-clone
+cp.spawnSync("git", ["clone", "https://github.com/org/repo.git", "./dest"]);
+
+// ── TRUE NEGATIVES (spawn-git-clone — dynamic args array, known limitation) ───
+// spawn('git', dynamicArgsArray) is NOT matched because the rule requires the
+// literal 'clone' string to appear inside the array. This gap is documented in
+// the known-limitation field. Review such calls manually.
+declare function getArgs(): string[];
+const dynamicArgs = getArgs();
+
+// ok: spawn-git-clone
+spawn("git", dynamicArgs);
+
+// ok: spawn-git-clone
+spawnSync("git", dynamicArgs);

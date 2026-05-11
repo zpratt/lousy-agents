@@ -46,6 +46,7 @@ rules:
               }
           - focus-metavariable: $FUNC
       - pattern: process.env.$VAR
+      - pattern: process.env[$KEY]
       - pattern: process.argv[$INDEX]
     pattern-sinks:
       - patterns:
@@ -226,6 +227,10 @@ rules:
         directory — validate destDir against an allowlist of permitted
         destination directories before suppressing. Confirm that the URL
         argument is not user-controlled before suppressing.
+        Additionally, if the entire arguments array is dynamic
+        (e.g. spawn('git', userControlledArgs)), the rule will not fire because
+        it cannot match the literal 'clone' command inside the array. Review all
+        spawn/spawnSync calls with a dynamic arguments array manually.
     languages:
       - javascript
       - typescript
