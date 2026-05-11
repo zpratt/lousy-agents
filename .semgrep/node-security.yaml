@@ -1,0 +1,295 @@
+rules:
+  - id: detect-child-process
+    message: >-
+      Detected tainted input (function parameter, process.env, or process.argv) flowing into a
+      child_process API call. This could lead to OS command injection if the input is user-controllable.
+      Avoid calling child_process with dynamic input; if unavoidable, validate and sanitize all
+      arguments before use.
+    metadata:
+      cwe:
+        - "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+      owasp:
+        - A01:2017 - Injection
+        - A03:2021 - Injection
+      references:
+        - https://cheatsheetseries.owasp.org/cheatsheets/Nodejs_Security_Cheat_Sheet.html#do-not-use-dangerous-functions
+      source-rule-url: https://github.com/nodesecurity/eslint-plugin-security/blob/master/rules/detect-child-process.js
+      category: security
+      technology:
+        - javascript
+      cwe2022-top25: true
+      cwe2021-top25: true
+      subcategory:
+        - audit
+      likelihood: LOW
+      impact: HIGH
+      confidence: LOW
+      known-limitation: >
+        Callback patterns where the tainted value is captured from an outer
+        scope (closure over a non-parameter variable) and
+        immediately-invoked function expressions (IIFEs) called with a
+        runtime-computed argument may not be detected. Named function
+        declarations, arrow functions, function expressions, class/object
+        methods, and aliased named imports are covered via Semgrep taint
+        normalization. The rule tracks taint in the first argument (command/path)
+        of each sink; taint in the arguments array (second argument) is not
+        tracked — patterns such as spawn('/bin/sh', ['-c', userInput]) or
+        execFile('/usr/bin/env', ['node', userInput]) will not fire. Review all
+        child_process calls with a tainted arguments array manually.
+        process.argv[$INDEX] (subscript notation) is a taint source; however
+        process.argv.slice(...) and spread/destructuring of argv are not —
+        track taint through argv slice/spread patterns manually.
+        Assigning process.env (the whole object) to an intermediate variable
+        and then accessing a property (e.g. const env = process.env;
+        execSync(env.BUILD_CMD)) is not tracked — only direct process.env.VAR
+        or process.env[KEY] access expressions are taint sources. Review all
+        indirect process.env object assignments manually.
+        This is an audit rule; review all child_process usage manually
+        regardless of findings.
+    languages:
+      - javascript
+      - typescript
+    severity: WARNING
+    mode: taint
+    pattern-sources:
+      - patterns:
+          - pattern-inside: |
+              function ... (...,$FUNC,...) {
+                ...
+              }
+          - focus-metavariable: $FUNC
+      - pattern: process.env.$VAR
+      - pattern: process.env[$KEY]
+      - pattern: process.argv[$INDEX]
+    pattern-sinks:
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  $CP = require('child_process')
+                  ...
+              - pattern-inside: |
+                  import * as $CP from 'child_process'
+                  ...
+              - pattern-inside: |
+                  import $CP from 'child_process'
+                  ...
+          - pattern-either:
+              - pattern: $CP.exec($CMD,...)
+              - pattern: $CP.execSync($CMD,...)
+              - pattern: $CP.execFile($CMD,...)
+              - pattern: $CP.execFileSync($CMD,...)
+              - pattern: $CP.spawn($CMD,...)
+              - pattern: $CP.spawnSync($CMD,...)
+              - pattern: $CP.fork($CMD,...)
+          - pattern-not: $CP.exec("...",...)
+          - pattern-not: $CP.execSync("...",...)
+          - pattern-not: $CP.execFile("...",...)
+          - pattern-not: $CP.execFileSync("...",...)
+          - pattern-not: $CP.spawn("...",...)
+          - pattern-not: $CP.spawnSync("...",...)
+          - pattern-not: $CP.fork("...",...)
+          - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  $CP = require('node:child_process')
+                  ...
+              - pattern-inside: |
+                  import * as $CP from 'node:child_process'
+                  ...
+              - pattern-inside: |
+                  import $CP from 'node:child_process'
+                  ...
+          - pattern-either:
+              - pattern: $CP.exec($CMD,...)
+              - pattern: $CP.execSync($CMD,...)
+              - pattern: $CP.execFile($CMD,...)
+              - pattern: $CP.execFileSync($CMD,...)
+              - pattern: $CP.spawn($CMD,...)
+              - pattern: $CP.spawnSync($CMD,...)
+              - pattern: $CP.fork($CMD,...)
+          - pattern-not: $CP.exec("...",...)
+          - pattern-not: $CP.execSync("...",...)
+          - pattern-not: $CP.execFile("...",...)
+          - pattern-not: $CP.execFileSync("...",...)
+          - pattern-not: $CP.spawn("...",...)
+          - pattern-not: $CP.spawnSync("...",...)
+          - pattern-not: $CP.fork("...",...)
+          - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
+              - pattern: child_process.exec($CMD,...)
+              - pattern: child_process.execSync($CMD,...)
+              - pattern: child_process.execFile($CMD,...)
+              - pattern: child_process.execFileSync($CMD,...)
+              - pattern: child_process.spawn($CMD,...)
+              - pattern: child_process.spawnSync($CMD,...)
+              - pattern: child_process.fork($CMD,...)
+          - pattern-not: child_process.exec("...",...)
+          - pattern-not: child_process.execSync("...",...)
+          - pattern-not: child_process.execFile("...",...)
+          - pattern-not: child_process.execFileSync("...",...)
+          - pattern-not: child_process.spawn("...",...)
+          - pattern-not: child_process.spawnSync("...",...)
+          - pattern-not: child_process.fork("...",...)
+          - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import {exec} from 'child_process'
+                  ...
+              - pattern-inside: |
+                  import {exec} from 'node:child_process'
+                  ...
+          - pattern: exec($CMD,...)
+          - pattern-not: exec("...",...)
+          - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import {execSync} from 'child_process'
+                  ...
+              - pattern-inside: |
+                  import {execSync} from 'node:child_process'
+                  ...
+          - pattern: execSync($CMD,...)
+          - pattern-not: execSync("...",...)
+          - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import {execFile} from 'child_process'
+                  ...
+              - pattern-inside: |
+                  import {execFile} from 'node:child_process'
+                  ...
+          - pattern: execFile($CMD,...)
+          - pattern-not: execFile("...",...)
+          - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import {execFileSync} from 'child_process'
+                  ...
+              - pattern-inside: |
+                  import {execFileSync} from 'node:child_process'
+                  ...
+          - pattern: execFileSync($CMD,...)
+          - pattern-not: execFileSync("...",...)
+          - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import {spawn} from 'child_process'
+                  ...
+              - pattern-inside: |
+                  import {spawn} from 'node:child_process'
+                  ...
+          - pattern: spawn($CMD,...)
+          - pattern-not: spawn("...",...)
+          - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import {spawnSync} from 'child_process'
+                  ...
+              - pattern-inside: |
+                  import {spawnSync} from 'node:child_process'
+                  ...
+          - pattern: spawnSync($CMD,...)
+          - pattern-not: spawnSync("...",...)
+          - focus-metavariable: $CMD
+      - patterns:
+          - pattern-either:
+              - pattern-inside: |
+                  import {fork} from 'child_process'
+                  ...
+              - pattern-inside: |
+                  import {fork} from 'node:child_process'
+                  ...
+          - pattern: fork($CMD,...)
+          - pattern-not: fork("...",...)
+          - focus-metavariable: $CMD
+
+  - id: spawn-git-clone
+    message: >-
+      Git allows shell commands to be specified in ext URLs for remote repositories.
+      For example, git clone 'ext::sh -c whoami% >&2' will execute the whoami command
+      to try to connect to a remote repository.
+      Make sure that the URL is not controlled by external input.
+      If the URL is a literal but the destination directory argument is a variable,
+      validate the destination directory against an allowlist — a path traversal risk
+      (CWE-22) may still exist on the destination argument.
+    metadata:
+      cwe:
+        - "CWE-78: Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')"
+        - "CWE-22: Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')"
+      owasp:
+        - A01:2017 - Injection
+        - A03:2021 - Injection
+      category: security
+      technology:
+        - git
+      cwe2022-top25: true
+      cwe2021-top25: true
+      subcategory:
+        - audit
+      likelihood: LOW
+      impact: HIGH
+      confidence: LOW
+      references:
+        - https://owasp.org/Top10/A03_2021-Injection
+      known-limitation: >
+        The rule may produce a false positive when a literal repo URL is
+        combined with a variable destination directory
+        (e.g. spawn('git', ['clone', 'https://url.com', destDir])). This fires
+        because the last-element pattern ($URL) matches the variable destDir
+        rather than the literal URL. In that case the URL injection risk is
+        absent but a path traversal risk (CWE-22) may exist on the destination
+        directory — validate destDir against an allowlist of permitted
+        destination directories before suppressing. Confirm that the URL
+        argument is not user-controlled before suppressing.
+        Additionally, if the entire arguments array is dynamic
+        (e.g. spawn('git', userControlledArgs)), the rule will not fire because
+        it cannot match the literal 'clone' command inside the array. Review all
+        spawn/spawnSync calls with a dynamic arguments array manually.
+        This rule only matches spawn/spawnSync. The same git ext-protocol URL
+        injection risk applies to exec('git clone ' + url),
+        execFile('git', ['clone', url]), and execFileSync('git', ['clone', url]).
+        Those forms are not matched; review all git clone invocations manually
+        regardless of the invocation style.
+    languages:
+      - javascript
+      - typescript
+    severity: WARNING
+    pattern-either:
+      - patterns:
+          # Bare calls — variable URL as the last argument: git clone [options...] <url>
+          - pattern-either:
+              - pattern: spawn('git', ['clone',...,$URL])
+              - pattern: spawnSync('git', ['clone',...,$URL])
+          - pattern-not: spawn('git', ['clone',...,"..."])
+          - pattern-not: spawnSync('git', ['clone',...,"..."])
+      - patterns:
+          # Namespace/receiver calls — variable URL as the last argument
+          # $X is bound by the positive pattern, so pattern-not: $X.* is safe
+          - pattern-either:
+              - pattern: $X.spawn('git', ['clone',...,$URL])
+              - pattern: $X.spawnSync('git', ['clone',...,$URL])
+          - pattern-not: $X.spawn('git', ['clone',...,"..."])
+          - pattern-not: $X.spawnSync('git', ['clone',...,"..."])
+      - patterns:
+          # Bare calls — variable URL as the second-to-last argument: git clone [options...] <url> <dir>
+          - pattern-either:
+              - pattern: spawn('git', ['clone',...,$REPO,"..."])
+              - pattern: spawnSync('git', ['clone',...,$REPO,"..."])
+          - pattern-not: spawn('git', ['clone',...,"...","..."])
+          - pattern-not: spawnSync('git', ['clone',...,"...","..."])
+      - patterns:
+          # Namespace/receiver calls — variable URL as the second-to-last argument
+          # $X is bound by the positive pattern, so pattern-not: $X.* is safe
+          - pattern-either:
+              - pattern: $X.spawn('git', ['clone',...,$REPO,"..."])
+              - pattern: $X.spawnSync('git', ['clone',...,$REPO,"..."])
+          - pattern-not: $X.spawn('git', ['clone',...,"...","..."])
+          - pattern-not: $X.spawnSync('git', ['clone',...,"...","..."])

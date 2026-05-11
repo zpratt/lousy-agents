@@ -43,9 +43,10 @@ run = "[ -n \"$(ls -A *.sh 2>/dev/null)\" ] && shellcheck *.sh || echo 'No shell
 hide = true
 
 [tasks.semgrep]
-description = "Run semgrep TOCTOU detection rules"
+description = "Run semgrep security rules (TOCTOU, Node.js injection)"
 run = [
     "semgrep scan --test --config .semgrep/toctou.yaml .semgrep/toctou.ts --metrics=off --disable-version-check",
+    "semgrep scan --test --config .semgrep/node-security.yaml .semgrep/node-security.ts --metrics=off --disable-version-check",
     "semgrep scan --config .semgrep/ --error --severity WARNING --metrics=off --disable-version-check packages/",
 ]
 hide = true
