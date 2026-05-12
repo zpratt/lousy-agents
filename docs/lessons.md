@@ -111,7 +111,7 @@ It reads Claude Code hook JSON from stdin and writes a capture prompt to stdout.
 
 ## Lesson Schema
 
-Lesson files live at `.lousy-agents/lessons/<slug>.md`. The filename stem must match the `slug` frontmatter field.
+Lesson files live at `.lousy-agents/lessons/<slug>.md`. The filename stem should match the `slug` frontmatter field (convention; not enforced by the linter).
 
 **Frontmatter fields:**
 
@@ -122,12 +122,17 @@ Lesson files live at `.lousy-agents/lessons/<slug>.md`. The filename stem must m
 | `type` | `"invariant" \| "pattern"` | ✅ | `invariant` — always-on, injected at SessionStart; `pattern` — context-matched only |
 | `created` | `YYYY-MM-DD` | ✅ | Creation date |
 | `revised` | `YYYY-MM-DD` | ✅ | Last-revised date |
-| `provenance` | `array` | ✅ | Source attribution (may be empty `[]`) |
+| `provenance` | `object[]` | ✅ | Source attribution (may be empty `[]`). Each entry: `{ pr: number, finding_id: string, facet: string }` |
 | `triggers.paths` | `string[]` | ✅ | Glob patterns matched against the file under edit |
 | `triggers.tags` | `string[]` | ✅ | Path segments or extensions matched against the file under edit (e.g. `ts`, `src`) |
 | `triggers.patterns` | `string[]` | ✅ | Free-text patterns matched against file content |
 
-A lesson is included in `additionalContext` when its `slug`, any `triggers.tags` value, or any `triggers.paths` glob matches the file under edit. The `context` command never calls an LLM for relevance scoring — matching is deterministic.
+A lesson is included in `additionalContext` when **any** of the following hold for the file under edit:
+- **tags**: any tag matches a path segment or file extension of the file under edit
+- **paths**: any glob in `triggers.paths` matches the file path
+- **patterns**: any string in `triggers.patterns` appears as a literal substring in the file's content
+
+Lessons with all three trigger arrays empty **do not match** on `PreToolUse` (absence is not a wildcard). The `context` command never calls an LLM for relevance scoring — matching is deterministic.
 
 **Example lesson file:**
 
@@ -161,10 +166,13 @@ The lesson system enforces caps to prevent hook latency from growing unbounded:
 
 | Resource | Limit |
 | --- | --- |
-| Total lesson files | 100 |
-| Aggregate lesson content | 512 KB |
-| `triggers.tags` array length | 20 entries |
-| `triggers.tags` entry length | 100 characters |
+| Total lesson files | 500 |
+| Per-file lesson content | 1 MB |
+| Aggregate lesson content | 20 MB |
+| `triggers.paths` / `triggers.tags` array length | 100 entries each |
+| `triggers.paths` / `triggers.tags` entry length | 200 characters |
+| `triggers.patterns` array length | 50 entries |
+| `triggers.patterns` entry length | 200 characters |
 
 `lint lessons` reports a validation error when any cap is exceeded.
 

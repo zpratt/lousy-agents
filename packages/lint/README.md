@@ -65,7 +65,7 @@ try {
 | `directory` | `string` | ✅ | Absolute or relative path to the project directory to lint |
 | `targets.skills` | `boolean` | — | Lint skill files (`.github/skills/`) |
 | `targets.agents` | `boolean` | — | Lint agent files (`.github/agents/`) |
-| `targets.hooks` | `boolean` | — | Lint hook configuration (`.claude/settings.json` / `hooks.json`) |
+| `targets.hooks` | `boolean` | — | Lint hook configuration: `.github/hooks/agent-shell/hooks.json` (Copilot), `.claude/settings.json` and `.claude/settings.local.json` (Claude) |
 | `targets.instructions` | `boolean` | — | Lint instruction files (`.github/instructions/`, `.github/copilot-instructions.md`) |
 | `logger` | `LintLogger` | — | Custom logger for gateway diagnostics (must have a `.warn` method); defaults to `consola` |
 
