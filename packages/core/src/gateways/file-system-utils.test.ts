@@ -282,7 +282,9 @@ describe("statWithinRoot", () => {
             const result = await statWithinRoot(testDir, "file.txt");
 
             expect(typeof result.mtimeMs).toBe("number");
-            expect(result.mtimeMs).toBeGreaterThanOrEqual(before - 1);
+            expect(Math.floor(result.mtimeMs)).toBeGreaterThanOrEqual(
+                before - 1,
+            );
         });
     });
 
