@@ -57,6 +57,7 @@ Lousy Agents is an npm workspace monorepo. Most users only need one published pa
 | `@lousy-agents/cli` | `npx @lousy-agents/cli init` | You want the scaffolding CLI for new or existing projects |
 | `@lousy-agents/mcp` | `npx -y -p @lousy-agents/mcp lousy-agents-mcp` | You want Lousy Agents tools available through an MCP client |
 | `@lousy-agents/agent-shell` | `npm install -g @lousy-agents/agent-shell` | You want an audit trail for npm script execution |
+| `@lousy-agents/lint` | `npm install @lousy-agents/lint` | You want programmatic lint checks in your own tooling or web app |
 
 ## Who This Is For
 
@@ -83,6 +84,7 @@ AI coding assistants work best when given clear constraints. Without structure, 
 - **[`new`](docs/new.md)** - Create new resources like custom GitHub Copilot agents
 - **[`lint`](docs/lint.md)** - Validate skills, agents, hook configurations, and instruction files
 - **[`copilot-setup`](docs/copilot-setup.md)** - Generate GitHub Actions workflows for Copilot environment setup
+- **[`init-hooks`](docs/lessons.md#init-hooks)** - Wire Claude Code hooks for lesson injection and capture
 
 ### MCP Server
 
@@ -92,7 +94,19 @@ AI coding assistants work best when given clear constraints. Without structure, 
 
 - **[agent-shell](packages/agent-shell/README.md)** - A flight recorder for npm script execution with policy-based command blocking. Records independent telemetry of what scripts ran, who initiated them, and whether they succeeded. Run `agent-shell policy --init` to scan your project and generate a ready-to-use policy and hook configuration — with optional AI-powered analysis via the Copilot SDK and `@lousy-agents/mcp`.
 
+- **[@lousy-agents/lint](packages/lint/README.md)** - Programmatic lint API for skill, agent, hook, and instruction files. Use this package to integrate lint checks into your own tools, web apps, or CI pipelines.
+
 ![agent-shell demo](media/agent-shell.gif)
+
+### Agent Lessons
+
+An automatic knowledge system for Claude Code that injects project-specific lessons before file edits and captures new findings at session end. Lessons are committed as Markdown files with YAML frontmatter under `.lousy-agents/lessons/` and validated with `lousy-agents lint lessons`. Set up with one command:
+
+```bash
+npx @lousy-agents/cli init-hooks
+```
+
+See the [Agent Lessons docs](docs/lessons.md) for the full schema and hook reference.
 
 ### Spec-Driven Development
 
@@ -140,6 +154,12 @@ Install agent-shell globally (required — npm needs the shim on `PATH` before `
 npm install -g @lousy-agents/agent-shell
 ```
 
+### `@lousy-agents/lint`
+
+```bash
+npm install @lousy-agents/lint
+```
+
 ## Usage
 
 For detailed documentation on each command, see:
@@ -148,6 +168,7 @@ For detailed documentation on each command, see:
 - **[`new` command](docs/new.md)** - Create new resources
 - **[`lint` command](docs/lint.md)** - Validate skills, agents, hook configurations, and instruction files
 - **[`copilot-setup` command](docs/copilot-setup.md)** - Generate Copilot workflows
+- **[`init-hooks` command](docs/lessons.md#init-hooks)** - Wire Claude Code hooks for agent lessons
 - **[MCP Server](docs/mcp-server.md)** - AI assistant integration
 
 ### Quick Examples
@@ -204,6 +225,7 @@ Use the root install to work on all workspace packages together. The root `npm r
 | AI-powered policy initialization (agent-shell) | ✅ Complete |
 | MCP server package | ✅ Complete |
 | Claude Code web environment setup | ✅ Complete |
+| Agent lesson system (context injection & capture) | ✅ Complete |
 
 ## Documentation
 
@@ -211,8 +233,10 @@ Use the root install to work on all workspace packages together. The root `npm r
 - **[Then `copilot-setup`](docs/copilot-setup.md)** - Generate workflow setup for existing repositories
 - **[`new` Command](docs/new.md)** - Create new resources after your scaffold is in place
 - **[`lint` Command](docs/lint.md)** - Validate skills, agents, hook configurations, and instruction files
+- **[Agent Lessons](docs/lessons.md)** - Accumulate durable knowledge across Claude Code sessions
 - **[MCP Server](docs/mcp-server.md)** - Configure the separately published `@lousy-agents/mcp` package
 - **[agent-shell](packages/agent-shell/README.md)** - Add npm script execution telemetry
+- **[@lousy-agents/lint API](packages/lint/README.md)** - Programmatic lint API for your own tools
 
 ## Reference Examples
 

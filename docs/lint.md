@@ -90,12 +90,13 @@ When no target flags are provided, the command runs all linters (skills, agents,
 
 Use flags to lint specific targets:
 
-| Flag | Description |
+| Flag / Subcommand | Description |
 | ------ | ------------- |
 | `--skills` | Lint skill frontmatter in `.github/skills/`, `.claude/skills/`, and `.agents/skills/` |
 | `--agents` | Lint agent frontmatter in `.github/agents/` |
 | `--hooks` | Lint hook configuration files for Copilot and Claude Code |
 | `--instructions` | Analyze instruction quality across all instruction file formats |
+| `lessons` | Validate lesson files in `.lousy-agents/lessons/` — see [Agent Lessons](lessons.md#lint-lessons) |
 | `--format <type>` | Output format: `human` (default), `json`, or `rdjsonl` |
 
 ```bash
