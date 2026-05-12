@@ -1,183 +1,187 @@
 # Graph Report - .  (2026-05-12)
 
 ## Corpus Check
-- Large corpus: 318 files · ~399,027 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder, or use --no-semantic to run AST-only.
+- 6 files · ~7,194 words
+- Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3046 nodes · 5592 edges · 187 communities (158 shown, 29 thin omitted)
-- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 280 edges (avg confidence: 0.81)
+- 3057 nodes · 5614 edges · 190 communities (161 shown, 29 thin omitted)
+- Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 283 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
-- [[_COMMUNITY_apply severity filter test|apply severity filter test]]
-- [[_COMMUNITY_check copilot review ruleset test|check copilot review ruleset test]]
-- [[_COMMUNITY_lint hook config test|lint hook config test]]
-- [[_COMMUNITY_lesson context use case test|lesson context use case test]]
-- [[_COMMUNITY_server fuzz test|server fuzz test]]
-- [[_COMMUNITY_init test|init test]]
-- [[_COMMUNITY_query test|query test]]
-- [[_COMMUNITY_init hooks config gateway|init hooks config gateway]]
-- [[_COMMUNITY_copilot setup test|copilot setup test]]
-- [[_COMMUNITY_init Command|init Command]]
-- [[_COMMUNITY_Git Hub Action for Instruction|Git Hub Action for Instruction]]
-- [[_COMMUNITY_lint|lint]]
-- [[_COMMUNITY_File System Instruction Analysis Gateway|File System Instruction Analysis Gateway]]
-- [[_COMMUNITY_agent file gateway test|agent file gateway test]]
-- [[_COMMUNITY_telemetry|telemetry]]
-- [[_COMMUNITY_log query test|log query test]]
-- [[_COMMUNITY_Lousy Agents|Lousy Agents]]
-- [[_COMMUNITY_analyze instruction quality test|analyze instruction quality test]]
-- [[_COMMUNITY_copilot setup command|copilot setup command]]
-- [[_COMMUNITY_load Policy|load Policy]]
-- [[_COMMUNITY_create Copilot Setup Workflow Handler|create Copilot Setup Workflow Handler]]
-- [[_COMMUNITY_file system utils|file system utils]]
-- [[_COMMUNITY_server test|server test]]
-- [[_COMMUNITY_analyze instruction quality|analyze instruction quality]]
-- [[_COMMUNITY_lint agent frontmatter test|lint agent frontmatter test]]
-- [[_COMMUNITY_policy check|policy check]]
-- [[_COMMUNITY_File System Workflow Gateway|File System Workflow Gateway]]
-- [[_COMMUNITY_format test|format test]]
-- [[_COMMUNITY_discover feedback loops|discover feedback loops]]
-- [[_COMMUNITY_claude setup|claude setup]]
-- [[_COMMUNITY_config|config]]
-- [[_COMMUNITY_copilot setup test|copilot setup test]]
-- [[_COMMUNITY_policy init|policy init]]
-- [[_COMMUNITY_env capture test|env capture test]]
-- [[_COMMUNITY_validate inputs|validate inputs]]
-- [[_COMMUNITY_Detected Environment|Detected Environment]]
-- [[_COMMUNITY_context test|context test]]
-- [[_COMMUNITY_skill file gateway|skill file gateway]]
-- [[_COMMUNITY_init command|init command]]
-- [[_COMMUNITY_shim lifecycle test|shim lifecycle test]]
-- [[_COMMUNITY_telemetry test|telemetry test]]
-- [[_COMMUNITY_init command test|init command test]]
-- [[_COMMUNITY_copilot setup|copilot setup]]
-- [[_COMMUNITY_candidate builder|candidate builder]]
-- [[_COMMUNITY_skill lint gateway test|skill lint gateway test]]
-- [[_COMMUNITY_Lint Skill Frontmatter Use Case|Lint Skill Frontmatter Use Case]]
-- [[_COMMUNITY_feedback loop discovery integration test|feedback loop discovery integration test]]
-- [[_COMMUNITY_lint skill frontmatter test|lint skill frontmatter test]]
-- [[_COMMUNITY_script discovery gateway|script discovery gateway]]
-- [[_COMMUNITY_copilot setup config|copilot setup config]]
-- [[_COMMUNITY_filesystem structure test|filesystem structure test]]
-- [[_COMMUNITY_index|index]]
-- [[_COMMUNITY_lint integration test|lint integration test]]
-- [[_COMMUNITY_copilot enhance|copilot enhance]]
-- [[_COMMUNITY_shim test|shim test]]
-- [[_COMMUNITY_init Copilot Setup Workflow|init Copilot Setup Workflow]]
-- [[_COMMUNITY_index d|index d]]
-- [[_COMMUNITY_validate instruction coverage test|validate instruction coverage test]]
-- [[_COMMUNITY_server integration test|server integration test]]
-- [[_COMMUNITY_project scanner|project scanner]]
-- [[_COMMUNITY_Package Manager File|Package Manager File]]
-- [[_COMMUNITY_lint test|lint test]]
-- [[_COMMUNITY_log command|log command]]
-- [[_COMMUNITY_skill|skill]]
-- [[_COMMUNITY_project name validation|project name validation]]
-- [[_COMMUNITY_resolve sdk test|resolve sdk test]]
-- [[_COMMUNITY_policy check test|policy check test]]
-- [[_COMMUNITY_log query|log query]]
-- [[_COMMUNITY_Copilot Project Standards|Copilot Project Standards]]
-- [[_COMMUNITY_skill file gateway test|skill file gateway test]]
-- [[_COMMUNITY_workflow generator|workflow generator]]
-- [[_COMMUNITY_init copilot setup workflow|init copilot setup workflow]]
-- [[_COMMUNITY_lesson schema test|lesson schema test]]
-- [[_COMMUNITY_Webapp Template Scaffolding|Webapp Template Scaffolding]]
-- [[_COMMUNITY_script discovery gateway test|script discovery gateway test]]
-- [[_COMMUNITY_discover feedback loops test|discover feedback loops test]]
-- [[_COMMUNITY_Analyze Instruction Quality Use Case|Analyze Instruction Quality Use Case]]
-- [[_COMMUNITY_claude hook input schema|claude hook input schema]]
-- [[_COMMUNITY_File System Workflow Gateway|File System Workflow Gateway]]
-- [[_COMMUNITY_agent lint gateway test|agent lint gateway test]]
-- [[_COMMUNITY_new test|new test]]
-- [[_COMMUNITY_record test|record test]]
-- [[_COMMUNITY_build Webapp Structure|build Webapp Structure]]
-- [[_COMMUNITY_Hostile Reviewer Agent|Hostile Reviewer Agent]]
-- [[_COMMUNITY_tool discovery gateway test|tool discovery gateway test]]
-- [[_COMMUNITY_init integration test|init integration test]]
-- [[_COMMUNITY_git utils test|git utils test]]
-- [[_COMMUNITY_types test|types test]]
-- [[_COMMUNITY_markdown ast gateway test|markdown ast gateway test]]
-- [[_COMMUNITY_agent shell pre Tool Use|agent shell pre Tool Use]]
-- [[_COMMUNITY_action version gateway test|action version gateway test]]
-- [[_COMMUNITY_lint command|lint command]]
-- [[_COMMUNITY_Use Cases Index Module|Use Cases Index Module]]
-- [[_COMMUNITY_instruction file discovery gateway test|instruction file discovery gateway test]]
-- [[_COMMUNITY_Use Cases Layer|Use Cases Layer]]
-- [[_COMMUNITY_Adapters Layer|Adapters Layer]]
-- [[_COMMUNITY_index|index]]
-- [[_COMMUNITY_init|init]]
-- [[_COMMUNITY_sanitize|sanitize]]
-- [[_COMMUNITY_register Tools|register Tools]]
-- [[_COMMUNITY_run Lint|run Lint]]
-- [[_COMMUNITY_claude hook response|claude hook response]]
-- [[_COMMUNITY_init bundle integration test|init bundle integration test]]
-- [[_COMMUNITY_capture|capture]]
-- [[_COMMUNITY_safe fs|safe fs]]
-- [[_COMMUNITY_Init Hooks Config Gateway|Init Hooks Config Gateway]]
-- [[_COMMUNITY_generate Workflow Content|generate Workflow Content]]
-- [[_COMMUNITY_npmrc gateway test|npmrc gateway test]]
-- [[_COMMUNITY_lesson file gateway test|lesson file gateway test]]
-- [[_COMMUNITY_File System Environment Gateway|File System Environment Gateway]]
-- [[_COMMUNITY_Copilot Hook Command Schema|Copilot Hook Command Schema]]
-- [[_COMMUNITY_telemetry test|telemetry test]]
-- [[_COMMUNITY_create Mcp Server|create Mcp Server]]
-- [[_COMMUNITY_frontmatter|frontmatter]]
-- [[_COMMUNITY_capture prompt use case|capture prompt use case]]
-- [[_COMMUNITY_file system utils test|file system utils test]]
-- [[_COMMUNITY_capture test|capture test]]
-- [[_COMMUNITY_copilot enhance test|copilot enhance test]]
-- [[_COMMUNITY_Copilot Setup Config tests|Copilot Setup Config tests]]
-- [[_COMMUNITY_create Copilot Agent Use Case|create Copilot Agent Use Case]]
-- [[_COMMUNITY_Lousy Agents|Lousy Agents]]
-- [[_COMMUNITY_init hooks test|init hooks test]]
-- [[_COMMUNITY_build Capture Prompt|build Capture Prompt]]
-- [[_COMMUNITY_Setup Step Discovery Tests|Setup Step Discovery Tests]]
-- [[_COMMUNITY_create Copilot Setup Workflow Handler|create Copilot Setup Workflow Handler]]
-- [[_COMMUNITY_Lesson Context Use Case|Lesson Context Use Case]]
-- [[_COMMUNITY_Lint Skill Frontmatter Use Case|Lint Skill Frontmatter Use Case]]
-- [[_COMMUNITY_environment gateway test|environment gateway test]]
-- [[_COMMUNITY_Lesson Capture and Context Injection|Lesson Capture and Context Injection]]
-- [[_COMMUNITY_DEFAULT SETUP ACTIONS|DEFAULT SETUP ACTIONS]]
-- [[_COMMUNITY_File System Instruction Analysis Gateway|File System Instruction Analysis Gateway]]
-- [[_COMMUNITY_File System Claude File Gateway|File System Claude File Gateway]]
-- [[_COMMUNITY_Claude setup contract|Claude setup contract]]
-- [[_COMMUNITY_Local Action Version Gateway|Local Action Version Gateway]]
-- [[_COMMUNITY_Git Hub Ruleset Gateway tests|Git Hub Ruleset Gateway tests]]
-- [[_COMMUNITY_Lesson File Gateway tests|Lesson File Gateway tests]]
-- [[_COMMUNITY_Claude hook payload schema tests|Claude hook payload schema tests]]
-- [[_COMMUNITY_lint subcommand guard test|lint subcommand guard test]]
-- [[_COMMUNITY_Lesson entity contract|Lesson entity contract]]
-- [[_COMMUNITY_generate Skill Content contract|generate Skill Content contract]]
-- [[_COMMUNITY_parse Frontmatter|parse Frontmatter]]
-- [[_COMMUNITY_send Request|send Request]]
-- [[_COMMUNITY_rspack config|rspack config]]
-- [[_COMMUNITY_rspack config|rspack config]]
-- [[_COMMUNITY_rspack config|rspack config]]
-- [[_COMMUNITY_rspack config|rspack config]]
-- [[_COMMUNITY_rspack config|rspack config]]
-- [[_COMMUNITY_Vitest Integration Config|Vitest Integration Config]]
-- [[_COMMUNITY_env capture test|env capture test]]
-- [[_COMMUNITY_shim test|shim test]]
-- [[_COMMUNITY_init command test|init command test]]
-- [[_COMMUNITY_copilot enhance test|copilot enhance test]]
-- [[_COMMUNITY_skill Command|skill Command]]
-- [[_COMMUNITY_packages action Java Script Entrypoint|packages action Java Script Entrypoint]]
-- [[_COMMUNITY_vitest integration config|vitest integration config]]
-- [[_COMMUNITY_vitest config|vitest config]]
-- [[_COMMUNITY_next config|next config]]
-- [[_COMMUNITY_create Get Repository Root|create Get Repository Root]]
-- [[_COMMUNITY_resolve sdk test|resolve sdk test]]
-- [[_COMMUNITY_actor test|actor test]]
-- [[_COMMUNITY_shim lifecycle test|shim lifecycle test]]
-- [[_COMMUNITY_agent shell log subcommand|agent shell log subcommand]]
-- [[_COMMUNITY_Subpath import guidance|Subpath import guidance]]
-- [[_COMMUNITY_determine Script Phase|determine Script Phase]]
-- [[_COMMUNITY_MANDATORY SCRIPT NAMES|MANDATORY SCRIPT NAMES]]
-- [[_COMMUNITY_create Feedback Loop Commands Gateway|create Feedback Loop Commands Gateway]]
-- [[_COMMUNITY_File System Instruction File Discovery|File System Instruction File Discovery]]
-- [[_COMMUNITY_Agent Skill Scaffolding via CLI|Agent Skill Scaffolding via CLI]]
-- [[_COMMUNITY_Copilot Review Status|Copilot Review Status]]
+- [[_COMMUNITY_Lint Domain Entities|Lint Domain Entities]]
+- [[_COMMUNITY_Copilot Hook Schema|Copilot Hook Schema]]
+- [[_COMMUNITY_Copilot Setup & GitHub Rulesets|Copilot Setup & GitHub Rulesets]]
+- [[_COMMUNITY_Agent Lesson Domain|Agent Lesson Domain]]
+- [[_COMMUNITY_Infrastructure Gateways|Infrastructure Gateways]]
+- [[_COMMUNITY_Init Command Tests|Init Command Tests]]
+- [[_COMMUNITY_GitHub Action & Bundling|GitHub Action & Bundling]]
+- [[_COMMUNITY_Agent Shell Log Queries|Agent Shell Log Queries]]
+- [[_COMMUNITY_Hook Config Gateway|Hook Config Gateway]]
+- [[_COMMUNITY_Copilot Setup Use Cases|Copilot Setup Use Cases]]
+- [[_COMMUNITY_CLI Entry & Config|CLI Entry & Config]]
+- [[_COMMUNITY_Lint Gateways & API|Lint Gateways & API]]
+- [[_COMMUNITY_CI Workflows|CI Workflows]]
+- [[_COMMUNITY_Agent Files & Instructions|Agent Files & Instructions]]
+- [[_COMMUNITY_Copilot Agent Scaffolding|Copilot Agent Scaffolding]]
+- [[_COMMUNITY_Agent Shell Event Types|Agent Shell Event Types]]
+- [[_COMMUNITY_Agent Shell Integration Tests|Agent Shell Integration Tests]]
+- [[_COMMUNITY_Instruction Quality Use Cases|Instruction Quality Use Cases]]
+- [[_COMMUNITY_Hook Commands (Lessons)|Hook Commands (Lessons)]]
+- [[_COMMUNITY_Copilot Prompt Builder|Copilot Prompt Builder]]
+- [[_COMMUNITY_Instruction Quality Analysis|Instruction Quality Analysis]]
+- [[_COMMUNITY_Agent Shell Config Schema|Agent Shell Config Schema]]
+- [[_COMMUNITY_Instruction Quality Entities|Instruction Quality Entities]]
+- [[_COMMUNITY_MCP Server|MCP Server]]
+- [[_COMMUNITY_Git Utils & Shim|Git Utils & Shim]]
+- [[_COMMUNITY_Agent Lint Use Cases|Agent Lint Use Cases]]
+- [[_COMMUNITY_Agent Shell Event Log|Agent Shell Event Log]]
+- [[_COMMUNITY_Policy & Validation|Policy & Validation]]
+- [[_COMMUNITY_File Gateway Implementations|File Gateway Implementations]]
+- [[_COMMUNITY_Copilot Setup Config|Copilot Setup Config]]
+- [[_COMMUNITY_Safe Filesystem Utilities|Safe Filesystem Utilities]]
+- [[_COMMUNITY_Copilot Setup Command|Copilot Setup Command]]
+- [[_COMMUNITY_Environment Capture|Environment Capture]]
+- [[_COMMUNITY_GitHub Action Runner|GitHub Action Runner]]
+- [[_COMMUNITY_Claude Environment Setup|Claude Environment Setup]]
+- [[_COMMUNITY_Context Hook Command|Context Hook Command]]
+- [[_COMMUNITY_Skill Scaffolding|Skill Scaffolding]]
+- [[_COMMUNITY_Script Discovery Gateways|Script Discovery Gateways]]
+- [[_COMMUNITY_Agent Shell Init Tests|Agent Shell Init Tests]]
+- [[_COMMUNITY_Shim Lifecycle Tests|Shim Lifecycle Tests]]
+- [[_COMMUNITY_Claude Setup Use Cases|Claude Setup Use Cases]]
+- [[_COMMUNITY_Skill Lint Gateway|Skill Lint Gateway]]
+- [[_COMMUNITY_Severity Filtering|Severity Filtering]]
+- [[_COMMUNITY_Agent Shell Policy & Config|Agent Shell Policy & Config]]
+- [[_COMMUNITY_Copilot Setup Actions|Copilot Setup Actions]]
+- [[_COMMUNITY_Instruction Analysis Gateway|Instruction Analysis Gateway]]
+- [[_COMMUNITY_Agent Shell Log Queries|Agent Shell Log Queries]]
+- [[_COMMUNITY_Copilot Setup Package Managers|Copilot Setup Package Managers]]
+- [[_COMMUNITY_Skill Lint Use Cases|Skill Lint Use Cases]]
+- [[_COMMUNITY_Lint CLI Commands|Lint CLI Commands]]
+- [[_COMMUNITY_Module Group 50|Module Group 50]]
+- [[_COMMUNITY_Module Group 51|Module Group 51]]
+- [[_COMMUNITY_Module Group 52|Module Group 52]]
+- [[_COMMUNITY_Module Group 53|Module Group 53]]
+- [[_COMMUNITY_Module Group 54|Module Group 54]]
+- [[_COMMUNITY_Module Group 55|Module Group 55]]
+- [[_COMMUNITY_Module Group 56|Module Group 56]]
+- [[_COMMUNITY_Module Group 57|Module Group 57]]
+- [[_COMMUNITY_Module Group 58|Module Group 58]]
+- [[_COMMUNITY_Module Group 59|Module Group 59]]
+- [[_COMMUNITY_Module Group 60|Module Group 60]]
+- [[_COMMUNITY_Module Group 61|Module Group 61]]
+- [[_COMMUNITY_Module Group 62|Module Group 62]]
+- [[_COMMUNITY_Module Group 63|Module Group 63]]
+- [[_COMMUNITY_Module Group 64|Module Group 64]]
+- [[_COMMUNITY_Module Group 65|Module Group 65]]
+- [[_COMMUNITY_Module Group 66|Module Group 66]]
+- [[_COMMUNITY_Module Group 67|Module Group 67]]
+- [[_COMMUNITY_Module Group 68|Module Group 68]]
+- [[_COMMUNITY_Module Group 69|Module Group 69]]
+- [[_COMMUNITY_Module Group 70|Module Group 70]]
+- [[_COMMUNITY_Module Group 71|Module Group 71]]
+- [[_COMMUNITY_Module Group 72|Module Group 72]]
+- [[_COMMUNITY_Module Group 73|Module Group 73]]
+- [[_COMMUNITY_Module Group 74|Module Group 74]]
+- [[_COMMUNITY_Module Group 75|Module Group 75]]
+- [[_COMMUNITY_Module Group 76|Module Group 76]]
+- [[_COMMUNITY_Module Group 77|Module Group 77]]
+- [[_COMMUNITY_Module Group 78|Module Group 78]]
+- [[_COMMUNITY_Module Group 79|Module Group 79]]
+- [[_COMMUNITY_Module Group 80|Module Group 80]]
+- [[_COMMUNITY_Module Group 81|Module Group 81]]
+- [[_COMMUNITY_Module Group 82|Module Group 82]]
+- [[_COMMUNITY_Module Group 83|Module Group 83]]
+- [[_COMMUNITY_Module Group 84|Module Group 84]]
+- [[_COMMUNITY_Module Group 85|Module Group 85]]
+- [[_COMMUNITY_Module Group 86|Module Group 86]]
+- [[_COMMUNITY_Module Group 87|Module Group 87]]
+- [[_COMMUNITY_Module Group 88|Module Group 88]]
+- [[_COMMUNITY_Module Group 89|Module Group 89]]
+- [[_COMMUNITY_Module Group 90|Module Group 90]]
+- [[_COMMUNITY_Module Group 91|Module Group 91]]
+- [[_COMMUNITY_Module Group 92|Module Group 92]]
+- [[_COMMUNITY_Module Group 93|Module Group 93]]
+- [[_COMMUNITY_Module Group 94|Module Group 94]]
+- [[_COMMUNITY_Module Group 95|Module Group 95]]
+- [[_COMMUNITY_Module Group 96|Module Group 96]]
+- [[_COMMUNITY_Module Group 97|Module Group 97]]
+- [[_COMMUNITY_Module Group 98|Module Group 98]]
+- [[_COMMUNITY_Module Group 99|Module Group 99]]
+- [[_COMMUNITY_Module Group 100|Module Group 100]]
+- [[_COMMUNITY_Module Group 101|Module Group 101]]
+- [[_COMMUNITY_Module Group 102|Module Group 102]]
+- [[_COMMUNITY_Module Group 103|Module Group 103]]
+- [[_COMMUNITY_Module Group 104|Module Group 104]]
+- [[_COMMUNITY_Module Group 105|Module Group 105]]
+- [[_COMMUNITY_Module Group 106|Module Group 106]]
+- [[_COMMUNITY_Module Group 107|Module Group 107]]
+- [[_COMMUNITY_Module Group 108|Module Group 108]]
+- [[_COMMUNITY_Module Group 109|Module Group 109]]
+- [[_COMMUNITY_Module Group 110|Module Group 110]]
+- [[_COMMUNITY_Module Group 111|Module Group 111]]
+- [[_COMMUNITY_Module Group 112|Module Group 112]]
+- [[_COMMUNITY_Module Group 113|Module Group 113]]
+- [[_COMMUNITY_Module Group 114|Module Group 114]]
+- [[_COMMUNITY_Module Group 115|Module Group 115]]
+- [[_COMMUNITY_Module Group 116|Module Group 116]]
+- [[_COMMUNITY_Module Group 117|Module Group 117]]
+- [[_COMMUNITY_Module Group 118|Module Group 118]]
+- [[_COMMUNITY_Module Group 119|Module Group 119]]
+- [[_COMMUNITY_Module Group 120|Module Group 120]]
+- [[_COMMUNITY_Module Group 121|Module Group 121]]
+- [[_COMMUNITY_Module Group 122|Module Group 122]]
+- [[_COMMUNITY_Module Group 123|Module Group 123]]
+- [[_COMMUNITY_Module Group 124|Module Group 124]]
+- [[_COMMUNITY_Module Group 125|Module Group 125]]
+- [[_COMMUNITY_Module Group 126|Module Group 126]]
+- [[_COMMUNITY_Module Group 127|Module Group 127]]
+- [[_COMMUNITY_Module Group 128|Module Group 128]]
+- [[_COMMUNITY_Module Group 129|Module Group 129]]
+- [[_COMMUNITY_Module Group 130|Module Group 130]]
+- [[_COMMUNITY_Module Group 131|Module Group 131]]
+- [[_COMMUNITY_Module Group 132|Module Group 132]]
+- [[_COMMUNITY_Module Group 133|Module Group 133]]
+- [[_COMMUNITY_Module Group 134|Module Group 134]]
+- [[_COMMUNITY_Module Group 135|Module Group 135]]
+- [[_COMMUNITY_Module Group 136|Module Group 136]]
+- [[_COMMUNITY_Module Group 137|Module Group 137]]
+- [[_COMMUNITY_Module Group 138|Module Group 138]]
+- [[_COMMUNITY_Module Group 139|Module Group 139]]
+- [[_COMMUNITY_Module Group 140|Module Group 140]]
+- [[_COMMUNITY_Module Group 141|Module Group 141]]
+- [[_COMMUNITY_Module Group 142|Module Group 142]]
+- [[_COMMUNITY_Module Group 143|Module Group 143]]
+- [[_COMMUNITY_Module Group 144|Module Group 144]]
+- [[_COMMUNITY_Module Group 145|Module Group 145]]
+- [[_COMMUNITY_Module Group 146|Module Group 146]]
+- [[_COMMUNITY_Module Group 147|Module Group 147]]
+- [[_COMMUNITY_Module Group 148|Module Group 148]]
+- [[_COMMUNITY_Module Group 149|Module Group 149]]
+- [[_COMMUNITY_Module Group 150|Module Group 150]]
+- [[_COMMUNITY_Module Group 151|Module Group 151]]
+- [[_COMMUNITY_Module Group 152|Module Group 152]]
+- [[_COMMUNITY_Module Group 153|Module Group 153]]
+- [[_COMMUNITY_Module Group 154|Module Group 154]]
+- [[_COMMUNITY_Module Group 155|Module Group 155]]
+- [[_COMMUNITY_Module Group 156|Module Group 156]]
+- [[_COMMUNITY_Module Group 157|Module Group 157]]
+- [[_COMMUNITY_Module Group 158|Module Group 158]]
+- [[_COMMUNITY_Module Group 159|Module Group 159]]
+- [[_COMMUNITY_Module Group 160|Module Group 160]]
+- [[_COMMUNITY_Module Group 161|Module Group 161]]
+- [[_COMMUNITY_Module Group 162|Module Group 162]]
+- [[_COMMUNITY_Module Group 163|Module Group 163]]
+- [[_COMMUNITY_Module Group 164|Module Group 164]]
+- [[_COMMUNITY_Module Group 165|Module Group 165]]
+- [[_COMMUNITY_Module Group 166|Module Group 166]]
+- [[_COMMUNITY_Module Group 167|Module Group 167]]
+- [[_COMMUNITY_Module Group 168|Module Group 168]]
+- [[_COMMUNITY_Module Group 169|Module Group 169]]
+- [[_COMMUNITY_Module Group 170|Module Group 170]]
+- [[_COMMUNITY_Module Group 186|Module Group 186]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `successResponse()` - 22 edges
@@ -187,9 +191,9 @@
 5. `SetupStepCandidate` - 19 edges
 6. `readFileNoFollow()` - 18 edges
 7. `LintOutput` - 18 edges
-8. `DetectedEnvironment` - 17 edges
-9. `main()` - 17 edges
-10. `sanitizeForStderr()` - 16 edges
+8. `Lousy Agents` - 18 edges
+9. `DetectedEnvironment` - 17 edges
+10. `main()` - 17 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `@lousy-agents/mcp` --semantically_similar_to--> `MCP Server`  [INFERRED] [semantically similar]
@@ -204,581 +208,590 @@
   README.md → packages/agent-shell/rspack.config.ts
 
 ## Hyperedges (group relationships)
-- **Shared Instruction Architecture** — copilot_instructions_project_standards, software_architecture_clean_architecture, test_instructions_testing_conventions, pipeline_instructions_workflow_pinning, spec_instructions_spec_development [EXTRACTED 1.00]
-- **Feature Spec Review and Triage Loop** — feature_to_spec_issue_template, feature_planner_agent, spec_instructions_spec_development, reviewer_hostile_reviewer_agent, triaging_pr_reviews_skill [EXTRACTED 1.00]
-- **Agent-Shell Hook Lifecycle Suite** — agent_shell_pre_tool_use_feature, agent_shell_flight_recorder_feature, agent_shell_policy_init_feature, agent_shell_npm_integration_feature, agent_shell_hook_lifecycle_config [INFERRED 0.88]
-- **Init Template Scaffolding System** — init_project_type_selection_feature, init_cli_options_feature, dynamic_project_templating_feature, rest_api_init_feature, webapp_init_feature, webapp_alignment_feature, webapp_template_bundle_feature, filesystem_structure_model [INFERRED 0.86]
-- **Lint Quality System** — lint_skill_frontmatter_feature, lint_configuration_feature, lint_hook_config_feature, lint_instruction_heading_patterns_feature, lint_string_input_feature, github_action_lint_feature, ci_validation_pipeline_concept [INFERRED 0.88]
-- **Copilot Setup Management System** — copilot_setup_steps_scaffold_feature, mcp_server_feature, copilot_setup_steps_workflow, environment_detection_concept, workflow_setup_action_discovery_concept, yaml_workflow_generation_concept, action_version_analysis_concept [INFERRED 0.87]
+- **CLI package command suite** — readme_cli_package, init_init_command, lint_lint_command, copilotsetup_copilot_setup_command [EXTRACTED 1.00]
+- **Agent lesson lifecycle** — lessons_agent_lessons, lessons_init_hooks_command, lint_lint_command, lessons_lesson_schema [EXTRACTED 1.00]
+- **AI-ready project bootstrap** — readme_lousy_agents, readme_cli_package, init_init_command, init_project_scaffolding, readme_spec_driven_development [INFERRED 0.86]
 
-## Communities (187 total, 29 thin omitted)
+## Communities (190 total, 29 thin omitted)
 
-### Community 0 - "apply severity filter test"
+### Community 0 - "Lint Domain Entities"
 Cohesion: 0.06
-Nodes (63): LintDiagnostic, LintOutput, LintSeverity, LintTarget, DEFAULT_LINT_RULES, LintRulesConfig, RuleConfigMap, RuleSeverityConfig (+55 more)
+Nodes (62): LintDiagnostic, LintOutput, LintSeverity, LintTarget, DEFAULT_LINT_RULES, LintRulesConfig, RuleConfigMap, RuleSeverityConfig (+54 more)
 
-### Community 1 - "check copilot review ruleset test"
+### Community 1 - "Copilot Hook Schema"
+Cohesion: 0.06
+Nodes (52): CopilotHookCommand, CopilotHookCommandSchema, CopilotHooksConfig, CopilotHooksConfigSchema, hookArray, DiscoveredHookFile, HookLintDiagnostic, HookLintResult (+44 more)
+
+### Community 2 - "Copilot Setup & GitHub Rulesets"
 Cohesion: 0.06
 Nodes (59): checkAndPromptRuleset(), CopilotReviewStatus, Ruleset, RulesetRule, createGitHubRulesetGateway(), defaultExec(), execFileAsync, ExecFunction (+51 more)
 
-### Community 2 - "lint hook config test"
-Cohesion: 0.06
-Nodes (51): CopilotHookCommand, CopilotHookCommandSchema, CopilotHooksConfig, CopilotHooksConfigSchema, hookArray, DiscoveredHookFile, HookLintDiagnostic, HookLintResult (+43 more)
-
-### Community 3 - "lesson context use case test"
+### Community 3 - "Agent Lesson Domain"
 Cohesion: 0.07
 Nodes (48): Lesson, LessonProvenance, LessonTriggers, LessonType, lesson, provenance, triggers, extractPathSegments() (+40 more)
 
-### Community 4 - "server fuzz test"
+### Community 4 - "Infrastructure Gateways"
 Cohesion: 0.07
-Nodes (47): generateCopilotSetupWorkflow(), createEnvironmentGateway(), createWorkflowGateway(), createToolDiscoveryGateway(), actions, adversarialActions, adversarialResolvedVersions, adversarialTargetDirReadOnly (+39 more)
+Nodes (51): createClaudeFileGateway(), createEnvironmentGateway(), createWorkflowGateway(), createToolDiscoveryGateway(), actions, adversarialActions, adversarialResolvedVersions, adversarialTargetDirReadOnly (+43 more)
 
-### Community 5 - "init test"
+### Community 5 - "Init Command Tests"
 Cohesion: 0.04
 Nodes (51): apiMockPrompt, apiProjectName, assignCopilotFile, chance, checkoutStep, ciYmlFile, cliMockPrompt, cliPath (+43 more)
 
-### Community 6 - "query test"
+### Community 6 - "GitHub Action & Bundling"
+Cohesion: 0.06
+Nodes (53): main, Lousy Agents Lint Action, Reviewdog Integration, Action Rspack Bundle Config, Agent Shell Rspack Bundle Config, Beads Task Tracking, Claude Instructions, Clean Architecture (+45 more)
+
+### Community 7 - "Agent Shell Log Queries"
 Cohesion: 0.04
 Nodes (46): actor, actor1, actor2, chance, deps, eacces, enametoolong, enoent (+38 more)
 
-### Community 7 - "init hooks config gateway"
+### Community 8 - "Hook Config Gateway"
 Cohesion: 0.09
 Nodes (34): CLAUDE_SETTINGS_PATH, createInitHooksConfigGateway(), DANGEROUS_KEYS, FsPromises, gateway, mod, tmpDir(), unlinkedPath (+26 more)
 
-### Community 8 - "copilot setup test"
+### Community 9 - "Copilot Setup Use Cases"
 Cohesion: 0.1
 Nodes (40): candidates, chance, envCandidates, environment, existingActions, existingWorkflow, installStep, installSteps (+32 more)
 
-### Community 9 - "init Command"
+### Community 10 - "CLI Entry & Config"
 Cohesion: 0.05
 Nodes (46): Citty Vitest config, Citty Vitest setup, Citty scaffold main command, Citty scaffold smoke test, CLI main command, Fastify Vitest integration config, Fastify Vitest setup, Fastify Vitest unit config (+38 more)
 
-### Community 10 - "Git Hub Action for Instruction"
+### Community 11 - "Lint Gateways & API"
+Cohesion: 0.06
+Nodes (38): createAgentLintGateway(), createSkillLintGateway(), LintValidationError, lintAgents(), lintHooks(), LintLogger, LintOptions, LintOptionsSchema (+30 more)
+
+### Community 12 - "CI Workflows"
 Cohesion: 0.06
 Nodes (45): Action Smoke Tests, GitHub Action Version Analysis, Auto-Assign Copilot on Spec Issues Workflow, Build Provenance Attestation, CI Validation Pipeline, CI Workflow, Composite Lint GitHub Action, PreToolUse Context Injection (+37 more)
 
-### Community 11 - "lint"
-Cohesion: 0.06
-Nodes (37): createAgentLintGateway(), createSkillLintGateway(), LintValidationError, lintAgents(), lintHooks(), LintLogger, LintOptions, LintOptionsSchema (+29 more)
-
-### Community 12 - "File System Instruction Analysis Gateway"
+### Community 13 - "Agent Files & Instructions"
 Cohesion: 0.06
 Nodes (44): FileSystemAgentFileGateway, Agent File Gateway Tests, analyzeCommandInFile, AnalyzeInstructionQualityUseCase, checkMissingHeadings, findBestScore, generateSuggestions, hasConditionalKeywordsNearCommand (+36 more)
 
-### Community 13 - "agent file gateway test"
+### Community 14 - "Copilot Agent Scaffolding"
 Cohesion: 0.1
 Nodes (25): generateAgentContent(), normalizeAgentName(), agentName, chance, result, createAgentFileGateway(), FileSystemAgentFileGateway, agentName (+17 more)
 
-### Community 14 - "telemetry"
-Cohesion: 0.1
-Nodes (36): baseFields, hookArray, HookCommandSchema, HooksConfig, PolicyDecisionEvent, PolicyDecisionEventSchema, policyRuleArray, ScriptEndEvent (+28 more)
+### Community 15 - "Agent Shell Event Types"
+Cohesion: 0.05
+Nodes (35): PolicyDecisionEventSchema, ScriptEndEventSchema, ShimErrorEventSchema, ToolUseEventSchema, Telemetry Schema v1, chance, command, created (+27 more)
 
-### Community 15 - "log query test"
+### Community 16 - "Agent Shell Integration Tests"
 Cohesion: 0.05
 Nodes (38): ACTOR_ENV_KEYS, AGENTSHELL_ENV_KEYS, baseEvent, buildCleanEnv(), chance, commands, customDir, event (+30 more)
 
-### Community 16 - "Lousy Agents"
-Cohesion: 0.07
-Nodes (42): main, Lousy Agents Lint Action, Reviewdog Integration, Action Rspack Bundle Config, Agent Shell Rspack Bundle Config, Beads Task Tracking, Claude Instructions, Clean Architecture (+34 more)
-
-### Community 17 - "analyze instruction quality test"
+### Community 17 - "Instruction Quality Use Cases"
 Cohesion: 0.1
 Nodes (38): astGateway, buildScore, chance, commandsGateway, createMockAstGateway(), createMockCommandsGateway(), createMockDiscoveryGateway(), diag (+30 more)
 
-### Community 18 - "copilot setup command"
+### Community 18 - "Hook Commands (Lessons)"
 Cohesion: 0.06
 Nodes (39): buildCapturePrompt, capture command, capture.readStdin helper, runCapture, buildAdditionalContextResponse, context command, LessonContextUseCase.execute, readFileContents (+31 more)
 
-### Community 19 - "load Policy"
+### Community 19 - "Copilot Prompt Builder"
 Cohesion: 0.07
 Nodes (28): buildAnalysisPrompt, buildSystemMessage, formatMiseTasksSummary, formatScriptsSummary, formatWorkflowSummary, isPathNotFoundError, isWithinProjectRoot, handlePolicyCheck (+20 more)
 
-### Community 20 - "create Copilot Setup Workflow Handler"
+### Community 20 - "Instruction Quality Analysis"
 Cohesion: 0.09
 Nodes (37): Script execution log review scene, Agent-shell audit terminal demo, analyzeInstructionQualityHandler, AnalyzeInstructionQualityUseCase, buildRecommendations, buildResultMessage, buildSessionStartHooks, generateEnvironmentSetupSection (+29 more)
 
-### Community 21 - "file system utils"
-Cohesion: 0.16
-Nodes (22): ClaudeFileGateway, readVersionFileContent(), assertFileSizeWithinLimit(), assertPathHasNoSymbolicLinks(), createSafeRoot(), fileExists(), isFsSafeViolation(), isPathWithinRoot() (+14 more)
+### Community 21 - "Agent Shell Config Schema"
+Cohesion: 0.09
+Nodes (30): baseFields, hookArray, HookCommandSchema, HooksConfig, PolicyConfig, PolicyDecisionEvent, policyRuleArray, chance (+22 more)
 
-### Community 22 - "server test"
+### Community 22 - "Instruction Quality Entities"
+Cohesion: 0.15
+Nodes (27): CommandQualityScores, CONDITIONAL_KEYWORDS, DEFAULT_STRUCTURAL_HEADING_PATTERNS, DiscoveredInstructionFile, HEADING_PATTERN_DESCRIPTION_RECORD, HEADING_PATTERN_DESCRIPTIONS, InstructionFileFormat, InstructionQualityResult (+19 more)
+
+### Community 23 - "MCP Server"
 Cohesion: 0.07
 Nodes (28): main(), createMcpServer(), createWorkflowInputSchema, registerTools(), resolveActionsInputSchema, resolvedVersionSchema, targetDirInputSchema, actionNames (+20 more)
 
-### Community 23 - "analyze instruction quality"
-Cohesion: 0.16
-Nodes (25): CommandQualityScores, CONDITIONAL_KEYWORDS, DEFAULT_STRUCTURAL_HEADING_PATTERNS, DiscoveredInstructionFile, HEADING_PATTERN_DESCRIPTION_RECORD, HEADING_PATTERN_DESCRIPTIONS, InstructionFileFormat, InstructionQualityResult (+17 more)
-
-### Community 24 - "lint agent frontmatter test"
+### Community 24 - "Git Utils & Shim"
 Cohesion: 0.14
+Nodes (26): createGetRepositoryRoot(), FORWARDED_SIGNALS, runShim(), ShimOptions, ShimResult, signalCodes, emitPolicyDecisionEvent(), emitScriptEndEvent() (+18 more)
+
+### Community 25 - "Agent Lint Use Cases"
+Cohesion: 0.13
 Nodes (21): AgentFrontmatterSchema, AgentLintDiagnostic, AgentLintGateway, AgentLintResult, AgentLintSeverity, DiscoveredAgentFile, hasOpeningDelimiter(), LintAgentFrontmatterInput (+13 more)
 
-### Community 25 - "policy check"
-Cohesion: 0.11
-Nodes (25): PolicyConfig, chance, command, deps, expectedPolicy, permError, policy, result (+17 more)
+### Community 26 - "Agent Shell Event Log"
+Cohesion: 0.06
+Nodes (27): ScriptEndEvent, ShimErrorEvent, ToolUseEvent, actor, actor1, actor2, actorName, args (+19 more)
 
-### Community 26 - "File System Workflow Gateway"
+### Community 27 - "Policy & Validation"
+Cohesion: 0.13
+Nodes (24): PolicyConfigSchema, hasProtoKey(), hasProtoKeyAtDepth(), resolveReadEventsDir(), Hook Self-Allowance, isNameTooLongError(), isPathNotFoundError(), isWithinProjectRoot() (+16 more)
+
+### Community 28 - "File Gateway Implementations"
 Cohesion: 0.1
 Nodes (29): LocalActionVersionGateway, FileSystemAgentFileGateway, FileSystemAgentLintGateway, FileSystemAgentLintGateway tests, FileSystemClaudeFileGateway, FileSystemEnvironmentGateway, readVersionFileContent, assertFileSizeWithinLimit (+21 more)
 
-### Community 27 - "format test"
-Cohesion: 0.07
-Nodes (24): actor, actor1, actor2, actorName, args, chance, columns, durationCol (+16 more)
-
-### Community 28 - "discover feedback loops"
+### Community 29 - "Copilot Setup Config"
 Cohesion: 0.18
-Nodes (19): DiscoveredFeedbackLoops, DiscoveredScript, DiscoveredTool, FeedbackLoopCoverage, InstructionReference, MANDATORY_SCRIPT_NAMES, SCRIPT_PHASE_MAPPING, chance (+11 more)
+Nodes (22): CopilotSetupConfig, DEFAULT_COPILOT_SETUP_CONFIG, DEFAULT_PACKAGE_MANAGERS, DEFAULT_SETUP_ACTION_PATTERNS, DEFAULT_SETUP_ACTIONS, DEFAULT_VERSION_FILES, getVersionFileConfigKeyMap(), getVersionTypeToActionMap() (+14 more)
 
-### Community 29 - "claude setup"
-Cohesion: 0.17
-Nodes (23): createClaudeFileGateway(), buildRecommendations(), buildResultMessage(), createClaudeCodeWebSetupHandler(), ALLOWED_VERSION_FILENAMES, buildPackageManagerHooks(), buildRuntimeHooks(), buildSessionStartHooks() (+15 more)
+### Community 30 - "Safe Filesystem Utilities"
+Cohesion: 0.2
+Nodes (18): ClaudeFileGateway, assertFileSizeWithinLimit(), assertPathHasNoSymbolicLinks(), createSafeRoot(), fileExists(), isFsSafeViolation(), isPathWithinRoot(), listDirectoryWithinRoot() (+10 more)
 
-### Community 30 - "config"
-Cohesion: 0.12
-Nodes (24): buildCliStructure(), buildCommonNodes(), buildRestApiStructure(), buildWebappStructure(), CLI_TEMPLATE_DIR, __dirname, __filename, getProjectStructure() (+16 more)
-
-### Community 31 - "copilot setup test"
+### Community 31 - "Copilot Setup Command"
 Cohesion: 0.08
 Nodes (22): copilotSetupArgs, copilotSetupCommand, CopilotSetupRulesetGateway, PromptFunction, chance, codeScanningRule, codeScanningRules, createRuleset (+14 more)
 
-### Community 32 - "policy init"
-Cohesion: 0.1
-Nodes (25): Exact-Match Allow Rules, Policy Blocking, chance, config, deps, existingContent, fullOutput, hooks (+17 more)
-
-### Community 33 - "env capture test"
+### Community 32 - "Environment Capture"
 Cohesion: 0.09
 Nodes (25): ALLOWLIST_EXACT, ALLOWLIST_PREFIXES, BLOCKLIST_PATTERNS, captureEnv(), isAllowlisted(), isBlocklisted(), isTagVariable(), PROTOTYPE_POLLUTION_KEYS (+17 more)
 
-### Community 34 - "validate inputs"
+### Community 33 - "GitHub Action Runner"
 Cohesion: 0.11
 Nodes (23): runLint(), ActionInputs, FilterMode, FilterModeSchema, Level, LevelSchema, readActionInputs(), Reporter (+15 more)
 
-### Community 35 - "Detected Environment"
+### Community 34 - "Claude Environment Setup"
 Cohesion: 0.18
 Nodes (20): ClaudeEnvironmentRecommendation, ClaudeSettings, ClaudeSetupAction, ClaudeSetupResult, SessionStartHook, chance, environment, hook (+12 more)
 
-### Community 36 - "context test"
+### Community 35 - "Context Hook Command"
 Cohesion: 0.09
 Nodes (22): contextCommand, createContextCommand(), readFileContents(), capturedInputs, chance, dropWarnings, escapeWarnings, injectedUseCase (+14 more)
 
-### Community 37 - "skill file gateway"
+### Community 36 - "Skill Scaffolding"
 Cohesion: 0.16
 Nodes (15): generateSkillContent(), normalizeSkillName(), chance, result, skillName, createSkillFileGateway(), CreateSkillResult, CreateSkillUseCase (+7 more)
 
-### Community 38 - "init command"
-Cohesion: 0.17
-Nodes (22): HooksConfigSchema, PolicyConfigSchema, resolveReadEventsDir(), Hook Self-Allowance, isNameTooLongError(), isPathNotFoundError(), isWithinProjectRoot(), sanitizeForStderr() (+14 more)
+### Community 37 - "Script Discovery Gateways"
+Cohesion: 0.16
+Nodes (20): createFeedbackLoopCommandsGateway(), createScriptDiscoveryGateway(), FileSystemScriptDiscoveryGateway, PackageJsonSchema, ScriptDiscoveryLogger, chance, dir, gateway (+12 more)
 
-### Community 39 - "shim lifecycle test"
-Cohesion: 0.09
-Nodes (21): ACTOR_ENV_KEYS, actorName, AGENTSHELL_ENV_KEYS, buildCleanEnv(), chance, child, event, eventsDir (+13 more)
-
-### Community 40 - "telemetry test"
-Cohesion: 0.08
-Nodes (21): chance, command, created, deps, env, error, lifecycleEvent, logDir (+13 more)
-
-### Community 41 - "init command test"
+### Community 38 - "Agent Shell Init Tests"
 Cohesion: 0.08
 Nodes (21): config, configWithSessionStart, content, deps, existingPolicy, flags, HOOKS_CONFIG_FLIGHT_RECORDER_ONLY, HOOKS_CONFIG_POLICY_ONLY (+13 more)
 
-### Community 42 - "copilot setup"
-Cohesion: 0.25
-Nodes (17): ActionToResolve, NODE_PACKAGE_MANAGERS, PackageManagerType, PYTHON_PACKAGE_MANAGERS, ResolvedVersion, SetupStepCandidate, VersionFile, WorkflowStep (+9 more)
+### Community 39 - "Shim Lifecycle Tests"
+Cohesion: 0.09
+Nodes (21): ACTOR_ENV_KEYS, actorName, AGENTSHELL_ENV_KEYS, buildCleanEnv(), chance, child, event, eventsDir (+13 more)
 
-### Community 43 - "candidate builder"
+### Community 40 - "Claude Setup Use Cases"
 Cohesion: 0.21
-Nodes (19): DEFAULT_COPILOT_SETUP_CONFIG, DEFAULT_PACKAGE_MANAGERS, DEFAULT_SETUP_ACTION_PATTERNS, DEFAULT_SETUP_ACTIONS, DEFAULT_VERSION_FILES, getVersionFileConfigKeyMap(), getVersionTypeToActionMap(), PackageManagerMapping (+11 more)
+Nodes (19): ALLOWED_VERSION_FILENAMES, buildPackageManagerHooks(), buildRuntimeHooks(), buildSessionStartHooks(), generateEnvironmentSetupSection(), getPackageManagerDescription(), getRuntimeHookForType(), isValidVersionFilename() (+11 more)
 
-### Community 44 - "skill lint gateway test"
+### Community 41 - "Skill Lint Gateway"
 Cohesion: 0.15
 Nodes (17): FileSystemSkillLintGateway, agentsDir, chance, claudeDir, copilotDir, dir1, dir2, filePath (+9 more)
 
-### Community 45 - "Lint Skill Frontmatter Use Case"
+### Community 42 - "Severity Filtering"
 Cohesion: 0.1
 Nodes (23): applySeverityFilter, ApplySeverityFilter tests, ClaudePreToolUseHookInputSchema, ClaudeSessionStartHookInputSchema, buildAdditionalContextResponse, buildPermissionDecisionResponse, ClaudeHookResponse tests, generateAgentContent (+15 more)
 
-### Community 46 - "feedback loop discovery integration test"
+### Community 43 - "Agent Shell Policy & Config"
+Cohesion: 0.13
+Nodes (21): HooksConfigSchema, isSafeCommand(), Exact-Match Allow Rules, AI-Enhanced Policy Analysis, Flight Recording, Global Installation Requirement, Policy Blocking, Standalone Binary Constraint (+13 more)
+
+### Community 44 - "Copilot Setup Actions"
+Cohesion: 0.27
+Nodes (16): ActionToResolve, NODE_PACKAGE_MANAGERS, PYTHON_PACKAGE_MANAGERS, ResolvedVersion, SetupStepCandidate, VersionFile, WorkflowStep, allActionsResolved() (+8 more)
+
+### Community 45 - "Instruction Analysis Gateway"
 Cohesion: 0.17
 Nodes (20): createInstructionAnalysisGateway(), buildToolsScript, chance, discoverUseCase, documentedNames, environmentGateway, inspectOutput(), instructionGateway (+12 more)
 
-### Community 47 - "lint skill frontmatter test"
+### Community 46 - "Agent Shell Log Queries"
+Cohesion: 0.17
+Nodes (19): ScriptEventSchema, findMostRecentFile(), listSessions(), matchesFilters(), parseDuration(), parseLine(), QueryDeps, queryEvents() (+11 more)
+
+### Community 47 - "Copilot Setup Package Managers"
+Cohesion: 0.21
+Nodes (17): PACKAGE_MANAGER_INSTALL_COMMANDS, PackageManagerType, CopilotSetupConfigSchema, getVersionFilenameToTypeMap(), isSafeBasename(), loadCopilotSetupConfig(), PACKAGE_MANAGER_TYPES, PackageManagerMappingSchema (+9 more)
+
+### Community 48 - "Skill Lint Use Cases"
 Cohesion: 0.18
 Nodes (19): allowedToolsWarning, argumentHintWarning, buildValidFrontmatter(), chance, createMockGateway(), descDiagnostic, discovered, errors (+11 more)
 
-### Community 48 - "script discovery gateway"
-Cohesion: 0.18
-Nodes (15): determineScriptPhase(), FeedbackLoopPhase, isScriptMandatory(), mandatoryPhases, nonMandatoryPhases, result, createInstructionFileDiscoveryGateway(), createMarkdownAstGateway() (+7 more)
-
-### Community 49 - "copilot setup config"
-Cohesion: 0.21
-Nodes (17): CopilotSetupConfig, PACKAGE_MANAGER_INSTALL_COMMANDS, CopilotSetupConfigSchema, getVersionFilenameToTypeMap(), isSafeBasename(), loadCopilotSetupConfig(), PACKAGE_MANAGER_TYPES, PackageManagerMappingSchema (+9 more)
-
-### Community 50 - "filesystem structure test"
-Cohesion: 0.11
-Nodes (19): createFilesystemStructure(), DirectoryNode, eta, FileNode, FilesystemNode, FilesystemStructure, processTemplate(), TemplateContext (+11 more)
-
-### Community 51 - "index"
+### Community 49 - "Lint CLI Commands"
 Cohesion: 0.14
 Nodes (15): createLintCommand(), createLintLessonsCommand(), lintLessonsCommand, makeGateway(), runLintLessons(), lintCommand, contextCmd, initHooksCmd (+7 more)
 
-### Community 52 - "lint integration test"
+### Community 50 - "Module Group 50"
 Cohesion: 0.1
 Nodes (20): agentsDir, chance, claudeSkillDir, cliPackageDir, copilotSkillDir, emptyDir, entryPath, execErr (+12 more)
 
-### Community 53 - "copilot enhance"
-Cohesion: 0.18
-Nodes (17): ProjectScanResult, result, scanResult, AnalysisResponseSchema, CopilotEnhancedResult, createCustomTools(), enhanceWithCopilot(), extractFirstJsonObject() (+9 more)
-
-### Community 54 - "shim test"
+### Community 51 - "Module Group 51"
 Cohesion: 0.11
-Nodes (18): FORWARDED_SIGNALS, ShimOptions, ShimResult, signalCodes, Mode, parseInitOptions(), parsePolicyInitOptions(), resolveMode() (+10 more)
+Nodes (19): createFilesystemStructure(), DirectoryNode, eta, FileNode, FilesystemNode, FilesystemStructure, processTemplate(), TemplateContext (+11 more)
 
-### Community 55 - "init Copilot Setup Workflow"
+### Community 52 - "Module Group 52"
 Cohesion: 0.12
 Nodes (21): addAgentShell, hasScriptShellEntry, NpmrcGateway, AddAgentShell tests, ActionVersionPort, buildCandidatesFromEnvironment, buildCopilotReviewRulesetPayload, checkCopilotReviewRuleset (+13 more)
 
-### Community 56 - "index d"
+### Community 53 - "Module Group 53"
 Cohesion: 0.1
 Nodes (19): CommandQualityScores, DiscoveredInstructionFile, InstructionFileFormat, InstructionQualityResult, InstructionSuggestion, LintDiagnostic, LintFormatter, LintFormatType (+11 more)
 
-### Community 57 - "validate instruction coverage test"
+### Community 54 - "Module Group 54"
 Cohesion: 0.18
 Nodes (15): analyzeCoverageMock, buildScript, chance, discoverFeedbackLoops, discoveryOutput, instructionGateway, lintTool, mockCoverage (+7 more)
 
-### Community 58 - "server integration test"
+### Community 55 - "Module Group 55"
 Cohesion: 0.12
 Nodes (11): McpTestClient, actionNames, actionsToResolve, chance, distExists, mcpPackageDir, response, result (+3 more)
 
-### Community 59 - "project scanner"
+### Community 56 - "Module Group 56"
 Cohesion: 0.16
 Nodes (17): detectLanguages(), dirExists(), DiscoveredScript, discoverMiseTasks(), discoverScripts(), discoverWorkflowCommands(), extractRunCommandsFromYaml(), fileExists() (+9 more)
 
-### Community 60 - "Package Manager File"
+### Community 57 - "Module Group 57"
+Cohesion: 0.27
+Nodes (17): findResolvedVersion(), ActionVersionPort, createActionVersionPort(), appendMissingStepsToJob(), buildStepFromCandidate(), buildStepsFromCandidates(), buildUsesValue(), CandidateToStepOptions (+9 more)
+
+### Community 58 - "Module Group 58"
 Cohesion: 0.21
 Nodes (15): checkAndPromptAgentShell(), runPostWorkflowSteps(), PackageManagerFile, addAgentShell(), AddAgentShellInput, AddAgentShellOutput, hasScriptShellEntry(), NpmrcGateway (+7 more)
 
-### Community 61 - "lint test"
+### Community 59 - "Module Group 59"
 Cohesion: 0.11
 Nodes (18): agentsDir, capturedCalls, chance, diagnostics, errorSpy, githubDir, infoSpy, invalidSkillDir (+10 more)
 
-### Community 62 - "log command"
-Cohesion: 0.16
-Nodes (13): ScriptEvent, QueryDeps, SessionSummary, formatEventsJson(), formatEventsTable(), formatSessionsTable(), padRight(), createDefaultQueryDeps() (+5 more)
+### Community 60 - "Module Group 60"
+Cohesion: 0.18
+Nodes (17): buildCliStructure(), buildCommonNodes(), buildRestApiStructure(), buildWebappStructure(), CLI_TEMPLATE_DIR, __dirname, __filename, getProjectStructure() (+9 more)
 
-### Community 63 - "skill"
+### Community 61 - "Module Group 61"
+Cohesion: 0.15
+Nodes (19): Dynamic Action Version Resolution, RESOLVE_VERSION Placeholder Strategy, SHA-Pinned Workflow Actions, Claude Code Web Environment Setup, packages/action JavaScript Entrypoint, Core Lint Use Cases, Convert GitHub Action to JavaScript, Reviewdog rdjsonl Reporting (+11 more)
+
+### Community 62 - "Module Group 62"
 Cohesion: 0.26
 Nodes (13): DiscoveredSkillFile, ParsedFrontmatter, SkillLintDiagnostic, SkillLintResult, SkillLintSeverity, SKILL_DIRECTORIES, AgentSkillFrontmatterSchema, hasFrontmatterDelimiters() (+5 more)
 
-### Community 64 - "project name validation"
+### Community 63 - "Module Group 63"
 Cohesion: 0.19
 Nodes (12): getValidatedProjectName(), getProjectNameError(), isValidProjectName(), ProjectNameValidationResult, runValidationRules(), name, result, toResult() (+4 more)
 
-### Community 65 - "resolve sdk test"
-Cohesion: 0.14
-Nodes (15): extractEsmEntry(), findEsmEntry(), resolveExportsImportEntry(), resolveSdkPath(), AI-Enhanced Policy Analysis, Flight Recording, Global Installation Requirement, cjsDir (+7 more)
-
-### Community 66 - "policy check test"
+### Community 64 - "Module Group 64"
 Cohesion: 0.12
 Nodes (16): chance, command, createDeps(), createMockPolicyDeps(), createMockTelemetryDeps(), deps, event, loadError (+8 more)
 
-### Community 67 - "log query"
-Cohesion: 0.19
-Nodes (15): ScriptEventSchema, hasProtoKey(), hasProtoKeyAtDepth(), findMostRecentFile(), listSessions(), matchesFilters(), parseDuration(), parseLine() (+7 more)
-
-### Community 68 - "Copilot Project Standards"
-Cohesion: 0.17
-Nodes (18): Dynamic Action Version Resolution, RESOLVE_VERSION Placeholder Strategy, SHA-Pinned Workflow Actions, copilot-setup Agent-Shell npm Integration, Claude Code Web Environment Setup, addAgentShell() Use Case, Convert GitHub Action to JavaScript, Beads Task Tracking (+10 more)
-
-### Community 69 - "skill file gateway test"
-Cohesion: 0.2
-Nodes (10): FileSystemSkillFileGateway, chance, content, emptyDir, externalDir, filePath, githubDir, result (+2 more)
-
-### Community 70 - "workflow generator"
-Cohesion: 0.31
-Nodes (15): findResolvedVersion(), appendMissingStepsToJob(), buildStepFromCandidate(), buildStepsFromCandidates(), buildUsesValue(), CandidateToStepOptions, DEFAULT_ACTION_VERSIONS, defaultActionVersionPort (+7 more)
-
-### Community 71 - "init copilot setup workflow"
-Cohesion: 0.21
-Nodes (11): EnvironmentGateway, initCopilotSetupWorkflow(), InitCopilotSetupWorkflowInput, InitCopilotSetupWorkflowOutput, environmentGateway, makeEnvironmentGateway(), makeWorkflowGateway(), stubConfig (+3 more)
-
-### Community 72 - "lesson schema test"
+### Community 65 - "Module Group 65"
 Cohesion: 0.22
 Nodes (13): LessonFrontmatter, LessonFrontmatterSchema, chance, data, longPattern, longTag, messages, paths (+5 more)
 
-### Community 73 - "Webapp Template Scaffolding"
+### Community 66 - "Module Group 66"
+Cohesion: 0.2
+Nodes (10): FileSystemSkillFileGateway, chance, content, emptyDir, externalDir, filePath, githubDir, result (+2 more)
+
+### Community 67 - "Module Group 67"
+Cohesion: 0.16
+Nodes (15): readBytesWithinRoot(), absolutePath, asciiPad, bytes, largeContent, outsidePath, result, symlinkDir (+7 more)
+
+### Community 68 - "Module Group 68"
+Cohesion: 0.14
+Nodes (17): ActionToResolve and ResolvedVersion Data Models, PolicyDecisionEvent Telemetry, Claude SessionStart Hooks, buildActionsToResolve(), checkCopilotReviewRuleset Use Case, ClaudeFileGateway, Claude Setup Use Case, create_copilot_setup_workflow MCP Tool (+9 more)
+
+### Community 69 - "Module Group 69"
 Cohesion: 0.15
 Nodes (17): Common Template Nodes, Dynamic Project-Level Templating for Webapp Scaffolding, Eta Template Processing, Declarative Filesystem Structure, CLI Options for Init Command, Init Command, --kind Init Option, Project Type Selection for Init Command (+9 more)
 
-### Community 74 - "script discovery gateway test"
-Cohesion: 0.23
-Nodes (14): chance, dir, gateway, gatewayWithLogger, logger, mandatory, mandatoryName, nonMandatory (+6 more)
+### Community 71 - "Module Group 71"
+Cohesion: 0.15
+Nodes (14): Mode, parseInitOptions(), parsePolicyInitOptions(), resolveMode(), args, chance, command, env (+6 more)
 
-### Community 75 - "discover feedback loops test"
-Cohesion: 0.22
-Nodes (11): DiscoverFeedbackLoopsUseCase, PackageManagerGateway, chance, mockPackageManagers, mockScripts, mockTools, packageManagerGateway, scriptGateway (+3 more)
-
-### Community 77 - "claude hook input schema"
+### Community 72 - "Module Group 72"
 Cohesion: 0.3
 Nodes (11): ClaudePreToolUseHookInput, ClaudePreToolUseHookInputSchema, ClaudeSessionStartHookInput, ClaudeSessionStartHookInputSchema, ClaudeStopHookInput, ClaudeStopHookInputSchema, ClaudeSubagentStopHookInput, ClaudeSubagentStopHookInputSchema (+3 more)
 
-### Community 78 - "File System Workflow Gateway"
-Cohesion: 0.18
-Nodes (6): FileSystemWorkflowGateway, chance, externalDir, githubDir, oversizedYaml, workflowsDir
-
-### Community 79 - "agent lint gateway test"
+### Community 73 - "Module Group 73"
 Cohesion: 0.21
 Nodes (10): FileSystemAgentLintGateway, agentsDir, chance, filePath, linkFile, names, oversizeContent, realFile (+2 more)
 
-### Community 80 - "new test"
+### Community 74 - "Module Group 74"
+Cohesion: 0.24
+Nodes (11): DiscoveredScript, DiscoveredTool, FeedbackLoopCoverage, chance, outsideTarget, realDir, scripts, tools (+3 more)
+
+### Community 75 - "Module Group 75"
+Cohesion: 0.18
+Nodes (6): FileSystemWorkflowGateway, chance, externalDir, githubDir, oversizedYaml, workflowsDir
+
+### Community 76 - "Module Group 76"
 Cohesion: 0.15
 Nodes (13): copilotAgentArgs, newCommand, skillArgs, skillCommand, agentFile, agentName, agentsDir, chance (+5 more)
 
-### Community 81 - "record test"
-Cohesion: 0.16
-Nodes (13): TelemetryDeps, chance, command, createMockDeps(), createMockTelemetryDeps(), deps, longCommand, parsed (+5 more)
-
-### Community 82 - "build Webapp Structure"
+### Community 77 - "Module Group 77"
 Cohesion: 0.18
 Nodes (15): buildCliStructure, buildCommonNodes, buildRestApiStructure, buildWebappStructure, getProjectStructure, loadInitConfig, readCliTemplateFile, readRestApiTemplateFile (+7 more)
 
-### Community 83 - "Hostile Reviewer Agent"
+### Community 78 - "Module Group 78"
 Cohesion: 0.16
 Nodes (15): TDD Required Workflow, Feature Planner Agent, Conversational Spec Planning Flow, Copilot Feature To Spec Issue Template, Orient Create Validate Phases, Adversarial Simulation Review, Hostile Reviewer Agent, Negative Findings Only Review Output (+7 more)
 
-### Community 84 - "tool discovery gateway test"
-Cohesion: 0.2
-Nodes (7): FileSystemToolDiscoveryGateway, chance, ciWorkflow, goodWorkflow, npmTestCommands, releaseWorkflow, workflow
-
-### Community 85 - "init integration test"
-Cohesion: 0.14
-Nodes (11): initCommand, biomeConfig, biomeConfigPath, body, chance, host, mappedPort, nodeVersion (+3 more)
-
-### Community 86 - "git utils test"
-Cohesion: 0.15
-Nodes (10): getRepositoryRoot, GIT_ENV_VARS_TO_SANITIZE, GitCommandExecutor, capturedEnv, chance, env, executor, getRepositoryRoot (+2 more)
-
-### Community 87 - "types test"
-Cohesion: 0.14
-Nodes (9): allowRules, chance, config, denyRules, event, hookEntry, longRule, matchedRule (+1 more)
-
-### Community 88 - "markdown ast gateway test"
+### Community 79 - "Module Group 79"
 Cohesion: 0.24
 Nodes (9): RemarkMarkdownAstGateway, chance, filePath, gateway, linkFile, oversizeContent, realFile, result (+1 more)
 
-### Community 89 - "agent shell pre Tool Use"
+### Community 80 - "Module Group 80"
+Cohesion: 0.31
+Nodes (9): determineScriptPhase(), FeedbackLoopPhase, InstructionReference, isScriptMandatory(), MANDATORY_SCRIPT_NAMES, SCRIPT_PHASE_MAPPING, mandatoryPhases, nonMandatoryPhases (+1 more)
+
+### Community 81 - "Module Group 81"
 Cohesion: 0.2
-Nodes (14): Copilot SDK Advisory Enhancement, agent-shell Flight Recorder Hooks, Agent-Shell Hook Lifecycle Configuration, Agent-Shell Policy Configuration Schema, agent-shell policy --init, agent-shell preToolUse Policy Check, Copilot preToolUse Hook Contract, ToolUseEvent Telemetry Schema (+6 more)
+Nodes (7): FileSystemToolDiscoveryGateway, chance, ciWorkflow, goodWorkflow, npmTestCommands, releaseWorkflow, workflow
 
-### Community 90 - "action version gateway test"
-Cohesion: 0.32
-Nodes (7): ActionVersionGateway, createActionVersionGateway(), DEFAULT_ACTION_VERSIONS, KNOWN_ACTIONS, LocalActionVersionGateway, actionNames, gateway
+### Community 82 - "Module Group 82"
+Cohesion: 0.14
+Nodes (11): initCommand, biomeConfig, biomeConfigPath, body, chance, host, mappedPort, nodeVersion (+3 more)
 
-### Community 91 - "lint command"
-Cohesion: 0.17
-Nodes (13): lint integration tests, createLessonFileGateway, lint-lessons command, LintLessonsUseCase.execute, makeGateway, runLintLessons, lint subcommand guard tests, lint command (+5 more)
+### Community 83 - "Module Group 83"
+Cohesion: 0.15
+Nodes (10): getRepositoryRoot, GIT_ENV_VARS_TO_SANITIZE, GitCommandExecutor, capturedEnv, chance, env, executor, getRepositoryRoot (+2 more)
 
-### Community 92 - "Use Cases Index Module"
-Cohesion: 0.22
-Nodes (13): allActionsResolved, buildActionsToResolve, buildActionToResolve, generateLookupUrl, buildPackageManagerHooks, buildRuntimeHooks, buildSessionStartHooks, generateEnvironmentSetupSection (+5 more)
+### Community 84 - "Module Group 84"
+Cohesion: 0.19
+Nodes (12): extractEsmEntry(), findEsmEntry(), resolveExportsImportEntry(), resolveSdkPath(), cjsDir, distDir, esmDir, libDir (+4 more)
 
-### Community 93 - "instruction file discovery gateway test"
+### Community 85 - "Module Group 85"
 Cohesion: 0.21
 Nodes (8): FileSystemInstructionFileDiscoveryGateway, agentsDir, chance, externalDir, externalFile, formats, githubDir, instructionsDir
 
-### Community 94 - "Use Cases Layer"
+### Community 86 - "Module Group 86"
+Cohesion: 0.24
+Nodes (10): extractBody(), LessonFileGateway, bigContent, content, createLessonsDir(), makeTmpDir(), realDir, types (+2 more)
+
+### Community 87 - "Module Group 87"
+Cohesion: 0.32
+Nodes (7): ActionVersionGateway, createActionVersionGateway(), DEFAULT_ACTION_VERSIONS, KNOWN_ACTIONS, LocalActionVersionGateway, actionNames, gateway
+
+### Community 88 - "Module Group 88"
 Cohesion: 0.17
-Nodes (13): PolicyDecisionEvent Telemetry, Repository Root Discovery via git rev-parse, evaluatePolicy(), agent-shell policy-check Mode, Clean Architecture Dependency Rule, Constructor Injection, Entities Layer, Infrastructure Composition Root (+5 more)
+Nodes (11): formatErrorMessage(), generateCopilotSetupWorkflow(), INIT_RESOLVED_VERSIONS, initArgs, PROJECT_TYPE_CONFIGS, ProjectNameResult, ProjectTypeConfig, ProjectTypeSchema (+3 more)
 
-### Community 95 - "Adapters Layer"
+### Community 89 - "Module Group 89"
+Cohesion: 0.17
+Nodes (13): lint integration tests, createLessonFileGateway, lint-lessons command, LintLessonsUseCase.execute, makeGateway, runLintLessons, lint subcommand guard tests, lint command (+5 more)
+
+### Community 90 - "Module Group 90"
+Cohesion: 0.22
+Nodes (13): allActionsResolved, buildActionsToResolve, buildActionToResolve, generateLookupUrl, buildPackageManagerHooks, buildRuntimeHooks, buildSessionStartHooks, generateEnvironmentSetupSection (+5 more)
+
+### Community 91 - "Module Group 91"
 Cohesion: 0.15
-Nodes (13): ActionToResolve and ResolvedVersion Data Models, Claude SessionStart Hooks, buildActionsToResolve(), checkCopilotReviewRuleset Use Case, ClaudeFileGateway, Claude Setup Use Case, create_copilot_setup_workflow MCP Tool, generateWorkflowContent() (+5 more)
+Nodes (12): chance, config, deps, existingContent, fullOutput, hooks, hooksDir, output (+4 more)
 
-### Community 96 - "index"
+### Community 92 - "Module Group 92"
+Cohesion: 0.3
+Nodes (10): PackageManagerGateway, chance, mockPackageManagers, mockScripts, mockTools, packageManagerGateway, scriptGateway, scriptPhases (+2 more)
+
+### Community 93 - "Module Group 93"
 Cohesion: 0.24
 Nodes (6): buildApp(), address, app, port, parsePort(), result
 
-### Community 97 - "init"
-Cohesion: 0.18
-Nodes (10): formatErrorMessage(), INIT_RESOLVED_VERSIONS, initArgs, PROJECT_TYPE_CONFIGS, ProjectNameResult, ProjectTypeConfig, ProjectTypeSchema, scaffoldProject() (+2 more)
-
-### Community 98 - "sanitize"
-Cohesion: 0.21
-Nodes (10): isSafeCommand(), sanitizeOutput(), sanitizePromptValue(), chance, err, long, metachars, msg (+2 more)
-
-### Community 99 - "register Tools"
-Cohesion: 0.27
-Nodes (12): analyzeActionVersionsHandler, buildUniqueActionsMap, parseWorkflowFile, discoverEnvironmentHandler, discoverWorkflowSetupActionsHandler, analyzeInstructionQualityHandler, createClaudeCodeWebSetupHandler, discoverFeedbackLoopsHandler (+4 more)
-
-### Community 100 - "run Lint"
+### Community 94 - "Module Group 94"
 Cohesion: 0.26
 Nodes (12): Public lint type contract, LintValidationError, Public lint API, lintAgents, Lint composition root, lintHooks, lintInstructions, lintSkills (+4 more)
 
-### Community 101 - "claude hook response"
+### Community 95 - "Module Group 95"
+Cohesion: 0.27
+Nodes (12): analyzeActionVersionsHandler, buildUniqueActionsMap, parseWorkflowFile, discoverEnvironmentHandler, discoverWorkflowSetupActionsHandler, analyzeInstructionQualityHandler, createClaudeCodeWebSetupHandler, discoverFeedbackLoopsHandler (+4 more)
+
+### Community 96 - "Module Group 96"
+Cohesion: 0.27
+Nodes (9): ProjectScanResult, sanitizePromptValue(), result, scanResult, buildAnalysisPrompt(), buildSystemMessage(), formatMiseTasksSummary(), formatScriptsSummary() (+1 more)
+
+### Community 97 - "Module Group 97"
+Cohesion: 0.21
+Nodes (12): Copilot SDK Advisory Enhancement, Agent-Shell Policy Configuration Schema, agent-shell policy --init, agent-shell preToolUse Policy Check, Copilot preToolUse Hook Contract, Repository Root Discovery via git rev-parse, enhanceWithCopilot(), loadPolicy() (+4 more)
+
+### Community 98 - "Module Group 98"
 Cohesion: 0.36
 Nodes (7): AdditionalContextPayload, buildAdditionalContextResponse(), buildPermissionDecisionResponse(), ClaudeHookEventName, PermissionDecisionPayload, parsed, result
 
-### Community 102 - "init bundle integration test"
-Cohesion: 0.18
-Nodes (10): bundleContent, chance, cliPackageDir, copilotInstructionsPath, distExists, distPath, installDir, outputDir (+2 more)
+### Community 99 - "Module Group 99"
+Cohesion: 0.29
+Nodes (7): initCopilotSetupWorkflow(), environmentGateway, makeEnvironmentGateway(), makeWorkflowGateway(), stubConfig, workflowGateway, [, writtenContent]
 
-### Community 103 - "capture"
+### Community 100 - "Module Group 100"
+Cohesion: 0.29
+Nodes (6): DiscoveredFeedbackLoops, DiscoverFeedbackLoopsInput, DiscoverFeedbackLoopsOutput, DiscoverFeedbackLoopsUseCase, ScriptDiscoveryGateway, ToolDiscoveryGateway
+
+### Community 102 - "Module Group 102"
 Cohesion: 0.22
 Nodes (6): captureCommand, CaptureLogger, readStdin(), StdinResult, mock, StdinMock
 
-### Community 104 - "safe fs"
-Cohesion: 0.36
-Nodes (9): createSafeRoot(), listDirectoryWithinRoot(), mapFsSafeError(), pathExistsWithinRoot(), readBytesWithinRoot(), readTextWithinRoot(), SafeDirEntry, SafePathStat (+1 more)
+### Community 103 - "Module Group 103"
+Cohesion: 0.18
+Nodes (10): bundleContent, chance, cliPackageDir, copilotInstructionsPath, distExists, distPath, installDir, outputDir (+2 more)
 
-### Community 105 - "Init Hooks Config Gateway"
+### Community 104 - "Module Group 104"
+Cohesion: 0.2
+Nodes (10): chance, command, createMockDeps(), createMockTelemetryDeps(), deps, longCommand, parsed, payload (+2 more)
+
+### Community 105 - "Module Group 105"
 Cohesion: 0.18
 Nodes (11): FileSystemClaudeFileGateway, Claude File Gateway Tests, DetectedEnvironment, FileSystemHookConfigGateway, Hook config gateway tests, Init Hooks Error Tests, hasPrototypePollutionKey, InitHooksConfigGateway (+3 more)
 
-### Community 106 - "generate Workflow Content"
-Cohesion: 0.31
-Nodes (11): mergeClaudeSettings, buildCandidatesFromEnvironment, Copilot Setup Module, Workflow Generator Tests, initCopilotSetupWorkflow Tests, mergeCandidates, appendMissingStepsToJob, buildStepFromCandidate (+3 more)
+### Community 106 - "Module Group 106"
+Cohesion: 0.22
+Nodes (9): sanitizeForStderr(), sanitizeOutput(), chance, err, long, metachars, msg, result (+1 more)
 
-### Community 107 - "npmrc gateway test"
+### Community 107 - "Module Group 107"
 Cohesion: 0.24
 Nodes (5): createNpmrcGateway(), FileSystemNpmrcGateway, chance, dryRunGateway, result
 
-### Community 108 - "lesson file gateway test"
-Cohesion: 0.36
-Nodes (8): bigContent, content, createLessonsDir(), makeTmpDir(), realDir, types, validFrontmatter(), writes
-
-### Community 110 - "Copilot Hook Command Schema"
+### Community 108 - "Module Group 108"
 Cohesion: 0.22
 Nodes (10): CopilotHookCommandSchema, CopilotHooksConfigSchema, Prototype pollution guard, DiscoveredHookFile, HookLintDiagnostic, HookLintResult, Hook schema validation contract, LintDiagnostic (+2 more)
 
-### Community 111 - "telemetry test"
+### Community 109 - "Module Group 109"
+Cohesion: 0.38
+Nodes (8): createSafeRoot(), listDirectoryWithinRoot(), mapFsSafeError(), pathExistsWithinRoot(), readTextWithinRoot(), SafeDirEntry, SafePathStat, statWithinRoot()
+
+### Community 110 - "Module Group 110"
 Cohesion: 0.22
 Nodes (7): handleRecord, emitPolicyDecisionEvent, emitScriptEndEvent, emitShimErrorEvent, emitToolUseEvent, resolveSessionId, resolveWriteEventsDir
 
-### Community 112 - "create Mcp Server"
+### Community 111 - "Module Group 111"
 Cohesion: 0.22
 Nodes (9): Lint Rspack bundle config, Hosted GitHub Copilot, @lousy-agents/mcp, VS Code MCP integration, MCP Rspack bundle config, main, McpTestClient, createMcpServer (+1 more)
 
-### Community 113 - "frontmatter"
-Cohesion: 0.54
-Nodes (4): FrontmatterParseResult, parseFrontmatter(), parseFrontmatterWithError(), result
+### Community 112 - "Module Group 112"
+Cohesion: 0.39
+Nodes (9): buildCandidatesFromEnvironment, Copilot Setup Module, Workflow Generator Tests, initCopilotSetupWorkflow Tests, appendMissingStepsToJob, buildStepFromCandidate, buildStepsFromCandidates, generateWorkflowContent (+1 more)
 
-### Community 114 - "capture prompt use case"
+### Community 113 - "Module Group 113"
+Cohesion: 0.31
+Nodes (9): mergeClaudeSettings, extractSetupStepsFromWorkflow, findMissingCandidates, forEachWorkflowStep, getExistingActionsFromWorkflow, mergeCandidates, parseActionName, parseActionVersion (+1 more)
+
+### Community 114 - "Module Group 114"
 Cohesion: 0.43
 Nodes (4): buildCapturePrompt(), CapturePromptInput, CapturePromptOutput, result
 
-### Community 115 - "file system utils test"
+### Community 115 - "Module Group 115"
+Cohesion: 0.54
+Nodes (4): FrontmatterParseResult, parseFrontmatter(), parseFrontmatterWithError(), result
+
+### Community 116 - "Module Group 116"
 Cohesion: 0.25
 Nodes (7): before, chance, content, filePath, linkFile, realFile, target
 
-### Community 116 - "capture test"
+### Community 117 - "Module Group 117"
 Cohesion: 0.29
 Nodes (6): chance, logger, makeStdinMock(), mock, runCapture(), StdinMock
 
-### Community 117 - "copilot enhance test"
+### Community 118 - "Module Group 118"
 Cohesion: 0.25
-Nodes (7): absolutePath, asciiPad, bytes, largeContent, outsidePath, result, symlinkDir
+Nodes (7): configFiles, directoryNodes, fileNode, fileNodes, githubDir, githubFiles, instructionsDir
 
-### Community 118 - "Copilot Setup Config tests"
+### Community 119 - "Module Group 119"
+Cohesion: 0.29
+Nodes (4): ScriptEvent, SessionSummary, formatSessionsTable(), padRight()
+
+### Community 120 - "Module Group 120"
 Cohesion: 0.29
 Nodes (8): getVersionFileConfigKeyMap, getVersionFilenameToTypeMap, getVersionTypeToActionMap, loadCopilotSetupConfig, Copilot Setup Config tests, validateCopilotSetupConfig, loadLintConfig, loadLintConfig tests
 
-### Community 119 - "create Copilot Agent Use Case"
+### Community 121 - "Module Group 121"
 Cohesion: 0.25
 Nodes (8): Agent Reviewer Agent, Agent Archetype Dimensions, Behavioral Contract Review, Agent Review Priority Mapping, AgentFileGateway, CopilotAgent Entity, createCopilotAgent Use Case, Copilot Agent Scaffolding via CLI
 
-### Community 120 - "Lousy Agents"
+### Community 122 - "Module Group 122"
+Cohesion: 0.32
+Nodes (8): agent-shell Flight Recorder Hooks, Agent-Shell Hook Lifecycle Configuration, copilot-setup Agent-Shell npm Integration, ToolUseEvent Telemetry Schema, addAgentShell() Use Case, agent-shell init Mode, agent-shell record Mode, NpmrcGateway
+
+### Community 123 - "Module Group 123"
 Cohesion: 0.25
 Nodes (7): citty CLI Template, CLI Project Scaffolding Init Command, Implement Spec Prompt, c12 Configuration Engine, npx @lousy-agents/cli init, High-Velocity Decision Making, Lousy Agents
 
-### Community 121 - "init hooks test"
+### Community 124 - "Module Group 124"
 Cohesion: 0.48
 Nodes (5): createInitHooksCommand(), initHooksCommand, makeCommand(), mockInitHooks, runInitHooks()
 
-### Community 122 - "build Capture Prompt"
+### Community 125 - "Module Group 125"
 Cohesion: 0.33
 Nodes (7): buildCapturePrompt, CapturePromptUseCase tests, ClaudeStopHookInputSchema, ClaudeSubagentStopHookInputSchema, LessonFileGatewayPort, LintLessonsUseCase, LintLessonsUseCase tests
 
-### Community 123 - "Setup Step Discovery Tests"
-Cohesion: 0.43
-Nodes (7): extractSetupStepsFromWorkflow, findMissingCandidates, forEachWorkflowStep, getExistingActionsFromWorkflow, parseActionName, parseActionVersion, Setup Step Discovery Tests
-
-### Community 124 - "create Copilot Setup Workflow Handler"
-Cohesion: 0.43
-Nodes (7): findResolvedVersion, formatShaPinnedAction, getActionVersion, SHA-pinned workflow versions, createCopilotSetupWorkflowHandler, buildUsesValue, getCheckoutVersion
-
-### Community 125 - "Lesson Context Use Case"
+### Community 126 - "Module Group 126"
 Cohesion: 0.38
 Nodes (7): buildCapturePrompt, extractPathSegments, LessonContextUseCase, matchesLesson, renderLesson, LessonContextUseCase Tests, Lesson Frontmatter Schema Contract Tests
 
-### Community 127 - "environment gateway test"
+### Community 127 - "Module Group 127"
+Cohesion: 0.43
+Nodes (7): findResolvedVersion, formatShaPinnedAction, getActionVersion, SHA-pinned workflow versions, createCopilotSetupWorkflowHandler, buildUsesValue, getCheckoutVersion
+
+### Community 129 - "Module Group 129"
 Cohesion: 0.53
 Nodes (4): chance, externalDir, externalFile, oversizedVersion
 
-### Community 128 - "Lesson Capture and Context Injection"
+### Community 130 - "Module Group 130"
 Cohesion: 0.53
 Nodes (6): Context Injection Hook, Error Behavior Matrix, Lesson Capture and Context Injection, Repository Lesson Storage, Lesson Matching Rules, Passive Runtime
 
-### Community 129 - "DEFAULT SETUP ACTIONS"
+### Community 131 - "Module Group 131"
 Cohesion: 0.33
 Nodes (6): DEFAULT_PACKAGE_MANAGERS, DEFAULT_SETUP_ACTIONS, DEFAULT_COPILOT_SETUP_CONFIG, PACKAGE_MANAGER_INSTALL_COMMANDS, getVersionTypeToActionMap, getVersionFileConfigKeyMap
 
-### Community 132 - "Claude setup contract"
+### Community 134 - "Module Group 134"
+Cohesion: 0.4
+Nodes (4): chance, env, overrideValue, result
+
+### Community 135 - "Module Group 135"
 Cohesion: 0.7
 Nodes (5): ClaudeSettings, ClaudeSetupResult, ClaudeEnvironmentRecommendation, SessionStartHook, Claude setup contract
 
-### Community 133 - "Local Action Version Gateway"
+### Community 136 - "Module Group 136"
 Cohesion: 0.6
 Nodes (5): createActionVersionGateway, LocalActionVersionGateway, Action Version Gateway Tests, ActionToResolve, ResolvedVersion
 
-### Community 134 - "Git Hub Ruleset Gateway tests"
+### Community 137 - "Module Group 137"
 Cohesion: 0.6
 Nodes (5): createGitHubRulesetGateway, OctokitRulesetGateway, parseRepoFromRemoteUrl, resolveGitHubToken, GitHub Ruleset Gateway tests
 
-### Community 135 - "Lesson File Gateway tests"
-Cohesion: 0.4
-Nodes (5): FileSystemEnvironmentGateway, EnvironmentGateway tests, LessonFileGateway, LessonFileGateway tests, LessonFrontmatterSchema
-
-### Community 136 - "Claude hook payload schema tests"
+### Community 138 - "Module Group 138"
 Cohesion: 0.4
 Nodes (5): ClaudePreToolUseHookInputSchema, ClaudeSessionStartHookInputSchema, ClaudeStopHookInputSchema, ClaudeSubagentStopHookInputSchema, Claude hook payload schema tests
 
-### Community 137 - "lint subcommand guard test"
+### Community 139 - "Module Group 139"
+Cohesion: 0.4
+Nodes (5): FileSystemEnvironmentGateway, EnvironmentGateway tests, LessonFileGateway, LessonFileGateway tests, LessonFrontmatterSchema
+
+### Community 140 - "Module Group 140"
+Cohesion: 0.4
+Nodes (5): Constructor Injection, Arrange-Act-Assert Tests, Chance MSW Vitest Stack, Dependency Injection for Testing, Testing Conventions
+
+### Community 141 - "Module Group 141"
 Cohesion: 0.5
 Nodes (3): lintCommand, { mockRunLint }, stubLessonsCmd
 
-### Community 138 - "Lesson entity contract"
+### Community 142 - "Module Group 142"
 Cohesion: 0.83
 Nodes (4): Lesson, LessonProvenance, LessonTriggers, Lesson entity contract
 
-### Community 139 - "generate Skill Content contract"
+### Community 143 - "Module Group 143"
 Cohesion: 0.67
 Nodes (4): generateAgentContent contract, normalizeAgentName contract, generateSkillContent contract, normalizeSkillName contract
 
-### Community 140 - "parse Frontmatter"
+### Community 144 - "Module Group 144"
 Cohesion: 0.67
 Nodes (4): parseFrontmatter, parseFrontmatterWithError, frontmatter parser tests, FileSystemSkillLintGateway
 
-### Community 141 - "send Request"
+### Community 145 - "Module Group 145"
 Cohesion: 0.5
 Nodes (4): callTool, initialize, listTools, sendRequest
 
-### Community 147 - "Vitest Integration Config"
+### Community 151 - "Module Group 151"
 Cohesion: 1.0
 Nodes (3): Vitest Integration Config, whatwg-fetch Polyfill, Vitest Config
 
-### Community 152 - "skill Command"
+### Community 156 - "Module Group 156"
 Cohesion: 0.67
 Nodes (3): skillCommand, Skill command tests, Skill scaffold
-
-### Community 153 - "packages action Java Script Entrypoint"
-Cohesion: 0.67
-Nodes (3): packages/action JavaScript Entrypoint, Core Lint Use Cases, Reviewdog rdjsonl Reporting
 
 ## Ambiguous Edges - Review These
 - `GitHub Action for Instruction/Agent/Skill Linting` → `Auto-Assign Copilot on Spec Issues Workflow`  [AMBIGUOUS]
   .github/workflows/assign-copilot.yml · relation: conceptually_related_to
 
 ## Knowledge Gaps
-- **963 isolated node(s):** `__dirname`, `__dirname`, `__dirname`, `config`, `LintLogger` (+958 more)
+- **967 isolated node(s):** `__dirname`, `__dirname`, `__dirname`, `config`, `LintLogger` (+962 more)
   These have ≤1 connection - possible missing edges or undocumented components.
 - **29 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -787,15 +800,15 @@ _Questions this graph is uniquely positioned to answer:_
 
 - **What is the exact relationship between `GitHub Action for Instruction/Agent/Skill Linting` and `Auto-Assign Copilot on Spec Issues Workflow`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **Why does `main()` connect `telemetry` to `policy init`, `validate inputs`, `init command`, `index`, `shim test`, `policy check`, `log command`?**
+- **Why does `main()` connect `Git Utils & Shim` to `GitHub Action Runner`, `Module Group 71`, `Module Group 106`, `Agent Shell Policy & Config`, `Agent Shell Log Queries`, `Lint CLI Commands`, `Agent Shell Config Schema`, `Policy & Validation`?**
   _High betweenness centrality (0.150) - this node is a cross-community bridge._
-- **Why does `readFileNoFollow()` connect `file system utils` to `lint hook config test`, `context test`, `init hooks config gateway`, `skill lint gateway test`, `agent lint gateway test`, `script discovery gateway`, `file system utils test`, `analyze instruction quality`, `markdown ast gateway test`, `skill`?**
+- **Why does `readFileNoFollow()` connect `Copilot Hook Schema` to `Context Hook Command`, `Script Discovery Gateways`, `Hook Config Gateway`, `Module Group 73`, `Skill Lint Gateway`, `Module Group 79`, `Module Group 80`, `Module Group 116`, `Module Group 86`, `Instruction Quality Entities`, `Module Group 62`, `Agent Lint Use Cases`, `Safe Filesystem Utilities`?**
   _High betweenness centrality (0.112) - this node is a cross-community bridge._
-- **Why does `readFileContents()` connect `context test` to `file system utils`?**
-  _High betweenness centrality (0.100) - this node is a cross-community bridge._
+- **Why does `readFileContents()` connect `Context Hook Command` to `Copilot Hook Schema`?**
+  _High betweenness centrality (0.099) - this node is a cross-community bridge._
 - **What connects `__dirname`, `__dirname`, `__dirname` to the rest of the system?**
-  _963 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `apply severity filter test` be split into smaller, more focused modules?**
+  _967 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Lint Domain Entities` be split into smaller, more focused modules?**
   _Cohesion score 0.06 - nodes in this community are weakly interconnected._
-- **Should `check copilot review ruleset test` be split into smaller, more focused modules?**
+- **Should `Copilot Hook Schema` be split into smaller, more focused modules?**
   _Cohesion score 0.06 - nodes in this community are weakly interconnected._
