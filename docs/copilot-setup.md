@@ -117,6 +117,7 @@ Would you like to add agent-shell to observe npm script execution? (Y/n)
 When accepted, the command adds `script-shell=agent-shell` to the project's `.npmrc`, creating the file if it does not exist. If an existing `script-shell` entry is already present, the update is skipped with an info message.
 
 > **Prerequisite:** `agent-shell` must be installed globally so it is available on `PATH` before `npm ci` runs:
+>
 > ```bash
 > npm install -g @lousy-agents/agent-shell
 > ```

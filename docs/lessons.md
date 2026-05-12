@@ -38,7 +38,7 @@ npx @lousy-agents/cli init-hooks [options]
 ```
 
 | Flag | Default | Description |
-|---|---|---|
+| --- | --- | --- |
 | `--force` | `false` | Overwrite existing hook entries even if already configured |
 | `--no-session-start` | `false` | Disable the `SessionStart` hook for invariant injection (enabled by default) |
 
@@ -96,7 +96,7 @@ echo '{}' | npx @lousy-agents/cli context --files src/auth/policy.ts
 ```
 
 | Flag | Description |
-|---|---|
+| --- | --- |
 | `--files <paths>` | Comma-separated file paths to match against (overrides stdin; for debugging) |
 
 ---
@@ -116,7 +116,7 @@ Lesson files live at `.lousy-agents/lessons/<slug>.md`. The filename stem must m
 **Frontmatter fields:**
 
 | Field | Type | Required | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `slug` | `string` | ✅ | Unique identifier matching `^[a-z0-9-]+$` (no path separators or dot-dot) |
 | `title` | `string` | ✅ | Human-readable lesson title |
 | `type` | `"invariant" \| "pattern"` | ✅ | `invariant` — always-on, injected at SessionStart; `pattern` — context-matched only |
@@ -160,7 +160,7 @@ When implementing policy or permission decisions, always default to **deny** whe
 The lesson system enforces caps to prevent hook latency from growing unbounded:
 
 | Resource | Limit |
-|---|---|
+| --- | --- |
 | Total lesson files | 100 |
 | Aggregate lesson content | 512 KB |
 | `triggers.tags` array length | 20 entries |

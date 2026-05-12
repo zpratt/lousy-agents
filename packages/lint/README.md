@@ -61,7 +61,7 @@ try {
 **Options:**
 
 | Property | Type | Required | Description |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `directory` | `string` | ✅ | Absolute or relative path to the project directory to lint |
 | `targets.skills` | `boolean` | — | Lint skill files (`.github/skills/`) |
 | `targets.agents` | `boolean` | — | Lint agent files (`.github/agents/`) |
@@ -88,7 +88,7 @@ console.log(formatter.format(result.outputs));
 ```
 
 | Format | Description |
-|---|---|
+| --- | --- |
 | `'human'` | Human-readable text, one diagnostic per line |
 | `'json'` | JSON array of all diagnostics |
 | `'rdjsonl'` | [Reviewdog Diagnostic Format](https://github.com/reviewdog/reviewdog) JSONL (one JSON object per line) — for CI integrations |
@@ -148,7 +148,7 @@ import type {
 **Key types:**
 
 | Type | Description |
-|---|---|
+| --- | --- |
 | `LintResult` | Top-level result: `outputs` array + `hasErrors` boolean |
 | `LintOutput` | Per-target result: `diagnostics`, `filesAnalyzed`, `summary`, optional `qualityResult` |
 | `LintDiagnostic` | Single diagnostic: `filePath`, `line`, `severity`, `message`, `ruleId`, `target` |
