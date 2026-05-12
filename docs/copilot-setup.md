@@ -10,6 +10,7 @@ Analyzes your project and automatically generates a GitHub Actions workflow (`co
 - **Incremental Updates**: Only adds missing setup steps to existing workflows
 - **Package Manager Detection**: Detects lockfiles and adds dependency install steps
 - **PR Review Ruleset**: Checks for and creates Copilot PR review rulesets with code scanning rules based on your repository's security configuration
+- **npm Script Observability**: Prompts npm projects to add `agent-shell` as the npm script shell for structured telemetry
 - **Zero Configuration**: Works out of the box for common project setups
 
 This workflow ensures GitHub Copilot has the same environment context as your CI/CD pipelines, improving code suggestions and reducing hallucinations.
@@ -104,6 +105,27 @@ npx @lousy-agents/cli copilot-setup
 npx @lousy-agents/cli copilot-setup
 # Adds actions/setup-python to existing workflow
 ```
+
+## npm Project Integration (agent-shell)
+
+After generating or updating the workflow, the command detects whether the project is an npm project. If it is, it prompts you to add [agent-shell](../packages/agent-shell/README.md) as npm's script shell for structured telemetry:
+
+```
+Would you like to add agent-shell to observe npm script execution? (Y/n)
+```
+
+When accepted, the command adds `script-shell=agent-shell` to the project's `.npmrc`, creating the file if it does not exist. If an existing `script-shell` entry is already present, the update is skipped with an info message.
+
+> **Prerequisite:** `agent-shell` must be installed globally so it is available on `PATH` before `npm ci` runs:
+> ```bash
+> npm install -g @lousy-agents/agent-shell
+> ```
+
+When the project is not an npm project (no `package.json`, or uses yarn/pnpm), this prompt is skipped entirely.
+
+See the [agent-shell README](../packages/agent-shell/README.md) for full telemetry schema and policy configuration.
+
+---
 
 ## Copilot PR Review Ruleset
 

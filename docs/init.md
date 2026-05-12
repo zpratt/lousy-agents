@@ -32,7 +32,10 @@ Scaffolds new projects with everything needed for effective AI-assisted developm
   - Auto-assignment workflow to assign Copilot on `copilot-ready` labeled issues
   - Specs directory with structured specification format
   - Copilot setup steps workflow
-- VSCode configuration with recommended extensions and debug launch config
+- VSCode configuration with:
+  - Recommended extensions and debug launch config
+  - MCP servers configuration (context7, sequential-thinking, lousy-agents)
+- CI workflow with lint, test, and build jobs
 - Dev Container setup with:
   - Pre-installed tools (GitHub CLI, actionlint, shellcheck, yamllint)
   - MCP servers pre-cached (context7-mcp, sequential-thinking)
