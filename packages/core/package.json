@@ -24,7 +24,7 @@
         "./lib/*": "./src/lib/*"
     },
     "dependencies": {
-        "@github-actions-workflow-ts/lib": "2.4.0",
+        "@github-actions-workflow-ts/lib": "2.5.0",
         "@octokit/rest": "22.0.1",
         "@openclaw/fs-safe": "0.2.2",
         "c12": "3.3.4",
