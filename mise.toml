@@ -19,7 +19,7 @@ pipx = "latest"
 shellcheck = "0.11.0"
 vhs = "0.11.0"
 yamllint = "1.38.0"                # Created with `mise use --pin yamllint`
-"pipx:semgrep" = "1.162.0"
+"pipx:semgrep" = "1.163.0"
 devcontainer-cli = "0.87.0"
 
 [tasks.yamllint]
