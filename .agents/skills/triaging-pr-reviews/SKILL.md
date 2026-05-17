@@ -1,8 +1,7 @@
 ---
 name: triaging-pr-reviews
-description: Use when analyzing PR review comments — especially from automated reviewers like GitHub Copilot — to classify root concerns, verify claims against actual code, evaluate trade-offs, and decide what to implement, reject, or implement differently
+description: Use when triaging or analyzing PR review comments — especially from automated reviewers like GitHub Copilot — to classify root concerns, verify claims against actual code, evaluate trade-offs, and decide what to implement, reject, or implement differently. Also use to process or respond to review feedback, handle Copilot suggestions, or sort through code review comments
 argument-hint: "PR number to analyze (e.g., #317). Optionally specify a source filter: 'copilot', 'human', or 'all' (default: all)"
-allowed-tools: read, terminal, search
 ---
 
 # Triaging PR Reviews
@@ -20,7 +19,16 @@ PR review comments — especially from automated reviewers — are hypotheses, n
 - Multiple review comments need prioritization before action
 - Review feedback seems technically questionable or conflicts with existing patterns
 
-## Workflow
+**Do NOT use when:**
+- Writing a new review or providing review comments on someone else's PR
+- The PR has no pending review comments to analyze
+
+## Prerequisites
+
+- **`gh` CLI** — must be installed and authenticated (`gh auth status` to verify)
+- **`jq`** — required for JSON filtering of API responses
+
+## Procedure
 
 ```
 DISCOVER → TRIAGE → VERIFY → CLASSIFY → EVALUATE → IMPLEMENT → RESOLVE
@@ -30,7 +38,7 @@ Each phase builds on the previous. Do not skip phases — automated reviewers fr
 
 ---
 
-## Phase 1: Discovery
+### Phase 1: Discovery
 
 Fetch all PR context. Run these commands to gather metadata, inline comments, and review summaries:
 
@@ -51,7 +59,7 @@ gh api repos/{owner}/{repo}/pulls/{number}/reviews --paginate \
 
 ---
 
-## Phase 2: Triage
+### Phase 2: Triage
 
 **Separate by source:**
 - **Human reviewers** — higher trust, likely reflects project intent
@@ -69,23 +77,23 @@ gh api repos/{owner}/{repo}/pulls/{number}/reviews --paginate \
 
 ---
 
-## Phase 3: Verification
+### Phase 3: Verification
 
 For each technical comment, read the actual code before forming any opinion:
 
-1. **Read the cited file and line** — does the code match what the reviewer describes?
-2. **Read the associated test file** — is there existing test coverage for this path?
-3. **Search for codebase patterns** — does the codebase already use the pattern the reviewer suggests, or deliberately avoid it?
-4. **Trace the code path** — can the scenario the reviewer describes actually be triggered by current callers?
+1. **Read the cited file and line** — open the exact path and line range cited by the reviewer. Does the code match what the reviewer describes?
+2. **Read the associated test file** — locate the corresponding test file (e.g., `**/*.test.*`) and check existing coverage for this path.
+3. **Search for codebase patterns** — search the codebase for other usages of the pattern the reviewer suggests. Does the codebase already use it, or deliberately avoid it?
+4. **Trace the code path** — search for callers of the affected function or module. Can the scenario the reviewer describes actually be triggered by current callers?
 
 ---
 
-## Phase 4: Classification
+### Phase 4: Classification
 
 Categorize the root concern driving each comment:
 
 | Category | Signal | Example |
-| ---------- | -------- | --------- |
+| --- | --- | --- |
 | **Security** | Injection, traversal, untrusted input, control chars | "Error message embeds unsanitized input" |
 | **Correctness** | False positives/negatives, edge cases, logic bugs | "`includes('..')` rejects valid names like `..foo`" |
 | **Performance** | Hot paths, unnecessary allocations, blocking calls | "Awaiting telemetry blocks the critical path" |
@@ -96,12 +104,12 @@ Categorize the root concern driving each comment:
 
 ---
 
-## Phase 5: Evaluation
+### Phase 5: Evaluation
 
 For each verified claim, assess these questions:
 
 | Question | Why It Matters |
-| ---------- | --------------- |
+| --- | --- |
 | Is the claim technically correct for THIS code? | Automated reviewers lack full context |
 | Can this scenario actually be triggered? | Latent bugs vs active vulnerabilities |
 | Would the suggested fix break existing tests? | Especially security and regression tests |
@@ -109,7 +117,7 @@ For each verified claim, assess these questions:
 | Is removing code better than fixing it? | Redundant checks that only produce false positives |
 | Is there a simpler alternative the reviewer didn't consider? | Reviewer optimizes locally; you see globally |
 
-### The Deliberate Design Trap
+#### The Deliberate Design Trap
 
 Automated reviewers cannot know WHY code was written a certain way. Before implementing "more idiomatic" or "simpler" suggestions:
 
@@ -122,7 +130,7 @@ Investigate WHY before changing.
 
 **Example:** A reviewer suggests replacing a hand-rolled glob matcher with regex for readability. The codebase has a ReDoS resistance test proving the hand-rolled approach was chosen to prevent catastrophic backtracking on untrusted input. The "improvement" would introduce a security vulnerability.
 
-### Validity Verdicts
+#### Validity Verdicts
 
 - **Implement as-suggested** — claim is correct, fix is appropriate
 - **Implement differently** — claim is correct, but a better fix exists (e.g., remove redundant code instead of tightening it)
@@ -131,9 +139,9 @@ Investigate WHY before changing.
 
 ---
 
-## Phase 6: Implementation
+### Phase 6: Implementation
 
-Follow the project's development workflow (TDD if required by the project) for every fix.
+Determine the project's development workflow before implementing. Search for TDD or test-first requirements in `copilot-instructions.md`, `AGENTS.md`, or `CONTRIBUTING.md`. If any of these files mandate TDD, write a failing test before each fix. Otherwise, write tests after the fix.
 
 **Priority order:**
 1. Security (active vulnerabilities, injection, traversal)
@@ -150,7 +158,7 @@ Follow the project's development workflow (TDD if required by the project) for e
 
 ---
 
-## Phase 7: Resolution
+### Phase 7: Resolution
 
 **Reply in the review thread** (not as a top-level PR comment):
 
@@ -226,7 +234,7 @@ Automated reviewers frequently flag Windows/POSIX compatibility. Before implemen
 ## Common Mistakes
 
 | Mistake | Fix |
-| --------- | ----- |
+| --- | --- |
 | Implementing without reading the code | Always verify the claim at the cited line |
 | Treating bot suggestions as requirements | They are hypotheses — verify each one |
 | Missing deliberate design choices | Search for tests that validate current behavior |
