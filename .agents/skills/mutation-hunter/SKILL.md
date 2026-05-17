@@ -12,7 +12,7 @@ You are a mutation testing agent. Your job is to find **surviving mutations** �
 ## Inputs
 
 | Argument | Required | Description |
-|:---|:---|:---|
+| :--- | :--- | :--- |
 | `mutations` | Yes | Number of mutations to attempt (e.g., `10`) |
 | `--target` | No | Glob pattern for source files to target (default: all non-test, non-declaration `.ts` files in `src/`, excluding `index.ts`) |
 
@@ -27,9 +27,11 @@ nvm use && npm test
 ```
 
 > If tests fail, output:
+>
 > ```json
 > { "error": "Baseline test run failed. Fix failing tests before running mutation-hunter.", "details": "<test output>" }
 > ```
+>
 > Then stop. Do not proceed with mutations on a broken baseline.
 
 ### Step 2 — Discover mutation targets
@@ -53,9 +55,11 @@ For each mutation in your selection:
 1. **Record** the original source of the target line.
 2. **Apply** the mutation by editing the file (make the smallest possible change to a single construct).
 3. **Run tests:**
+
    ```bash
    npm test 2>&1
    ```
+
 4. **Classify** the result:
    - Tests **fail** → mutation was **killed** ✅ (tests caught the change)
    - Tests **pass** → mutation **survived** ❌ (test gap found)
@@ -79,7 +83,7 @@ Apply **one mutation at a time** — never combine multiple changes in a single 
 Change relational operators to probe boundary conditions:
 
 | Original | Mutated | Rationale |
-|:---|:---|:---|
+| :--- | :--- | :--- |
 | `> n` | `>= n` | Weakens strict lower bound |
 | `< n` | `<= n` | Weakens strict upper bound |
 | `>= n` | `> n` | Strengthens lower bound (off-by-one) |
@@ -88,6 +92,7 @@ Change relational operators to probe boundary conditions:
 | `!== x` | `=== x` | Inverts inequality check |
 
 **Example:**
+
 ```typescript
 // Original
 if (size > MAX_SIZE) { throw new Error("Too large"); }
@@ -101,11 +106,12 @@ if (size >= MAX_SIZE) { throw new Error("Too large"); }
 Replace logical connectives to expose missing compound-condition tests:
 
 | Original | Mutated |
-|:---|:---|
+| :--- | :--- |
 | `&&` | `\|\|` |
 | `\|\|` | `&&` |
 
 **Example:**
+
 ```typescript
 // Original
 if (name && name.length > 0) { ... }
@@ -119,7 +125,7 @@ if (name || name.length > 0) { ... }
 Negate boolean constants:
 
 | Original | Mutated |
-|:---|:---|
+| :--- | :--- |
 | `true` | `false` |
 | `false` | `true` |
 
@@ -130,7 +136,7 @@ Only apply to boolean literals that are **used as values** (not as flags in cont
 Swap arithmetic operators to expose miscalculation tests:
 
 | Original | Mutated |
-|:---|:---|
+| :--- | :--- |
 | `a + b` | `a - b` |
 | `a - b` | `a + b` |
 | `a * b` | `a / b` |
@@ -143,7 +149,7 @@ Only apply where both operands are numeric and the expression result is used mea
 Replace a function's return value with a type-compatible empty/zero value:
 
 | Return type | Original | Mutated |
-|:---|:---|:---|
+| :--- | :--- | :--- |
 | `string` | `return computedString` | `return ""` |
 | `number` | `return computedNumber` | `return 0` |
 | `boolean` | `return expr` | `return false` |
@@ -151,6 +157,7 @@ Replace a function's return value with a type-compatible empty/zero value:
 | `object` | `return computedObject` | `return {} as typeof computedObject` |
 
 **Example:**
+
 ```typescript
 // Original
 return statements.sort();
@@ -164,6 +171,7 @@ return [];
 Remove a defensive early-return to see whether callers handle `undefined`/`null` responses:
 
 **Example:**
+
 ```typescript
 // Original
 if (!input) { return undefined; }
@@ -178,7 +186,7 @@ Only apply when the early-return protects against an invalid state. Do not apply
 Shift array/string indices by ±1:
 
 | Original | Mutated |
-|:---|:---|
+| :--- | :--- |
 | `arr[i]` | `arr[i + 1]` |
 | `arr[i]` | `arr[i - 1]` |
 | `.slice(0, n)` | `.slice(0, n - 1)` |
@@ -189,7 +197,7 @@ Shift array/string indices by ±1:
 Remove nullish coalescing or optional chaining:
 
 | Original | Mutated |
-|:---|:---|
+| :--- | :--- |
 | `value ?? defaultValue` | `value` (removes fallback) |
 | `obj?.prop` | `obj.prop` (removes guard) |
 
@@ -198,6 +206,7 @@ Remove nullish coalescing or optional chaining:
 Swap or omit an object property in a literal or spread to expose missing property assertions:
 
 **Example:**
+
 ```typescript
 // Original
 return { name: input.name, version: input.version };
@@ -211,6 +220,7 @@ return { name: input.name, version: "" };
 Negate the entire condition of an `if` statement:
 
 **Example:**
+
 ```typescript
 // Original
 if (isValid(x)) { process(x); }
@@ -273,7 +283,7 @@ Produce a single JSON object with the following schema. Write it to stdout.
 Derive `coverage_grade` from `survival_rate` (surviving / attempted):
 
 | Survival rate | Grade | Interpretation |
-|:---|:---|:---|
+| :--- | :--- | :--- |
 | 0% | A | Excellent — tests killed every mutation |
 | 1–10% | B | Good — minor gaps |
 | 11–25% | C | Acceptable — some gaps worth addressing |
@@ -296,7 +306,7 @@ For each surviving mutation, generate `advice` that is:
 ## Error Handling
 
 | Situation | Action |
-|:---|:---|
+| :--- | :--- |
 | Baseline tests fail | Abort immediately, output error JSON, do not mutate |
 | Mutation causes a TypeScript compile error | Count as "killed" (compile error = detectable failure), revert, continue |
 | Test runner hangs > 60s | Kill the process, count as "killed" (timeout = detectable failure), revert, continue |
