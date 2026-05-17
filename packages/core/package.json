@@ -26,7 +26,7 @@
     "dependencies": {
         "@github-actions-workflow-ts/lib": "2.5.0",
         "@octokit/rest": "22.0.1",
-        "@openclaw/fs-safe": "0.2.4",
+        "@openclaw/fs-safe": "0.2.5",
         "c12": "3.3.4",
         "consola": "3.4.2",
         "picomatch": "4.0.4",
