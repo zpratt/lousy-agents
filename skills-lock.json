@@ -1,35 +1,35 @@
 {
-  "version": 1,
-  "skills": {
-    "feature-to-plan": {
-      "source": "lousy-agents/skills",
-      "sourceType": "github",
-      "skillPath": "skills/feature-to-plan/SKILL.md",
-      "computedHash": "72100500c06e57ed6ff0d32b41f08e3b85e81818421a3b3083c71a2fafcdef3c"
-    },
-    "mutation-hunter": {
-      "source": "lousy-agents/skills",
-      "sourceType": "github",
-      "skillPath": "skills/mutation-hunter/SKILL.md",
-      "computedHash": "6c5b6b9d9a31d4ba4188e8fa1cb11490c3a939c5d0d6c9f7229a943aa6196332"
-    },
-    "plan-to-graph": {
-      "source": "lousy-agents/skills",
-      "sourceType": "github",
-      "skillPath": "skills/plan-to-graph/SKILL.md",
-      "computedHash": "1737fa95977d26fb70d9f47ccd7c7c7f1d10304e0c80e809bf7158a83c1664fd"
-    },
-    "rugged-evil-tester": {
-      "source": "lousy-agents/skills",
-      "sourceType": "github",
-      "skillPath": "skills/rugged-evil-tester/SKILL.md",
-      "computedHash": "f5995fb1d5ef8dd1084f6e7add9216be4e21e54267a69104607b8e08fce64f2e"
-    },
-    "triaging-pr-reviews": {
-      "source": "lousy-agents/skills",
-      "sourceType": "github",
-      "skillPath": "skills/triaging-pr-reviews/SKILL.md",
-      "computedHash": "f2ca933972dec57174ce9f16fa352b299f801898846de04952e7ab60dfb19000"
+    "version": 1,
+    "skills": {
+        "feature-to-plan": {
+            "source": "lousy-agents/skills",
+            "sourceType": "github",
+            "skillPath": "skills/feature-to-plan/SKILL.md",
+            "computedHash": "72100500c06e57ed6ff0d32b41f08e3b85e81818421a3b3083c71a2fafcdef3c"
+        },
+        "mutation-hunter": {
+            "source": "lousy-agents/skills",
+            "sourceType": "github",
+            "skillPath": "skills/mutation-hunter/SKILL.md",
+            "computedHash": "6c5b6b9d9a31d4ba4188e8fa1cb11490c3a939c5d0d6c9f7229a943aa6196332"
+        },
+        "plan-to-graph": {
+            "source": "lousy-agents/skills",
+            "sourceType": "github",
+            "skillPath": "skills/plan-to-graph/SKILL.md",
+            "computedHash": "1737fa95977d26fb70d9f47ccd7c7c7f1d10304e0c80e809bf7158a83c1664fd"
+        },
+        "rugged-evil-tester": {
+            "source": "lousy-agents/skills",
+            "sourceType": "github",
+            "skillPath": "skills/rugged-evil-tester/SKILL.md",
+            "computedHash": "f5995fb1d5ef8dd1084f6e7add9216be4e21e54267a69104607b8e08fce64f2e"
+        },
+        "triaging-pr-reviews": {
+            "source": "lousy-agents/skills",
+            "sourceType": "github",
+            "skillPath": "skills/triaging-pr-reviews/SKILL.md",
+            "computedHash": "f2ca933972dec57174ce9f16fa352b299f801898846de04952e7ab60dfb19000"
+        }
     }
-  }
 }
