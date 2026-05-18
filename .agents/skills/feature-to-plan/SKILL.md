@@ -2,7 +2,7 @@
 name: feature-to-plan
 description: Use when the user asks to turn a feature request, idea, PRD draft, or backlog issue into a structured EARS-format spec. Trigger phrases include "draft a spec", "plan a feature", "scaffold a spec", "write a feature spec", "convert this issue to a spec", "plan this issue", or invocation via /feature-to-plan. Do NOT use for reviewing an existing spec PR (use triaging-pr-reviews) or for editing a specific section of an already-drafted spec (use a direct Edit instead).
 argument-hint: "GitHub issue number (e.g., #47), a feature name, or empty for interactive drafting"
-allowed-tools: Read, Grep, Glob, Write, Edit, Bash
+allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
 # Feature to Plan
