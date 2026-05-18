@@ -1,6 +1,7 @@
 ---
 name: rugged-evil-tester
 description: "Generates adversarial, negative, and chaos tests for TypeScript code. Use when asked for evil tests, security tests, boundary tests, fuzzing, injection testing, rugged testing, or to 'break this' / 'find vulnerabilities'. Not for happy-path or standard unit/integration tests."
+argument-hint: "Target file, directory, or glob to attack (e.g., src/auth/login.ts or src/**/*.handler.ts). Evil test files are emitted as <target>.evil.test.ts alongside the source."
 effort: high
 allowed-tools: Read, Grep, Glob, Write, Edit, Bash, Agent
 ---
