@@ -194,7 +194,7 @@ function buildCommonNodes(
             path: ".devcontainer/devcontainer.json",
             content: reader(".devcontainer/devcontainer.json"),
         },
-        // Agent skills — required by the feature-to-spec issue template
+        // Agent skills — required by the feature-to-plan skill invocation in the issue template
         {
             type: "directory",
             path: ".agents",
