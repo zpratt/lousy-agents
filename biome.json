@@ -15,7 +15,8 @@
             "!.beads",
             "!graphify-out",
             "!.semgrep",
-            "!**/graphify-out"
+            "!**/graphify-out",
+            "!skills-lock.json"
         ]
     },
     "formatter": {
