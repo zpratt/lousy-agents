@@ -57,7 +57,7 @@
         "testcontainers": "11.14.0",
         "tsx": "4.22.1",
         "typescript": "6.0.3",
-        "vitest": "4.1.6",
+        "vitest": "4.1.7",
         "whatwg-fetch": "3.6.20"
     }
 }
