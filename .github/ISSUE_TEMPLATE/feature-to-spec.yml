@@ -42,62 +42,21 @@ body:
       label: Extra Instructions
       # yamllint disable rule:line-length
       description: >-
-        Specific prompt engineering for the agent.
+        Skill invocation for the agent.
         This will be posted as a comment to guide the bot.
       value: |
-        ## Phase 1: Orient (do not create any files yet)
+        ## MANDATORY — Do not skip this step
 
-        1. Read `.github/instructions/spec.instructions.md` — this is your
-           primary guide for the feature specification format and
-           expectations.
-        2. Read all other instruction files in the repository to understand
-           engineering standards, conventions, and constraints.
-        3. Identify any ambiguities, missing context, or assumptions you
-           would need to make. If any exist, post clarifying questions on
-           the issue and **stop until answered**. Do not proceed to Phase 2
-           while open questions remain.
+        You **MUST** invoke the `feature-to-plan` skill to produce the
+        spec for this issue. This is not optional — the skill defines the
+        authoritative procedure (Orient → Create → Validate) and output
+        format. Do not attempt to produce the spec manually or deviate
+        from the skill's procedure.
 
-        ## Phase 2: Create
+        Invoke the skill with this issue number as the argument.
 
-        Produce all artifacts in `.github/specs/`. Work in this order —
-        each step feeds the next:
-
-        4. Write the feature specification with all requirements captured
-           in EARS format (Easy Approach to Requirements Syntax).
-        5. Create a data flow diagram and a sequence diagram (Mermaid
-           format) that illustrate the feature's operation and integration
-           points.
-        6. Using the diagrams as input, break the feature into an ordered
-           implementation plan of discrete tasks. Each task must have: a
-           clear description, acceptance criteria, and a checkbox
-           (`- [ ]`).
-        7. Mark each task checkbox (`[x]`) as you complete it within the
-           spec.
-
-        ## Phase 3: Validate (mandatory — run before finishing)
-
-        Execute the following loop. Exit when **no high or medium severity
-        findings remain**, or after **3 iterations**, whichever comes
-        first:
-
-        8. Generate a diff of your changes (`git diff`) and pass it to the
-           **reviewer agent**.
-        9. Feed the reviewer agent's output into the
-           **triaging-pr-reviews** skill.
-        10. Resolve every finding the skill surfaces according to its
-            severity guidance. Do not skip or defer findings — fix them in
-            the spec before re-running the loop.
-
-        ## Completion checklist (self-verify before finishing)
-
-        - [ ] All requirements are in EARS format
-        - [ ] Data flow diagram is present and accurate
-        - [ ] Sequence diagram is present and accurate
-        - [ ] Implementation plan tasks are ordered, described, and have
-              acceptance criteria
-        - [ ] No open assumptions remain undocumented
-        - [ ] Validate loop exited cleanly (no remaining high/medium
-              findings, or 3 iterations completed)
+        Failure to use the `feature-to-plan` skill will result in the
+        spec being rejected.
       # yamllint enable rule:line-length
     validations:
-      required: false
+      required: true
