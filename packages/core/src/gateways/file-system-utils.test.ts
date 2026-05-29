@@ -1,4 +1,4 @@
-import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
@@ -276,15 +276,16 @@ describe("statWithinRoot", () => {
         });
 
         it("should return a numeric mtimeMs representing the modification time", async () => {
-            const before = Date.now();
             await writeFile(join(testDir, "file.txt"), chance.word());
+            const reference = await stat(join(testDir, "file.txt"));
 
             const result = await statWithinRoot(testDir, "file.txt");
 
             expect(typeof result.mtimeMs).toBe("number");
-            expect(Math.floor(result.mtimeMs)).toBeGreaterThanOrEqual(
-                before - 1,
-            );
+            // Same file, same source — but Node derives mtimeMs as a float
+            // from the nanosecond timestamp and it is not bit-stable across
+            // stat calls, so compare to the nearest millisecond.
+            expect(result.mtimeMs).toBeCloseTo(reference.mtimeMs, 0);
         });
     });
 
