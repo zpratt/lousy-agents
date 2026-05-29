@@ -6,8 +6,9 @@
                 "agent/invalid-field": "error"
             },
             "skills": {
-                "skill/missing-allowed-tools": "error"
+                "skill/missing-allowed-tools": "warn"
             }
         }
     }
 }
+

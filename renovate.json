@@ -16,6 +16,11 @@
     "pinDigests": true,
     "packageRules": [
         {
+            "description": "Disable native mise manager due to untrusted config errors",
+            "matchManagers": ["mise"],
+            "enabled": false
+        },
+        {
             "description": "Disable digest pinning for mise",
             "matchManagers": ["mise"],
             "pinDigests": false
