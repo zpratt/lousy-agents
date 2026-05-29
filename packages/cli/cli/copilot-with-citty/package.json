@@ -25,8 +25,8 @@
         "@types/node": "24.12.4",
         "@upstash/context7-mcp": "2.2.5",
         "chance": "1.1.13",
-        "tsx": "4.22.1",
+        "tsx": "4.22.3",
         "typescript": "6.0.3",
-        "vitest": "4.1.6"
+        "vitest": "4.1.7"
     }
 }
