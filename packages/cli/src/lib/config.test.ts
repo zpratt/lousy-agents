@@ -185,5 +185,31 @@ describe("Config", () => {
                 'Project type "graphql" is not yet supported',
             );
         });
+
+        it.each([
+            "cli",
+            "webapp",
+            "api",
+        ] as const)("should include feature-to-plan skill files in %s structure", async (projectType) => {
+            // Act
+            const structure = await getProjectStructure(projectType);
+
+            // Assert
+            const skillFiles = [
+                ".agents/skills/feature-to-plan/SKILL.md",
+                ".agents/skills/feature-to-plan/references/interactive-flow.md",
+                ".agents/skills/feature-to-plan/references/spec-format.md",
+            ];
+
+            for (const filePath of skillFiles) {
+                const fileNode = structure?.nodes.find(
+                    (node) => node.type === "file" && node.path === filePath,
+                );
+                expect(
+                    fileNode,
+                    `Expected ${filePath} in ${projectType} structure`,
+                ).toBeDefined();
+            }
+        });
     });
 });

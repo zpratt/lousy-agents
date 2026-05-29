@@ -194,6 +194,42 @@ function buildCommonNodes(
             path: ".devcontainer/devcontainer.json",
             content: reader(".devcontainer/devcontainer.json"),
         },
+        // Agent skills — required by the feature-to-spec issue template
+        {
+            type: "directory",
+            path: ".agents",
+        },
+        {
+            type: "directory",
+            path: ".agents/skills",
+        },
+        {
+            type: "directory",
+            path: ".agents/skills/feature-to-plan",
+        },
+        {
+            type: "file",
+            path: ".agents/skills/feature-to-plan/SKILL.md",
+            content: reader(".agents/skills/feature-to-plan/SKILL.md"),
+        },
+        {
+            type: "directory",
+            path: ".agents/skills/feature-to-plan/references",
+        },
+        {
+            type: "file",
+            path: ".agents/skills/feature-to-plan/references/interactive-flow.md",
+            content: reader(
+                ".agents/skills/feature-to-plan/references/interactive-flow.md",
+            ),
+        },
+        {
+            type: "file",
+            path: ".agents/skills/feature-to-plan/references/spec-format.md",
+            content: reader(
+                ".agents/skills/feature-to-plan/references/spec-format.md",
+            ),
+        },
     ];
 }
 
