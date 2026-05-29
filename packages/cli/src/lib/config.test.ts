@@ -190,24 +190,63 @@ describe("Config", () => {
             "cli",
             "webapp",
             "api",
-        ] as const)("should include feature-to-plan skill files in %s structure", async (projectType) => {
+        ] as const)("should include feature-to-plan skill files with content in %s structure", async (projectType) => {
             // Act
             const structure = await getProjectStructure(projectType);
 
-            // Assert
-            const skillFiles = [
-                ".agents/skills/feature-to-plan/SKILL.md",
-                ".agents/skills/feature-to-plan/references/interactive-flow.md",
-                ".agents/skills/feature-to-plan/references/spec-format.md",
+            // Assert — verify file nodes exist and have non-empty, correct content
+            const skillFileExpectations: Array<[string, string]> = [
+                [".agents/skills/feature-to-plan/SKILL.md", "feature-to-plan"],
+                [
+                    ".agents/skills/feature-to-plan/references/interactive-flow.md",
+                    "feature-to-plan",
+                ],
+                [
+                    ".agents/skills/feature-to-plan/references/spec-format.md",
+                    "feature-to-plan",
+                ],
             ];
 
-            for (const filePath of skillFiles) {
+            for (const [filePath, expectedContent] of skillFileExpectations) {
                 const fileNode = structure?.nodes.find(
                     (node) => node.type === "file" && node.path === filePath,
                 );
                 expect(
                     fileNode,
-                    `Expected ${filePath} in ${projectType} structure`,
+                    `Expected file node for ${filePath} in ${projectType} structure`,
+                ).toBeDefined();
+                expect(
+                    fileNode?.content,
+                    `Expected ${filePath} to contain "${expectedContent}"`,
+                ).toContain(expectedContent);
+            }
+        });
+
+        it.each([
+            "cli",
+            "webapp",
+            "api",
+        ] as const)("should include feature-to-plan skill directory nodes in %s structure", async (projectType) => {
+            // Act
+            const structure = await getProjectStructure(projectType);
+
+            // Assert — directory nodes must be present so the scaffold writer
+            // can create files under them without failing at runtime
+            const skillDirs = [
+                ".agents",
+                ".agents/skills",
+                ".agents/skills/feature-to-plan",
+                ".agents/skills/feature-to-plan/references",
+            ];
+
+            for (const dirPath of skillDirs) {
+                const dirNode = structure?.nodes.find(
+                    (node) =>
+                        node.type === "directory" && node.path === dirPath,
+                );
+                expect(
+                    dirNode,
+                    `Expected directory node for ${dirPath} in ${projectType} structure`,
                 ).toBeDefined();
             }
         });
