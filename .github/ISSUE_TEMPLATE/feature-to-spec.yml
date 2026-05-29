@@ -49,7 +49,7 @@ body:
 
         You **MUST** invoke the `feature-to-plan` skill to produce the
         spec for this issue. This is not optional — the skill defines the
-        authoritative procedure (Orient → Create → Validate) and output
+        authoritative procedure (Orient → Approval Gate → Create → Validate) and output
         format. Do not attempt to produce the spec manually or deviate
         from the skill's procedure.
 
