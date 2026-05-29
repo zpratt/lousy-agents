@@ -367,6 +367,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
+          persist-credentials: false
 
       - name: Setup mise
         # v3.6.1
@@ -404,6 +405,7 @@ jobs:
         shell: bash
         env:
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           if [ -z "$(git status --porcelain packages/action/dist)" ]; then
             echo "dist is in sync with source, nothing to commit"
@@ -414,6 +416,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add packages/action/dist
           git commit -m "chore(action): rebuild dist"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push origin "HEAD:${PR_HEAD_REF}"
           NEW_SHA=$(git rev-parse HEAD)
           echo "committed=true" >> "$GITHUB_OUTPUT"
