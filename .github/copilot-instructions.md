@@ -32,7 +32,7 @@ npm run build            # Production build
 
 # Workspace-scoped commands
 npm run build --workspace=packages/cli     # Build CLI only
-npm test --workspace=packages/cli          # Test a specific package
+npm test -- packages/cli/src               # Test files in a specific package path
 
 # File-scoped (faster feedback)
 npx biome check path/to/file.ts

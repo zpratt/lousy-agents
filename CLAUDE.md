@@ -44,7 +44,7 @@ Reach for these project skills when the work matches:
 
 ## Memory
 
-A persistent file-based memory lives at `~/.claude/projects/-Users-zpratt-Developer-lousy-agents/memory/` with an index at `MEMORY.md`. Record durable, non-obvious facts there (user preferences, confirmed feedback, ongoing project constraints) — not things already captured by the repo, git history, or these instruction files.
+A persistent file-based memory lives under `~/.claude/projects/<repo-id>/memory/` with an index at `MEMORY.md`. Record durable, non-obvious facts there (user preferences, confirmed feedback, ongoing project constraints) — not things already captured by the repo, git history, or these instruction files.
 
 ## Review & subagent workflow
 
@@ -59,7 +59,7 @@ This project uses [mise](https://mise.jdx.dev/) for runtime management.
 
 ### Detected Runtimes
 
-- **node**: .nvmrc (v24.14.0)
+- **node**: .nvmrc (v24.15.0)
 
 ### Package Managers
 
