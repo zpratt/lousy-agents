@@ -264,7 +264,7 @@ set -e
 export MISE_DATA_DIR=/mise MISE_CONFIG_DIR=/mise MISE_CACHE_DIR=/mise/cache
 
 # Install mise via npm (npm registry is allowlisted on the default Trusted network)
-npm install -g @jdxcode/mise
+npm install -g @jdxcode/mise@2026.4.20
 
 # Enable idiomatic version file support for Node so mise reads .nvmrc
 mise settings add idiomatic_version_file_enable_tools node
