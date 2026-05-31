@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { renameSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { consola } from "consola";
+import { describe, expect, it, vi } from "vitest";
 import { getProjectStructure, loadInitConfig } from "./config.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 describe("Config", () => {
     describe("loadInitConfig", () => {
@@ -195,19 +202,29 @@ describe("Config", () => {
             const structure = await getProjectStructure(projectType);
 
             // Assert — verify file nodes exist and have non-empty, correct content
-            const skillFileExpectations: Array<[string, string]> = [
-                [".agents/skills/feature-to-plan/SKILL.md", "feature-to-plan"],
+            const skillFileExpectations: Array<[string, string, number]> = [
+                [
+                    ".agents/skills/feature-to-plan/SKILL.md",
+                    "Approval Gate",
+                    2000,
+                ],
                 [
                     ".agents/skills/feature-to-plan/references/interactive-flow.md",
-                    "feature-to-plan",
+                    "Phase 1",
+                    3000,
                 ],
                 [
                     ".agents/skills/feature-to-plan/references/spec-format.md",
-                    "feature-to-plan",
+                    "EARS",
+                    1000,
                 ],
             ];
 
-            for (const [filePath, expectedContent] of skillFileExpectations) {
+            for (const [
+                filePath,
+                expectedContent,
+                minLength,
+            ] of skillFileExpectations) {
                 const fileNode = structure?.nodes.find(
                     (node) => node.type === "file" && node.path === filePath,
                 );
@@ -219,6 +236,47 @@ describe("Config", () => {
                     fileNode?.content,
                     `Expected ${filePath} to contain "${expectedContent}"`,
                 ).toContain(expectedContent);
+                expect(
+                    fileNode?.content.length,
+                    `Expected ${filePath} content length to be at least ${minLength}`,
+                ).toBeGreaterThanOrEqual(minLength);
+            }
+        });
+
+        it("should keep feature-to-plan skill file content identical across all project types", async () => {
+            // Arrange
+            const projectTypes = ["cli", "webapp", "api"] as const;
+            const skillFiles = [
+                ".agents/skills/feature-to-plan/SKILL.md",
+                ".agents/skills/feature-to-plan/references/interactive-flow.md",
+                ".agents/skills/feature-to-plan/references/spec-format.md",
+            ];
+
+            // Act
+            const structures = await Promise.all(
+                projectTypes.map((projectType) =>
+                    getProjectStructure(projectType),
+                ),
+            );
+            const referenceStructure = structures[0];
+
+            // Assert
+            for (const filePath of skillFiles) {
+                const referenceContent = referenceStructure?.nodes.find(
+                    (node) => node.type === "file" && node.path === filePath,
+                )?.content;
+                expect(
+                    referenceContent,
+                    `Expected reference content for ${filePath}`,
+                ).toBeDefined();
+
+                for (let index = 1; index < structures.length; index += 1) {
+                    const candidateContent = structures[index]?.nodes.find(
+                        (node) =>
+                            node.type === "file" && node.path === filePath,
+                    )?.content;
+                    expect(candidateContent).toBe(referenceContent);
+                }
             }
         });
 
@@ -248,6 +306,49 @@ describe("Config", () => {
                     dirNode,
                     `Expected directory node for ${dirPath} in ${projectType} structure`,
                 ).toBeDefined();
+            }
+        });
+
+        it("should throw a descriptive error when a feature-to-plan skill file is missing", async () => {
+            const missingRelativePath =
+                ".agents/skills/feature-to-plan/SKILL.md";
+            const missingSkillPath = join(
+                __dirname,
+                "..",
+                "..",
+                "api",
+                "copilot-with-fastify",
+                missingRelativePath,
+            );
+            const backupSkillPath = `${missingSkillPath}.bak`;
+            const consolaErrorSpy = vi
+                .spyOn(consola, "error")
+                .mockImplementation(() => undefined);
+
+            let fileWasRenamed = false;
+            try {
+                renameSync(missingSkillPath, backupSkillPath);
+                fileWasRenamed = true;
+                vi.resetModules();
+                const {
+                    getProjectStructure: getProjectStructureWithMissingFile,
+                } = await import("./config.js");
+                await expect(
+                    getProjectStructureWithMissingFile("api"),
+                ).rejects.toThrow(
+                    `Failed to read template file ${missingRelativePath}`,
+                );
+                expect(consolaErrorSpy).toHaveBeenCalledWith(
+                    expect.stringContaining(
+                        `Failed to read template file ${missingRelativePath}`,
+                    ),
+                );
+            } finally {
+                if (fileWasRenamed) {
+                    renameSync(backupSkillPath, missingSkillPath);
+                }
+                consolaErrorSpy.mockRestore();
+                vi.resetModules();
             }
         });
     });
