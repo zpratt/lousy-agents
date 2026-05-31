@@ -26,7 +26,7 @@ Run the following loop. Exit when **no critical, high, or medium severity findin
 ### Step 1 — Triage
 
 - **First iteration:** Invoke the **triaging-pr-reviews** skill (`#triaging-pr-reviews`) against the existing PR review comments. Provide the PR number as the argument (e.g., `#triaging-pr-reviews #317`).
-- **Subsequent iterations:** Directly classify the reviewer agent output from the previous iteration by severity (CRITICAL / HIGH / MEDIUM / LOW). Do **not** re-invoke `#triaging-pr-reviews` — that skill is scoped to pending PR comments and must not be used to process reviewer output tables.
+- **Subsequent iterations:** Extract the severity values directly from the reviewer agent's output table (the table already contains CRITICAL / HIGH / MEDIUM / LOW ratings). Do **not** re-invoke `#triaging-pr-reviews` — that skill is scoped to pending PR comments and must not be used to process reviewer output tables.
 
 Record all critical, high, and medium severity findings. If there are none, stop — you are done.
 
@@ -54,7 +54,7 @@ Append any new findings to the list from Step 1.
 
 Resolve **all** findings from Steps 1 and 2. Do not defer or skip any critical, high, or medium items.
 
-For each fix, follow the mandatory TDD sequence:
+For each fix, follow the mandatory TDD sequence. **Exception:** if the finding is limited to documentation, comments, or non-executable content, skip steps 2–5 and apply the fix directly, then run `mise run ci && npm run build` to confirm nothing is broken.
 
 1. Read the relevant file and line range before making any change.
 2. Write a **failing test** that describes the correct behavior.
