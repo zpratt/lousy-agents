@@ -39,7 +39,7 @@ npx biome check path/to/file.ts
 npm test path/to/file.test.ts
 
 # Validation suite (run before commits)
-mise run ci              # Runs: lint -> test -> test-integration -> smoke-test (smoke-test builds then exercises the CLI)
+mise run ci              # Runs: lint -> test -> test-integration -> smoke-test (test-integration and smoke-test both depend on build)
 
 # Other
 npm audit                # Security check
