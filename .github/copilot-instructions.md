@@ -25,7 +25,7 @@ eval "$(mise activate zsh)"
 
 # Core commands
 mise run test            # Run tests (vitest)
-mise run lint            # Run ALL linting tools in parallel (Biome, actionlint, yamllint, markdownlint, shellcheck, issue-form schemas)
+mise run lint            # Run ALL linting tools in parallel (Biome, actionlint, yamllint, markdownlint, shellcheck, semgrep, dependency-cruiser, issue-form schemas)
 mise run format-check    # Biome only — code formatting + static analysis
 mise run format-fix      # Auto-fix Biome lint/format issues
 npm run build            # Production build
