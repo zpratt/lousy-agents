@@ -25,10 +25,10 @@ Run the following loop. Exit when **no critical, high, or medium severity findin
 
 ### Step 1 — Triage
 
-- **First iteration:** Invoke the **triaging-pr-reviews** skill (`#triaging-pr-reviews`) against the existing PR review comments. Provide the PR number as the argument (e.g., `#triaging-pr-reviews #317`).
+- **First iteration:** Invoke the **triaging-pr-reviews** skill (`#triaging-pr-reviews`) against the existing PR review comments. Provide the PR number as the argument (e.g., `#triaging-pr-reviews #317`). Record every review comment the skill keeps actionable, along with its file/line, validity decision, category, and requested remediation. Do **not** require CRITICAL / HIGH / MEDIUM labels here — `#triaging-pr-reviews` does not emit reviewer severities.
 - **Subsequent iterations:** Extract the severity values directly from the reviewer agent's output table (the table already contains CRITICAL / HIGH / MEDIUM / LOW ratings). Do **not** re-invoke `#triaging-pr-reviews` — that skill is scoped to pending PR comments and must not be used to process reviewer output tables.
 
-Record all critical, high, and medium severity findings. If there are none, stop — you are done.
+If the first iteration triage returns no actionable PR comments, stop — you are done. On subsequent iterations, record all critical, high, and medium severity findings from the reviewer table; if there are none, stop — you are done.
 
 ### Step 2 — Audit
 
@@ -52,7 +52,7 @@ Append any new findings to the list from Step 1.
 
 ### Step 3 — Fix
 
-Resolve **all** findings from Steps 1 and 2. Do not defer or skip any critical, high, or medium items.
+Resolve **all** findings from Steps 1 and 2. Do not silently defer or skip any actionable triaged comment or any critical, high, or medium reviewer finding. If you cannot safely address a finding, or believe it is incorrect, mark it `DISPUTED: [reason]`, add the `needs-human-review` label, and carry it forward for human review instead of making a speculative fix.
 
 For each fix, follow the mandatory TDD sequence. **Exception:** if the finding is limited to documentation, comments, or non-executable content, skip steps 2–5 and apply the fix directly, then run `mise run ci && npm run build` to confirm nothing is broken.
 
