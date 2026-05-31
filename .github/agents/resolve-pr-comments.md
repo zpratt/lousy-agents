@@ -1,6 +1,6 @@
 ---
 name: resolve-pr-comments
-description: Iteratively resolves outstanding PR review comments by triaging findings, auditing code, applying fixes, and verifying results with the reviewer agent. Exits when no high or medium severity findings remain, or after 5 iterations.
+description: Iteratively resolves outstanding PR review comments by triaging findings, auditing code, applying fixes, and verifying results with the reviewer agent. Exits when no critical, high, or medium severity findings remain, or after 3 iterations with escalation per the repository review-cycle protocol.
 tools: [execute, read, edit, agent, search]
 ---
 
@@ -14,19 +14,21 @@ Before starting, verify:
 
 1. You are operating on a feature branch, **not** `main` or `master`.
 2. The PR has at least one review comment to address.
+3. The `gh` CLI is authenticated and available (`gh auth status`).
+4. The `jq` binary is available (`jq --version`).
 
-If either condition is not met, stop and report the reason.
+If any condition is not met, stop and report the reason.
 
 ## Loop Protocol
 
-Run the following loop. Exit when **no high or medium severity findings remain**, or after **5 iterations**, whichever comes first.
+Run the following loop. Exit when **no critical, high, or medium severity findings remain**, or after **3 iterations**, whichever comes first.
 
 ### Step 1 — Triage
 
 - **First iteration:** Invoke the **triaging-pr-reviews** skill (`#triaging-pr-reviews`) against the existing PR review comments. Provide the PR number as the argument (e.g., `#triaging-pr-reviews #317`).
-- **Subsequent iterations:** Invoke the **triaging-pr-reviews** skill against the reviewer agent output from the previous iteration, treating that output as the set of comments to triage.
+- **Subsequent iterations:** Directly classify the reviewer agent output from the previous iteration by severity (CRITICAL / HIGH / MEDIUM / LOW). Do **not** re-invoke `#triaging-pr-reviews` — that skill is scoped to pending PR comments and must not be used to process reviewer output tables.
 
-Record all high and medium severity findings. If there are none, stop — you are done.
+Record all critical, high, and medium severity findings. If there are none, stop — you are done.
 
 ### Step 2 — Audit
 
@@ -50,14 +52,17 @@ Append any new findings to the list from Step 1.
 
 ### Step 3 — Fix
 
-Resolve **all** findings from Steps 1 and 2. Do not defer or skip any high or medium items.
+Resolve **all** findings from Steps 1 and 2. Do not defer or skip any critical, high, or medium items.
 
-For each fix:
+For each fix, follow the mandatory TDD sequence:
 
 1. Read the relevant file and line range before making any change.
-2. Implement the minimal correct fix.
-3. Run the project's test suite to confirm nothing is broken.
-4. Commit the change with a descriptive message referencing the finding.
+2. Write a **failing test** that describes the correct behavior.
+3. Run `mise run test` and confirm the test fails with a clear failure message.
+4. Implement the **minimal correct fix** to make the test pass.
+5. Run `mise run test` and confirm the test now passes.
+6. Run `mise run ci && npm run build` to validate the full suite.
+7. Commit the change with a descriptive message referencing the finding.
 
 Do not batch unrelated changes into a single commit.
 
@@ -65,17 +70,22 @@ Do not batch unrelated changes into a single commit.
 
 Invoke the **reviewer** agent (`@Reviewer check this code for evil paths and architectural violations`) against your updated diff. Record its full output.
 
-- If the reviewer reports **no high or medium findings**, stop — you are done.
+- If the reviewer agent is **unavailable**, manually classify the diff using the reviewer table format from `.github/agents/reviewer.md` and treat that as the verification output.
+- If the reviewer reports **no critical, high, or medium findings**, stop — you are done.
 - Otherwise, the reviewer output becomes the input for Step 1 of the next iteration.
 
 ## Exit Conditions
 
 Stop when the **first** of the following conditions is met:
 
-1. The reviewer agent surfaces no high or medium findings after Step 4.
-2. Five iterations have completed.
+1. The reviewer agent (or manual classification) surfaces no critical, high, or medium findings after Step 4.
+2. Three iterations have completed without full resolution.
 
-If you stop after 5 iterations with unresolved high or medium findings remaining, output a summary table listing each unresolved finding, its severity, and the reason it was not resolved.
+If you stop after 3 iterations with unresolved critical, high, or medium findings remaining:
+
+- Output a summary table listing each unresolved finding, its severity, and the reason it was not resolved.
+- Add the `needs-human-review` label to the PR.
+- Comment on the PR: `ESCALATE: Unable to resolve after 3 review cycles`.
 
 ## Constraints
 
