@@ -1,12 +1,6 @@
-import { renameSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { consola } from "consola";
 import { describe, expect, it, vi } from "vitest";
 import { getProjectStructure, loadInitConfig } from "./config.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 describe("Config", () => {
     describe("loadInitConfig", () => {
@@ -312,24 +306,31 @@ describe("Config", () => {
         it("should throw a descriptive error when a feature-to-plan skill file is missing", async () => {
             const missingRelativePath =
                 ".agents/skills/feature-to-plan/SKILL.md";
-            const missingSkillPath = join(
-                __dirname,
-                "..",
-                "..",
-                "api",
-                "copilot-with-fastify",
-                missingRelativePath,
-            );
-            const backupSkillPath = `${missingSkillPath}.bak`;
             const consolaErrorSpy = vi
                 .spyOn(consola, "error")
                 .mockImplementation(() => undefined);
 
-            let fileWasRenamed = false;
             try {
-                renameSync(missingSkillPath, backupSkillPath);
-                fileWasRenamed = true;
                 vi.resetModules();
+                vi.doMock("node:fs", async (importOriginal) => {
+                    const actual =
+                        await importOriginal<typeof import("node:fs")>();
+                    return {
+                        ...actual,
+                        readFileSync: ((...args) => {
+                            const [filePath] = args;
+                            if (
+                                String(filePath).endsWith(missingRelativePath)
+                            ) {
+                                throw new Error(
+                                    "ENOENT: no such file or directory",
+                                );
+                            }
+
+                            return actual.readFileSync(...args);
+                        }) as typeof actual.readFileSync,
+                    };
+                });
                 const {
                     getProjectStructure: getProjectStructureWithMissingFile,
                 } = await import("./config.js");
@@ -344,10 +345,8 @@ describe("Config", () => {
                     ),
                 );
             } finally {
-                if (fileWasRenamed) {
-                    renameSync(backupSkillPath, missingSkillPath);
-                }
                 consolaErrorSpy.mockRestore();
+                vi.doUnmock("node:fs");
                 vi.resetModules();
             }
         });
