@@ -23,8 +23,8 @@ Run the following loop. Exit when **no high or medium severity findings remain**
 
 ### Step 1 — Triage
 
-- **First iteration:** Use the **triaging-pr-reviews** skill against the existing PR review comments.
-- **Subsequent iterations:** Use the **triaging-pr-reviews** skill against the reviewer agent output from the previous iteration.
+- **First iteration:** Invoke the **triaging-pr-reviews** skill (`#triaging-pr-reviews`) against the existing PR review comments. Provide the PR number as the argument (e.g., `#triaging-pr-reviews #317`).
+- **Subsequent iterations:** Invoke the **triaging-pr-reviews** skill against the reviewer agent output from the previous iteration, treating that output as the set of comments to triage.
 
 Record all high and medium severity findings. If there are none, stop — you are done.
 
@@ -63,7 +63,7 @@ Do not batch unrelated changes into a single commit.
 
 ### Step 4 — Verify
 
-Run the **reviewer** agent against your updated diff. Record its full output.
+Invoke the **reviewer** agent (`@Reviewer check this code for evil paths and architectural violations`) against your updated diff. Record its full output.
 
 - If the reviewer reports **no high or medium findings**, stop — you are done.
 - Otherwise, the reviewer output becomes the input for Step 1 of the next iteration.
