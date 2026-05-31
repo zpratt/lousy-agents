@@ -238,3 +238,48 @@ npm ci
 ```
 
 *Install Node.js dependencies with package-lock.json*
+
+On cloud sessions (`CLAUDE_CODE_REMOTE=true`), `scripts/mise-path.sh` also runs
+and prepends `/mise/shims` to `PATH` so the agent shell resolves the correct
+Node version without sourcing a login profile.
+
+### Cloud Environment Config (apply once in the Claude Code web UI)
+
+These settings must be applied manually in the cloud environment editor. They
+are recorded here so the setup is reproducible and reviewable.
+
+**Environment variables**
+
+```
+MISE_DATA_DIR=/mise
+MISE_CONFIG_DIR=/mise
+MISE_CACHE_DIR=/mise/cache
+```
+
+**Setup script** (runs as root at container build time; output is snapshot-cached)
+
+```bash
+#!/bin/bash
+set -e
+export MISE_DATA_DIR=/mise MISE_CONFIG_DIR=/mise MISE_CACHE_DIR=/mise/cache
+
+# Install mise via npm (npm registry is allowlisted on the default Trusted network)
+npm install -g @jdxcode/mise
+
+# Enable idiomatic version file support for Node so mise reads .nvmrc
+mise settings add idiomatic_version_file_enable_tools node
+
+# Install Node (version from .nvmrc) and all tools from mise.toml into /mise
+mise trust -a
+mise install
+```
+
+**Verification** (run in a cloud session after config is applied)
+
+```bash
+mise --version                                        # mise is installed
+mise settings get idiomatic_version_file_enable_tools # should include: node
+node -v                                               # matches .nvmrc
+which node                                            # resolves under /mise/shims
+mise ls                                               # node Source: .nvmrc
+```
