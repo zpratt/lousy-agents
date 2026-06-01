@@ -40,15 +40,23 @@ body:
     id: extra-instructions
     attributes:
       label: Extra Instructions
-      description: Specific prompt engineering for the agent. This will be posted as a comment to guide the bot.
+      # yamllint disable rule:line-length
+      description: >-
+        Skill invocation for the agent.
+        This will be posted as a comment to guide the bot.
       value: |
-        1. Review .github/instructions/spec.instructions.md for more details and use this as your guide for the feature specification.
-        2. Ensure you review all other repository instructions before starting work to understand engineering requirements.
-        3. Create your final spec output in the .github/specs directory and ensure requirements are captured in the EARS format.
-        4. Create a data flow diagram and sequence diagram to illustrate the feature's operation.
-        5. Break down the feature into manageable tasks with clear descriptions.
-        6. As you complete each task in the spec, mark the checkboxes as complete in the spec file using [x] notation.
-        7. If you need to make assumptions, ask questions on the issue.
-        8. Use the diagrams to inform your implementation plan.
+        ## MANDATORY — Do not skip this step
+
+        You **MUST** invoke the `feature-to-plan` skill to produce the
+        spec for this issue. This is not optional — the skill defines the
+        authoritative procedure (Orient → Approval Gate → Create → Validate) and output
+        format. Do not attempt to produce the spec manually or deviate
+        from the skill's procedure.
+
+        Invoke the skill with this issue number as the argument.
+
+        Failure to use the `feature-to-plan` skill will result in the
+        spec being rejected.
+      # yamllint enable rule:line-length
     validations:
-      required: false
+      required: true

@@ -8,13 +8,16 @@ applyTo: "**"
 
 ## Shared Instruction Architecture
 
-This repo provides instructions for both GitHub Copilot and Claude Code. The detailed domain instructions in `.github/instructions/` are the shared source-of-truth referenced by both systems.
+This repo serves instructions to both GitHub Copilot and Claude Code from a single set of canonical files, organized so each topic lives in exactly one place:
 
-`CLAUDE.md` uses `@path/to/file` syntax (e.g., `@.github/instructions/test.instructions.md`) to import those shared files. This is Claude Code's native file reference mechanism — **not** a broken markdown link. Do not suggest converting `@path/to/file` references in `CLAUDE.md` to markdown links.
+- **This file (`.github/copilot-instructions.md`)** is the canonical home for **repo-wide general guidance** (commands, TDD workflow, tech stack, project structure, code style, dependencies, boundaries, task tracking). Copilot code review always loads it; Claude Code imports it from the root `CLAUDE.md`.
+- **`.github/instructions/*.instructions.md`** are the canonical home for **scoped domain rules** (testing, software architecture, specs, pipelines). Each has an `applyTo` glob. Copilot code review auto-applies them to matching changed files; Claude Code imports them from nested `CLAUDE.md` files placed in the matching directories. The general sections in this file deliberately summarize (not duplicate) those rules and link to them.
+
+`CLAUDE.md` files use `@path/to/file` syntax (e.g., `@.github/copilot-instructions.md`) to import these shared files. This is Claude Code's native file reference mechanism — **not** a broken markdown link. Do not suggest converting `@path/to/file` references in any `CLAUDE.md` to markdown links. Copilot does **not** follow `@import` or markdown links, so anything Copilot review must see is kept physically in this file or in `.github/instructions/*`.
 
 ## Commands
 
-Mise manages all tools and Node versions. If you haven't activated mise in your shell, run `mise activate` once or prefix commands with `mise exec --`. During development, use file-scoped commands for faster feedback, and run the full validation suite (`mise run ci && npm run build`) before commits.
+Mise manages all tools and Node versions. If you haven't activated mise in your shell, run `mise activate` once or prefix commands with `mise exec --`. During development, use file-scoped commands for faster feedback, and run the full validation suite (`mise run ci`) before commits.
 
 ```bash
 # One-time shell setup (or add to ~/.zshrc)
@@ -22,21 +25,21 @@ eval "$(mise activate zsh)"
 
 # Core commands
 mise run test            # Run tests (vitest)
+mise run lint            # Run ALL linting tools in parallel (Biome, actionlint, yamllint, markdownlint, shellcheck, semgrep, dependency-cruiser, issue-form schemas)
+mise run format-check    # Biome only — code formatting + static analysis
+mise run format-fix      # Auto-fix Biome lint/format issues
 npm run build            # Production build
-mise run format-check    # Lint check
-mise run format-fix      # Auto-fix lint/format
+
+# Workspace-scoped commands
+npm run build --workspace=packages/cli     # Build CLI only
+npm test -- packages/cli/src               # Test files in a specific package path
 
 # File-scoped (faster feedback)
 npx biome check path/to/file.ts
 npm test path/to/file.test.ts
 
 # Validation suite (run before commits)
-mise run ci && npm run build
-
-# Linting tasks
-mise run actionlint      # Validate GitHub Actions (actionlint)
-mise run yamllint        # Validate YAML (yamllint)
-mise run lint            # Run all linting tools in parallel
+mise run ci              # Runs: lint -> test -> test-integration -> smoke-test (test-integration and smoke-test both depend on build)
 
 # Other
 npm audit                # Security check
@@ -57,9 +60,10 @@ Follow this exact sequence for ALL code changes. Work in small increments — ma
 4. **Implement minimal code**: Write just enough to pass
 5. **Verify pass**: Run `mise run test` — confirm pass
 6. **Refactor**: Clean up, remove duplication, keep tests green
-7. **Validate**: `mise run ci && npm run build`
+7. **Verify refactor**: Run `mise run test && mise run lint` — confirm tests still green and all linting passes
+8. **Validate**: `mise run ci` — runs `lint -> test -> test-integration -> smoke-test`
 
-Task is NOT complete until all validation passes.
+Task is NOT complete until `mise run ci` exits 0.
 
 ## Tech Stack
 
@@ -142,114 +146,9 @@ async function doStuff(x) {
 
 ## Testing Standards
 
-Tests are executable documentation. Use Arrange-Act-Assert pattern. Mock HTTP with MSW. Generate test fixtures with Chance.js.
+TDD is required (see the workflow above). Tests are executable documentation: describe behavior, not implementation. Use Vitest (never Jest), mock HTTP with MSW (never mock `fetch` directly), and generate fixtures with Chance.js. Follow Arrange-Act-Assert, name `describe`/`it` blocks as specifications, extract test data to constants (never duplicate values across arrange/act/assert), and cover happy paths, unhappy paths, and edge cases. Tests must be deterministic and isolated. Never modify a test to pass without fixing the root cause.
 
-```typescript
-import Chance from 'chance';
-import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
-import { beforeAll, afterAll, afterEach, describe, it, expect } from 'vitest';
-import { fetchUserById } from './user-service';
-
-const chance = new Chance();
-const server = setupServer();
-
-beforeAll(() => server.listen());
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
-
-// ✅ Good - describes behavior, reads like documentation, uses generated fixtures
-describe('User retrieval', () => {
-  describe('given a valid user ID', () => {
-    it('returns the user details from the API', async () => {
-      // Arrange
-      const userId = chance.guid();
-      const expectedUser = { id: userId, name: chance.name() };
-      server.use(
-        http.get(`/api/users/${userId}`, () => {
-          return HttpResponse.json(expectedUser);
-        })
-      );
-
-      // Act
-      const result = await fetchUserById(userId);
-
-      // Assert
-      expect(result).toEqual(expectedUser);
-    });
-  });
-
-  describe('given an empty user ID', () => {
-    it('rejects with a validation error', async () => {
-      // Arrange - no server setup needed, validation happens before fetch
-
-      // Act & Assert
-      await expect(fetchUserById('')).rejects.toThrow('User ID required');
-    });
-  });
-
-  describe('given a non-existent user ID', () => {
-    it('rejects with an error containing the status code', async () => {
-      // Arrange
-      const userId = chance.guid();
-      server.use(
-        http.get(`/api/users/${userId}`, () => {
-          return new HttpResponse(null, { status: 404 });
-        })
-      );
-
-      // Act & Assert
-      await expect(fetchUserById(userId)).rejects.toThrow(
-        'Failed to fetch user: 404'
-      );
-    });
-  });
-
-  describe('given an invalid response shape', () => {
-    it('rejects with a validation error', async () => {
-      // Arrange
-      const userId = chance.guid();
-      server.use(
-        http.get(`/api/users/${userId}`, () => {
-          return HttpResponse.json({ invalid: 'data' });
-        })
-      );
-
-      // Act & Assert
-      await expect(fetchUserById(userId)).rejects.toThrow();
-    });
-  });
-});
-
-// ❌ Bad - implementation-focused, hardcoded values, duplicated test data
-describe('fetchUserById', () => {
-  it('works', async () => {
-    const user = { id: '123', name: 'Alice' };
-    server.use(
-      http.get('/api/users/123', () => HttpResponse.json(user))
-    );
-    const result = await fetchUserById('123'); // duplicated '123' across arrange/act/assert
-    expect(result).toEqual(user);
-  });
-});
-```
-
-**Rules:**
-- Tests are executable documentation — describe behavior, not implementation
-- Name `describe` blocks for features/scenarios, not function names
-- Name `it` blocks as specifications that read as complete sentences
-- Use nested `describe` blocks for "given/when" context
-- Use Chance.js to generate test fixtures — avoid hardcoded test data
-- Extract test data to constants — never duplicate values across arrange/act/assert
-- Use Vitest (never Jest)
-- Mock HTTP with MSW (never mock fetch directly)
-- Follow Arrange-Act-Assert pattern
-- Tests must be deterministic — same result every run
-- Reset handlers between tests for isolation
-- Avoid conditional logic in tests unless absolutely necessary
-- Ensure all code paths have corresponding tests
-- Test happy paths, unhappy paths, and edge cases
-- Never modify tests to pass without understanding root cause
+**Full conventions — including worked examples, the complete rule list, and dependency-injection-for-testing patterns — live in the canonical [`.github/instructions/test.instructions.md`](./instructions/test.instructions.md)**, which Copilot code review auto-applies to changed test files (`packages/**/*.{test,spec}.{ts,tsx}`).
 
 ## Dependencies
 
@@ -263,11 +162,9 @@ describe('fetchUserById', () => {
 
 ## GitHub Actions
 
-- Validation must be automated via GitHub Actions and runnable locally the same way
-- Validate all workflows using actionlint
-- Validate all YAML files using yamllint
-- Pin all 3rd party Actions to specific version or commit SHA
-- Keep all 3rd party Actions updated to latest version
+Validation must be automated via GitHub Actions and runnable locally the same way. Every workflow needs test and lint jobs; validate workflows with actionlint and YAML with yamllint (`mise run lint` runs both). Pin all third-party Actions to an exact commit SHA with a version comment and keep them current.
+
+**Full workflow conventions — SHA-pinning format, required jobs, runner requirements — live in the canonical [`.github/instructions/pipeline.instructions.md`](./instructions/pipeline.instructions.md)**, which Copilot code review auto-applies to changed workflow files (`.github/workflows/*.{yml,yaml}`).
 
 ## Boundaries
 

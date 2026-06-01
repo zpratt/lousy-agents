@@ -1,26 +1,16 @@
----
-applyTo: "**/spec.md"
----
+# Spec Format Reference
 
-# Spec Development Instructions
+> The `feature-to-plan` skill loads this reference during Phase 2 (Create) to construct the spec file. It contains the EARS requirement syntax, user story format, persona template, value assessment table, full Spec File Structure, task design guidelines, and Mermaid diagram requirements.
 
-You are a product management partner helping define features for <product> targeting <customers>.
-
-> Placeholder variables:
-> - `<product>` is the name of the product or system for which this spec is being written.
-> - `<customers>` describes the primary customer or user segments targeted by the spec.
-> These placeholders may be automatically populated by your tooling; if not, replace them manually with the appropriate values before using this document.
 ## Your Role
 
-Act as a collaborative PM pair, not a passive assistant. This means:
+When drafting a spec, act as a collaborative PM pair, not a passive assistant:
 
 - **Challenge assumptions** — Ask "why" before writing. Probe for the underlying problem.
 - **Identify gaps** — Flag missing acceptance criteria, edge cases, and error states.
 - **Guard scope** — Call out when a feature is too large for a single increment. Suggest phasing.
 - **Propose value** — Don't wait to be asked. Assess and state which value types a feature delivers.
 - **Ensure persona coverage** — Every spec must identify impacted personas. Push back if missing.
-
-## Collaboration Approach
 
 Before writing or modifying a spec:
 
@@ -34,52 +24,22 @@ When reviewing a spec:
 
 1. Verify all acceptance criteria use EARS notation
 2. Check that personas are explicitly named with impact described
-3. Confirm design aligns with engineering guidance
+3. Confirm design aligns with the repo's engineering guidance
 4. Identify any missing error states or edge cases
-5. Assess whether tasks are appropriately sized for the coding agent
-
-## Using the Feature-to-Spec Issue Template
-
-This repository includes a GitHub issue template for streamlined spec creation with automatic Copilot assignment.
-
-### Creating a Spec via Issue Template
-
-1. Go to **Issues** → **New Issue**
-2. Select **"Copilot Feature To Spec"** template
-3. Fill in the **Context & Goal** section describing what you want to build
-4. Fill in the **Acceptance Criteria** section with testable requirements
-5. Keep the default **Extra Instructions** unchanged — it mandates
-   invoking the `feature-to-plan` skill, which is the authoritative
-   spec-authoring workflow
-6. Submit the issue
-
-### Automatic Copilot Assignment
-
-When you create an issue with the `copilot-ready` label (applied automatically by the template):
-
-1. The `assign-copilot.yml` workflow triggers
-2. Copilot is mentioned in a comment that includes the mandatory
-   `feature-to-plan` invocation instructions
-3. Copilot begins working on the spec in `.github/specs/`
-
-### Related Files
-
-- `.github/ISSUE_TEMPLATE/feature-to-spec.yml` — The issue template
-- `.github/workflows/assign-copilot.yml` — Auto-assignment workflow
-- `.github/specs/` — Where completed specs are stored
+5. Assess whether tasks are appropriately sized for a coding agent session
 
 ## EARS Requirement Syntax
 
 All acceptance criteria must use EARS (Easy Approach to Requirements Syntax) patterns:
 
-| Pattern | Template | Use When |
-| --------- | ---------- | ---------- |
-| Ubiquitous | The `<system>` shall `<response>` | Always true, no trigger |
-| Event-driven | When `<trigger>`, the `<system>` shall `<response>` | Responding to an event |
-| State-driven | While `<state>`, the `<system>` shall `<response>` | Active during a condition |
-| Optional | Where `<feature>` is enabled, the `<system>` shall `<response>` | Configurable capability |
-| Unwanted | If `<condition>`, then the `<system>` shall `<response>` | Error handling, edge cases |
-| Complex | While `<state>`, when `<trigger>`, the `<system>` shall `<response>` | Combining conditions |
+| Pattern      | Template                                                             | Use When                   |
+| ------------ | -------------------------------------------------------------------- | -------------------------- |
+| Ubiquitous   | The `<system>` shall `<response>`                                    | Always true, no trigger    |
+| Event-driven | When `<trigger>`, the `<system>` shall `<response>`                  | Responding to an event     |
+| State-driven | While `<state>`, the `<system>` shall `<response>`                   | Active during a condition  |
+| Optional     | Where `<feature>` is enabled, the `<system>` shall `<response>`      | Configurable capability    |
+| Unwanted     | If `<condition>`, then the `<system>` shall `<response>`             | Error handling, edge cases |
+| Complex      | While `<state>`, when `<trigger>`, the `<system>` shall `<response>` | Combining conditions       |
 
 ### EARS Examples
 
@@ -114,7 +74,7 @@ so that I can **<outcome/problem solved>**.
 
 ## Persona Development
 
-Personas should be developed and maintained in a central location (e.g., `docs/personas.md`). When creating or referencing personas:
+Personas should be inlined into each spec's Personas table (see Spec File Structure below). When identifying personas:
 
 ### Persona Template
 
@@ -133,18 +93,19 @@ Personas should be developed and maintained in a central location (e.g., `docs/p
 - Identify both primary and secondary personas for each feature
 - Document whether impact is positive, negative, or neutral
 - Consider: Who benefits? Who is disrupted? Who needs to change behavior?
+- Pull persona names from the target product's existing materials when available; otherwise propose roles grounded in the feature's domain (end user, operator, integrator, administrator, etc.)
 
 ## Value Assessment
 
 Evaluate every feature against these value types. A feature may deliver multiple.
 
-| Value Type | Question to Ask |
-| ------------ | ----------------- |
-| Commercial | Does this increase revenue or reduce cost of sale? |
-| Future | Does this save time or money later? Does it reduce technical debt? |
-| Customer | Does this increase retention or satisfaction for existing users? |
-| Market | Does this attract new users or open new segments? |
-| Efficiency | Does this save operational time or reduce manual effort now? |
+| Value Type | Question to Ask                                                    |
+| ---------- | ------------------------------------------------------------------ |
+| Commercial | Does this increase revenue or reduce cost of sale?                 |
+| Future     | Does this save time or money later? Does it reduce technical debt? |
+| Customer   | Does this increase retention or satisfaction for existing users?   |
+| Market     | Does this attract new users or open new segments?                  |
+| Efficiency | Does this save operational time or reduce manual effort now?       |
 
 State the value assessment explicitly in the spec. If value is unclear, flag it as a risk.
 
@@ -154,7 +115,7 @@ A spec has three sections that flow into each other:
 
 1. **Requirements** — What we're building and why (human and agent context)
 2. **Design** — How it fits into the system (agent context for implementation)
-3. **Tasks** — Discrete units of work (directly assignable to coding agent)
+3. **Tasks** — Discrete units of work (directly assignable to a coding agent)
 
 ```markdown
 # Feature: <name>
@@ -165,9 +126,9 @@ A spec has three sections that flow into each other:
 
 ## Personas
 
-| Persona | Impact | Notes |
-| --------- | -------- | ------- |
-| <name> | Positive/Negative/Neutral | <brief explanation> |
+| Persona | Impact                    | Notes               |
+| ------- | ------------------------- | ------------------- |
+| <name>  | Positive/Negative/Neutral | <brief explanation> |
 
 ## Value Assessment
 
@@ -192,7 +153,7 @@ so that I can **<outcome>**.
 
 ## Design
 
-> Refer to `.github/copilot-instructions.md` for technical standards.
+> Refer to the repo's engineering guidance (e.g., `AGENTS.md`, `CONTRIBUTING.md`, `.github/copilot-instructions.md`, `CLAUDE.md`) for technical standards.
 
 ### Components Affected
 
@@ -205,6 +166,10 @@ so that I can **<outcome>**.
 ### Data Model Changes
 
 <If applicable: new fields, schemas, or state changes>
+
+### Diagrams
+
+<Include Mermaid diagrams to visualize data flow, architecture, or sequences>
 
 ### Open Questions
 
@@ -224,20 +189,24 @@ so that I can **<outcome>**.
 **Context**: <Why this task exists, what it unblocks>
 
 **Affected files**:
+
 - `<path/to/file>`
 
 **Requirements**:
+
 - <Specific acceptance criterion this task satisfies>
 
 **Verification**:
+
 - [ ] <Command to run or condition to check>
 - [ ] <Test that should pass>
 
 **Done when**:
+
 - [ ] All verification steps pass
 - [ ] No new errors in affected files
 - [ ] Acceptance criteria <reference specific criteria> satisfied
-- [ ] Code follows patterns in `.github/copilot-instructions.md`
+- [ ] Code follows the repo's engineering guidance
 
 ---
 
@@ -279,13 +248,14 @@ Every task must include verification steps the agent can run:
 
 ```markdown
 **Verification**:
-- [ ] `npm test` passes
-- [ ] `npm run lint` passes
+
+- [ ] `<repo's test command>` passes
+- [ ] `<repo's lint command>` passes
 - [ ] New endpoint returns 200 for valid input
 - [ ] New endpoint returns 400 with error message for invalid input
 ```
 
-Prefer automated checks (commands, tests) over subjective criteria.
+Prefer automated checks (commands, tests) over subjective criteria. Use whatever commands the target repo defines — don't hardcode a tool the repo doesn't use.
 
 ### Sequencing
 
@@ -298,18 +268,20 @@ Prefer automated checks (commands, tests) over subjective criteria.
 When implementing tasks from specs, avoid these common mistakes:
 
 **Don't:**
+
 - Create files outside the Affected files list without explicit approval
 - Skip verification steps or mark tasks complete without running them
 - Implement features not specified in acceptance criteria
 - Assume dependencies are installed — verify or install as part of the task
-- Make architectural decisions that contradict `.github/copilot-instructions.md`
+- Make architectural decisions that contradict the repo's engineering guidance
 - Batch multiple unrelated changes in a single task implementation
 - Ignore error states or edge cases mentioned in acceptance criteria
 
 **Do:**
+
 - Read the full spec (Requirements, Design, and specific Task) before starting
 - Follow verification steps in the exact order specified
-- Reference `.github/copilot-instructions.md` for technical patterns and standards
+- Reference the repo's engineering guidance for technical patterns and standards
 - Ask for clarification when acceptance criteria are ambiguous
 - Stay within the scope of the specific task assigned
 - Update only the files listed in "Affected files" unless creating new test files
@@ -325,7 +297,7 @@ When implementing tasks from specs, avoid these common mistakes:
 2. **Design**
    - Identify affected components and files
    - Note dependencies and data model changes
-   - Review: Does this align with engineering guidance?
+   - Review: Does this align with the repo's engineering guidance?
 
 3. **Task Breakdown**
    - Decompose into agent-sized tasks
@@ -335,7 +307,7 @@ When implementing tasks from specs, avoid these common mistakes:
 
 4. **Implement (per task)**
    - Assign task to coding agent (issue or direct prompt)
-   - Agent references spec for context, engineering file for standards
+   - Agent references spec for context, engineering guidance for standards
    - Run verification steps
    - Mark task complete, proceed to next
 
@@ -344,20 +316,20 @@ When implementing tasks from specs, avoid these common mistakes:
    - All acceptance criteria verified
    - Update spec if implementation revealed changes
 
-## Assigning Tasks to Coding Agent
+## Assigning Tasks to a Coding Agent
 
-When assigning a task to GitHub Copilot coding agent, include:
+When assigning a task, include:
 
-1. **Link to spec file** — "See `specs/feature-name/spec.md`"
+1. **Link to spec file** — "See `<path-to-spec>`"
 2. **Task reference** — "Implement Task 3: Add validation"
-3. **Engineering guidance reference** — "Follow `.github/copilot-instructions.md`"
+3. **Engineering guidance reference** — "Follow the repo's engineering instructions"
 
-### Example: GitHub Issue for Coding Agent
+### Example: GitHub Issue for a Coding Agent
 
 ```markdown
 ## Task
 
-Implement **Task 3: Add input validation** from `specs/workflow-triggers/spec.md`
+Implement **Task 3: Add input validation** from `.github/specs/workflow-triggers.spec.md`
 
 ## Context
 
@@ -366,25 +338,25 @@ See the spec for full acceptance criteria and design context.
 
 ## References
 
-- Spec: `specs/workflow-triggers/spec.md` (Task 3)
-- Standards: `.github/copilot-instructions.md`
+- Spec: `.github/specs/workflow-triggers.spec.md` (Task 3)
+- Standards: <repo's engineering guidance file>
 
 ## Verification
 
-- [ ] `npm test` passes
-- [ ] `npm run lint` passes
+- [ ] `<repo test command>` passes
+- [ ] `<repo lint command>` passes
 - [ ] Validation rejects invalid cron expressions with descriptive error
 ```
 
-### Example: Direct Prompt to Coding Agent
+### Example: Direct Prompt to a Coding Agent
 
-```
-Implement Task 3 from specs/workflow-triggers/spec.md
+```text
+Implement Task 3 from .github/specs/workflow-triggers.spec.md
 
 Read the full spec for context. This task adds input validation
 for workflow trigger configurations.
 
-Follow engineering standards in .github/copilot-instructions.md
+Follow the engineering standards documented in the repo.
 
 After implementation, run the verification steps in the task
 and confirm they pass.
@@ -392,20 +364,68 @@ and confirm they pass.
 
 ## Constraints
 
-- **Avoid vague appeals to things like "best practices"** — These sorts terms are subjective and can change. Be specific about what you recommend and why.
+- **Avoid vague appeals to "best practices."** These terms are subjective and can change. Be specific about what you recommend and why.
+
+## Diagram Requirements
+
+All diagrams in specs must use **Mermaid** syntax for consistency and GitHub rendering support.
+
+### Supported Diagram Types
+
+| Diagram Type        | Mermaid Type                     | Use Case                                      |
+| ------------------- | -------------------------------- | --------------------------------------------- |
+| Data Flow           | `flowchart TB` or `flowchart LR` | Show how data moves between components        |
+| Sequence            | `sequenceDiagram`                | Show interaction order between actors/systems |
+| State               | `stateDiagram-v2`                | Show state transitions                        |
+| Entity Relationship | `erDiagram`                      | Show data model relationships                 |
+| Class               | `classDiagram`                   | Show object relationships and structure       |
+
+### Example: Data Flow Diagram
+
+````markdown
+```mermaid
+flowchart TB
+    subgraph CLI["CLI Layer"]
+        CMD["command"]
+    end
+    subgraph UseCases["Use Cases Layer"]
+        UC["use case logic"]
+    end
+    CMD --> UC
+```
+````
+
+### Example: Sequence Diagram
+
+````markdown
+```mermaid
+sequenceDiagram
+    participant User
+    participant System
+    User->>System: request
+    System-->>User: response
+```
+````
+
+### Guidelines
+
+- Use subgraphs to group related components by architectural layer
+- Include descriptive labels for each node
+- Show data types flowing between components where relevant
+- For complex flows, prefer sequence diagrams to show interaction order
 
 ## Integration with Engineering Guidance
 
-For technical decisions, implementation patterns, and architectural standards, defer to the engineering instructions in `.github/copilot-instructions.md`.
+For technical decisions, implementation patterns, and architectural standards, defer to whatever engineering guidance the target repo provides — common examples include `AGENTS.md`, `CONTRIBUTING.md`, `.github/copilot-instructions.md`, `CLAUDE.md`, or files under `.github/instructions/`.
 
-**This file governs:**
+**This spec file governs:**
 
 - What to build and why (product decisions)
 - Who it's for (personas)
 - How to know it's done (acceptance criteria)
 - Task breakdown for agent assignment
 
-**The engineering file governs:**
+**The repo's engineering guidance governs:**
 
 - How to build it (technical approach)
 - Code standards and patterns
