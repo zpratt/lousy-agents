@@ -80,9 +80,8 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
 
     ```bash
     # Page through all review threads, collecting unresolved thread node IDs.
-    # On the first call, omit -F cursor (or pass null); on later calls pass the
-    # previous page's endCursor. Repeat until pageInfo.hasNextPage is false.
-    gh api graphql -f query='
+    # First call: do not pass a cursor. Later calls: pass the previous endCursor.
+    query='
     query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
       repository(owner: $owner, name: $repo) {
         pullRequest(number: $number) {
@@ -91,13 +90,26 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
             nodes {
               id
               isResolved
-              comments(first: 1) { nodes { databaseId path } }
+              comments(first: 100) { nodes { databaseId path line originalLine } }
             }
           }
         }
       }
-    }' -F owner='{owner}' -F repo='{repo}' -F number={number} -F cursor={endCursor}
-    # Resolve each addressed thread — use the `id` value from matching `nodes[]` above
+    }'
+    cursor=""
+    while :; do
+      args=(-f query="$query" -F owner='{owner}' -F repo='{repo}' -F number={number})
+      if [ -n "$cursor" ]; then
+        args+=(-F cursor="$cursor")
+      fi
+      response="$(gh api graphql "${args[@]}")"
+      cursor="$(echo "$response" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor // empty')"
+      has_next="$(echo "$response" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')"
+      [ "$has_next" = "true" ] || break
+    done
+    # Match REST {comment_id} to GraphQL thread by comments.nodes[].databaseId.
+    # Use path/line/originalLine as a secondary guard when multiple comments exist.
+    # Resolve each addressed thread using the matched thread `id`.
     gh api graphql -f query='mutation {
       resolveReviewThread(input: {threadId: "{thread_node_id}"}) {
         thread { isResolved }
