@@ -23,7 +23,7 @@
         "@lousy-agents/mcp": "5.14.10",
         "@modelcontextprotocol/server-sequential-thinking": "2025.12.18",
         "@types/node": "24.12.4",
-        "@upstash/context7-mcp": "3.0.0",
+        "@upstash/context7-mcp": "3.1.0",
         "chance": "1.1.13",
         "tsx": "4.22.4",
         "typescript": "6.0.3",
