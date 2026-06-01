@@ -63,6 +63,39 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
 5. Run `mise run test` and confirm the test now passes.
 6. Run `mise run ci && npm run build` to validate the full suite.
 7. Commit the change with a descriptive message referencing the finding.
+8. **Reply to each addressed review thread** (not as a top-level PR comment) with the commit SHA and a brief description:
+
+   ```bash
+   gh api repos/{owner}/{repo}/pulls/{number}/comments/{comment_id}/replies \
+     -f body="Fixed in {sha}. {Brief description of what changed and why.}"
+   ```
+
+9. **Resolve each addressed thread** via GraphQL:
+
+   ```bash
+   # Get unresolved thread node IDs
+   gh api graphql -f query='{
+     repository(owner: "{owner}", name: "{repo}") {
+       pullRequest(number: {number}) {
+         reviewThreads(last: 50) {
+           nodes {
+             id
+             isResolved
+             comments(first: 1) { nodes { databaseId path } }
+           }
+         }
+       }
+     }
+   }'
+   # Resolve each addressed thread
+   gh api graphql -f query='mutation {
+     resolveReviewThread(input: {threadId: "{thread_node_id}"}) {
+       thread { isResolved }
+     }
+   }'
+   ```
+
+   Leave threads unresolved only for items deferred to the user or rejected items awaiting discussion.
 
 Do not batch unrelated changes into a single commit.
 
@@ -70,7 +103,7 @@ Do not batch unrelated changes into a single commit.
 
 Invoke the **reviewer** agent (`@Reviewer check this code for evil paths and architectural violations`) against your updated diff. Record its full output.
 
-- If the reviewer agent is **unavailable**, manually classify the diff using the reviewer table format from `.github/agents/reviewer.md` and treat that as the verification output.
+- If the reviewer agent is **unavailable**, add the `needs-human-review` label to the PR and stop — proceed with manual review by a human maintainer.
 - If the reviewer reports **no critical, high, or medium findings**, stop — you are done.
 - Otherwise, the reviewer output becomes the input for Step 1 of the next iteration.
 
@@ -78,7 +111,7 @@ Invoke the **reviewer** agent (`@Reviewer check this code for evil paths and arc
 
 Stop when the **first** of the following conditions is met:
 
-1. The reviewer agent (or manual classification) surfaces no critical, high, or medium findings after Step 4.
+1. The reviewer agent surfaces no critical, high, or medium findings after Step 4.
 2. Three iterations have completed without full resolution.
 
 If you stop after 3 iterations with unresolved critical, high, or medium findings remaining:
