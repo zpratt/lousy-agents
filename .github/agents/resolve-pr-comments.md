@@ -134,3 +134,41 @@ If you stop after 3 iterations with unresolved critical, high, or medium finding
 - Never skip a failing test or disable test coverage to force the build to pass.
 - Never mark a finding as resolved without implementing a concrete fix.
 - Do not conflate triage (classification) with implementation (fixing) — complete both separately per iteration.
+
+## Mandatory
+
+- Follow Entry Checks, Loop Protocol, and Exit Conditions exactly as written.
+- Keep Beads (`bd`) as the single source of truth for findings and iteration state.
+
+## Commands
+
+- `gh`, `jq`, `bd`, `git`, `mise`, and `npm`
+
+## Validation
+
+Use the validation suite below after each fix. If validation fails, fix the issue and re-run validation before continuing.
+
+## Validation Suite
+
+```bash
+mise run test
+mise run ci && npm run build
+```
+
+## Feedback Loop
+
+```bash
+mise run test
+mise run ci && npm run build
+```
+
+If any command fails, implement the minimal correction, then repeat the loop until both commands pass.
+
+## Verification
+
+Run the reviewer step and continue iterating until no critical, high, or medium findings remain (or escalation criteria are met).
+
+## Before Commit
+
+- Confirm the relevant `bd` issue is updated or closed.
+- Confirm validation and verification steps have completed for the current fix.
