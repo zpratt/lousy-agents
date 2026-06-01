@@ -27,7 +27,9 @@ Run the following loop. Exit when **no critical, high, or medium severity findin
 ### Step 1 — Triage
 
 - **First iteration:** Invoke the **triaging-pr-reviews** skill (`#triaging-pr-reviews`) against the existing PR review comments. Provide the PR number as the argument (e.g., `#triaging-pr-reviews #317`). For every review comment the skill keeps actionable, create a tracking issue in Beads (`bd create`) capturing its file/line, validity decision, category, and requested remediation. Do **not** require CRITICAL / HIGH / MEDIUM labels here — `#triaging-pr-reviews` does not emit reviewer severities.
-- **Subsequent iterations:** Extract the severity values directly from the reviewer agent's output table (the table already contains CRITICAL / HIGH / MEDIUM / LOW ratings). Create a `bd` issue for each critical, high, or medium finding. Do **not** re-invoke `#triaging-pr-reviews` — that skill is scoped to pending PR comments and must not be used to process reviewer output tables.
+- **Subsequent iterations:** Extract the severity values directly from the reviewer agent's output table (the table already contains CRITICAL / HIGH / MEDIUM / LOW ratings). For each critical, high, or medium finding, record its severity on the `bd` issue. Do **not** re-invoke `#triaging-pr-reviews` — that skill is scoped to pending PR comments and must not be used to process reviewer output tables.
+
+Before creating any `bd` issue in this step, **look up existing open issues first** (e.g., `bd list --status open`) and match on the finding's file/line and category. If an open issue already tracks the same finding — a repeated reviewer comment or a rerun of this agent — **reuse and update that issue** (refresh its severity/remediation) instead of creating a duplicate. Only create a new issue when no open issue matches. This keeps Beads the single source of truth.
 
 If the first iteration triage returns no actionable PR comments, stop — you are done. On subsequent iterations, track all critical, high, and medium severity findings from the reviewer table in Beads; if there are none, stop — you are done.
 
@@ -51,7 +53,7 @@ Actively hunt for all of the following categories of defect:
 - **Filter-before-transform violations** — size limits, validation, and null checks MUST be applied BEFORE expensive operations such as decoding, parsing, or transforming data
 - **Over-broad error handling** — catch blocks that swallow all errors when only a specific error code (e.g., `ENOENT`) should be caught; non-recoverable errors (e.g., `EACCES`) must propagate, not be silently downgraded
 
-Create a `bd` issue for each new finding (`bd create`).
+Create a `bd` issue for each new finding (`bd create`), **assigning a severity (critical / high / medium / low)** to each one so it can be classified consistently at exit alongside triage and reviewer findings. As in Step 1, first look up existing open issues and reuse a matching one rather than creating a duplicate.
 
 ### Step 3 — Fix
 
