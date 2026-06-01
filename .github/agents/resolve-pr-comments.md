@@ -87,7 +87,7 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
        }
      }
    }'
-   # Resolve each addressed thread
+   # Resolve each addressed thread — use the `id` value from matching `nodes[]` above
    gh api graphql -f query='mutation {
      resolveReviewThread(input: {threadId: "{thread_node_id}"}) {
        thread { isResolved }
