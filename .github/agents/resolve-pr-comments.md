@@ -142,7 +142,11 @@ If you stop after 3 iterations with unresolved critical, high, or medium finding
 
 ## Commands
 
-- `gh`, `jq`, `bd`, `git`, `mise`, and `npm`
+- `gh` — query PR comments/threads, post replies, and apply labels.
+- `jq` — parse CLI and API JSON output.
+- `bd` — create/close findings and track iteration state.
+- `git` — diff against `main` during the audit step.
+- `mise` / `npm` — run validation and build commands.
 
 ## Validation
 
@@ -151,7 +155,6 @@ Use the validation suite below after each fix. If validation fails, fix the issu
 ## Validation Suite
 
 ```bash
-mise run test
 mise run ci && npm run build
 ```
 
@@ -159,6 +162,9 @@ mise run ci && npm run build
 
 ```bash
 mise run test
+if [ $? -ne 0 ]; then
+  # Implement minimal fix, then re-run mise run test until green.
+fi
 mise run ci && npm run build
 ```
 
