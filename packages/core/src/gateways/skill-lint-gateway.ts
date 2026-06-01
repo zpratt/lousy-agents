@@ -4,6 +4,7 @@
  */
 
 import { join } from "node:path";
+import { z } from "zod";
 import type {
     DiscoveredSkillFile,
     ParsedFrontmatter,
@@ -11,9 +12,11 @@ import type {
 import { parseFrontmatter } from "../lib/frontmatter.js";
 import type { SkillLintGateway } from "../use-cases/lint-skill-frontmatter.js";
 import {
+    isFsSafeViolation,
     listDirectoryWithinRoot,
     pathExistsWithinRoot,
     readFileNoFollow,
+    readTextWithinRoot,
 } from "./file-system-utils.js";
 
 /** Maximum skill file size: 1 MB */
@@ -27,6 +30,49 @@ const SKILL_DIRECTORIES = [
     join(".claude", "skills"),
     join(".agents", "skills"),
 ] as const;
+
+/** Maximum lock file size: 256 KB */
+const MAX_LOCK_FILE_BYTES = 262_144;
+
+/** Relative path to the skills lock file. */
+const SKILLS_LOCK_PATH = "skills-lock.json";
+
+/** Zod schema for skills-lock.json structure */
+const SkillsLockSchema = z.object({
+    skills: z.record(z.string(), z.unknown()).optional(),
+});
+
+/**
+ * Reads the skills-lock.json file and returns the set of locked skill names.
+ * Returns an empty set if the file does not exist or cannot be parsed.
+ */
+async function readLockedSkillNames(targetDir: string): Promise<Set<string>> {
+    try {
+        const exists = await pathExistsWithinRoot(targetDir, SKILLS_LOCK_PATH);
+        if (!exists) {
+            return new Set();
+        }
+        const content = await readTextWithinRoot(
+            targetDir,
+            SKILLS_LOCK_PATH,
+            MAX_LOCK_FILE_BYTES,
+        );
+        const result = SkillsLockSchema.safeParse(JSON.parse(content));
+        if (
+            result.success &&
+            Object.hasOwn(result.data, "skills") &&
+            result.data.skills != null
+        ) {
+            return new Set(Object.keys(result.data.skills));
+        }
+        return new Set();
+    } catch (error: unknown) {
+        if (isFsSafeViolation(error)) {
+            throw error;
+        }
+        return new Set();
+    }
+}
 
 /**
  * File system implementation of the skill lint gateway.
@@ -43,7 +89,12 @@ export class FileSystemSkillLintGateway implements SkillLintGateway {
             skills.push(...discovered);
         }
 
-        return skills;
+        const lockedNames = await readLockedSkillNames(targetDir);
+        if (lockedNames.size === 0) {
+            return skills;
+        }
+
+        return skills.filter((skill) => !lockedNames.has(skill.skillName));
     }
 
     private async discoverSkillsInDir(

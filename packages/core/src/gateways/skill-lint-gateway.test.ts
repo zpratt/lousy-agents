@@ -334,6 +334,175 @@ describe("SkillLintGateway", () => {
                 },
             );
         });
+
+        describe("given a skills-lock.json that lists some installed skills", () => {
+            it("should exclude skills listed in skills-lock.json", async () => {
+                // Arrange
+                const lockedSkill = "locked-skill";
+                const localSkill = "local-skill";
+                const lockedDir = join(
+                    testDir,
+                    ".github",
+                    "skills",
+                    lockedSkill,
+                );
+                const localDir = join(testDir, ".github", "skills", localSkill);
+                await mkdir(lockedDir, { recursive: true });
+                await mkdir(localDir, { recursive: true });
+                await writeFile(
+                    join(lockedDir, "SKILL.md"),
+                    "---\nname: locked-skill\n---\n",
+                );
+                await writeFile(
+                    join(localDir, "SKILL.md"),
+                    "---\nname: local-skill\n---\n",
+                );
+                await writeFile(
+                    join(testDir, "skills-lock.json"),
+                    JSON.stringify({
+                        version: 1,
+                        skills: {
+                            "locked-skill": {
+                                source: "some-org/skills",
+                                sourceType: "github",
+                                skillPath: "skills/locked-skill/SKILL.md",
+                                computedHash: "abc123",
+                            },
+                        },
+                    }),
+                );
+
+                // Act
+                const result = await gateway.discoverSkills(testDir);
+
+                // Assert
+                expect(result).toHaveLength(1);
+                expect(result[0].skillName).toBe(localSkill);
+            });
+
+            it("should exclude skills from all directories", async () => {
+                // Arrange
+                const lockedSkill = "locked-skill";
+                const claudeDir = join(
+                    testDir,
+                    ".claude",
+                    "skills",
+                    lockedSkill,
+                );
+                await mkdir(claudeDir, { recursive: true });
+                await writeFile(
+                    join(claudeDir, "SKILL.md"),
+                    "---\nname: locked-skill\n---\n",
+                );
+                await writeFile(
+                    join(testDir, "skills-lock.json"),
+                    JSON.stringify({
+                        version: 1,
+                        skills: {
+                            "locked-skill": {
+                                source: "some-org/skills",
+                                sourceType: "github",
+                                skillPath: "skills/locked-skill/SKILL.md",
+                                computedHash: "abc123",
+                            },
+                        },
+                    }),
+                );
+
+                // Act
+                const result = await gateway.discoverSkills(testDir);
+
+                // Assert
+                expect(result).toEqual([]);
+            });
+        });
+
+        describe("given a malformed skills-lock.json", () => {
+            it("should not exclude any skills", async () => {
+                // Arrange
+                const skillName = "my-skill";
+                const skillDir = join(testDir, ".github", "skills", skillName);
+                await mkdir(skillDir, { recursive: true });
+                await writeFile(
+                    join(skillDir, "SKILL.md"),
+                    "---\nname: my-skill\n---\n",
+                );
+                await writeFile(
+                    join(testDir, "skills-lock.json"),
+                    "not valid json",
+                );
+
+                // Act
+                const result = await gateway.discoverSkills(testDir);
+
+                // Assert
+                expect(result).toHaveLength(1);
+                expect(result[0].skillName).toBe(skillName);
+            });
+        });
+
+        describe("given a skills-lock.json where skills is an array instead of a record", () => {
+            it("should not exclude any skills", async () => {
+                // Arrange
+                const skillName = "my-skill";
+                const skillDir = join(testDir, ".github", "skills", skillName);
+                await mkdir(skillDir, { recursive: true });
+                await writeFile(
+                    join(skillDir, "SKILL.md"),
+                    "---\nname: my-skill\n---\n",
+                );
+                await writeFile(
+                    join(testDir, "skills-lock.json"),
+                    JSON.stringify({
+                        version: 1,
+                        skills: ["my-skill", "other-skill"],
+                    }),
+                );
+
+                // Act
+                const result = await gateway.discoverSkills(testDir);
+
+                // Assert — array structure is unexpected; no skills should be filtered out
+                expect(result).toHaveLength(1);
+                expect(result[0].skillName).toBe(skillName);
+            });
+        });
+
+        describe("given a skills-lock.json that exceeds the size limit", () => {
+            it("should propagate the fs-safe size-limit violation", async () => {
+                // Arrange — write a lock file that exceeds the 256 KB limit
+                const oversizedContent = "x".repeat(263_000);
+                await writeFile(
+                    join(testDir, "skills-lock.json"),
+                    oversizedContent,
+                );
+
+                // Act / Assert
+                await expect(gateway.discoverSkills(testDir)).rejects.toThrow(
+                    /exceeds size limit/,
+                );
+            });
+        });
+
+        describe("given no skills-lock.json file", () => {
+            it("should return all discovered skills", async () => {
+                // Arrange
+                const skillName = "my-skill";
+                const skillDir = join(testDir, ".github", "skills", skillName);
+                await mkdir(skillDir, { recursive: true });
+                await writeFile(
+                    join(skillDir, "SKILL.md"),
+                    "---\nname: my-skill\n---\n",
+                );
+
+                // Act
+                const result = await gateway.discoverSkills(testDir);
+
+                // Assert
+                expect(result).toHaveLength(1);
+                expect(result[0].skillName).toBe(skillName);
+            });
+        });
     });
 
     describe("readSkillFileContent", () => {
