@@ -39,7 +39,7 @@ hide = true
 
 [tasks.shellcheck]
 description = "Running shellcheck against shell scripts"
-run = "find . -not -path '*/node_modules/*' -name '*.sh' -exec shellcheck {} +"
+run = "find . -path '*/node_modules' -prune -o -name '*.sh' -exec shellcheck {} +"
 hide = true
 
 [tasks.semgrep]
