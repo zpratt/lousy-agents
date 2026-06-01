@@ -37,11 +37,12 @@ Track all findings and iteration state in Beads (`bd`) — never in an ad-hoc ma
 
 ### Step 2 — Audit
 
-Diff this branch against `main`:
+Detect the repository's default branch and diff this branch against it:
 
 ```bash
-git fetch origin main
-git diff origin/main...HEAD
+default_branch="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)"
+git fetch origin "$default_branch"
+git diff "origin/$default_branch"...HEAD
 ```
 
 Actively hunt for all of the following categories of defect:
@@ -113,7 +114,7 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
         echo "Failed to fetch review thread page. Check gh auth, owner/repo, and PR number." >&2
         exit 1
       fi
-      cursor="$(echo "$response" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor // \"\"')"
+      cursor="$(echo "$response" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor // empty')"
       has_next="$(echo "$response" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')"
       if [ "$has_next" != "true" ] && [ "$has_next" != "false" ]; then
         echo "Unexpected GraphQL pagination response: hasNextPage=$has_next" >&2
@@ -154,7 +155,7 @@ Do not batch unrelated changes into a single commit.
 
 ### Step 4 — Verify
 
-Invoke the **reviewer** agent (`@Reviewer check this code for evil paths and architectural violations`) against your updated diff. Record its full output.
+Invoke the repository's configured code-review agent against your updated diff. Use the invocation pattern appropriate for the target repository (for example, if the `reviewer` agent is present: `@Reviewer check this code for evil paths and architectural violations`). Record its full output.
 
 - If the reviewer agent is **unavailable**, add the `needs-human-review` label to the PR and stop — proceed with manual review by a human maintainer.
 - If the reviewer reports **no critical, high, or medium findings**, stop — you are done.
@@ -190,7 +191,7 @@ If you stop after 3 iterations with unresolved critical, high, or medium finding
 - `gh` — query PR comments/threads, post replies, and apply labels.
 - `jq` — parse CLI and API JSON output.
 - `bd` — create/close findings and track iteration state.
-- `git` — diff against `main` during the audit step.
+- `git` — diff against the repository's default branch during the audit step.
 - `mise` / `npm` — run validation and build commands.
 
 ## Validation
