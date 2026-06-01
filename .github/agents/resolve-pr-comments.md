@@ -81,6 +81,11 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
     ```bash
     # Page through all review threads, collecting unresolved thread node IDs.
     # First call: do not pass a cursor. Later calls: pass the previous endCursor.
+    # Replace all {...} placeholders with real values before running.
+    # Example: owner="octo-org", repo="octo-repo", number=123
+    owner="{OWNER}"
+    repo="{REPO}"
+    number={NUMBER}
     query='
     query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
       repository(owner: $owner, name: $repo) {
@@ -90,6 +95,7 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
             nodes {
               id
               isResolved
+              # Increase this if a thread can exceed 100 comments in your PR.
               comments(first: 100) { nodes { databaseId path line originalLine } }
             }
           }
@@ -97,21 +103,46 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
       }
     }'
     cursor=""
+    all_threads='[]'
     while :; do
-      args=(-f query="$query" -F owner='{owner}' -F repo='{repo}' -F number={number})
+      args=(-f query="$query" -F owner="$owner" -F repo="$repo" -F number="$number")
       if [ -n "$cursor" ]; then
         args+=(-F cursor="$cursor")
       fi
-      response="$(gh api graphql "${args[@]}")"
-      cursor="$(echo "$response" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor // empty')"
+      if ! response="$(gh api graphql "${args[@]}")"; then
+        echo "Failed to fetch review thread page. Check gh auth, owner/repo, and PR number." >&2
+        exit 1
+      fi
+      cursor="$(echo "$response" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor // \"\"')"
       has_next="$(echo "$response" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')"
+      if [ "$has_next" != "true" ] && [ "$has_next" != "false" ]; then
+        echo "Unexpected GraphQL pagination response: hasNextPage=$has_next" >&2
+        exit 1
+      fi
+      all_threads="$(jq -c --argjson acc "$all_threads" '
+        $acc + (.data.repository.pullRequest.reviewThreads.nodes // [])
+      ' <<<"$response")"
       [ "$has_next" = "true" ] || break
+      if [ -z "$cursor" ]; then
+        echo "Missing endCursor while hasNextPage=true" >&2
+        exit 1
+      fi
     done
+    # Example match for one addressed REST review comment ID:
+    # comment_id=123456789
+    # thread_node_id="$(jq -r --argjson cid "$comment_id" '
+    #   .[]
+    #   | select(.comments.nodes[]?.databaseId == $cid)
+    #   | .id' <<<"$all_threads" | head -n1)"
+    # if [ -z "$thread_node_id" ]; then
+    #   echo "No review thread found for comment_id=$comment_id" >&2
+    #   exit 1
+    # fi
     # Match REST {comment_id} to GraphQL thread by comments.nodes[].databaseId.
     # Use path/line/originalLine as a secondary guard when multiple comments exist.
     # Resolve each addressed thread using the matched thread `id`.
     gh api graphql -f query='mutation {
-      resolveReviewThread(input: {threadId: "{thread_node_id}"}) {
+      resolveReviewThread(input: {threadId: "'"$thread_node_id"'"}) {
         thread { isResolved }
       }
     }'
