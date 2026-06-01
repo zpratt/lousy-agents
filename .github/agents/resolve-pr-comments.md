@@ -78,7 +78,8 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
 
     ```bash
     # Page through all review threads, collecting unresolved thread node IDs.
-    # Repeat with the returned endCursor until hasNextPage is false.
+    # On the first call, omit -F cursor (or pass null); on later calls pass the
+    # previous page's endCursor. Repeat until pageInfo.hasNextPage is false.
     gh api graphql -f query='
     query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
       repository(owner: $owner, name: $repo) {
@@ -93,7 +94,7 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
           }
         }
       }
-    }' -F owner='{owner}' -F repo='{repo}' -F number={number} -F cursor='{end_cursor_or_null}'
+    }' -F owner='{owner}' -F repo='{repo}' -F number={number} -F cursor={endCursor}
     # Resolve each addressed thread — use the `id` value from matching `nodes[]` above
     gh api graphql -f query='mutation {
       resolveReviewThread(input: {threadId: "{thread_node_id}"}) {
