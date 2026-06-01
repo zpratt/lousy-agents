@@ -48,7 +48,9 @@ This repository includes a GitHub issue template for streamlined spec creation w
 2. Select **"Copilot Feature To Spec"** template
 3. Fill in the **Context & Goal** section describing what you want to build
 4. Fill in the **Acceptance Criteria** section with testable requirements
-5. Optionally customize the **Extra Instructions** section for agent-specific guidance
+5. Keep the default **Extra Instructions** unchanged — it mandates
+   invoking the `feature-to-plan` skill, which is the authoritative
+   spec-authoring workflow
 6. Submit the issue
 
 ### Automatic Copilot Assignment
@@ -56,7 +58,8 @@ This repository includes a GitHub issue template for streamlined spec creation w
 When you create an issue with the `copilot-ready` label (applied automatically by the template):
 
 1. The `assign-copilot.yml` workflow triggers
-2. Copilot is mentioned in a comment with your Extra Instructions
+2. Copilot is mentioned in a comment that includes the mandatory
+   `feature-to-plan` invocation instructions
 3. Copilot begins working on the spec in `.github/specs/`
 
 ### Related Files
