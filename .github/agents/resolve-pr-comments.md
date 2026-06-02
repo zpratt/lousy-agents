@@ -54,26 +54,37 @@ bd_list_output="$(bd list)" || {
 }
 loop_issue_id="$(echo "$bd_list_output" | jq -r --arg t "$loop_issue_title" '.[] | select(.title == $t) | .id' | head -n1)"
 if [ -z "$loop_issue_id" ]; then
-  raw_create_output="$(bd create --title "$loop_issue_title" --body 'iteration:0')" || {
+  # bd create uses a positional title argument (canonical form per .beads/README.md).
+  raw_create_output="$(bd create "$loop_issue_title")" || {
     echo "ERROR: Failed to create loop tracking issue in Beads." >&2
     exit 1
   }
   # Validate that bd create returned a plain ID (no spaces, not empty).
-  # If Beads outputs JSON, use: loop_issue_id="$(echo "$raw_create_output" | jq -r '.id')"
   loop_issue_id="$raw_create_output"
   if [ -z "$loop_issue_id" ] || [[ "$loop_issue_id" == *" "* ]]; then
     echo "ERROR: bd create returned unexpected output: '$loop_issue_id'" >&2
     exit 1
   fi
+  # Persist initial iteration counter via --status (documented bd update flag).
+  bd update "$loop_issue_id" --status "iteration:0" || {
+    echo "ERROR: Failed to set initial iteration counter for issue $loop_issue_id." >&2
+    exit 1
+  }
 fi
 ```
 
 At the start of each iteration, read the current count from Beads, increment it, stop if it would exceed 3, and persist the new value:
 
 ```bash
-current="$(bd show "$loop_issue_id" --json | jq -r '.body' | sed -n 's/.*iteration:\([0-9]*\).*/\1/p')"
+# bd show uses plain-text output (no --json flag per .beads/README.md).
+# Iteration counter is stored in the issue status as "iteration:N".
+bd_show_output="$(bd show "$loop_issue_id")" || {
+  echo "ERROR: bd show failed for issue $loop_issue_id" >&2
+  exit 1
+}
+current="$(echo "$bd_show_output" | grep -o 'iteration:[0-9]*' | head -n1 | sed 's/iteration://')"
 if ! [[ "$current" =~ ^[0-9]+$ ]]; then
-  echo "ERROR: Could not parse iteration counter from Beads issue $loop_issue_id (body: '$current')" >&2
+  echo "ERROR: Could not parse iteration counter from Beads issue $loop_issue_id (output: '$bd_show_output')" >&2
   exit 1
 fi
 N=$(( current + 1 ))
@@ -82,7 +93,8 @@ if [ "$N" -gt 3 ]; then
   # Apply escalation steps from Exit Conditions section.
   exit 1
 fi
-bd update "$loop_issue_id" --body "iteration:$N" || {
+# Persist new counter via --status (documented bd update flag per .beads/README.md).
+bd update "$loop_issue_id" --status "iteration:$N" || {
   echo "ERROR: Failed to persist iteration counter for issue $loop_issue_id." >&2
   exit 1
 }
@@ -104,7 +116,11 @@ Track all findings and iteration state in Beads (`bd`) — never in an ad-hoc ma
 Detect the repository's default branch and diff this branch against it:
 
 ```bash
-default_branch="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)"
+default_branch="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)" || {
+  echo "ERROR: gh repo view failed. Ensure gh is authenticated and run from within the repo." >&2
+  exit 1
+}
+[ -z "$default_branch" ] && { echo "ERROR: could not determine default branch" >&2; exit 1; }
 git fetch origin "$default_branch"
 git diff "origin/$default_branch"...HEAD
 ```
@@ -143,9 +159,9 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
 10. **Reply to each addressed review thread** (not as a top-level PR comment) with the commit SHA and a brief description. Derive `owner`, `repo`, `number`, and `comment_id` from live sources — do not hard-code or leave as placeholders:
 
     ```bash
-    owner="$(gh repo view --json owner -q .owner.login)"
-    repo="$(gh repo view --json name -q .name)"
-    number="$(gh pr view --json number -q .number)"
+    owner="$(gh repo view --json owner -q .owner.login)" || { echo "ERROR: gh repo view failed" >&2; exit 1; }
+    repo="$(gh repo view --json name -q .name)" || { echo "ERROR: gh repo view failed" >&2; exit 1; }
+    number="$(gh pr view --json number -q .number)" || { echo "ERROR: gh pr view failed" >&2; exit 1; }
     # comment_id is the REST review comment ID from the triage step or the gh api response.
     # Set fix_description to a one-sentence summary of the change before running this block.
     fix_description="<one-sentence summary of what changed and why>"
@@ -157,9 +173,9 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
 
     ```bash
     # Derive repo context from live sources — do not hard-code.
-    owner="$(gh repo view --json owner -q .owner.login)"
-    repo="$(gh repo view --json name -q .name)"
-    number="$(gh pr view --json number -q .number)"
+    owner="$(gh repo view --json owner -q .owner.login)" || { echo "ERROR: gh repo view failed" >&2; exit 1; }
+    repo="$(gh repo view --json name -q .name)" || { echo "ERROR: gh repo view failed" >&2; exit 1; }
+    number="$(gh pr view --json number -q .number)" || { echo "ERROR: gh pr view failed" >&2; exit 1; }
     # Page through all review threads, collecting unresolved thread node IDs.
     # First call: do not pass a cursor. Later calls: pass the previous endCursor.
     query='
@@ -224,7 +240,8 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
     # rather than silently resolving the wrong thread.
     truncated_threads="$(jq '[.[] | select(.comments.pageInfo.hasNextPage == true)] | length' <<<"$all_threads")"
     if [ "$truncated_threads" -gt 0 ]; then
-      echo "WARNING: $truncated_threads thread(s) have >100 comments and cannot be reliably matched by databaseId. Implement comment pagination for those threads before proceeding." >&2
+      echo "ERROR: $truncated_threads thread(s) have >100 comments and cannot be reliably matched by databaseId. Implement comment pagination for those threads before proceeding." >&2
+      exit 1
     fi
     thread_node_id="$(jq -r --argjson cid "$comment_id" '
       .[]
