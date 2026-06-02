@@ -45,59 +45,93 @@ Before entering the loop, create a dedicated Beads issue to track loop state dur
 
 ```bash
 pr_number="$(gh pr view --json number -q .number)"
+if ! [[ "$pr_number" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: gh pr view returned non-numeric PR number: '$pr_number'" >&2
+  exit 1
+fi
 loop_issue_title="pr-remediation-loop-$pr_number"
+loop_iteration_title_prefix="$loop_issue_title-iteration-"
 # Reuse an existing loop-state issue if one already exists for this PR.
 # Do not suppress bd list errors — a failure here must stop execution.
 bd_list_output="$(bd list)" || {
   echo "ERROR: bd list failed. Cannot look up loop-state issue." >&2
   exit 1
 }
-loop_issue_id="$(echo "$bd_list_output" | jq -r --arg t "$loop_issue_title" '.[] | select(.title == $t) | .id' | head -n1)"
+loop_issue_id="$(printf "%s\n" "$bd_list_output" | awk -v t="$loop_issue_title" '
+  index($0, t) {
+    # Exclude iteration-marker issues (titles prefixed with "<loop_issue_title>-iteration-").
+    if (index($0, t "-iteration-") != 0) next
+    if (match($0, /bd-[0-9]+/)) {
+      print substr($0, RSTART, RLENGTH)
+      exit
+    }
+  }
+')"
 if [ -z "$loop_issue_id" ]; then
   # bd create uses a positional title argument (canonical form per .beads/README.md).
   raw_create_output="$(bd create "$loop_issue_title")" || {
     echo "ERROR: Failed to create loop tracking issue in Beads." >&2
     exit 1
   }
-  # Validate that bd create returned a plain ID (no spaces, not empty).
-  loop_issue_id="$raw_create_output"
-  if [ -z "$loop_issue_id" ] || [[ "$loop_issue_id" == *" "* ]]; then
-    echo "ERROR: bd create returned unexpected output: '$loop_issue_id'" >&2
+  # Parse ID from human-readable output (e.g., "Created issue bd-123: <title>").
+  loop_issue_id="$(printf "%s\n" "$raw_create_output" | grep -Eo 'bd-[0-9]+' | head -n1)"
+  if [ -z "$loop_issue_id" ]; then
+    echo "ERROR: Could not parse loop issue ID from bd create output: '$raw_create_output'" >&2
     exit 1
   fi
-  # Persist initial iteration counter via --status (documented bd update flag).
-  bd update "$loop_issue_id" --status "iteration:0" || {
-    echo "ERROR: Failed to set initial iteration counter for issue $loop_issue_id." >&2
-    exit 1
-  }
 fi
+loop_iteration_title_suffix="-loop-$loop_issue_id"
 ```
 
-At the start of each iteration, read the current count from Beads, increment it, stop if it would exceed 3, and persist the new value:
+At the start of each iteration, count existing iteration-marker issues in Beads, increment it, stop if it would exceed 3, and persist the new value by creating the next marker issue:
 
 ```bash
-# bd show uses plain-text output (no --json flag per .beads/README.md).
-# Iteration counter is stored in the issue status as "iteration:N".
-bd_show_output="$(bd show "$loop_issue_id")" || {
-  echo "ERROR: bd show failed for issue $loop_issue_id" >&2
+# Re-read issue list each iteration so reruns use durable Beads state.
+bd_list_output="$(bd list)" || {
+  echo "ERROR: bd list failed while determining current iteration count." >&2
   exit 1
 }
-current="$(echo "$bd_show_output" | grep -o 'iteration:[0-9]*' | head -n1 | sed 's/iteration://')"
+current="$(
+  printf "%s\n" "$bd_list_output" | awk -v p="$loop_iteration_title_prefix" -v s="$loop_iteration_title_suffix" '
+    {
+      start = index($0, p)
+      if (start == 0) next
+      remaining = substr($0, start + length(p))
+      if (match(remaining, /^[0-9]+/)) {
+        n = substr(remaining, RSTART, RLENGTH)
+        tail = substr(remaining, RLENGTH + 1)
+        if (index(tail, s) == 1 && n >= 1 && n <= 3 && n > max) {
+          max = n
+        }
+      }
+    }
+    END {
+      if (max > 0) print max
+    }
+  '
+)"
+[ -z "$current" ] && current=0
 if ! [[ "$current" =~ ^[0-9]+$ ]]; then
-  echo "ERROR: Could not parse iteration counter from Beads issue $loop_issue_id (output: '$bd_show_output')" >&2
+  echo "ERROR: Could not parse iteration counter from Beads list output." >&2
   exit 1
 fi
-N=$(( current + 1 ))
+N=$((current + 1))
 if [ "$N" -gt 3 ]; then
   echo "ERROR: 3-iteration limit reached. Escalating." >&2
   # Apply escalation steps from Exit Conditions section.
   exit 1
 fi
-# Persist new counter via --status (documented bd update flag per .beads/README.md).
-bd update "$loop_issue_id" --status "iteration:$N" || {
-  echo "ERROR: Failed to persist iteration counter for issue $loop_issue_id." >&2
+# Persist iteration marker in Beads.
+marker_title="${loop_iteration_title_prefix}${N}${loop_iteration_title_suffix}"
+raw_marker_output="$(bd create "$marker_title")" || {
+  echo "ERROR: Failed to create iteration marker issue $marker_title." >&2
   exit 1
 }
+marker_issue_id="$(printf "%s\n" "$raw_marker_output" | grep -Eo 'bd-[0-9]+' | head -n1)"
+if [ -z "$marker_issue_id" ]; then
+  echo "ERROR: Could not parse iteration marker ID from bd create output: '$raw_marker_output'" >&2
+  exit 1
+fi
 ```
 
 ### Step 1 — Triage
