@@ -96,7 +96,7 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
             nodes {
               id
               isResolved
-              # Increase this if a thread can exceed 100 comments in your PR.
+              # 100 is the GraphQL maximum for first:. Threads with >100 comments require paginating comments separately.
               comments(first: 100) { nodes { databaseId path line originalLine } }
             }
           }
@@ -121,7 +121,7 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
         exit 1
       fi
       all_threads="$(jq -c --argjson acc "$all_threads" '
-        $acc + (.data.repository.pullRequest.reviewThreads.nodes // [])
+        $acc + [.data.repository.pullRequest.reviewThreads.nodes[]? | select(.isResolved == false)]
       ' <<<"$response")"
       [ "$has_next" = "true" ] || break
       if [ -z "$cursor" ]; then
@@ -129,19 +129,18 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
         exit 1
       fi
     done
-    # Example match for one addressed REST review comment ID:
-    # comment_id=123456789
-    # thread_node_id="$(jq -r --argjson cid "$comment_id" '
-    #   .[]
-    #   | select(.comments.nodes[]?.databaseId == $cid)
-    #   | .id' <<<"$all_threads" | head -n1)"
-    # if [ -z "$thread_node_id" ]; then
-    #   echo "No review thread found for comment_id=$comment_id" >&2
-    #   exit 1
-    # fi
-    # Match REST {comment_id} to GraphQL thread by comments.nodes[].databaseId.
-    # Use path/line/originalLine as a secondary guard when multiple comments exist.
-    # Resolve each addressed thread using the matched thread `id`.
+    # For each addressed REST review comment, match it to a GraphQL thread and resolve it.
+    # Replace {COMMENT_ID} with the actual REST review comment ID (integer).
+    # Use path/line/originalLine as a secondary guard when multiple threads share the same comment.
+    comment_id={COMMENT_ID}
+    thread_node_id="$(jq -r --argjson cid "$comment_id" '
+      .[]
+      | select(.comments.nodes[]?.databaseId == $cid)
+      | .id' <<<"$all_threads" | head -n1)"
+    if [ -z "$thread_node_id" ]; then
+      echo "No unresolved review thread found for comment_id=$comment_id" >&2
+      exit 1
+    fi
     gh api graphql -f query='mutation {
       resolveReviewThread(input: {threadId: "'"$thread_node_id"'"}) {
         thread { isResolved }
