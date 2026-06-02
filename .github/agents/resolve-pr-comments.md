@@ -12,12 +12,16 @@ You are the **PR Remediation Agent**. Your purpose is to resolve all outstanding
 
 Before starting, verify:
 
-1. You are operating on a feature branch, **not** `main` or `master`:
+1. You are operating on a feature branch, **not** `main` or `master`, and not in detached HEAD state:
 
    ```bash
    branch="$(git rev-parse --abbrev-ref HEAD)"
    if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
      echo "ERROR: Refusing to operate on protected branch '$branch'" >&2
+     exit 1
+   fi
+   if [ "$branch" = "HEAD" ]; then
+     echo "ERROR: Detached HEAD state detected. Check out a named feature branch before running." >&2
      exit 1
    fi
    ```
@@ -33,19 +37,37 @@ If any condition is not met, stop and report the reason.
 
 Run the following loop. Exit when **no critical, high, or medium severity findings remain**, or after **3 iterations**, whichever comes first.
 
-Before entering the loop, create a dedicated Beads issue to track loop state durably:
+Before entering the loop, create a dedicated Beads issue to track loop state durably. The loop-state issue is keyed on the PR number so re-invocations resume from the same durable state rather than resetting the counter:
 
 ```bash
-loop_issue_id="$(bd create --title 'pr-remediation-loop' --body 'iteration 0 of 3')"
+pr_number="$(gh pr view --json number -q .number)"
+loop_issue_title="pr-remediation-loop-$pr_number"
+# Reuse an existing loop-state issue if one already exists for this PR.
+loop_issue_id="$(bd list | jq -r --arg t "$loop_issue_title" '.[] | select(.title == $t) | .id' 2>/dev/null | head -n1)"
+if [ -z "$loop_issue_id" ]; then
+  loop_issue_id="$(bd create --title "$loop_issue_title" --body 'iteration:0')" || {
+    echo "ERROR: Failed to create loop tracking issue in Beads." >&2
+    exit 1
+  }
+fi
 ```
 
-At the start of each iteration N (1, 2, 3), update the loop issue:
+At the start of each iteration, read the current count from Beads, increment it, stop if it would exceed 3, and persist the new value:
 
 ```bash
-bd update "$loop_issue_id" --body "iteration $N of 3"
+current="$(bd show "$loop_issue_id" --json | jq -r '.body' | grep -oP '(?<=iteration:)\d+')"
+if ! [[ "$current" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: Could not parse iteration counter from Beads issue $loop_issue_id (body: '$current')" >&2
+  exit 1
+fi
+N=$(( current + 1 ))
+if [ "$N" -gt 3 ]; then
+  echo "ERROR: 3-iteration limit reached. Escalating." >&2
+  # Apply escalation steps from Exit Conditions section.
+  exit 1
+fi
+bd update "$loop_issue_id" --body "iteration:$N"
 ```
-
-At the loop header, read the current iteration from Beads (`bd show "$loop_issue_id"`) and stop if it would exceed 3. This ensures the iteration limit is enforced from durable state even if the agent loses context between steps.
 
 ### Step 1 — Triage
 
@@ -149,6 +171,10 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
         echo "Failed to fetch review thread page. Check gh auth, owner/repo, and PR number." >&2
         exit 1
       fi
+      if echo "$response" | jq -e '.errors != null' >/dev/null 2>&1; then
+        echo "GraphQL error fetching review thread page: $(echo "$response" | jq '.errors')" >&2
+        exit 1
+      fi
       cursor="$(echo "$response" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor // empty')"
       has_next="$(echo "$response" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage')"
       if [ "$has_next" != "true" ] && [ "$has_next" != "false" ]; then
@@ -166,19 +192,20 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
     done
     # For each addressed REST review comment, match it to a GraphQL thread and resolve it.
     # comment_id is captured from the Step 10 gh api reply call above.
-    # Primary match: comments.nodes[].databaseId == comment_id.
-    # Fallback: if any thread has comments.pageInfo.hasNextPage == true (>100 comments),
-    #   the primary match may miss the comment; fall back to path/line matching for that thread.
+    # Match by comments.nodes[].databaseId (primary key). If a thread has >100 comments
+    # (comments.pageInfo.hasNextPage == true), its later comments are not fetched and
+    # databaseId matching may miss them. In that case, stop and require manual disambiguation
+    # rather than silently resolving the wrong thread.
+    truncated_threads="$(jq '[.[] | select(.comments.pageInfo.hasNextPage == true)] | length' <<<"$all_threads")"
+    if [ "$truncated_threads" -gt 0 ]; then
+      echo "WARNING: $truncated_threads thread(s) have >100 comments and cannot be reliably matched by databaseId. Implement comment pagination for those threads before proceeding." >&2
+    fi
     thread_node_id="$(jq -r --argjson cid "$comment_id" '
       .[]
-      | select(
-          (.comments.nodes[]?.databaseId == $cid) or
-          (.comments.pageInfo.hasNextPage == true and
-           .comments.nodes[0]?.path != null)
-        )
+      | select(.comments.nodes[]?.databaseId == $cid)
       | .id' <<<"$all_threads" | head -n1)"
     if [ -z "$thread_node_id" ]; then
-      echo "No unresolved review thread found for comment_id=$comment_id" >&2
+      echo "No unresolved review thread found for comment_id=$comment_id. If the comment is beyond the 100-comment mark, implement comment pagination first." >&2
       exit 1
     fi
     # Use a parameterized mutation — never interpolate thread_node_id inline.
