@@ -12,7 +12,16 @@ You are the **PR Remediation Agent**. Your purpose is to resolve all outstanding
 
 Before starting, verify:
 
-1. You are operating on a feature branch, **not** `main` or `master`.
+1. You are operating on a feature branch, **not** `main` or `master`:
+
+   ```bash
+   branch="$(git rev-parse --abbrev-ref HEAD)"
+   if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
+     echo "ERROR: Refusing to operate on protected branch '$branch'" >&2
+     exit 1
+   fi
+   ```
+
 2. The PR has at least one review comment to address.
 3. The `gh` CLI is authenticated and available (`gh auth status`).
 4. The `jq` binary is available (`jq --version`).
@@ -24,12 +33,26 @@ If any condition is not met, stop and report the reason.
 
 Run the following loop. Exit when **no critical, high, or medium severity findings remain**, or after **3 iterations**, whichever comes first.
 
+Before entering the loop, create a dedicated Beads issue to track loop state durably:
+
+```bash
+loop_issue_id="$(bd create --title 'pr-remediation-loop' --body 'iteration 0 of 3')"
+```
+
+At the start of each iteration N (1, 2, 3), update the loop issue:
+
+```bash
+bd update "$loop_issue_id" --body "iteration $N of 3"
+```
+
+At the loop header, read the current iteration from Beads (`bd show "$loop_issue_id"`) and stop if it would exceed 3. This ensures the iteration limit is enforced from durable state even if the agent loses context between steps.
+
 ### Step 1 — Triage
 
 - **First iteration:** Invoke the **triaging-pr-reviews** skill (`#triaging-pr-reviews`) against the existing PR review comments. Provide the PR number as the argument (e.g., `#triaging-pr-reviews #317`). For every review comment the skill keeps actionable, create a tracking issue in Beads (`bd create`) capturing its file/line, validity decision, category, and requested remediation. Do **not** require CRITICAL / HIGH / MEDIUM labels here — `#triaging-pr-reviews` does not emit reviewer severities.
 - **Subsequent iterations:** Extract the severity values directly from the reviewer agent's output table (the table already contains CRITICAL / HIGH / MEDIUM / LOW ratings). For each critical, high, or medium finding, record its severity on the `bd` issue. Do **not** re-invoke `#triaging-pr-reviews` — that skill is scoped to pending PR comments and must not be used to process reviewer output tables.
 
-Before creating any `bd` issue in this step, **look up existing open issues first** (e.g., `bd list --status open`) and match on the finding's file/line and category. If an open issue already tracks the same finding — a repeated reviewer comment or a rerun of this agent — **reuse and update that issue** (`bd update <id>` to refresh its severity and remediation, preserving the original file/line and creation context) instead of creating a duplicate. Only create a new issue when no open issue matches. This keeps Beads the single source of truth.
+Before creating any `bd` issue in this step, **look up existing open issues first** (`bd list` — use `bd query` to filter by open status if available) and match on the finding's file/line and category. If an open issue already tracks the same finding — a repeated reviewer comment or a rerun of this agent — **reuse and update that issue** (`bd update <id>` to refresh its severity and remediation, preserving the original file/line and creation context) instead of creating a duplicate. Only create a new issue when no open issue matches. This keeps Beads the single source of truth.
 
 If the first iteration triage returns no actionable PR comments, stop — you are done. On subsequent iterations, track all critical, high, and medium severity findings from the reviewer table in Beads; if there are none, stop — you are done.
 
@@ -69,24 +92,33 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
 5. Run `mise run test` and confirm the test now passes.
 6. Run `mise run ci && npm run build` to validate the full suite.
 7. Commit the change with a descriptive message referencing the finding.
-8. Close the corresponding `bd` issue (`bd close <id>`) so iteration state stays in Beads.
-9. **Reply to each addressed review thread** (not as a top-level PR comment) with the commit SHA and a brief description:
+8. Capture the commit SHA immediately after committing:
 
    ```bash
-   gh api repos/{owner}/{repo}/pulls/{number}/comments/{comment_id}/replies \
-     -f body="Fixed in {sha}. {Brief description of what changed and why.}"
+   sha="$(git rev-parse HEAD)"
    ```
 
-10. **Resolve each addressed thread** via GraphQL. A PR may have more than 50 review threads, so **paginate** through every page (do not rely on a single `last: 50` page) before matching and resolving thread IDs:
+9. Close the corresponding `bd` issue (`bd close <id>`) so iteration state stays in Beads.
+10. **Reply to each addressed review thread** (not as a top-level PR comment) with the commit SHA and a brief description. Derive `owner`, `repo`, `number`, and `comment_id` from live sources — do not hard-code or leave as placeholders:
 
     ```bash
+    owner="$(gh repo view --json owner -q .owner.login)"
+    repo="$(gh repo view --json name -q .name)"
+    number="$(gh pr view --json number -q .number)"
+    # comment_id is the REST review comment ID from the triage step or the gh api response
+    gh api "repos/$owner/$repo/pulls/$number/comments/$comment_id/replies" \
+      -f body="Fixed in $sha. {Brief description of what changed and why.}"
+    ```
+
+11. **Resolve each addressed thread** via GraphQL. A PR may have more than 50 review threads, so **paginate** through every page (do not rely on a single `last: 50` page) before matching and resolving thread IDs:
+
+    ```bash
+    # Derive repo context from live sources — do not hard-code.
+    owner="$(gh repo view --json owner -q .owner.login)"
+    repo="$(gh repo view --json name -q .name)"
+    number="$(gh pr view --json number -q .number)"
     # Page through all review threads, collecting unresolved thread node IDs.
     # First call: do not pass a cursor. Later calls: pass the previous endCursor.
-    # Replace all {...} placeholders with real values before running.
-    # Example: owner="octo-org", repo="octo-repo", number=123
-    owner="{OWNER}"
-    repo="{REPO}"
-    number={NUMBER}
     query='
     query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
       repository(owner: $owner, name: $repo) {
@@ -97,7 +129,10 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
               id
               isResolved
               # 100 is the GraphQL maximum for first:. Threads with >100 comments require paginating comments separately.
-              comments(first: 100) { nodes { databaseId path line originalLine } }
+              comments(first: 100) {
+                pageInfo { hasNextPage }
+                nodes { databaseId path line originalLine }
+              }
             }
           }
         }
@@ -130,22 +165,33 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
       fi
     done
     # For each addressed REST review comment, match it to a GraphQL thread and resolve it.
-    # Replace {COMMENT_ID} with the actual REST review comment ID (integer).
-    # Use path/line/originalLine as a secondary guard when multiple threads share the same comment.
-    comment_id={COMMENT_ID}
+    # comment_id is captured from the Step 10 gh api reply call above.
+    # Primary match: comments.nodes[].databaseId == comment_id.
+    # Fallback: if any thread has comments.pageInfo.hasNextPage == true (>100 comments),
+    #   the primary match may miss the comment; fall back to path/line matching for that thread.
     thread_node_id="$(jq -r --argjson cid "$comment_id" '
       .[]
-      | select(.comments.nodes[]?.databaseId == $cid)
+      | select(
+          (.comments.nodes[]?.databaseId == $cid) or
+          (.comments.pageInfo.hasNextPage == true and
+           .comments.nodes[0]?.path != null)
+        )
       | .id' <<<"$all_threads" | head -n1)"
     if [ -z "$thread_node_id" ]; then
       echo "No unresolved review thread found for comment_id=$comment_id" >&2
       exit 1
     fi
-    gh api graphql -f query='mutation {
-      resolveReviewThread(input: {threadId: "'"$thread_node_id"'"}) {
-        thread { isResolved }
-      }
-    }'
+    # Use a parameterized mutation — never interpolate thread_node_id inline.
+    if ! result="$(gh api graphql \
+      -f query='mutation($threadId: ID!) { resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } } }' \
+      -f threadId="$thread_node_id")"; then
+      echo "resolveReviewThread failed for thread $thread_node_id" >&2
+      exit 1
+    fi
+    if ! echo "$result" | jq -e '.errors == null' >/dev/null; then
+      echo "GraphQL error resolving thread $thread_node_id: $(echo "$result" | jq '.errors')" >&2
+      exit 1
+    fi
     ```
 
     Leave threads unresolved only for items deferred to the user or rejected items awaiting discussion.
