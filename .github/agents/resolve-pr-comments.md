@@ -16,6 +16,10 @@ Before starting, verify:
 
    ```bash
    branch="$(git rev-parse --abbrev-ref HEAD)"
+   if [ -z "$branch" ]; then
+     echo "ERROR: Could not determine current branch (git rev-parse failed)." >&2
+     exit 1
+   fi
    if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
      echo "ERROR: Refusing to operate on protected branch '$branch'" >&2
      exit 1
@@ -43,19 +47,31 @@ Before entering the loop, create a dedicated Beads issue to track loop state dur
 pr_number="$(gh pr view --json number -q .number)"
 loop_issue_title="pr-remediation-loop-$pr_number"
 # Reuse an existing loop-state issue if one already exists for this PR.
-loop_issue_id="$(bd list | jq -r --arg t "$loop_issue_title" '.[] | select(.title == $t) | .id' 2>/dev/null | head -n1)"
+# Do not suppress bd list errors — a failure here must stop execution.
+bd_list_output="$(bd list)" || {
+  echo "ERROR: bd list failed. Cannot look up loop-state issue." >&2
+  exit 1
+}
+loop_issue_id="$(echo "$bd_list_output" | jq -r --arg t "$loop_issue_title" '.[] | select(.title == $t) | .id' | head -n1)"
 if [ -z "$loop_issue_id" ]; then
-  loop_issue_id="$(bd create --title "$loop_issue_title" --body 'iteration:0')" || {
+  raw_create_output="$(bd create --title "$loop_issue_title" --body 'iteration:0')" || {
     echo "ERROR: Failed to create loop tracking issue in Beads." >&2
     exit 1
   }
+  # Validate that bd create returned a plain ID (no spaces, not empty).
+  # If Beads outputs JSON, use: loop_issue_id="$(echo "$raw_create_output" | jq -r '.id')"
+  loop_issue_id="$raw_create_output"
+  if [ -z "$loop_issue_id" ] || [[ "$loop_issue_id" == *" "* ]]; then
+    echo "ERROR: bd create returned unexpected output: '$loop_issue_id'" >&2
+    exit 1
+  fi
 fi
 ```
 
 At the start of each iteration, read the current count from Beads, increment it, stop if it would exceed 3, and persist the new value:
 
 ```bash
-current="$(bd show "$loop_issue_id" --json | jq -r '.body' | grep -oP '(?<=iteration:)\d+')"
+current="$(bd show "$loop_issue_id" --json | jq -r '.body' | sed -n 's/.*iteration:\([0-9]*\).*/\1/p')"
 if ! [[ "$current" =~ ^[0-9]+$ ]]; then
   echo "ERROR: Could not parse iteration counter from Beads issue $loop_issue_id (body: '$current')" >&2
   exit 1
@@ -66,7 +82,10 @@ if [ "$N" -gt 3 ]; then
   # Apply escalation steps from Exit Conditions section.
   exit 1
 fi
-bd update "$loop_issue_id" --body "iteration:$N"
+bd update "$loop_issue_id" --body "iteration:$N" || {
+  echo "ERROR: Failed to persist iteration counter for issue $loop_issue_id." >&2
+  exit 1
+}
 ```
 
 ### Step 1 — Triage
@@ -127,9 +146,11 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
     owner="$(gh repo view --json owner -q .owner.login)"
     repo="$(gh repo view --json name -q .name)"
     number="$(gh pr view --json number -q .number)"
-    # comment_id is the REST review comment ID from the triage step or the gh api response
+    # comment_id is the REST review comment ID from the triage step or the gh api response.
+    # Set fix_description to a one-sentence summary of the change before running this block.
+    fix_description="<one-sentence summary of what changed and why>"
     gh api "repos/$owner/$repo/pulls/$number/comments/$comment_id/replies" \
-      -f body="Fixed in $sha. {Brief description of what changed and why.}"
+      -f body="Fixed in $sha. $fix_description"
     ```
 
 11. **Resolve each addressed thread** via GraphQL. A PR may have more than 50 review threads, so **paginate** through every page (do not rely on a single `last: 50` page) before matching and resolving thread IDs:
@@ -192,6 +213,11 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
     done
     # For each addressed REST review comment, match it to a GraphQL thread and resolve it.
     # comment_id is captured from the Step 10 gh api reply call above.
+    # Validate comment_id is a non-empty numeric ID before use.
+    if ! [[ "$comment_id" =~ ^[0-9]+$ ]]; then
+      echo "ERROR: comment_id is not a valid numeric ID (got: '$comment_id')" >&2
+      exit 1
+    fi
     # Match by comments.nodes[].databaseId (primary key). If a thread has >100 comments
     # (comments.pageInfo.hasNextPage == true), its later comments are not fetched and
     # databaseId matching may miss them. In that case, stop and require manual disambiguation
