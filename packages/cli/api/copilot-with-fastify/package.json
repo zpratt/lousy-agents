@@ -32,7 +32,7 @@
         "@lousy-agents/mcp": "5.15.0",
         "@modelcontextprotocol/server-sequential-thinking": "2025.12.18",
         "@testcontainers/postgresql": "12.0.1",
-        "@types/node": "24.12.4",
+        "@types/node": "24.13.0",
         "@upstash/context7-mcp": "3.1.0",
         "chance": "1.1.13",
         "testcontainers": "12.0.1",
