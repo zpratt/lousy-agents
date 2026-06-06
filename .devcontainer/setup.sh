@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # renovate: datasource=github-releases depName=dolthub/dolt
-DOLT_VERSION="2.1.2"
+DOLT_VERSION="2.1.4"
 # renovate: datasource=github-releases depName=steveyegge/beads
 BEADS_VERSION="1.0.5"
 
