@@ -30,7 +30,7 @@
         "@types/node": "24.13.2",
         "@types/react": "19.2.17",
         "@types/react-dom": "19.2.3",
-        "@upstash/context7-mcp": "3.1.0",
+        "@upstash/context7-mcp": "3.2.0",
         "@vitejs/plugin-react": "6.0.2",
         "@vitest/ui": "4.1.8",
         "eslint": "10.4.1",
