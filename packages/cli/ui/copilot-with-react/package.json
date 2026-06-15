@@ -32,13 +32,13 @@
         "@types/react-dom": "19.2.3",
         "@upstash/context7-mcp": "3.2.1",
         "@vitejs/plugin-react": "6.0.2",
-        "@vitest/ui": "4.1.8",
+        "@vitest/ui": "4.1.9",
         "eslint": "10.5.0",
         "eslint-config-next": "16.2.9",
         "happy-dom": "20.10.3",
         "jsdom": "29.1.1",
         "typescript": "6.0.3",
-        "vitest": "4.1.8",
+        "vitest": "4.1.9",
         "whatwg-fetch": "3.6.20"
     }
 }
