@@ -1,0 +1,3 @@
+[submodule "wisdom"]
+	path = wisdom
+	url = https://github.com/lousy-agents/wisdom
