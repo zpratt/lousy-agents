@@ -76,62 +76,71 @@ function buildUniqueActionsMap(
 export const analyzeActionVersionsHandler: ToolHandler = async (
     args: ToolArgs,
 ) => {
-    const dir = args.targetDir || process.cwd();
+    try {
+        const dir = args.targetDir || process.cwd();
 
-    const dirStat = await stat(dir).catch(() => null);
-    if (dirStat === null || !dirStat.isDirectory()) {
-        return errorResponse(`Target directory does not exist: ${dir}`);
-    }
-
-    const workflowsRelativeDir = join(".github", "workflows");
-    if (!(await pathExistsWithinRoot(dir, workflowsRelativeDir))) {
-        return successResponse({
-            workflows: [],
-            uniqueActions: [],
-            message:
-                "No .github/workflows directory found - no workflows to analyze",
-        });
-    }
-
-    // Read all workflow files
-    const entries = await listDirectoryWithinRoot(dir, workflowsRelativeDir);
-    const files = entries
-        .filter((entry) => entry.isFile())
-        .map((entry) => entry.name);
-    const yamlFiles = files.filter(
-        (f) => f.endsWith(".yml") || f.endsWith(".yaml"),
-    );
-
-    const workflows: WorkflowActions[] = [];
-
-    for (const file of yamlFiles) {
-        const filePath = join(workflowsRelativeDir, file);
-        const actions = await parseWorkflowFile(dir, filePath);
-        if (actions && actions.length > 0) {
-            workflows.push({ file, actions });
+        const dirStat = await stat(dir).catch(() => null);
+        if (dirStat === null || !dirStat.isDirectory()) {
+            return errorResponse(`Target directory does not exist: ${dir}`);
         }
+
+        const workflowsRelativeDir = join(".github", "workflows");
+        if (!(await pathExistsWithinRoot(dir, workflowsRelativeDir))) {
+            return successResponse({
+                workflows: [],
+                uniqueActions: [],
+                message:
+                    "No .github/workflows directory found - no workflows to analyze",
+            });
+        }
+
+        // Read all workflow files
+        const entries = await listDirectoryWithinRoot(
+            dir,
+            workflowsRelativeDir,
+        );
+        const files = entries
+            .filter((entry) => entry.isFile())
+            .map((entry) => entry.name);
+        const yamlFiles = files.filter(
+            (f) => f.endsWith(".yml") || f.endsWith(".yaml"),
+        );
+
+        const workflows: WorkflowActions[] = [];
+
+        for (const file of yamlFiles) {
+            const filePath = join(workflowsRelativeDir, file);
+            const actions = await parseWorkflowFile(dir, filePath);
+            if (actions && actions.length > 0) {
+                workflows.push({ file, actions });
+            }
+        }
+
+        // Build unique actions map
+        const actionVersionsMap = buildUniqueActionsMap(workflows);
+        const uniqueActions = Array.from(actionVersionsMap.entries()).map(
+            ([name, versions]) => ({
+                name,
+                versions: Array.from(versions),
+            }),
+        );
+
+        const totalActions = workflows.reduce(
+            (sum, w) => sum + w.actions.length,
+            0,
+        );
+
+        return successResponse({
+            workflows,
+            uniqueActions,
+            message:
+                workflows.length > 0
+                    ? `Found ${totalActions} action reference(s) across ${workflows.length} workflow(s), ${uniqueActions.length} unique action(s)`
+                    : "No action references found in workflows",
+        });
+    } catch (error) {
+        const message =
+            error instanceof Error ? error.message : "Unknown error occurred";
+        return errorResponse(`Failed to analyze action versions: ${message}`);
     }
-
-    // Build unique actions map
-    const actionVersionsMap = buildUniqueActionsMap(workflows);
-    const uniqueActions = Array.from(actionVersionsMap.entries()).map(
-        ([name, versions]) => ({
-            name,
-            versions: Array.from(versions),
-        }),
-    );
-
-    const totalActions = workflows.reduce(
-        (sum, w) => sum + w.actions.length,
-        0,
-    );
-
-    return successResponse({
-        workflows,
-        uniqueActions,
-        message:
-            workflows.length > 0
-                ? `Found ${totalActions} action reference(s) across ${workflows.length} workflow(s), ${uniqueActions.length} unique action(s)`
-                : "No action references found in workflows",
-    });
 };
