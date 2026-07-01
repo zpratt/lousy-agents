@@ -35,6 +35,73 @@ describe("scanRepository", () => {
         });
     });
 
+    describe("when scanning a subagent-construct repository", () => {
+        it("should classify a file under .claude/agents/ as constructType 'subagent'", async () => {
+            const records = await scanRepository(fixture("subagent-construct"));
+
+            const subagentRecord = records.find((r) =>
+                r.path.endsWith("reviewer.md"),
+            );
+            expect(subagentRecord).toBeDefined();
+            expect(subagentRecord?.constructType).toBe("subagent");
+        });
+
+        it("should still classify a file under .claude/commands/ as constructType 'agent'", async () => {
+            const records = await scanRepository(fixture("subagent-construct"));
+
+            const commandRecord = records.find((r) =>
+                r.path.endsWith("deploy.md"),
+            );
+            expect(commandRecord).toBeDefined();
+            expect(commandRecord?.constructType).toBe("agent");
+        });
+    });
+
+    describe("when scanning a repository with a multi-server MCP config", () => {
+        it("should emit one mcp-server record per declared server", async () => {
+            const records = await scanRepository(fixture("mcp-multi-server"));
+
+            const mcpRecords = records.filter(
+                (r) => r.constructType === "mcp-server",
+            );
+            expect(mcpRecords).toHaveLength(2);
+        });
+
+        it("should assign unique ids in 'mcp-server:<path>#<serverName>' format", async () => {
+            const records = await scanRepository(fixture("mcp-multi-server"));
+
+            const mcpRecords = records.filter(
+                (r) => r.constructType === "mcp-server",
+            );
+            const ids = mcpRecords.map((r) => r.id);
+            expect(ids).toContain("mcp-server:.mcp.json#filesystem");
+            expect(ids).toContain("mcp-server:.mcp.json#search");
+            expect(new Set(ids).size).toBe(ids.length);
+        });
+
+        it("should set loadMechanism to 'convention-loaded' for MCP server records", async () => {
+            const records = await scanRepository(fixture("mcp-multi-server"));
+
+            const mcpRecords = records.filter(
+                (r) => r.constructType === "mcp-server",
+            );
+            for (const record of mcpRecords) {
+                expect(record.loadMechanism).toBe("convention-loaded");
+            }
+        });
+
+        it("should attribute .mcp.json MCP server records to the shared harness since both Claude and Copilot read it", async () => {
+            const records = await scanRepository(fixture("mcp-multi-server"));
+
+            const mcpRecords = records.filter(
+                (r) => r.constructType === "mcp-server",
+            );
+            for (const record of mcpRecords) {
+                expect(record.harness).toBe("shared");
+            }
+        });
+    });
+
     describe("when scanning an intentional-hybrid repository", () => {
         it("should detect a soft-reference edge from CLAUDE.md to the Copilot instruction file", async () => {
             const records = await scanRepository(fixture("intentional-hybrid"));

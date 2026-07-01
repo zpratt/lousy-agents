@@ -10,6 +10,7 @@ import {
     readIntentArtifact,
     renderHuman,
     scanRepository,
+    toInventoryItems,
     toJson,
     WisdomUnavailableError,
 } from "@lousy-agents/agentic-doctor";
@@ -72,6 +73,7 @@ export const doctorCommand = defineCommand({
                             totalRecords: summary.totalRecords,
                             harnessBreakdown: summary.harnessBreakdown,
                             crossHarnessEdges: summary.crossHarnessEdges,
+                            inventory: toInventoryItems(records),
                         },
                         null,
                         2,
@@ -86,7 +88,7 @@ export const doctorCommand = defineCommand({
         if (classification.archetype === "none") {
             if (format === "json") {
                 process.stdout.write(
-                    `${JSON.stringify(toJson(summary, [], snapshotRef), null, 2)}\n`,
+                    `${JSON.stringify(toJson(summary, [], records, snapshotRef), null, 2)}\n`,
                 );
             } else {
                 logger.info("No agentic constructs found in the repository.");
@@ -123,7 +125,7 @@ export const doctorCommand = defineCommand({
         });
 
         if (format === "json") {
-            const report = toJson(summary, findings, snapshotRef);
+            const report = toJson(summary, findings, records, snapshotRef);
             process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
         } else {
             renderHuman(summary, findings, logger, snapshotRef);

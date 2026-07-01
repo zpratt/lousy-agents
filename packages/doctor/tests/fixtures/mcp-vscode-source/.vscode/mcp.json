@@ -1,0 +1,9 @@
+{
+    "mcpServers": {
+        "lousy-agents": {
+            "type": "stdio",
+            "command": "node",
+            "args": ["./node_modules/@lousy-agents/mcp/dist/mcp-server.js"]
+        }
+    }
+}

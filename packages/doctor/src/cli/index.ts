@@ -5,7 +5,7 @@ import {
     hasBlockingFindings,
     renderHuman,
 } from "../formatters/human-renderer.js";
-import { toJson } from "../formatters/json-formatter.js";
+import { toInventoryItems, toJson } from "../formatters/json-formatter.js";
 import { formatSummary } from "../formatters/summary-formatter.js";
 import { readIntentArtifact } from "../gateways/intent-artifact.js";
 import { scanRepository } from "../gateways/scanner.js";
@@ -69,7 +69,18 @@ const main = defineCommand({
         if (args.summary) {
             if (format === "json") {
                 process.stdout.write(
-                    `${JSON.stringify({ archetype: summary.archetype, dominanceScore: summary.dominanceScore, totalRecords: summary.totalRecords, harnessBreakdown: summary.harnessBreakdown, crossHarnessEdges: summary.crossHarnessEdges }, null, 2)}\n`,
+                    `${JSON.stringify(
+                        {
+                            archetype: summary.archetype,
+                            dominanceScore: summary.dominanceScore,
+                            totalRecords: summary.totalRecords,
+                            harnessBreakdown: summary.harnessBreakdown,
+                            crossHarnessEdges: summary.crossHarnessEdges,
+                            inventory: toInventoryItems(records),
+                        },
+                        null,
+                        2,
+                    )}\n`,
                 );
             } else {
                 renderHuman(summary, [], logger, snapshotRef);
@@ -80,7 +91,7 @@ const main = defineCommand({
         if (classification.archetype === "none") {
             if (format === "json") {
                 process.stdout.write(
-                    `${JSON.stringify(toJson(summary, [], snapshotRef), null, 2)}\n`,
+                    `${JSON.stringify(toJson(summary, [], records, snapshotRef), null, 2)}\n`,
                 );
             } else {
                 logger.info("No agentic constructs found in the repository.");
@@ -117,7 +128,7 @@ const main = defineCommand({
         });
 
         if (format === "json") {
-            const report = toJson(summary, findings, snapshotRef);
+            const report = toJson(summary, findings, records, snapshotRef);
             process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
         } else {
             renderHuman(summary, findings, logger, snapshotRef);
