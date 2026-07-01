@@ -105,6 +105,8 @@ depends = ["build"]
 run = [
   "./packages/cli/dist/index.js --help",
   "./packages/cli/dist/index.js init --help",
+  "./packages/cli/dist/index.js doctor --help",
+  "node ./packages/cli/dist/index.js doctor --summary --format json --ci",
 ]
 
 [tasks.ci] # only dependencies to be run

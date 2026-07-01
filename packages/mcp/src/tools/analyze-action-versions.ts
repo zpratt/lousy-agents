@@ -2,9 +2,9 @@
  * MCP tool handler for analyzing GitHub Action versions across workflows.
  */
 
+import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import {
-    fileExists,
     listDirectoryWithinRoot,
     pathExistsWithinRoot,
     readTextWithinRoot,
@@ -78,7 +78,8 @@ export const analyzeActionVersionsHandler: ToolHandler = async (
 ) => {
     const dir = args.targetDir || process.cwd();
 
-    if (!(await fileExists(dir))) {
+    const dirStat = await stat(dir).catch(() => null);
+    if (dirStat === null || !dirStat.isDirectory()) {
         return errorResponse(`Target directory does not exist: ${dir}`);
     }
 

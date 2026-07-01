@@ -15,6 +15,7 @@ const config: Configuration = {
     mode: "production",
     target: "node",
     entry: {
+        "cli/index": "./src/cli/index.ts",
         index: "./src/index.ts",
     },
     output: {
@@ -37,8 +38,6 @@ const config: Configuration = {
         },
         alias: {
             "@lousy-agents/core": resolve(__dirname, "../core/src"),
-            "@lousy-agents/lint": resolve(__dirname, "../lint/src"),
-            "@lousy-agents/agentic-doctor": resolve(__dirname, "../doctor/src"),
         },
     },
     module: {

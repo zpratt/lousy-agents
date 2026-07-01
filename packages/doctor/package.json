@@ -1,0 +1,56 @@
+{
+    "name": "@lousy-agents/agentic-doctor",
+    "version": "0.1.0",
+    "description": "Agentic configuration doctor: inventory, classify, and evaluate multi-harness agentic configurations",
+    "type": "module",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/zpratt/lousy-agents.git",
+        "directory": "packages/doctor"
+    },
+    "author": "zpratt",
+    "license": "BSD-2-Clause-Patent",
+    "bugs": {
+        "url": "https://github.com/zpratt/lousy-agents/issues"
+    },
+    "homepage": "https://github.com/zpratt/lousy-agents/tree/main/packages/doctor#readme",
+    "keywords": [
+        "ai",
+        "agentic",
+        "configuration",
+        "doctor",
+        "harness",
+        "copilot",
+        "claude",
+        "codex"
+    ],
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
+    "files": [
+        "dist"
+    ],
+    "exports": {
+        ".": {
+            "default": "./dist/index.js"
+        }
+    },
+    "bin": {
+        "agentic-doctor": "./dist/cli/index.js"
+    },
+    "scripts": {
+        "build": "rspack build --config rspack.config.ts && chmod +x dist/cli/index.js",
+        "test": "vitest run",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "citty": "0.2.2",
+        "consola": "3.4.2",
+        "yaml": "2.9.0",
+        "zod": "4.4.3"
+    },
+    "devDependencies": {
+        "@lousy-agents/core": "*"
+    }
+}
