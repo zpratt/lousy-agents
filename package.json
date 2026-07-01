@@ -10,7 +10,8 @@
         "packages/cli",
         "packages/mcp",
         "packages/action",
-        "packages/agent-shell"
+        "packages/agent-shell",
+        "packages/doctor"
     ],
     "repository": {
         "type": "git",
@@ -32,7 +33,7 @@
     ],
     "scripts": {
         "dev": "tsx packages/cli/src/index.ts",
-        "build": "npm run build --workspace=packages/lint --workspace=packages/cli --workspace=packages/mcp --workspace=packages/agent-shell --workspace=packages/action",
+        "build": "npm run build --workspace=packages/lint --workspace=packages/doctor --workspace=packages/cli --workspace=packages/mcp --workspace=packages/agent-shell --workspace=packages/action",
         "start": "node packages/cli/dist/index.js",
         "test": "vitest run",
         "test:integration": "vitest run --config vitest.integration.config.ts",

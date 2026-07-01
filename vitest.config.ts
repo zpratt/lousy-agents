@@ -22,6 +22,10 @@ export default defineConfig({
         alias: {
             "@lousy-agents/core": resolve(__dirname, "./packages/core/src"),
             "@lousy-agents/lint": resolve(__dirname, "./packages/lint/src"),
+            "@lousy-agents/agentic-doctor": resolve(
+                __dirname,
+                "./packages/doctor/src",
+            ),
         },
     },
 });

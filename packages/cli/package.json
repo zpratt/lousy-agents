@@ -48,6 +48,7 @@
         "zod": "4.4.3"
     },
     "devDependencies": {
+        "@lousy-agents/agentic-doctor": "*",
         "@lousy-agents/core": "*",
         "@lousy-agents/lint": "*"
     }
