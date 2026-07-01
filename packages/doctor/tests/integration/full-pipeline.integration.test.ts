@@ -113,6 +113,48 @@ describe("Full pipeline integration", () => {
         });
     });
 
+    describe("copilot-markdown-link-to-claude: copilot instructions link to a Claude file via markdown hyperlink", () => {
+        it("should record the reference as a soft-reference edge, not a hard-import", async () => {
+            const records = await scanRepository(
+                fixture("copilot-markdown-link-to-claude"),
+            );
+
+            const copilotRecord = records.find(
+                (r) => r.path === ".github/copilot-instructions.md",
+            );
+            expect(copilotRecord).toBeDefined();
+            expect(copilotRecord?.edges).toHaveLength(1);
+            expect(copilotRecord?.edges[0]?.type).toBe("soft-reference");
+        });
+
+        it("should produce a wrong-direction-copilot-links-claude finding describing a markdown hyperlink instead of @import directives", async () => {
+            const records = await scanRepository(
+                fixture("copilot-markdown-link-to-claude"),
+            );
+            const classification = classifyArchetype(records);
+            const findings = evaluate(CRITERIA, {
+                records,
+                classification,
+                intent: null,
+            });
+
+            const linkFinding = findings.find(
+                (f) => f.criterionId === "wrong-direction-copilot-links-claude",
+            );
+            expect(linkFinding).toBeDefined();
+            expect(linkFinding?.description).not.toMatch(/@import/);
+            expect(linkFinding?.description.toLowerCase()).toMatch(
+                /markdown hyperlink/,
+            );
+
+            const misleadingFinding = findings.find(
+                (f) =>
+                    f.criterionId === "wrong-direction-copilot-imports-claude",
+            );
+            expect(misleadingFinding).toBeUndefined();
+        });
+    });
+
     describe("empty-repo: no records → no findings", () => {
         it("should produce zero findings for an empty repo", async () => {
             const records = await scanRepository(fixture("empty-repo"));
