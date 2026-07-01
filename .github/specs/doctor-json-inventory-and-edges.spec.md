@@ -203,47 +203,47 @@ sequenceDiagram
 
 ### Task 1: Thread records into the JSON formatter and emit `inventory[]`
 
-- [ ] **Objective**: Emit a deterministic `inventory` array in `--format json` output.
-- [ ] **Context**: `records` is already in scope at `cli/index.ts:51` and the mirrored `commands/doctor.ts`, but `toJson` never receives it.
-- [ ] **Affected files**: `packages/doctor/src/formatters/json-formatter.ts`, `packages/doctor/src/cli/index.ts`, `packages/cli/src/commands/doctor.ts`, `packages/doctor/src/formatters/json-formatter.test.ts`
-- [ ] **Requirements**: Add `ReportInventoryItem` and `inventory` to `ReportJson`; change `toJson` signature to accept `records`; project each record to `{ id, path, harness, constructType, loadMechanism }`; sort by `path` then `id`; update all `toJson` call sites including the `none`-archetype branch and the `--summary` JSON branch.
-- [ ] **Verification**: Unit test asserts `inventory.length === totalRecords` and stable ordering; integration test on an existing fixture asserts inventory presence.
-- [ ] **Done when**: `--format json` includes a correctly ordered `inventory` array and existing keys are unchanged.
+- [x] **Objective**: Emit a deterministic `inventory` array in `--format json` output.
+- [x] **Context**: `records` is already in scope at `cli/index.ts:51` and the mirrored `commands/doctor.ts`, but `toJson` never receives it.
+- [x] **Affected files**: `packages/doctor/src/formatters/json-formatter.ts`, `packages/doctor/src/cli/index.ts`, `packages/cli/src/commands/doctor.ts`, `packages/doctor/src/formatters/json-formatter.test.ts`
+- [x] **Requirements**: Add `ReportInventoryItem` and `inventory` to `ReportJson`; change `toJson` signature to accept `records`; project each record to `{ id, path, harness, constructType, loadMechanism }`; sort by `path` then `id`; update all `toJson` call sites including the `none`-archetype branch and the `--summary` JSON branch.
+- [x] **Verification**: Unit test asserts `inventory.length === totalRecords` and stable ordering; integration test on an existing fixture asserts inventory presence.
+- [x] **Done when**: `--format json` includes a correctly ordered `inventory` array and existing keys are unchanged.
 
 ### Task 2: Emit typed `edges[]` with a `crossHarness` flag
 
-- [ ] **Objective**: Surface every composition edge as structured data while retaining `crossHarnessEdges`.
-- [ ] **Context**: Cross-harness resolution already exists in `summary-formatter.ts:42-59`; extract it so the count and the edge flag share one implementation.
-- [ ] **Affected files**: `packages/doctor/src/formatters/json-formatter.ts`, `packages/doctor/src/formatters/summary-formatter.ts`, `packages/doctor/src/formatters/json-formatter.test.ts`
-- [ ] **Requirements**: Add `ReportEdge` and `edges` to `ReportJson`; flatten each record's edges (one entry per resolved target when `to` is a list); set `crossHarness`, `malformed`, and `reason`; keep `crossHarnessEdges` count consistent via the shared helper.
-- [ ] **Verification**: Unit tests over the `malformed-edge` and cross-harness fixtures assert edge fields, `reason` on malformed edges, and that `edges.filter(e => e.crossHarness).length` equals `crossHarnessEdges`.
-- [ ] **Done when**: `edges[]` is emitted and consistent with the retained count.
+- [x] **Objective**: Surface every composition edge as structured data while retaining `crossHarnessEdges`.
+- [x] **Context**: Cross-harness resolution already exists in `summary-formatter.ts:42-59`; extract it so the count and the edge flag share one implementation.
+- [x] **Affected files**: `packages/doctor/src/formatters/json-formatter.ts`, `packages/doctor/src/formatters/summary-formatter.ts`, `packages/doctor/src/formatters/json-formatter.test.ts`. Also added `packages/doctor/src/lib/cross-harness-edges.ts` (new Layer-3 lib) to host the shared predicate so both formatters import it rather than one importing the other's internals.
+- [x] **Requirements**: Add `ReportEdge` and `edges` to `ReportJson`; flatten each record's edges (one entry per resolved target when `to` is a list); set `crossHarness`, `malformed`, and `reason`; keep `crossHarnessEdges` count consistent via the shared helper.
+- [x] **Verification**: Unit tests over the `malformed-edge` and cross-harness fixtures assert edge fields, `reason` on malformed edges, and that `edges.filter(e => e.crossHarness).length` equals `crossHarnessEdges`.
+- [x] **Done when**: `edges[]` is emitted and consistent with the retained count.
 
 ### Task 3: Detect `subagent` construct type
 
-- [ ] **Objective**: Classify `.claude/agents/` files as `subagent`.
-- [ ] **Context**: `determineConstructType` (`scanner.ts:46-63`) returns `subagent` for no path today.
-- [ ] **Affected files**: `packages/doctor/src/gateways/scanner.ts`, `packages/doctor/src/gateways/scanner.test.ts`, new fixture with a `.claude/agents/` file
-- [ ] **Requirements**: Add a `.claude/agents/` prefix branch returning `subagent`; leave `.claude/commands/` → `agent` untouched.
-- [ ] **Verification**: Scanner test asserts a `.claude/agents/` file yields `constructType: "subagent"` and a `.claude/commands/` file still yields `agent`.
-- [ ] **Done when**: Subagent files appear as `subagent` in the inventory.
+- [x] **Objective**: Classify `.claude/agents/` files as `subagent`.
+- [x] **Context**: `determineConstructType` (`scanner.ts:46-63`) returns `subagent` for no path today.
+- [x] **Affected files**: `packages/doctor/src/gateways/scanner.ts`, `packages/doctor/src/gateways/scanner.test.ts`, new fixture `tests/fixtures/subagent-construct/` with a `.claude/agents/` file and a `.claude/commands/` file.
+- [x] **Requirements**: Add a `.claude/agents/` prefix branch returning `subagent`; leave `.claude/commands/` → `agent` untouched.
+- [x] **Verification**: Scanner test asserts a `.claude/agents/` file yields `constructType: "subagent"` and a `.claude/commands/` file still yields `agent`.
+- [x] **Done when**: Subagent files appear as `subagent` in the inventory.
 
 ### Task 4: Enumerate MCP servers per declaration
 
-- [ ] **Objective**: Emit one `mcp-server` inventory record per declared server.
-- [ ] **Context**: `mcp-server` is a declared `ConstructType` never produced today; MCP servers live inside config entries, not standalone markdown files.
-- [ ] **Affected files**: new `packages/doctor/src/gateways/mcp-config.ts`, `packages/doctor/src/gateways/scanner.ts`, `packages/doctor/src/entities/edge-types.ts`, new `packages/doctor/src/gateways/mcp-config.test.ts`, MCP fixtures (JSON, incl. a multi-server file)
-- [ ] **Requirements**: Parse `mcpServers` (JSON) from a data-driven list of recognized config sources; yield `{ serverName, transport, harness, path }` per server; set each record's `id` to `mcp-server:<path>#<serverName>` and `loadMechanism` to `convention-loaded`; add optional `serverName`/`transport` to `InventoryRecord`; emit records with `constructType: "mcp-server"`; skip unparseable sources with a debug log; emit nothing for sources declaring zero servers. Codex TOML (`[mcp_servers.*]`) enumeration is deferred pending a TOML-parser decision (see Open Questions).
-- [ ] **Verification**: Gateway tests cover a JSON source with multiple servers (asserting unique `mcp-server:<path>#<serverName>` ids), an empty-servers source, and a malformed source (skipped, no throw); integration test asserts per-server records with `serverName`/`transport`.
-- [ ] **Done when**: Each declared MCP server appears as its own `mcp-server` record attributed to the owning harness.
+- [x] **Objective**: Emit one `mcp-server` inventory record per declared server.
+- [x] **Context**: `mcp-server` is a declared `ConstructType` never produced today; MCP servers live inside config entries, not standalone markdown files.
+- [x] **Affected files**: new `packages/doctor/src/gateways/mcp-config.ts`, `packages/doctor/src/gateways/scanner.ts`, `packages/doctor/src/entities/edge-types.ts`, new `packages/doctor/src/gateways/mcp-config.test.ts`, MCP fixtures (`mcp-multi-server`, `mcp-empty-servers`, `mcp-malformed`, `mcp-vscode-source`).
+- [x] **Requirements**: Parse `mcpServers` (JSON) from a data-driven list of recognized config sources (shipped with `.mcp.json` → `claude` and `.vscode/mcp.json` → `copilot`, both grounded in this repo's own conventions); yield `{ serverName, transport, harness, path }` per server; set each record's `id` to `mcp-server:<path>#<serverName>` and `loadMechanism` to `convention-loaded`; add optional `serverName`/`transport` to `InventoryRecord`; emit records with `constructType: "mcp-server"`; skip unparseable sources; emit nothing for sources declaring zero servers. Codex TOML (`[mcp_servers.*]`) enumeration is deferred pending a TOML-parser decision (see Open Questions). **Deviation**: skip-and-continue is implemented via the same silent-catch pattern used throughout `scanner.ts` (no debug log call) — this package's gateways (e.g. `wisdom-client.ts`) consistently push logging to the caller rather than taking a logger dependency, so no logger was threaded into `enumerateMcpServers` to avoid an inconsistent one-off DI pattern. The malformed-source fixture uses a schema-invalid-but-JSON-valid payload (`"mcpServers": "not-an-object"`) rather than syntactically broken JSON, since a syntactically invalid `.json` fixture breaks the repo-wide Biome lint pass.
+- [x] **Verification**: Gateway tests cover a JSON source with multiple servers (asserting unique `mcp-server:<path>#<serverName>` ids), an empty-servers source, and a schema-invalid source (skipped, no throw); integration test asserts per-server records with `serverName`/`transport`.
+- [x] **Done when**: Each declared MCP server appears as its own `mcp-server` record attributed to the owning harness.
 
 ### Task 5: Validate the JSON contract with Zod and lock it with tests
 
-- [ ] **Objective**: Guarantee the additive output is well-formed and back-compatible.
-- [ ] **Affected files**: `packages/doctor/src/formatters/json-formatter.ts`, `packages/doctor/src/formatters/json-formatter.test.ts`, `packages/cli/src/commands/doctor.integration.test.ts`
-- [ ] **Requirements**: Define `ReportJsonSchema` (Zod) mirroring `ReportJson`; `toJson` validates before returning and throws on failure; assert all pre-existing keys remain with unchanged shapes.
-- [ ] **Verification**: Unit test parses real output against the schema; integration test asserts presence of `inventory`/`edges` and unchanged legacy keys; `mise run ci` exits 0.
-- [ ] **Done when**: Output always validates and legacy consumers see no breaking change.
+- [x] **Objective**: Guarantee the additive output is well-formed and back-compatible.
+- [x] **Affected files**: `packages/doctor/src/formatters/json-formatter.ts`, `packages/doctor/src/formatters/json-formatter.test.ts`, `packages/cli/src/commands/doctor.integration.test.ts`
+- [x] **Requirements**: Define `ReportJsonSchema` (Zod) mirroring `ReportJson`; `ReportInventoryItem`/`ReportEdge`/`ReportJson` are now derived via `z.infer` from the schema (single source of truth, per this repo's own `type X = z.infer<typeof XSchema>` convention); `toJson` validates before returning and throws on failure; all pre-existing keys retain unchanged shapes (the one behavioral change: `harnessBreakdown`/`findings` are no longer the same object reference post-`.parse()`, since Zod parsing clones — the pre-existing backward-compatibility test was updated from `toBe` to `toEqual` to assert values rather than identity, which is what "unchanged shape" actually requires).
+- [x] **Verification**: Unit test parses real output against the schema; a second unit test asserts `toJson` throws when a record has a harness outside the known enum; integration tests assert presence of `inventory`/`edges` and unchanged legacy keys on both `--summary` and full JSON output. Full validation run: `npm run lint` (0 errors), `npx vitest run` repo-wide (103 files / 1813 passed, 3 skipped), `npm run build` (all packages), `npm run test:integration` (all passed except one pre-existing Docker-dependent test unrelated to this change — no container runtime available in this sandbox), and the real built CLI run against this repo confirms `inventory`/`edges` populated correctly with `crossHarnessEdges` consistent with `edges.filter(e => e.crossHarness).length`.
+- [x] **Done when**: Output always validates and legacy consumers see no breaking change.
 
 ## Out of Scope
 

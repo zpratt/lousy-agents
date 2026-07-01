@@ -15,6 +15,7 @@ import {
     matchesPrimaryIndicator,
 } from "../entities/harness-footprints.js";
 import { parseRawEdges } from "../lib/edge-parser.js";
+import { enumerateMcpServers } from "./mcp-config.js";
 
 const MAX_FILE_BYTES = 1_048_576;
 
@@ -56,6 +57,9 @@ function determineConstructType(relPath: string): ConstructType {
     }
     if (relPath.startsWith(".claude/hooks/")) {
         return "hook";
+    }
+    if (relPath.startsWith(".claude/agents/")) {
+        return "subagent";
     }
     if (relPath.startsWith(".claude/commands/")) {
         return "agent";
@@ -261,6 +265,22 @@ export async function scanRepository(
                 record as { loadMechanism: "referenced" | "convention-loaded" }
             ).loadMechanism = "referenced";
         }
+    }
+
+    const mcpServers = await enumerateMcpServers(absRoot);
+    for (const server of mcpServers) {
+        records.push({
+            id: `mcp-server:${server.path}#${server.serverName}`,
+            path: server.path,
+            harness: server.harness,
+            constructType: "mcp-server",
+            loadMechanism: "convention-loaded",
+            edges: [],
+            serverName: server.serverName,
+            ...(server.transport !== undefined
+                ? { transport: server.transport }
+                : {}),
+        });
     }
 
     return records;

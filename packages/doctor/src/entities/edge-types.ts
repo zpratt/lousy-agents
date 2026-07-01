@@ -47,4 +47,6 @@ export interface InventoryRecord {
     constructType: ConstructType;
     loadMechanism: "referenced" | "convention-loaded";
     edges: Edge[];
+    serverName?: string;
+    transport?: string;
 }

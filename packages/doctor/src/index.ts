@@ -10,7 +10,11 @@ export {
     hasBlockingFindings,
     renderHuman,
 } from "./formatters/human-renderer.js";
-export { toJson } from "./formatters/json-formatter.js";
+export type {
+    ReportInventoryItem,
+    ReportJson,
+} from "./formatters/json-formatter.js";
+export { toInventoryItems, toJson } from "./formatters/json-formatter.js";
 export { formatSummary } from "./formatters/summary-formatter.js";
 export {
     buildDefaultIntent,

@@ -1,5 +1,6 @@
 import type { ArchetypeClassification } from "../entities/archetype.js";
 import type { InventoryRecord } from "../entities/edge-types.js";
+import { countCrossHarnessEdges } from "../lib/cross-harness-edges.js";
 
 const ARCHETYPE_DESCRIPTIONS: Record<
     ArchetypeClassification["archetype"],
@@ -38,25 +39,7 @@ export function formatSummary(
         .map(([harness, count]) => ({ harness, count }))
         .sort((a, b) => a.harness.localeCompare(b.harness));
 
-    let crossHarnessEdges = 0;
-    const harnessByPath = new Map<string, string>();
-    for (const r of records) {
-        harnessByPath.set(r.path, r.harness);
-    }
-    for (const r of records) {
-        for (const edge of r.edges) {
-            if (
-                !edge.malformed &&
-                edge.type !== "glob-binding" &&
-                typeof edge.direction.to === "string"
-            ) {
-                const targetHarness = harnessByPath.get(edge.direction.to);
-                if (targetHarness && targetHarness !== r.harness) {
-                    crossHarnessEdges++;
-                }
-            }
-        }
-    }
+    const crossHarnessEdges = countCrossHarnessEdges(records);
 
     return {
         archetype: classification.archetype,

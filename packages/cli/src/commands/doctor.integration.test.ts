@@ -84,6 +84,21 @@ describe("doctor command", () => {
             expect(report).toHaveProperty("totalRecords", 0);
             expect(report).not.toHaveProperty("findings");
         });
+
+        it("should include an empty inventory array", async () => {
+            // Arrange
+            const cwd = fixture("empty-repo");
+
+            // Act
+            const { stdout } = await runDoctor(
+                ["--summary", "--format", "json"],
+                cwd,
+            );
+
+            // Assert
+            const report = JSON.parse(stdout) as { inventory: unknown[] };
+            expect(report.inventory).toEqual([]);
+        });
     });
 
     describe("when run with --format json on an empty repo", () => {
@@ -105,6 +120,22 @@ describe("doctor command", () => {
             };
             expect(report.archetype).toBe("none");
             expect(report.findings).toHaveLength(0);
+        });
+
+        it("should include empty inventory and edges arrays", async () => {
+            // Arrange
+            const cwd = fixture("empty-repo");
+
+            // Act
+            const { stdout } = await runDoctor(["--format", "json"], cwd);
+
+            // Assert
+            const report = JSON.parse(stdout) as {
+                inventory: unknown[];
+                edges: unknown[];
+            };
+            expect(report.inventory).toEqual([]);
+            expect(report.edges).toEqual([]);
         });
     });
 
@@ -129,6 +160,31 @@ describe("doctor command", () => {
             );
             expect(critical).toBeDefined();
             expect(critical?.severity).toBe("critical");
+        });
+
+        it("should include a populated inventory array alongside unchanged legacy keys", async () => {
+            // Arrange
+            const cwd = fixture("integration-scenario");
+
+            // Act
+            const { stdout } = await runDoctor(["--format", "json"], cwd);
+
+            // Assert
+            const report = JSON.parse(stdout) as {
+                archetype: string;
+                dominanceScore: number;
+                totalRecords: number;
+                harnessBreakdown: unknown[];
+                crossHarnessEdges: number;
+                inventory: Array<{ id: string; path: string }>;
+                edges: unknown[];
+            };
+            expect(report).toHaveProperty("archetype");
+            expect(report).toHaveProperty("dominanceScore");
+            expect(report).toHaveProperty("harnessBreakdown");
+            expect(report).toHaveProperty("crossHarnessEdges");
+            expect(report.inventory.length).toBe(report.totalRecords);
+            expect(Array.isArray(report.edges)).toBe(true);
         });
     });
 
