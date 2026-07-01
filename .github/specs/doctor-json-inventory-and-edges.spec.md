@@ -44,10 +44,11 @@ so that I can **understand how instructions compose across harnesses without rea
 #### Acceptance Criteria
 
 - When `doctor` is run with `--format json`, the system shall include an `edges` array projecting every edge from every inventory record.
-- The system shall include, for each edge, the fields `from`, `to`, `type`, `malformed`, and `crossHarness` (a boolean true when `from` and `to` resolve to different harnesses).
+- The system shall include, for each edge, the fields `from`, `to`, `type`, `malformed`, and `crossHarness`, and shall always set `crossHarness` to a boolean (never leave it undefined).
+- The system shall set `crossHarness` to `true` only when the edge is not malformed, its `type` is not `glob-binding`, and its resolved target path maps to a known record whose harness differs from the source record's harness; otherwise the system shall set `crossHarness` to `false`. This makes malformed and `glob-binding` edges always `false`.
+- While an edge's `to` is a list (multi-target reference), the system shall emit one edge entry per resolved target and evaluate `crossHarness` independently for each.
 - If an edge is malformed, then the system shall include its `reason` (`missing-target` or `path-traversal`) in the emitted edge.
-- The system shall retain the existing `crossHarnessEdges` integer count for backward compatibility.
-- While an edge's `to` is a list (multi-target reference), the system shall emit one edge entry per resolved target.
+- The system shall compute the retained `crossHarnessEdges` integer count as the number of emitted edges whose `crossHarness` is `true`, derived from the same predicate so the count and the per-edge flag can never diverge. Note: because today's count skips array-valued `direction.to`, evaluating multi-target references per resolved target may count cross-harness references the current implementation misses — this is an intentional, documented correctness improvement, not a silent semantic change.
 
 ### Story 3: Detect subagent constructs
 
@@ -71,8 +72,9 @@ so that I can **audit MCP surface area per server across many repos, not just de
 
 - When the scanner reads a recognized MCP configuration source declaring servers, the system shall emit one `mcp-server` inventory record per declared server.
 - The system shall record, for each MCP server, the declaring config file as its `path`, the server name, and the transport (e.g. `stdio`, `http`, `sse`) when present in the declaration.
+- The system shall set each MCP server record's `id` to `mcp-server:<config-path>#<server-name>` and its `loadMechanism` to `convention-loaded`, so multiple servers declared in one config file produce unique, deterministically ordered records — the existing `<harness>:<path>` id scheme would collide when several servers share one config file.
 - The system shall attribute each MCP server record to the harness that owns its config source.
-- Where a JSON config declares servers under `mcpServers` and a TOML config declares them under `[mcp_servers.*]`, the system shall enumerate servers from both formats.
+- Where a JSON config declares servers under `mcpServers`, the system shall enumerate them. Codex's TOML config (`[mcp_servers.*]`) is deferred pending a TOML-parser decision (see Open Questions); JSON sources are the baseline for this increment.
 - If an MCP config source is present but declares no servers, then the system shall emit no `mcp-server` records for that source and shall not error.
 - If an MCP config source is malformed or unparseable, then the system shall skip it, log at debug level, and continue scanning.
 
@@ -101,7 +103,7 @@ so that **pipelines consuming today's output keep working after this change**.
 
 ### Dependencies
 
-- No new runtime dependencies. TOML parsing uses the same mechanism the scanner already applies to `.toml` files; JSON parsing uses `JSON.parse` with Zod validation. Zod is already a project dependency.
+- JSON `mcpServers` enumeration needs no new dependency — it uses `JSON.parse` with Zod validation (Zod `4.4.3` is already a `packages/doctor` dependency). Note: although `.toml` files are in the scanner's scannable set, the scanner only *lists* them and parses markdown-style edges via `parseRawEdges`; it does **not** structurally parse TOML today (its only structured parser is `yaml`). Enumerating Codex's `[mcp_servers.*]` therefore requires either a new exact-pinned TOML parser or a scoped, dependency-free parser for that table subset. Adding a runtime dependency requires maintainer sign-off per the repo's dependency policy, so Codex TOML is deferred — see Open Questions.
 
 ### Data Model Changes
 
@@ -188,11 +190,12 @@ sequenceDiagram
 
 - The dependency rule is preserved: `inventory`/`edges` projection is a Layer 3 formatter concern; MCP parsing is a Layer 3 gateway; entity types stay framework-free. Only the composition roots (`cli/index.ts`, `commands/doctor.ts`) wire `records` into the formatter.
 - Edges are emitted normalized: `inventory[]` entries omit nested edges (surfaced once in `edges[]`, keyed by `from` path) to avoid duplicate representations.
-- `crossHarness` reuses the exact resolution rule already in `summary-formatter.ts` (skip malformed, skip `glob-binding`, resolve `to` path → harness); extract it into a shared helper so the count and the edge flag cannot diverge.
+- `crossHarness` reuses the resolution rule already in `summary-formatter.ts` (skip malformed, skip `glob-binding`, resolve `to` path → harness), extracted into a single shared per-target predicate so both the per-edge flag and the `crossHarnessEdges` count derive from one implementation. Applying it per resolved target extends the rule to array-valued `direction.to` (which the current count skips) — a deliberate correctness improvement called out in Story 2.
+- MCP server records cannot reuse the `<harness>:<path>` id scheme because several servers can share one config file; they use `mcp-server:<config-path>#<server-name>` so ids stay unique and the `path`-then-`id` inventory ordering stays deterministic.
 
 ### Open Questions
 
-- **MCP config source list**: which config files count as authoritative per harness (e.g. `.mcp.json`, `.vscode/mcp.json`, `.claude/settings.json`, `.gemini/settings.json`, `crush.json`, `.codex/config.toml`)? Proposed assumption: start with the JSON `mcpServers` convention plus Codex's `[mcp_servers.*]` TOML, and treat the recognized-source list as data so it is easy to extend.
+- **MCP config source list & TOML parsing**: JSON `mcpServers` sources (e.g. `.mcp.json`, `.vscode/mcp.json`, `.claude/settings.json`, `.gemini/settings.json`, `crush.json`) are in scope for this increment, driven by a data-driven source list so new sources are easy to add. Codex's `.codex/config.toml` (`[mcp_servers.*]`) is TOML, which the repo cannot parse today without a new parser dependency (maintainer sign-off required); it is deferred to a follow-up unless a dependency-free parser scoped to that table is accepted.
 - **MCP metadata placement**: add optional `serverName`/`transport` to `InventoryRecord` (proposed) vs. a separate side-table. Proposed assumption: optional fields on the record, populated only for `mcp-server`.
 - **Subagent directories beyond `.claude/agents/`**: other harnesses' subagent conventions are deferred; only `.claude/agents/` is in scope for this increment.
 
@@ -229,9 +232,9 @@ sequenceDiagram
 
 - [ ] **Objective**: Emit one `mcp-server` inventory record per declared server.
 - [ ] **Context**: `mcp-server` is a declared `ConstructType` never produced today; MCP servers live inside config entries, not standalone markdown files.
-- [ ] **Affected files**: new `packages/doctor/src/gateways/mcp-config.ts`, `packages/doctor/src/gateways/scanner.ts`, `packages/doctor/src/entities/edge-types.ts`, new `packages/doctor/src/gateways/mcp-config.test.ts`, MCP fixtures (JSON + TOML)
-- [ ] **Requirements**: Parse `mcpServers` (JSON) and `[mcp_servers.*]` (TOML) from a data-driven list of recognized config sources; yield `{ serverName, transport, harness, path }` per server; add optional `serverName`/`transport` to `InventoryRecord`; emit records with `constructType: "mcp-server"`; skip unparseable sources with a debug log; emit nothing for sources declaring zero servers.
-- [ ] **Verification**: Gateway tests cover JSON and TOML sources, an empty-servers source, and a malformed source (skipped, no throw); integration test asserts per-server records with `serverName`/`transport`.
+- [ ] **Affected files**: new `packages/doctor/src/gateways/mcp-config.ts`, `packages/doctor/src/gateways/scanner.ts`, `packages/doctor/src/entities/edge-types.ts`, new `packages/doctor/src/gateways/mcp-config.test.ts`, MCP fixtures (JSON, incl. a multi-server file)
+- [ ] **Requirements**: Parse `mcpServers` (JSON) from a data-driven list of recognized config sources; yield `{ serverName, transport, harness, path }` per server; set each record's `id` to `mcp-server:<path>#<serverName>` and `loadMechanism` to `convention-loaded`; add optional `serverName`/`transport` to `InventoryRecord`; emit records with `constructType: "mcp-server"`; skip unparseable sources with a debug log; emit nothing for sources declaring zero servers. Codex TOML (`[mcp_servers.*]`) enumeration is deferred pending a TOML-parser decision (see Open Questions).
+- [ ] **Verification**: Gateway tests cover a JSON source with multiple servers (asserting unique `mcp-server:<path>#<serverName>` ids), an empty-servers source, and a malformed source (skipped, no throw); integration test asserts per-server records with `serverName`/`transport`.
 - [ ] **Done when**: Each declared MCP server appears as its own `mcp-server` record attributed to the owning harness.
 
 ### Task 5: Validate the JSON contract with Zod and lock it with tests
