@@ -64,7 +64,7 @@ export const CRITERIA: readonly Criterion[] = [
         classification: "advisory",
         category: "wrong-direction",
         description:
-            "A Copilot instruction file uses Claude's @import syntax to reference a Claude instruction file. Copilot does not process @import directives, so this reference has no effect and may indicate copy-paste drift.",
+            "A Copilot instruction file uses Claude's @path hard-import syntax to reference a Claude instruction file. Copilot does not process @path hard-imports, so this reference has no effect and may indicate copy-paste drift.",
         checkMethod: "inventory.edgeDirectionExists",
         checkArgs: {
             fromHarness: "copilot",

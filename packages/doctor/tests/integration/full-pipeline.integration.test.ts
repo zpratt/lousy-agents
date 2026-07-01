@@ -127,7 +127,7 @@ describe("Full pipeline integration", () => {
             expect(copilotRecord?.edges[0]?.type).toBe("soft-reference");
         });
 
-        it("should produce a wrong-direction-copilot-links-claude finding describing a markdown hyperlink instead of @import directives", async () => {
+        it("should produce a wrong-direction-copilot-links-claude finding describing a markdown hyperlink instead of @path hard-imports", async () => {
             const records = await scanRepository(
                 fixture("copilot-markdown-link-to-claude"),
             );
@@ -142,7 +142,7 @@ describe("Full pipeline integration", () => {
                 (f) => f.criterionId === "wrong-direction-copilot-links-claude",
             );
             expect(linkFinding).toBeDefined();
-            expect(linkFinding?.description).not.toMatch(/@import/);
+            expect(linkFinding?.description).not.toMatch(/@path/);
             expect(linkFinding?.description.toLowerCase()).toMatch(
                 /markdown hyperlink/,
             );

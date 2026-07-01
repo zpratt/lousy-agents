@@ -315,7 +315,7 @@ describe("evaluate", () => {
     });
 
     describe("wrong-direction-copilot-imports-claude criterion (hard-import edges only)", () => {
-        it("should produce a finding mentioning @import directives when a copilot file has a hard-import edge to a claude file", () => {
+        it("should produce a finding mentioning @path hard-imports when a copilot file has a hard-import edge to a claude file", () => {
             const records: InventoryRecord[] = [
                 makeRecord({
                     harness: "copilot",
@@ -350,7 +350,7 @@ describe("evaluate", () => {
                     f.criterionId === "wrong-direction-copilot-imports-claude",
             );
             expect(finding).toBeDefined();
-            expect(finding?.description).toMatch(/@import/);
+            expect(finding?.description).toMatch(/@path/);
         });
 
         it("should not produce a wrong-direction-copilot-imports-claude finding when the only copilot->claude edge is a markdown hyperlink (soft-reference)", () => {
@@ -392,7 +392,7 @@ describe("evaluate", () => {
     });
 
     describe("wrong-direction-copilot-links-claude criterion (markdown hyperlink / soft-reference edges)", () => {
-        it("should produce a finding describing a markdown hyperlink, not @import directives, when a copilot file links to a claude file", () => {
+        it("should produce a finding describing a markdown hyperlink, not @path hard-imports, when a copilot file links to a claude file", () => {
             const records: InventoryRecord[] = [
                 makeRecord({
                     harness: "copilot",
@@ -426,7 +426,7 @@ describe("evaluate", () => {
                 (f) => f.criterionId === "wrong-direction-copilot-links-claude",
             );
             expect(finding).toBeDefined();
-            expect(finding?.description).not.toMatch(/@import/);
+            expect(finding?.description).not.toMatch(/@path/);
             expect(finding?.description.toLowerCase()).toMatch(
                 /markdown hyperlink/,
             );
