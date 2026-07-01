@@ -15,6 +15,12 @@ export interface HarnessFootprint {
     walkBoundary: WalkBoundary;
     conventionFiles: readonly string[];
     conventionDirs: readonly string[];
+    /**
+     * Convention files this harness only loads when they sit at the
+     * repository root — unlike conventionFiles, these are not discovered
+     * via walkBoundary and are ignored anywhere else in the tree.
+     */
+    rootOnlyConventionFiles?: readonly string[];
     crossRefMechanisms: readonly CrossRefMechanism[];
     /**
      * Patterns used to detect whether a file belongs to this harness.
@@ -70,6 +76,7 @@ export const HARNESS_FOOTPRINTS: Readonly<
         walkBoundary: "project",
         conventionFiles: [".github/copilot-instructions.md"],
         conventionDirs: [".github/instructions/"],
+        rootOnlyConventionFiles: ["CLAUDE.md", "GEMINI.md"],
         primaryIndicators: [
             ".github/copilot-instructions.md",
             ".github/instructions/",

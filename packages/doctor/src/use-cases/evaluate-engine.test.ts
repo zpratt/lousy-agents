@@ -314,6 +314,151 @@ describe("evaluate", () => {
         });
     });
 
+    describe("wrong-direction-copilot-imports-claude criterion (hard-import edges only)", () => {
+        it("should produce a finding mentioning @path hard-imports when a copilot file has a hard-import edge to a claude file", () => {
+            const records: InventoryRecord[] = [
+                makeRecord({
+                    harness: "copilot",
+                    path: ".github/copilot-instructions.md",
+                    id: "copilot:.github/copilot-instructions.md",
+                    edges: [
+                        {
+                            type: "hard-import",
+                            direction: {
+                                from: ".github/copilot-instructions.md",
+                                to: "CLAUDE.md",
+                            },
+                            target: "CLAUDE.md",
+                            malformed: false,
+                        },
+                    ],
+                }),
+                makeRecord({
+                    harness: "claude",
+                    path: "CLAUDE.md",
+                    id: "claude:CLAUDE.md",
+                }),
+            ];
+            const findings = evaluate(CRITERIA, {
+                records,
+                classification: makeClassification("accidental-sprawl"),
+                intent: null,
+            });
+
+            const finding = findings.find(
+                (f) =>
+                    f.criterionId === "wrong-direction-copilot-imports-claude",
+            );
+            expect(finding).toBeDefined();
+            expect(finding?.description).toMatch(/@path/);
+        });
+
+        it("should not produce a wrong-direction-copilot-imports-claude finding when the only copilot->claude edge is a markdown hyperlink (soft-reference)", () => {
+            const records: InventoryRecord[] = [
+                makeRecord({
+                    harness: "copilot",
+                    path: ".github/copilot-instructions.md",
+                    id: "copilot:.github/copilot-instructions.md",
+                    edges: [
+                        {
+                            type: "soft-reference",
+                            direction: {
+                                from: ".github/copilot-instructions.md",
+                                to: "CLAUDE.md",
+                            },
+                            target: "CLAUDE.md",
+                            malformed: false,
+                        },
+                    ],
+                }),
+                makeRecord({
+                    harness: "claude",
+                    path: "CLAUDE.md",
+                    id: "claude:CLAUDE.md",
+                }),
+            ];
+            const findings = evaluate(CRITERIA, {
+                records,
+                classification: makeClassification("accidental-sprawl"),
+                intent: null,
+            });
+
+            const finding = findings.find(
+                (f) =>
+                    f.criterionId === "wrong-direction-copilot-imports-claude",
+            );
+            expect(finding).toBeUndefined();
+        });
+    });
+
+    describe("wrong-direction-copilot-links-claude criterion (markdown hyperlink / soft-reference edges)", () => {
+        it("should produce a finding describing a markdown hyperlink, not @path hard-imports, when a copilot file links to a claude file", () => {
+            const records: InventoryRecord[] = [
+                makeRecord({
+                    harness: "copilot",
+                    path: ".github/copilot-instructions.md",
+                    id: "copilot:.github/copilot-instructions.md",
+                    edges: [
+                        {
+                            type: "soft-reference",
+                            direction: {
+                                from: ".github/copilot-instructions.md",
+                                to: "CLAUDE.md",
+                            },
+                            target: "CLAUDE.md",
+                            malformed: false,
+                        },
+                    ],
+                }),
+                makeRecord({
+                    harness: "claude",
+                    path: "CLAUDE.md",
+                    id: "claude:CLAUDE.md",
+                }),
+            ];
+            const findings = evaluate(CRITERIA, {
+                records,
+                classification: makeClassification("accidental-sprawl"),
+                intent: null,
+            });
+
+            const finding = findings.find(
+                (f) => f.criterionId === "wrong-direction-copilot-links-claude",
+            );
+            expect(finding).toBeDefined();
+            expect(finding?.description).not.toMatch(/@path/);
+            expect(finding?.description.toLowerCase()).toMatch(
+                /markdown hyperlink/,
+            );
+        });
+
+        it("should not produce a wrong-direction-copilot-links-claude finding when copilot has no reference to a claude file", () => {
+            const records: InventoryRecord[] = [
+                makeRecord({
+                    harness: "copilot",
+                    path: ".github/copilot-instructions.md",
+                    id: "copilot:.github/copilot-instructions.md",
+                    edges: [],
+                }),
+                makeRecord({
+                    harness: "claude",
+                    path: "CLAUDE.md",
+                    id: "claude:CLAUDE.md",
+                }),
+            ];
+            const findings = evaluate(CRITERIA, {
+                records,
+                classification: makeClassification("accidental-sprawl"),
+                intent: null,
+            });
+
+            const finding = findings.find(
+                (f) => f.criterionId === "wrong-direction-copilot-links-claude",
+            );
+            expect(finding).toBeUndefined();
+        });
+    });
+
     describe("finding id format", () => {
         it("should produce ids in ${criterionId}:${targetId} format", () => {
             const records: InventoryRecord[] = [

@@ -64,11 +64,27 @@ export const CRITERIA: readonly Criterion[] = [
         classification: "advisory",
         category: "wrong-direction",
         description:
-            "A Copilot instruction file references a Claude instruction file. Copilot does not process @import directives, so this reference has no effect and may indicate copy-paste drift.",
+            "A Copilot instruction file uses Claude's @path hard-import syntax to reference a Claude instruction file. Copilot does not process @path hard-imports, so this reference has no effect and may indicate copy-paste drift.",
         checkMethod: "inventory.edgeDirectionExists",
         checkArgs: {
             fromHarness: "copilot",
             toHarness: "claude",
+            edgeType: "hard-import",
+        },
+    },
+    {
+        id: "wrong-direction-copilot-links-claude",
+        appliesToHarness: "copilot",
+        severity: "medium",
+        classification: "advisory",
+        category: "wrong-direction",
+        description:
+            "A Copilot instruction file contains a markdown hyperlink (or frontmatter see:/references:/requires: entry) pointing to a Claude instruction file. The Copilot CLI does not follow markdown hyperlinks or soft references in instructions, so this reference has no effect and may indicate copy-paste drift.",
+        checkMethod: "inventory.edgeDirectionExists",
+        checkArgs: {
+            fromHarness: "copilot",
+            toHarness: "claude",
+            edgeType: "soft-reference",
         },
     },
     {

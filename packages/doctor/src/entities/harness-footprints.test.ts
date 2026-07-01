@@ -108,6 +108,14 @@ describe("HARNESS_FOOTPRINTS", () => {
             );
         });
     });
+
+    describe("copilot harness root-only convention files", () => {
+        it("should document that Copilot also loads CLAUDE.md and GEMINI.md, but only from the repo root", () => {
+            expect(HARNESS_FOOTPRINTS.copilot.rootOnlyConventionFiles).toEqual(
+                expect.arrayContaining(["CLAUDE.md", "GEMINI.md"]),
+            );
+        });
+    });
 });
 
 describe("getFootprint", () => {
