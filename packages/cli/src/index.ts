@@ -7,6 +7,7 @@ import { defineCommand, runMain } from "citty";
 import { captureCommand } from "./commands/capture.js";
 import { createContextCommand } from "./commands/context.js";
 import { copilotSetupCommand } from "./commands/copilot-setup.js";
+import { doctorCommand } from "./commands/doctor.js";
 import { initCommand } from "./commands/init.js";
 import { createInitHooksCommand } from "./commands/init-hooks.js";
 import { createLintCommand } from "./commands/lint.js";
@@ -42,6 +43,7 @@ const main = defineCommand({
         context: contextCmd,
         "init-hooks": initHooksCmd,
         capture: captureCommand,
+        doctor: doctorCommand,
     },
 });
 
