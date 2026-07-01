@@ -90,14 +90,14 @@ describe("scanRepository", () => {
             }
         });
 
-        it("should attribute MCP server records to the harness owning the config source", async () => {
+        it("should attribute .mcp.json MCP server records to the shared harness since both Claude and Copilot read it", async () => {
             const records = await scanRepository(fixture("mcp-multi-server"));
 
             const mcpRecords = records.filter(
                 (r) => r.constructType === "mcp-server",
             );
             for (const record of mcpRecords) {
-                expect(record.harness).toBe("claude");
+                expect(record.harness).toBe("shared");
             }
         });
     });

@@ -20,13 +20,13 @@ describe("enumerateMcpServers", () => {
             expect(records).toHaveLength(2);
         });
 
-        it("should attribute each record to the harness owning the config source", async () => {
+        it("should attribute .mcp.json records to the shared harness since both Claude and Copilot read it", async () => {
             const records = await enumerateMcpServers(
                 fixture("mcp-multi-server"),
             );
 
             for (const record of records) {
-                expect(record.harness).toBe("claude");
+                expect(record.harness).toBe("shared");
                 expect(record.path).toBe(".mcp.json");
             }
         });

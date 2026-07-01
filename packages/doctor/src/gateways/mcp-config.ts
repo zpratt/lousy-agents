@@ -17,7 +17,7 @@ interface McpConfigSource {
 }
 
 const MCP_CONFIG_SOURCES: readonly McpConfigSource[] = [
-    { relPath: ".mcp.json", harness: "claude" },
+    { relPath: ".mcp.json", harness: "shared" },
     { relPath: ".vscode/mcp.json", harness: "copilot" },
 ];
 
