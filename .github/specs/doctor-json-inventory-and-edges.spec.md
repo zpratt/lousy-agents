@@ -1,0 +1,265 @@
+# Feature: Doctor JSON — Emit Inventory and Cross-Harness Edges
+
+## Problem Statement
+
+The `doctor` command already scans a repository into a rich `InventoryRecord[]` (harness, construct type, path, load mechanism, and typed edges), but `--format json` discards it and emits only aggregate counts (`harnessBreakdown` and a single `crossHarnessEdges` integer). A consuming harness or engineer can see *that* Codex has seven constructs and *that* one cross-harness edge exists, but not *what* those constructs are or *how* the files compose — which is exactly the high-fidelity, machine-readable map the feature was meant to provide. Additionally, two declared construct types (`subagent`, `mcp-server`) are never detected, so that surface area is silently absent from every run.
+
+## Personas
+
+| Persona | Impact | Notes |
+| ------- | ------ | ----- |
+| Harness Engineer | Positive | Primary user. Gets the full agentic surface area (every construct + composition edge) in one JSON payload instead of inspecting each harness's files by hand. |
+| Onboarding Developer | Positive | Reads the machine-readable inventory and edge map to understand an unfamiliar repo's agentic composition without opening every config file. |
+| Platform / Fleet Governance Engineer | Positive | Aggregates per-construct and per-edge data across many repos in CI; counts alone were too coarse to detect drift or composition anti-patterns. |
+| Consuming Harness / Agent | Positive | Ingests structured `inventory[]`/`edges[]` as the factual base for stepwise, evidence-backed configuration improvements. |
+| Skeptical Reviewer | Neutral | Requires that the new arrays are additive and do not change existing keys, so pipelines that consume the current shape keep working. |
+
+## Value Assessment
+
+- **Primary value — Efficiency**: Eliminates the manual, file-by-file cross-referencing needed to understand a repo's multi-harness setup by surfacing the already-computed inventory and edges the command throws away today.
+- **Secondary value — Future**: Produces a reusable, inspectable, version-controllable record of a repo's agentic composition that later increments (actionable remediation, drift detection) build on. The change is purely additive to the JSON shape — a two-way-door decision that is trivially reversible.
+
+## User Stories
+
+### Story 1: Emit the full construct inventory
+
+As a **Harness Engineer**,
+I want **every detected construct listed in the JSON output with its harness, type, path, and load mechanism**,
+so that I can **see my repo's complete agentic surface area in one payload instead of per-harness manual inspection**.
+
+#### Acceptance Criteria
+
+- When `doctor` is run with `--format json` and the repository contains agentic constructs, the system shall include an `inventory` array with one entry per scanned `InventoryRecord`.
+- The system shall include, for each inventory entry, the fields `id`, `path`, `harness`, `constructType`, and `loadMechanism`.
+- The system shall order the `inventory` array deterministically (by `path`, then `id`) so identical repository states produce identical output.
+- Where the `--summary` flag is set, the system shall include the `inventory` array in the summary JSON as well.
+- If the repository contains no agentic constructs (archetype `none`), then the system shall emit `inventory` as an empty array rather than omitting the key.
+
+### Story 2: Emit typed cross-harness edges
+
+As an **Onboarding Developer**,
+I want **the composition relationships between files emitted as structured edges**,
+so that I can **understand how instructions compose across harnesses without reading each file's imports by hand**.
+
+#### Acceptance Criteria
+
+- When `doctor` is run with `--format json`, the system shall include an `edges` array projecting every edge from every inventory record.
+- The system shall include, for each edge, the fields `from`, `to`, `type`, `malformed`, and `crossHarness` (a boolean true when `from` and `to` resolve to different harnesses).
+- If an edge is malformed, then the system shall include its `reason` (`missing-target` or `path-traversal`) in the emitted edge.
+- The system shall retain the existing `crossHarnessEdges` integer count for backward compatibility.
+- While an edge's `to` is a list (multi-target reference), the system shall emit one edge entry per resolved target.
+
+### Story 3: Detect subagent constructs
+
+As a **Harness Engineer**,
+I want **subagent definitions classified as `subagent` rather than mislabeled or ignored**,
+so that I can **trust the inventory to reflect the real construct types present**.
+
+#### Acceptance Criteria
+
+- When the scanner encounters a file under a subagent directory (e.g. `.claude/agents/`), the system shall classify its `constructType` as `subagent`.
+- The system shall continue to classify files under `.claude/commands/` as `agent`, unchanged.
+- If a file matches no known construct directory, then the system shall classify it as `instruction`, unchanged.
+
+### Story 4: Enumerate MCP servers
+
+As a **Platform / Fleet Governance Engineer**,
+I want **each MCP server declared in a repo emitted as its own inventory record**,
+so that I can **audit MCP surface area per server across many repos, not just detect that a config file exists**.
+
+#### Acceptance Criteria
+
+- When the scanner reads a recognized MCP configuration source declaring servers, the system shall emit one `mcp-server` inventory record per declared server.
+- The system shall record, for each MCP server, the declaring config file as its `path`, the server name, and the transport (e.g. `stdio`, `http`, `sse`) when present in the declaration.
+- The system shall attribute each MCP server record to the harness that owns its config source.
+- Where a JSON config declares servers under `mcpServers` and a TOML config declares them under `[mcp_servers.*]`, the system shall enumerate servers from both formats.
+- If an MCP config source is present but declares no servers, then the system shall emit no `mcp-server` records for that source and shall not error.
+- If an MCP config source is malformed or unparseable, then the system shall skip it, log at debug level, and continue scanning.
+
+### Story 5: Preserve the existing contract
+
+As a **Skeptical Reviewer**,
+I want **the current JSON keys unchanged**,
+so that **pipelines consuming today's output keep working after this change**.
+
+#### Acceptance Criteria
+
+- The system shall continue to emit `archetype`, `dominanceScore`, `totalRecords`, `harnessBreakdown`, `crossHarnessEdges`, and `findings` with unchanged shapes.
+- The system shall validate the complete JSON output against a Zod schema before writing it to stdout.
+- If the assembled output fails schema validation, then the system shall fail the run rather than emit an invalid payload.
+
+## Design
+
+### Components Affected
+
+- `packages/doctor/src/formatters/json-formatter.ts` — extend `ReportJson` with `inventory` and `edges`; change `toJson` to accept `records: InventoryRecord[]`; add a Zod schema mirroring `ReportJson` and validate before return. Add helpers to project records → inventory entries and records → flattened edges (reusing the harness-by-path resolution already in `summary-formatter.ts:42-59`).
+- `packages/doctor/src/entities/edge-types.ts` — add optional MCP metadata to `InventoryRecord` (e.g. `serverName?: string`, `transport?: string`) so an enumerated MCP server carries its identity without overloading `id`. Entities stay dependency-free (no Zod import here).
+- `packages/doctor/src/gateways/scanner.ts` — extend `determineConstructType` to return `subagent` for `.claude/agents/`; add MCP enumeration that parses recognized config sources and yields per-server records.
+- `packages/doctor/src/gateways/mcp-config.ts` *(new, Layer 3 gateway)* — parse `mcpServers` (JSON) and `[mcp_servers.*]` (TOML) from recognized config files into `{ serverName, transport, harness, path }[]`. Keeps parsing out of the entity/use-case layers.
+- `packages/doctor/src/cli/index.ts` and `packages/cli/src/commands/doctor.ts` — pass the in-scope `records` into `toJson(summary, findings, records, snapshotRef)` at the JSON call sites (the mirrored `none`-archetype branch included).
+- Tests: `packages/doctor/src/formatters/json-formatter.test.ts`, `packages/doctor/src/gateways/scanner.test.ts`, new `mcp-config.test.ts`, and `packages/cli/src/commands/doctor.integration.test.ts`; add fixtures covering a subagent directory and an MCP config.
+
+### Dependencies
+
+- No new runtime dependencies. TOML parsing uses the same mechanism the scanner already applies to `.toml` files; JSON parsing uses `JSON.parse` with Zod validation. Zod is already a project dependency.
+
+### Data Model Changes
+
+`ReportJson` (additive):
+
+```typescript
+export interface ReportInventoryItem {
+    id: string;
+    path: string;
+    harness: HarnessName;
+    constructType: ConstructType;
+    loadMechanism: "referenced" | "convention-loaded";
+    serverName?: string; // mcp-server records only
+    transport?: string;  // mcp-server records only
+}
+
+export interface ReportEdge {
+    from: string;
+    to: string;
+    type: EdgeType;
+    malformed: boolean;
+    reason?: "missing-target" | "path-traversal";
+    crossHarness: boolean;
+}
+
+export interface ReportJson {
+    archetype: Archetype;
+    dominanceScore: number;
+    totalRecords: number;
+    harnessBreakdown: Array<{ harness: string; count: number }>;
+    crossHarnessEdges: number;   // retained for back-compat
+    inventory: ReportInventoryItem[]; // new
+    edges: ReportEdge[];              // new
+    findings: Finding[];
+    snapshotRef?: string;
+}
+```
+
+`InventoryRecord` gains optional `serverName?` / `transport?` (populated only for `mcp-server` records).
+
+### Data Flow Diagram
+
+```mermaid
+flowchart TB
+    A[scanRepository] --> B[InventoryRecord array]
+    A -. new .-> M[mcp-config gateway]
+    M -. per-server records .-> B
+    B --> C[classifyArchetype]
+    B --> D[formatSummary]
+    C --> D
+    B -->|records now threaded through| E[toJson]
+    D --> E
+    F[evaluate findings] --> E
+    E --> G[Zod validate ReportJson]
+    G --> H[stdout JSON: inventory + edges + existing keys]
+```
+
+### Sequence Diagram: JSON run emitting inventory and edges
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant CLI as doctor CLI
+    participant Scanner as scanRepository
+    participant MCP as mcp-config gateway
+    participant Fmt as toJson
+    participant Zod as ReportJsonSchema
+
+    User->>CLI: doctor --format json --ci
+    CLI->>Scanner: scanRepository(repoPath)
+    Scanner->>MCP: parse MCP config sources
+    MCP-->>Scanner: per-server mcp-server records
+    Scanner-->>CLI: InventoryRecord[] (incl. subagent, mcp-server)
+    CLI->>Fmt: toJson(summary, findings, records, snapshotRef)
+    Fmt->>Fmt: project records -> inventory[]
+    Fmt->>Fmt: flatten records.edges -> edges[] (+crossHarness)
+    Fmt->>Zod: parse(report)
+    Zod-->>Fmt: validated ReportJson
+    Fmt-->>CLI: ReportJson
+    CLI-->>User: JSON with inventory + edges
+```
+
+### Architecture Notes
+
+- The dependency rule is preserved: `inventory`/`edges` projection is a Layer 3 formatter concern; MCP parsing is a Layer 3 gateway; entity types stay framework-free. Only the composition roots (`cli/index.ts`, `commands/doctor.ts`) wire `records` into the formatter.
+- Edges are emitted normalized: `inventory[]` entries omit nested edges (surfaced once in `edges[]`, keyed by `from` path) to avoid duplicate representations.
+- `crossHarness` reuses the exact resolution rule already in `summary-formatter.ts` (skip malformed, skip `glob-binding`, resolve `to` path → harness); extract it into a shared helper so the count and the edge flag cannot diverge.
+
+### Open Questions
+
+- **MCP config source list**: which config files count as authoritative per harness (e.g. `.mcp.json`, `.vscode/mcp.json`, `.claude/settings.json`, `.gemini/settings.json`, `crush.json`, `.codex/config.toml`)? Proposed assumption: start with the JSON `mcpServers` convention plus Codex's `[mcp_servers.*]` TOML, and treat the recognized-source list as data so it is easy to extend.
+- **MCP metadata placement**: add optional `serverName`/`transport` to `InventoryRecord` (proposed) vs. a separate side-table. Proposed assumption: optional fields on the record, populated only for `mcp-server`.
+- **Subagent directories beyond `.claude/agents/`**: other harnesses' subagent conventions are deferred; only `.claude/agents/` is in scope for this increment.
+
+## Tasks
+
+### Task 1: Thread records into the JSON formatter and emit `inventory[]`
+
+- [ ] **Objective**: Emit a deterministic `inventory` array in `--format json` output.
+- [ ] **Context**: `records` is already in scope at `cli/index.ts:51` and the mirrored `commands/doctor.ts`, but `toJson` never receives it.
+- [ ] **Affected files**: `packages/doctor/src/formatters/json-formatter.ts`, `packages/doctor/src/cli/index.ts`, `packages/cli/src/commands/doctor.ts`, `packages/doctor/src/formatters/json-formatter.test.ts`
+- [ ] **Requirements**: Add `ReportInventoryItem` and `inventory` to `ReportJson`; change `toJson` signature to accept `records`; project each record to `{ id, path, harness, constructType, loadMechanism }`; sort by `path` then `id`; update all `toJson` call sites including the `none`-archetype branch and the `--summary` JSON branch.
+- [ ] **Verification**: Unit test asserts `inventory.length === totalRecords` and stable ordering; integration test on an existing fixture asserts inventory presence.
+- [ ] **Done when**: `--format json` includes a correctly ordered `inventory` array and existing keys are unchanged.
+
+### Task 2: Emit typed `edges[]` with a `crossHarness` flag
+
+- [ ] **Objective**: Surface every composition edge as structured data while retaining `crossHarnessEdges`.
+- [ ] **Context**: Cross-harness resolution already exists in `summary-formatter.ts:42-59`; extract it so the count and the edge flag share one implementation.
+- [ ] **Affected files**: `packages/doctor/src/formatters/json-formatter.ts`, `packages/doctor/src/formatters/summary-formatter.ts`, `packages/doctor/src/formatters/json-formatter.test.ts`
+- [ ] **Requirements**: Add `ReportEdge` and `edges` to `ReportJson`; flatten each record's edges (one entry per resolved target when `to` is a list); set `crossHarness`, `malformed`, and `reason`; keep `crossHarnessEdges` count consistent via the shared helper.
+- [ ] **Verification**: Unit tests over the `malformed-edge` and cross-harness fixtures assert edge fields, `reason` on malformed edges, and that `edges.filter(e => e.crossHarness).length` equals `crossHarnessEdges`.
+- [ ] **Done when**: `edges[]` is emitted and consistent with the retained count.
+
+### Task 3: Detect `subagent` construct type
+
+- [ ] **Objective**: Classify `.claude/agents/` files as `subagent`.
+- [ ] **Context**: `determineConstructType` (`scanner.ts:46-63`) returns `subagent` for no path today.
+- [ ] **Affected files**: `packages/doctor/src/gateways/scanner.ts`, `packages/doctor/src/gateways/scanner.test.ts`, new fixture with a `.claude/agents/` file
+- [ ] **Requirements**: Add a `.claude/agents/` prefix branch returning `subagent`; leave `.claude/commands/` → `agent` untouched.
+- [ ] **Verification**: Scanner test asserts a `.claude/agents/` file yields `constructType: "subagent"` and a `.claude/commands/` file still yields `agent`.
+- [ ] **Done when**: Subagent files appear as `subagent` in the inventory.
+
+### Task 4: Enumerate MCP servers per declaration
+
+- [ ] **Objective**: Emit one `mcp-server` inventory record per declared server.
+- [ ] **Context**: `mcp-server` is a declared `ConstructType` never produced today; MCP servers live inside config entries, not standalone markdown files.
+- [ ] **Affected files**: new `packages/doctor/src/gateways/mcp-config.ts`, `packages/doctor/src/gateways/scanner.ts`, `packages/doctor/src/entities/edge-types.ts`, new `packages/doctor/src/gateways/mcp-config.test.ts`, MCP fixtures (JSON + TOML)
+- [ ] **Requirements**: Parse `mcpServers` (JSON) and `[mcp_servers.*]` (TOML) from a data-driven list of recognized config sources; yield `{ serverName, transport, harness, path }` per server; add optional `serverName`/`transport` to `InventoryRecord`; emit records with `constructType: "mcp-server"`; skip unparseable sources with a debug log; emit nothing for sources declaring zero servers.
+- [ ] **Verification**: Gateway tests cover JSON and TOML sources, an empty-servers source, and a malformed source (skipped, no throw); integration test asserts per-server records with `serverName`/`transport`.
+- [ ] **Done when**: Each declared MCP server appears as its own `mcp-server` record attributed to the owning harness.
+
+### Task 5: Validate the JSON contract with Zod and lock it with tests
+
+- [ ] **Objective**: Guarantee the additive output is well-formed and back-compatible.
+- [ ] **Affected files**: `packages/doctor/src/formatters/json-formatter.ts`, `packages/doctor/src/formatters/json-formatter.test.ts`, `packages/cli/src/commands/doctor.integration.test.ts`
+- [ ] **Requirements**: Define `ReportJsonSchema` (Zod) mirroring `ReportJson`; `toJson` validates before returning and throws on failure; assert all pre-existing keys remain with unchanged shapes.
+- [ ] **Verification**: Unit test parses real output against the schema; integration test asserts presence of `inventory`/`edges` and unchanged legacy keys; `mise run ci` exits 0.
+- [ ] **Done when**: Output always validates and legacy consumers see no breaking change.
+
+## Out of Scope
+
+- Structured `remediation` fields, evidence-citation wiring, and an ordered `nextSteps` plan on findings (separate increment).
+- A top-level `schemaVersion` / `summary` roll-up / `status` field (separate contract-hardening increment).
+- Subagent conventions for harnesses other than Claude.
+- Rendering the new inventory/edges in the human (`--format human`) output.
+- Changes to exit-code / CI-gating behavior (already correct).
+
+## Future Considerations
+
+- Human-renderer visualization of the inventory and edge graph.
+- A `schemaVersion` and `summary` counts object so fleet aggregation can detect drift across CLI releases.
+- Populating `evidenceCitation` and structured `remediation` so the inventory becomes an actionable, stepwise improvement plan.
+- Detecting additional MCP config sources and subagent directories as more harness conventions stabilize.
+
+---
+
+## Cross-Reference
+
+- GitHub Issue: #890 (Feature: Agentic Configuration Doctor)
+- Source: first increment of a three-part improvement brief for the shipped `doctor --format json --ci`; grounded in the wisdom knowledge base's cross-harness composition model.
