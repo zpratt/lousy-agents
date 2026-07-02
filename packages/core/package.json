@@ -29,7 +29,7 @@
         "@openclaw/fs-safe": "0.4.1",
         "c12": "3.3.4",
         "consola": "3.4.2",
-        "picomatch": "4.0.4",
+        "picomatch": "4.0.5",
         "remark": "15.0.1",
         "remark-parse": "11.0.0",
         "unist-util-visit": "5.1.0",
