@@ -1,3 +1,4 @@
+import { lstat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -156,6 +157,16 @@ describe("Full pipeline integration", () => {
     });
 
     describe("symlinked-agents-md: root AGENTS.md is a symlink to a real file", () => {
+        it.skipIf(process.platform === "win32")(
+            "should have a symlink fixture at AGENTS.md, so this test actually exercises symlink handling",
+            async () => {
+                const stats = await lstat(
+                    resolve(fixture("symlinked-agents-md"), "AGENTS.md"),
+                );
+                expect(stats.isSymbolicLink()).toBe(true);
+            },
+        );
+
         it("should discover the symlinked AGENTS.md as an inventory record", async () => {
             const records = await scanRepository(
                 fixture("symlinked-agents-md"),
@@ -163,6 +174,19 @@ describe("Full pipeline integration", () => {
 
             const agentsMd = records.find((r) => r.path === "AGENTS.md");
             expect(agentsMd).toBeDefined();
+        });
+
+        it("should read the symlink target's content and parse its edges, not treat it as empty", async () => {
+            const records = await scanRepository(
+                fixture("symlinked-agents-md"),
+            );
+
+            const agentsMd = records.find((r) => r.path === "AGENTS.md");
+            const softReference = agentsMd?.edges.find(
+                (e) => e.type === "soft-reference",
+            );
+            expect(softReference).toBeDefined();
+            expect(softReference?.malformed).toBe(false);
         });
 
         it("should not produce a missing-agents-md finding for codex", async () => {

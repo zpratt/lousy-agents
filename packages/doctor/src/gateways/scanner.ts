@@ -2,6 +2,7 @@ import { realpath, stat } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 import {
     listDirectoryWithinRoot,
+    readFileNoFollow,
     readTextWithinRoot,
 } from "@lousy-agents/core/gateways/file-system-utils.js";
 import type {
@@ -145,20 +146,23 @@ function resolveEdge(
  * as neither a file nor a directory and silently disappears from the scan.
  * Resolve the target ourselves and only follow it when it stays inside the
  * repo root, mirroring the traversal guard already used for edge targets.
+ * Stats the already-resolved real path (rather than re-resolving the
+ * symlink) so the within-root check and the type check observe the same
+ * target, closing the TOCTOU window between the two.
  */
-async function resolveSymlinkKind(
+async function resolveSymlink(
     rootReal: string,
     entryAbs: string,
-): Promise<"file" | "directory" | null> {
+): Promise<{ kind: "file" | "directory"; real: string } | null> {
     try {
         const real = await realpath(entryAbs);
         const isWithinRoot =
             real === rootReal || real.startsWith(`${rootReal}${sep}`);
         if (!isWithinRoot) return null;
 
-        const targetStat = await stat(entryAbs);
-        if (targetStat.isDirectory()) return "directory";
-        if (targetStat.isFile()) return "file";
+        const targetStat = await stat(real);
+        if (targetStat.isDirectory()) return { kind: "directory", real };
+        if (targetStat.isFile()) return { kind: "file", real };
         return null;
     } catch {
         return null;
@@ -169,7 +173,11 @@ async function collectFiles(
     repoRoot: string,
     rootReal: string,
     relDir: string,
-    collected: Array<{ absPath: string; relPath: string }>,
+    collected: Array<{
+        absPath: string;
+        relPath: string;
+        realAbsPath: string | null;
+    }>,
     depth = 0,
 ): Promise<void> {
     if (depth > 10) return;
@@ -189,11 +197,11 @@ async function collectFiles(
 
         const isDirectory = entry.isDirectory();
         const isFile = entry.isFile();
-        const symlinkKind = entry.isSymbolicLink()
-            ? await resolveSymlinkKind(rootReal, entryAbs)
+        const symlink = entry.isSymbolicLink()
+            ? await resolveSymlink(rootReal, entryAbs)
             : null;
 
-        if (isDirectory || symlinkKind === "directory") {
+        if (isDirectory || symlink?.kind === "directory") {
             if (
                 entry.name === "node_modules" ||
                 entry.name === ".git" ||
@@ -209,10 +217,14 @@ async function collectFiles(
                 depth + 1,
             );
         } else if (
-            (isFile || symlinkKind === "file") &&
+            (isFile || symlink?.kind === "file") &&
             isScannableFile(entry.name)
         ) {
-            collected.push({ absPath: entryAbs, relPath: entryRel });
+            collected.push({
+                absPath: entryAbs,
+                relPath: entryRel,
+                realAbsPath: symlink?.kind === "file" ? symlink.real : null,
+            });
         }
     }
 }
@@ -223,7 +235,11 @@ export async function scanRepository(
     const absRoot = resolve(repoRoot);
     const rootReal = await realpath(absRoot);
 
-    const allFiles: Array<{ absPath: string; relPath: string }> = [];
+    const allFiles: Array<{
+        absPath: string;
+        relPath: string;
+        realAbsPath: string | null;
+    }> = [];
     await collectFiles(absRoot, rootReal, "", allFiles);
 
     const existingAbsPaths = new Set(allFiles.map((f) => f.absPath));
@@ -235,18 +251,21 @@ export async function scanRepository(
         content: string | null;
     }> = [];
 
-    for (const { absPath, relPath } of allFiles) {
+    for (const { absPath, relPath, realAbsPath } of allFiles) {
         const harness = determineHarness(relPath);
         if (harness === null) continue;
 
         let content: string | null = null;
         if (isMarkdownFile(relPath)) {
             try {
-                content = await readTextWithinRoot(
-                    absRoot,
-                    relPath,
-                    MAX_FILE_BYTES,
-                );
+                content =
+                    realAbsPath !== null
+                        ? await readFileNoFollow(realAbsPath, MAX_FILE_BYTES)
+                        : await readTextWithinRoot(
+                              absRoot,
+                              relPath,
+                              MAX_FILE_BYTES,
+                          );
             } catch {
                 content = null;
             }
