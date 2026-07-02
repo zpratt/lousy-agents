@@ -1,3 +1,4 @@
+import { lstat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -183,6 +184,30 @@ describe("scanRepository", () => {
 
             const agentsMd = records.find((r) => r.path.endsWith("AGENTS.md"));
             expect(agentsMd?.id).toBe("shared:AGENTS.md");
+        });
+    });
+
+    describe("when scanning a repository with a symlinked instructions directory", () => {
+        it.skipIf(process.platform === "win32")(
+            "should have a symlink fixture at .claude, so this test actually exercises symlink handling",
+            async () => {
+                const stats = await lstat(
+                    resolve(fixture("symlinked-instructions-dir"), ".claude"),
+                );
+                expect(stats.isSymbolicLink()).toBe(true);
+            },
+        );
+
+        it("should discover a file nested inside the symlinked directory", async () => {
+            const records = await scanRepository(
+                fixture("symlinked-instructions-dir"),
+            );
+
+            const claudeMd = records.find(
+                (r) => r.path === ".claude/CLAUDE.md",
+            );
+            expect(claudeMd).toBeDefined();
+            expect(claudeMd?.harness).toBe("claude");
         });
     });
 
