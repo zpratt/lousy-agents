@@ -1,3 +1,4 @@
+import { realpath, stat } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 import {
     listDirectoryWithinRoot,
@@ -138,17 +139,67 @@ function resolveEdge(
     };
 }
 
+/**
+ * fs-safe's listing/reading rejects symlinks outright, so a symlinked
+ * instruction file or directory (e.g. a repo-root AGENTS.md pointing at a
+ * canonical doc) is reported as neither a file nor a directory and silently
+ * disappears from the scan. Resolve the target ourselves and only follow it
+ * when it stays inside the repo root, mirroring the traversal guard already
+ * used for edge targets. Stats the already-resolved real path (rather than
+ * re-resolving the symlink) so the within-root check and the type check
+ * observe the same target, closing the TOCTOU window between the two.
+ */
+async function resolveSymlink(
+    rootReal: string,
+    entryAbs: string,
+): Promise<{ kind: "file" | "directory"; real: string } | null> {
+    try {
+        const real = await realpath(entryAbs);
+        const isWithinRoot =
+            real === rootReal || real.startsWith(`${rootReal}${sep}`);
+        if (!isWithinRoot) return null;
+
+        const targetStat = await stat(real);
+        if (targetStat.isDirectory()) return { kind: "directory", real };
+        if (targetStat.isFile()) return { kind: "file", real };
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+interface CollectedFile {
+    absPath: string;
+    relPath: string;
+    readRoot: string;
+    readRelPath: string;
+}
+
+/**
+ * Walks the repo tree, tracking two coordinate systems in parallel:
+ *  - (listRoot, listRelDir): where fs-safe should actually list/read from.
+ *    This starts at topRepoRoot but re-roots to rootReal + a real relative
+ *    path once the walk crosses a symlinked directory, since fs-safe cannot
+ *    list a path that is itself a symlink.
+ *  - logicalPrefix: the repo-root-relative path as it appears in the tree,
+ *    used for InventoryRecord.path/absPath so a file's identity reflects
+ *    where it's *referenced from*, not where the symlink target physically
+ *    lives.
+ */
 async function collectFiles(
-    repoRoot: string,
-    relDir: string,
-    collected: Array<{ absPath: string; relPath: string }>,
+    listRoot: string,
+    listRelDir: string,
+    logicalPrefix: string,
+    topRepoRoot: string,
+    rootReal: string,
+    collected: CollectedFile[],
     depth = 0,
 ): Promise<void> {
     if (depth > 10) return;
 
     let entries: Awaited<ReturnType<typeof listDirectoryWithinRoot>>;
     try {
-        entries = await listDirectoryWithinRoot(repoRoot, relDir);
+        entries = await listDirectoryWithinRoot(listRoot, listRelDir);
     } catch {
         return;
     }
@@ -156,10 +207,21 @@ async function collectFiles(
     entries.sort((a, b) => a.name.localeCompare(b.name));
 
     for (const entry of entries) {
-        const entryRel = relDir ? `${relDir}/${entry.name}` : entry.name;
-        const entryAbs = resolve(repoRoot, entryRel);
+        const listEntryRel = listRelDir
+            ? `${listRelDir}/${entry.name}`
+            : entry.name;
+        const logicalRel = logicalPrefix
+            ? `${logicalPrefix}/${entry.name}`
+            : entry.name;
+        const listEntryAbs = resolve(listRoot, listEntryRel);
 
-        if (entry.isDirectory()) {
+        const isDirectory = entry.isDirectory();
+        const isFile = entry.isFile();
+        const symlink = entry.isSymbolicLink()
+            ? await resolveSymlink(rootReal, listEntryAbs)
+            : null;
+
+        if (isDirectory || symlink?.kind === "directory") {
             if (
                 entry.name === "node_modules" ||
                 entry.name === ".git" ||
@@ -167,9 +229,44 @@ async function collectFiles(
             ) {
                 continue;
             }
-            await collectFiles(repoRoot, entryRel, collected, depth + 1);
-        } else if (entry.isFile() && isScannableFile(entry.name)) {
-            collected.push({ absPath: entryAbs, relPath: entryRel });
+            if (symlink?.kind === "directory") {
+                // Re-root the walk at rootReal so the symlinked directory
+                // (and anything beneath it) is listed via its real,
+                // symlink-free path — fs-safe rejects listing a path that
+                // is itself a symlink.
+                await collectFiles(
+                    rootReal,
+                    relative(rootReal, symlink.real),
+                    logicalRel,
+                    topRepoRoot,
+                    rootReal,
+                    collected,
+                    depth + 1,
+                );
+            } else {
+                await collectFiles(
+                    listRoot,
+                    listEntryRel,
+                    logicalRel,
+                    topRepoRoot,
+                    rootReal,
+                    collected,
+                    depth + 1,
+                );
+            }
+        } else if (
+            (isFile || symlink?.kind === "file") &&
+            isScannableFile(entry.name)
+        ) {
+            collected.push({
+                absPath: resolve(topRepoRoot, logicalRel),
+                relPath: logicalRel,
+                readRoot: symlink?.kind === "file" ? rootReal : listRoot,
+                readRelPath:
+                    symlink?.kind === "file"
+                        ? relative(rootReal, symlink.real)
+                        : listEntryRel,
+            });
         }
     }
 }
@@ -178,9 +275,10 @@ export async function scanRepository(
     repoRoot: string,
 ): Promise<InventoryRecord[]> {
     const absRoot = resolve(repoRoot);
+    const rootReal = await realpath(absRoot);
 
-    const allFiles: Array<{ absPath: string; relPath: string }> = [];
-    await collectFiles(absRoot, "", allFiles);
+    const allFiles: CollectedFile[] = [];
+    await collectFiles(absRoot, "", "", absRoot, rootReal, allFiles);
 
     const existingAbsPaths = new Set(allFiles.map((f) => f.absPath));
 
@@ -191,7 +289,7 @@ export async function scanRepository(
         content: string | null;
     }> = [];
 
-    for (const { absPath, relPath } of allFiles) {
+    for (const { absPath, relPath, readRoot, readRelPath } of allFiles) {
         const harness = determineHarness(relPath);
         if (harness === null) continue;
 
@@ -199,8 +297,8 @@ export async function scanRepository(
         if (isMarkdownFile(relPath)) {
             try {
                 content = await readTextWithinRoot(
-                    absRoot,
-                    relPath,
+                    readRoot,
+                    readRelPath,
                     MAX_FILE_BYTES,
                 );
             } catch {
