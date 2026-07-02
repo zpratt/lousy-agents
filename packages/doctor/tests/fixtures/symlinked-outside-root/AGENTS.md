@@ -1,0 +1,1 @@
+../pure-claude/CLAUDE.md

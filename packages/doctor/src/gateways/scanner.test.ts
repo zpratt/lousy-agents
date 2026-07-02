@@ -211,6 +211,27 @@ describe("scanRepository", () => {
         });
     });
 
+    describe("when scanning a repository with a symlink that escapes the repo root", () => {
+        it.skipIf(process.platform === "win32")(
+            "should have a symlink fixture at AGENTS.md pointing outside the repo root, so this test actually exercises the traversal guard",
+            async () => {
+                const stats = await lstat(
+                    resolve(fixture("symlinked-outside-root"), "AGENTS.md"),
+                );
+                expect(stats.isSymbolicLink()).toBe(true);
+            },
+        );
+
+        it("should not inventory a symlinked file whose resolved target lives outside the repo root", async () => {
+            const records = await scanRepository(
+                fixture("symlinked-outside-root"),
+            );
+
+            const agentsMd = records.find((r) => r.path === "AGENTS.md");
+            expect(agentsMd).toBeUndefined();
+        });
+    });
+
     describe("when scanning a repository with an empty-repo fixture", () => {
         it("should return an empty inventory", async () => {
             const records = await scanRepository(fixture("empty-repo"));
