@@ -155,6 +155,34 @@ describe("Full pipeline integration", () => {
         });
     });
 
+    describe("symlinked-agents-md: root AGENTS.md is a symlink to a real file", () => {
+        it("should discover the symlinked AGENTS.md as an inventory record", async () => {
+            const records = await scanRepository(
+                fixture("symlinked-agents-md"),
+            );
+
+            const agentsMd = records.find((r) => r.path === "AGENTS.md");
+            expect(agentsMd).toBeDefined();
+        });
+
+        it("should not produce a missing-agents-md finding for codex", async () => {
+            const records = await scanRepository(
+                fixture("symlinked-agents-md"),
+            );
+            const classification = classifyArchetype(records);
+            const findings = evaluate(CRITERIA, {
+                records,
+                classification,
+                intent: null,
+            });
+
+            const missingAgentsMdFinding = findings.find(
+                (f) => f.criterionId === "missing-agents-md",
+            );
+            expect(missingAgentsMdFinding).toBeUndefined();
+        });
+    });
+
     describe("empty-repo: no records → no findings", () => {
         it("should produce zero findings for an empty repo", async () => {
             const records = await scanRepository(fixture("empty-repo"));
