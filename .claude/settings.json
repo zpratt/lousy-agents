@@ -1,47 +1,44 @@
 {
-  "SessionStart": [
-    "mise install",
-    "npm ci"
-  ],
-  "enabledPlugins": {
-    "claude-code-setup@claude-plugins-official": true,
-    "claude-md-management@claude-plugins-official": true,
-    "code-simplifier@claude-plugins-official": true,
-    "context7@claude-plugins-official": true,
-    "example-skills@anthropic-agent-skills": true,
-    "superpowers@claude-plugins-official": true
-  },
-  "hooks": {
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "command": "bd prime",
-            "type": "command"
-          }
+    "SessionStart": ["mise install", "npm ci"],
+    "enabledPlugins": {
+        "claude-code-setup@claude-plugins-official": true,
+        "claude-md-management@claude-plugins-official": true,
+        "code-simplifier@claude-plugins-official": true,
+        "context7@claude-plugins-official": true,
+        "example-skills@anthropic-agent-skills": true,
+        "superpowers@claude-plugins-official": true
+    },
+    "hooks": {
+        "PreCompact": [
+            {
+                "hooks": [
+                    {
+                        "command": "bd prime",
+                        "type": "command"
+                    }
+                ],
+                "matcher": ""
+            }
         ],
-        "matcher": ""
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/mise-path.sh",
-            "type": "command"
-          }
-        ],
-        "matcher": "startup|resume"
-      },
-      {
-        "hooks": [
-          {
-            "command": "bd prime",
-            "type": "command"
-          }
-        ],
-        "matcher": ""
-      }
-    ]
-  }
+        "SessionStart": [
+            {
+                "hooks": [
+                    {
+                        "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/mise-path.sh",
+                        "type": "command"
+                    }
+                ],
+                "matcher": "startup|resume"
+            },
+            {
+                "hooks": [
+                    {
+                        "command": "bd prime",
+                        "type": "command"
+                    }
+                ],
+                "matcher": ""
+            }
+        ]
+    }
 }
