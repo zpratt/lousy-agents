@@ -14,6 +14,15 @@ import { initCommand } from "./init.js";
 const chance = new Chance();
 const API_PORT = 3000;
 
+function isDockerAvailable(): boolean {
+    try {
+        execFileSync("docker", ["info"], { stdio: "ignore" });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 /**
  * Minimal Fastify API implementation to add to the scaffolded project.
  * Starts a server with a /health endpoint on port 3000.
@@ -152,7 +161,7 @@ describe("API template lint", () => {
     });
 });
 
-describe("API template end-to-end", () => {
+describe.skipIf(!isDockerAvailable())("API template end-to-end", () => {
     let container: StartedTestContainer;
     let projectDir: string;
     let baseUrl: string;

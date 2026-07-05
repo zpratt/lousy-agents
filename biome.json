@@ -16,7 +16,9 @@
             "!graphify-out",
             "!.semgrep",
             "!**/graphify-out",
-            "!skills-lock.json"
+            "!skills-lock.json",
+            "!wisdom",
+            "!wisdom/graphify-out"
         ]
     },
     "formatter": {
