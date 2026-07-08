@@ -27,7 +27,7 @@
         "@modelcontextprotocol/server-sequential-thinking": "2026.7.4",
         "@testing-library/jest-dom": "6.9.1",
         "@testing-library/react": "16.3.2",
-        "@types/node": "24.13.2",
+        "@types/node": "24.13.3",
         "@types/react": "19.2.17",
         "@types/react-dom": "19.2.3",
         "@upstash/context7-mcp": "3.2.3",
