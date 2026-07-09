@@ -57,7 +57,7 @@
         "fast-check": "4.9.0",
         "testcontainers": "12.0.4",
         "tsx": "4.23.0",
-        "typescript": "6.0.3",
+        "typescript": "7.0.2",
         "vitest": "4.1.10",
         "whatwg-fetch": "3.6.20"
     }
