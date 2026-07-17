@@ -19,7 +19,7 @@
         "@fastify/cors": "11.3.0",
         "@fastify/sensible": "6.0.4",
         "fastify": "5.10.0",
-        "kysely": "0.29.3",
+        "kysely": "0.29.4",
         "pino": "10.3.1",
         "postgres": "3.4.9",
         "zod": "4.4.3"
