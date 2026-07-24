@@ -36,7 +36,7 @@
         "build": "rspack build --config rspack.config.ts && chmod +x dist/index.js"
     },
     "dependencies": {
-        "@openclaw/fs-safe": "0.4.5",
+        "@openclaw/fs-safe": "0.4.6",
         "zod": "4.4.3"
     },
     "peerDependencies": {
