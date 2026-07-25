@@ -33,7 +33,7 @@
         "@upstash/context7-mcp": "3.2.4",
         "@vitejs/plugin-react": "6.0.4",
         "@vitest/ui": "4.1.10",
-        "eslint": "10.7.0",
+        "eslint": "10.8.0",
         "eslint-config-next": "16.2.11",
         "happy-dom": "20.11.1",
         "jsdom": "29.1.1",
