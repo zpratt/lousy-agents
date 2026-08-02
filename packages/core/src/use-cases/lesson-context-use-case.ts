@@ -157,7 +157,7 @@ export class LessonContextUseCase {
             const globMatchers = result.lessons.map((p) => {
                 const { paths } = p.lesson.triggers;
                 return paths.length > 0
-                    ? picomatch(paths, PICOMATCH_OPTIONS)
+                    ? picomatch([...paths], PICOMATCH_OPTIONS)
                     : null;
             });
             matched = result.lessons.filter((p, i) =>

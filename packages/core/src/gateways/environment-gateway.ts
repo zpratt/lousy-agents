@@ -204,12 +204,14 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
             }
 
             if (await pathExistsWithinRoot(targetDir, pmConfig.manifestFile)) {
-                const lockfilePath = pmConfig.lockfile
-                    ? await resolveSafePath(targetDir, pmConfig.lockfile)
+                const { lockfile } = pmConfig;
+                const lockfilePath = lockfile
+                    ? await resolveSafePath(targetDir, lockfile)
                     : undefined;
-                const hasLockfile = lockfilePath
-                    ? await pathExistsWithinRoot(targetDir, pmConfig.lockfile)
-                    : false;
+                const hasLockfile =
+                    lockfilePath && lockfile
+                        ? await pathExistsWithinRoot(targetDir, lockfile)
+                        : false;
 
                 if (pmConfig.requiresLockfile && !hasLockfile) {
                     continue;
@@ -234,12 +236,14 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
 
         for (const pmConfig of otherPackageManagers) {
             if (await pathExistsWithinRoot(targetDir, pmConfig.manifestFile)) {
-                const lockfilePath = pmConfig.lockfile
-                    ? await resolveSafePath(targetDir, pmConfig.lockfile)
+                const { lockfile } = pmConfig;
+                const lockfilePath = lockfile
+                    ? await resolveSafePath(targetDir, lockfile)
                     : undefined;
-                const hasLockfile = lockfilePath
-                    ? await pathExistsWithinRoot(targetDir, pmConfig.lockfile)
-                    : false;
+                const hasLockfile =
+                    lockfilePath && lockfile
+                        ? await pathExistsWithinRoot(targetDir, lockfile)
+                        : false;
 
                 if (pmConfig.requiresLockfile && !hasLockfile) {
                     continue;

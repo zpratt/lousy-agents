@@ -33,6 +33,7 @@
     ],
     "exports": {
         ".": {
+            "types": "./dist/index.d.ts",
             "default": "./dist/index.js"
         }
     },
@@ -40,7 +41,7 @@
         "agentic-doctor": "./dist/cli/index.js"
     },
     "scripts": {
-        "build": "rspack build --config rspack.config.ts && chmod +x dist/cli/index.js",
+        "build": "rspack build --config rspack.config.ts && chmod +x dist/cli/index.js && tsc --emitDeclarationOnly",
         "test": "vitest run",
         "typecheck": "tsc --noEmit"
     },

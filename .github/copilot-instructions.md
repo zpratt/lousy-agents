@@ -26,6 +26,7 @@ eval "$(mise activate zsh)"
 # Core commands
 mise run test            # Run tests (vitest)
 mise run lint            # Run ALL linting tools in parallel (Biome, actionlint, yamllint, markdownlint, shellcheck, semgrep, dependency-cruiser, issue-form schemas)
+mise run typecheck       # Strict TypeScript check (tsc --noEmit) across all workspace packages
 mise run format-check    # Biome only — code formatting + static analysis
 mise run format-fix      # Auto-fix Biome lint/format issues
 npm run build            # Production build
@@ -39,7 +40,7 @@ npx biome check path/to/file.ts
 npm test path/to/file.test.ts
 
 # Validation suite (run before commits)
-mise run ci              # Runs: lint -> test -> test-integration -> smoke-test (test-integration and smoke-test both depend on build)
+mise run ci              # Runs: lint -> typecheck -> test -> test-integration -> smoke-test (test-integration and smoke-test both depend on build)
 
 # Other
 npm audit                # Security check
@@ -60,8 +61,8 @@ Follow this exact sequence for ALL code changes. Work in small increments — ma
 4. **Implement minimal code**: Write just enough to pass
 5. **Verify pass**: Run `mise run test` — confirm pass
 6. **Refactor**: Clean up, remove duplication, keep tests green
-7. **Verify refactor**: Run `mise run test && mise run lint` — confirm tests still green and all linting passes
-8. **Validate**: `mise run ci` — runs `lint -> test -> test-integration -> smoke-test`
+7. **Verify refactor**: Run `mise run test && mise run lint && mise run typecheck` — confirm tests still green, linting passes, and strict types check
+8. **Validate**: `mise run ci` — runs `lint -> typecheck -> test -> test-integration -> smoke-test`
 
 Task is NOT complete until `mise run ci` exits 0.
 

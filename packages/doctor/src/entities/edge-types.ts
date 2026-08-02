@@ -1,5 +1,3 @@
-import type { AgenticConstructType } from "@lousy-agents/core/entities/agentic-location-catalog.js";
-
 export type HarnessName =
     | "claude"
     | "copilot"
@@ -10,7 +8,21 @@ export type HarnessName =
     | "pi"
     | "shared";
 
-export type ConstructType = AgenticConstructType;
+/**
+ * Mirrors `@lousy-agents/core`'s `AgenticConstructType`. Redeclared locally
+ * (structurally identical, so still interchangeable with core's callers
+ * like `primaryConstructTypeForPath`) because `core` is a private,
+ * unpublished package — importing its types here would leak an
+ * unresolvable reference into this package's published `.d.ts` output.
+ */
+export type ConstructType =
+    | "instruction"
+    | "skill"
+    | "agent"
+    | "subagent"
+    | "mcp-server"
+    | "plugin"
+    | "hook";
 
 export type EdgeType = "hard-import" | "soft-reference" | "glob-binding";
 

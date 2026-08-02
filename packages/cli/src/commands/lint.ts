@@ -82,6 +82,39 @@ function displayInstructionQuality(output: LintOutput): void {
  * The `lint` command for validating agent skills, custom agents, and instruction files.
  * Also exposes `lint lessons` as a subcommand for lesson frontmatter validation.
  */
+const lintArgs = {
+    skills: {
+        type: "boolean",
+        description:
+            "Lint skill frontmatter in .github/skills/ and .claude/skills/",
+        default: false,
+    },
+    agents: {
+        type: "boolean",
+        description: "Lint custom agent frontmatter in .github/agents/",
+        default: false,
+    },
+    hooks: {
+        type: "boolean",
+        description:
+            "Lint pre-tool-use hook configurations in .github/hooks/agent-shell/hooks.json, .claude/settings.json, and .claude/settings.local.json",
+        default: false,
+    },
+    instructions: {
+        type: "boolean",
+        description:
+            "Analyze instruction quality across all instruction file formats",
+        default: false,
+    },
+    format: {
+        type: "string",
+        description: "Output format: human (default), json, or rdjsonl",
+        default: "human",
+    },
+} as const;
+
+type LintArgs = typeof lintArgs;
+
 export function createLintCommand(lintLessonsCmd: CommandDef) {
     return defineCommand({
         meta: {
@@ -92,37 +125,8 @@ export function createLintCommand(lintLessonsCmd: CommandDef) {
         subCommands: {
             lessons: lintLessonsCmd,
         },
-        args: {
-            skills: {
-                type: "boolean",
-                description:
-                    "Lint skill frontmatter in .github/skills/ and .claude/skills/",
-                default: false,
-            },
-            agents: {
-                type: "boolean",
-                description: "Lint custom agent frontmatter in .github/agents/",
-                default: false,
-            },
-            hooks: {
-                type: "boolean",
-                description:
-                    "Lint pre-tool-use hook configurations in .github/hooks/agent-shell/hooks.json, .claude/settings.json, and .claude/settings.local.json",
-                default: false,
-            },
-            instructions: {
-                type: "boolean",
-                description:
-                    "Analyze instruction quality across all instruction file formats",
-                default: false,
-            },
-            format: {
-                type: "string",
-                description: "Output format: human (default), json, or rdjsonl",
-                default: "human",
-            },
-        },
-        run: async (context: CommandContext) => {
+        args: lintArgs,
+        run: async (context: CommandContext<LintArgs>) => {
             const rawTargetDir =
                 typeof context.data?.targetDir === "string"
                     ? context.data.targetDir

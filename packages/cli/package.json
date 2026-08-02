@@ -38,7 +38,8 @@
         "lousy-agents": "dist/index.js"
     },
     "scripts": {
-        "build": "rspack build --config rspack.config.ts && chmod +x dist/index.js"
+        "build": "rspack build --config rspack.config.ts && chmod +x dist/index.js",
+        "typecheck": "tsc --noEmit"
     },
     "dependencies": {
         "c12": "3.3.4",

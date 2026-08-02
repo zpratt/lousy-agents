@@ -88,6 +88,9 @@ jobs:
       - name: Run linting
         run: mise run lint
 
+      - name: Run typecheck
+        run: mise run typecheck
+
       - name: Run tests
         run: mise run test
 
