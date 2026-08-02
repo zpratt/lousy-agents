@@ -4,6 +4,7 @@ import {
     listDirectoryWithinRoot,
     readTextWithinRoot,
 } from "@lousy-agents/core/gateways/file-system-utils.js";
+import { primaryConstructTypeForPath } from "@lousy-agents/core/lib/agentic-location-matchers.js";
 import type {
     ConstructType,
     Edge,
@@ -46,26 +47,7 @@ function isMarkdownFile(name: string): boolean {
 }
 
 function determineConstructType(relPath: string): ConstructType {
-    if (
-        relPath.startsWith(".agents/skills/") ||
-        relPath.startsWith(".pi/skills/") ||
-        relPath.startsWith(".pi/prompts/")
-    ) {
-        return "skill";
-    }
-    if (relPath.startsWith(".codex-plugin/")) {
-        return "plugin";
-    }
-    if (relPath.startsWith(".claude/hooks/")) {
-        return "hook";
-    }
-    if (relPath.startsWith(".claude/agents/")) {
-        return "subagent";
-    }
-    if (relPath.startsWith(".claude/commands/")) {
-        return "agent";
-    }
-    return "instruction";
+    return primaryConstructTypeForPath(relPath) ?? "instruction";
 }
 
 function determineHarness(repoRelativePath: string): HarnessName | null {

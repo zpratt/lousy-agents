@@ -80,6 +80,9 @@ export const HARNESS_FOOTPRINTS: Readonly<
         primaryIndicators: [
             ".github/copilot-instructions.md",
             ".github/instructions/",
+            ".github/skills/",
+            ".github/agents/",
+            ".github/hooks/",
         ],
         crossRefMechanisms: [
             {

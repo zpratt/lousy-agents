@@ -116,6 +116,18 @@ describe("HARNESS_FOOTPRINTS", () => {
             );
         });
     });
+
+    describe("copilot harness primary indicators for skills, agents, and hooks", () => {
+        it("should include .github/skills/, .github/agents/, and .github/hooks/ so those paths resolve to the copilot harness", () => {
+            expect(HARNESS_FOOTPRINTS.copilot.primaryIndicators).toEqual(
+                expect.arrayContaining([
+                    ".github/skills/",
+                    ".github/agents/",
+                    ".github/hooks/",
+                ]),
+            );
+        });
+    });
 });
 
 describe("getFootprint", () => {

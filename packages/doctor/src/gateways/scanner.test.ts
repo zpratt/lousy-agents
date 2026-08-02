@@ -302,4 +302,63 @@ describe("scanRepository", () => {
             }
         });
     });
+
+    describe("when scanning a repository with catalogued skills, agents, and hooks", () => {
+        const catalogFixture = "copilot-skills-agents-hooks";
+
+        it("should inventory a scannable file under .github/skills/ as constructType 'skill'", async () => {
+            const records = await scanRepository(fixture(catalogFixture));
+
+            const skillRecord = records.find(
+                (r) => r.path === ".github/skills/sample-skill/SKILL.md",
+            );
+            expect(skillRecord).toBeDefined();
+            expect(skillRecord?.constructType).toBe("skill");
+            expect(skillRecord?.harness).toBe("copilot");
+        });
+
+        it("should inventory a scannable file under .github/agents/ as constructType 'agent' (single record)", async () => {
+            const records = await scanRepository(fixture(catalogFixture));
+
+            const agentRecords = records.filter(
+                (r) => r.path === ".github/agents/demo.md",
+            );
+            expect(agentRecords).toHaveLength(1);
+            expect(agentRecords[0]?.constructType).toBe("agent");
+            expect(agentRecords[0]?.harness).toBe("copilot");
+        });
+
+        it("should inventory .github/hooks/agent-shell/hooks.json as constructType 'hook'", async () => {
+            const records = await scanRepository(fixture(catalogFixture));
+
+            const hookRecord = records.find(
+                (r) => r.path === ".github/hooks/agent-shell/hooks.json",
+            );
+            expect(hookRecord).toBeDefined();
+            expect(hookRecord?.constructType).toBe("hook");
+            expect(hookRecord?.harness).toBe("copilot");
+        });
+
+        it("should inventory a scannable file under .claude/skills/ as constructType 'skill', not 'instruction'", async () => {
+            const records = await scanRepository(fixture(catalogFixture));
+
+            const skillRecord = records.find(
+                (r) => r.path === ".claude/skills/sample-skill/SKILL.md",
+            );
+            expect(skillRecord).toBeDefined();
+            expect(skillRecord?.constructType).toBe("skill");
+            expect(skillRecord?.constructType).not.toBe("instruction");
+            expect(skillRecord?.harness).toBe("claude");
+        });
+
+        it("should continue to inventory .agents/skills/ as constructType 'skill'", async () => {
+            const records = await scanRepository(fixture(catalogFixture));
+
+            const skillRecord = records.find(
+                (r) => r.path === ".agents/skills/sample-skill/SKILL.md",
+            );
+            expect(skillRecord).toBeDefined();
+            expect(skillRecord?.constructType).toBe("skill");
+        });
+    });
 });
