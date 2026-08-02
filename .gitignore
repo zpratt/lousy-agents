@@ -132,10 +132,6 @@ packages/action/dist/*.map
 # macOS metadata
 .DS_Store
 
-# Dolt database files (added by bd init)
-.dolt/
-*.db
-
 # Ignore local machine states and API costs
 **/graphify-out/manifest.json
 **/graphify-out/cost.json
@@ -144,6 +140,3 @@ packages/action/dist/*.map
 # Optional: Ignore cache to keep repo size down (sacrifices local build speed)
 **/graphify-out/cache/
 .graphify_*
-
-# Beads / Dolt files (added by bd init)
-.beads-credential-key

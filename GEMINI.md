@@ -26,10 +26,11 @@ You must use `update_topic` to signal strategic transitions. At a minimum, call 
 3. **TDD Implementation:** Writing the failing test and implementing the fix.
 4. **Validation & CI:** Running `mise run ci` and confirming the Definition of Done.
 
-### Task Tracking (Beads)
-- **Authoritative Source:** Beads (`bd`) is the **ONLY** source of truth for task tracking.
-- **NEVER** use `MEMORY.md` or ad-hoc markdown lists for task management.
-- **Workflow:** `bd create` (if needed) -> `bd show` -> `bd list` -> `bd close`.
+### Task Tracking
+- **Durable feature work:** GitHub parent epic → sub-issues (vertical slices) → PR checklist on each issue/sub-issue. No local issue DB. Do **not** use beads/`bd`.
+- Session-scoped agent todos are OK for ephemeral work only.
+- If `gh` is unavailable when durable tracking is needed, stop and tell the user.
+- **NEVER** use `MEMORY.md` or ad-hoc markdown lists for durable task management.
 
 ### Personal Memory (`MEMORY.md`)
 - Use strictly for personal, unstructured notes or long-lived index pointers to sibling notes in the memory folder.
@@ -59,4 +60,4 @@ You MUST follow the TDD loop for all code changes:
 A task is complete **ONLY** when:
 1. Acceptance criteria are met.
 2. `mise run ci` exits `0`.
-3. The corresponding Beads (`bd`) task is closed.
+3. Related GitHub issue/sub-issue checklist items and PR status are updated.

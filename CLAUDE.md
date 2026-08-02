@@ -28,16 +28,15 @@ Keeping the deep domain rules in nested files (rather than importing all of them
 
 ## Task Tracking (Claude-specific)
 
-Beads (`bd`) is the single source of truth for all task tracking (see Boundaries in the imported guidance). For Claude Code specifically:
+Durable feature work uses **GitHub**: parent epic issue → sub-issues (vertical slices) → PR checklist on each issue/sub-issue. No local issue database. Do **not** use beads/`bd`.
 
-**Never** use Claude Code's native task tools (`TaskCreate`, `TaskList`, `TaskUpdate`, `TaskGet`, etc.) for project tasks — they are session-scoped and invisible to other agents and to Copilot. Use `bd create` / `bd show <id>` / `bd close <id>` / `bd list` / `bd query` instead. If `bd` is unavailable, stop and inform the user — do not fall back to native tools or ad-hoc lists.
+Session-scoped agent todos (`TaskCreate`, `TaskList`, etc.) are OK for ephemeral in-session work only — they are not durable project tracking. If `gh` is unavailable when durable tracking is needed, stop and tell the user.
 
 ## Skills
 
 Reach for these project skills when the work matches:
 
 - **`feature-to-plan`** — turn a feature request, idea, or backlog issue into a structured EARS-format spec.
-- **`plan-to-graph`** — break a spec/master plan into a Beads (`bd`) dependency graph of epics and tasks.
 - **`mutation-hunter`** — find test-coverage gaps by mutating production TypeScript and seeing which mutations survive.
 - **`rugged-evil-tester`** — generate adversarial / security / boundary / injection tests for TypeScript.
 - **`triaging-pr-reviews`** — triage and classify PR review comments (especially automated Copilot review) before acting on them.

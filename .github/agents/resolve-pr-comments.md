@@ -31,17 +31,24 @@ Before starting, verify:
    ```
 
 2. The PR has at least one review comment to address.
-3. The `gh` CLI is authenticated and available (`gh auth status`).
+3. The `gh` CLI is authenticated and available (`gh auth status`). If `gh` is unavailable, stop and tell the user.
 4. The `jq` binary is available (`jq --version`).
-5. The `bd` (Beads) CLI is available (`bd --version`). Task tracking must use Beads as the single source of truth — if `bd` is unavailable, stop and inform the user; do not substitute an ad-hoc list.
 
 If any condition is not met, stop and report the reason.
+
+## Loop-state and findings tracking
+
+Track loop iteration state and findings on the **GitHub PR** — not beads/`bd` and not a local issue DB.
+
+- **Loop state:** a single top-level PR comment whose body starts with `<!-- pr-remediation-loop -->` and includes a markdown checklist of iterations (`- [ ] iteration 1` …). Create it once; on re-invocation, find and update that comment.
+- **Findings:** reply on the relevant review thread, and/or keep a checklist in the loop-state comment (`- [ ] path:line — summary (severity)`). Optionally apply labels such as `remediation-in-progress` / `needs-human-review`.
+- Session-scoped agent todos are OK for ephemeral work within one run.
 
 ## Loop Protocol
 
 Run the following loop. Exit when **no critical, high, or medium severity findings remain**, or after **3 iterations**, whichever comes first.
 
-Before entering the loop, create a dedicated Beads issue to track loop state durably. The loop-state issue is keyed on the PR number so re-invocations resume from the same durable state rather than resetting the counter:
+Before entering the loop, ensure the durable loop-state comment exists (keyed on this PR):
 
 ```bash
 pr_number="$(gh pr view --json number -q .number)"
@@ -49,101 +56,56 @@ if ! [[ "$pr_number" =~ ^[0-9]+$ ]]; then
   echo "ERROR: gh pr view returned non-numeric PR number: '$pr_number'" >&2
   exit 1
 fi
-loop_issue_title="pr-remediation-loop-$pr_number"
-loop_iteration_title_prefix="$loop_issue_title-iteration-"
-# Reuse an existing loop-state issue if one already exists for this PR.
-# Do not suppress bd list errors — a failure here must stop execution.
-bd_list_output="$(bd list)" || {
-  echo "ERROR: bd list failed. Cannot look up loop-state issue." >&2
-  exit 1
-}
-loop_issue_id="$(printf "%s\n" "$bd_list_output" | awk -v t="$loop_issue_title" '
-  index($0, t) {
-    # Exclude iteration-marker issues (titles prefixed with "<loop_issue_title>-iteration-").
-    if (index($0, t "-iteration-") != 0) next
-    if (match($0, /bd-[0-9]+/)) {
-      print substr($0, RSTART, RLENGTH)
-      exit
-    }
-  }
-')"
-if [ -z "$loop_issue_id" ]; then
-  # bd create uses a positional title argument (canonical form per .beads/README.md).
-  raw_create_output="$(bd create "$loop_issue_title")" || {
-    echo "ERROR: Failed to create loop tracking issue in Beads." >&2
-    exit 1
-  }
-  # Parse ID from human-readable output (e.g., "Created issue bd-123: <title>").
-  loop_issue_id="$(printf "%s\n" "$raw_create_output" | grep -Eo 'bd-[0-9]+' | head -n1)"
-  if [ -z "$loop_issue_id" ]; then
-    echo "ERROR: Could not parse loop issue ID from bd create output: '$raw_create_output'" >&2
-    exit 1
-  fi
+owner="$(gh repo view --json owner -q .owner.login)" || { echo "ERROR: gh repo view failed" >&2; exit 1; }
+repo="$(gh repo view --json name -q .name)" || { echo "ERROR: gh repo view failed" >&2; exit 1; }
+
+marker='<!-- pr-remediation-loop -->'
+# Find existing loop-state comment (if any)
+loop_comment_id="$(gh api "repos/$owner/$repo/issues/$pr_number/comments" --paginate \
+  --jq --arg m "$marker" '.[] | select(.body | contains($m)) | .id' | head -n1)"
+
+if [ -z "$loop_comment_id" ]; then
+  body=$(cat <<EOF
+$marker
+## PR remediation loop (PR #$pr_number)
+
+Iterations (max 3):
+- [ ] iteration 1
+- [ ] iteration 2
+- [ ] iteration 3
+
+### Open findings
+<!-- checklist items: - [ ] path:line — summary (severity) -->
+
+EOF
+)
+  loop_comment_id="$(gh api "repos/$owner/$repo/issues/$pr_number/comments" -f body="$body" --jq .id)"
 fi
-loop_iteration_title_suffix="-loop-$loop_issue_id"
 ```
 
-At the start of each iteration, count existing iteration-marker issues in Beads, increment it, stop if it would exceed 3, and persist the new value by creating the next marker issue:
+At the start of each iteration, read the loop-state comment, count completed iterations, stop if the next would exceed 3, and mark the next iteration checkbox:
 
 ```bash
-# Re-read issue list each iteration so reruns use durable Beads state.
-bd_list_output="$(bd list)" || {
-  echo "ERROR: bd list failed while determining current iteration count." >&2
-  exit 1
-}
-current="$(
-  printf "%s\n" "$bd_list_output" | awk -v p="$loop_iteration_title_prefix" -v s="$loop_iteration_title_suffix" '
-    {
-      start = index($0, p)
-      if (start == 0) next
-      remaining = substr($0, start + length(p))
-      if (match(remaining, /^[0-9]+/)) {
-        n = substr(remaining, RSTART, RLENGTH)
-        tail = substr(remaining, RLENGTH + 1)
-        if (index(tail, s) == 1 && n >= 1 && n <= 3 && n > max) {
-          max = n
-        }
-      }
-    }
-    END {
-      if (max > 0) print max
-    }
-  '
-)"
-[ -z "$current" ] && current=0
-if ! [[ "$current" =~ ^[0-9]+$ ]]; then
-  echo "ERROR: Could not parse iteration counter from Beads list output." >&2
-  exit 1
-fi
-N=$((current + 1))
+body="$(gh api "repos/$owner/$repo/issues/comments/$loop_comment_id" --jq .body)"
+completed="$(printf '%s\n' "$body" | grep -c '^\- \[x\] iteration ' || true)"
+N=$((completed + 1))
 if [ "$N" -gt 3 ]; then
   echo "ERROR: 3-iteration limit reached. Escalating." >&2
-  # Apply escalation steps from Exit Conditions section.
   exit 1
 fi
-# Persist iteration marker in Beads.
-marker_title="${loop_iteration_title_prefix}${N}${loop_iteration_title_suffix}"
-raw_marker_output="$(bd create "$marker_title")" || {
-  echo "ERROR: Failed to create iteration marker issue $marker_title." >&2
-  exit 1
-}
-marker_issue_id="$(printf "%s\n" "$raw_marker_output" | grep -Eo 'bd-[0-9]+' | head -n1)"
-if [ -z "$marker_issue_id" ]; then
-  echo "ERROR: Could not parse iteration marker ID from bd create output: '$raw_marker_output'" >&2
-  exit 1
-fi
+# Mark iteration N complete in the comment body (replace first matching unchecked box)
+updated="$(printf '%s\n' "$body" | sed "0,/^- \[ \] iteration $N/{s/^- \[ \] iteration $N/- [x] iteration $N/;}")"
+gh api "repos/$owner/$repo/issues/comments/$loop_comment_id" -X PATCH -f body="$updated" >/dev/null
 ```
 
 ### Step 1 — Triage
 
-- **First iteration:** Invoke the **triaging-pr-reviews** skill (`#triaging-pr-reviews`) against the existing PR review comments. Provide the PR number as the argument (e.g., `#triaging-pr-reviews #317`). For every review comment the skill keeps actionable, create a tracking issue in Beads (`bd create`) capturing its file/line, validity decision, category, and requested remediation. Do **not** require CRITICAL / HIGH / MEDIUM labels here — `#triaging-pr-reviews` does not emit reviewer severities.
-- **Subsequent iterations:** Extract the severity values directly from the reviewer agent's output table (the table already contains CRITICAL / HIGH / MEDIUM / LOW ratings). For each critical, high, or medium finding, record its severity on the `bd` issue. Do **not** re-invoke `#triaging-pr-reviews` — that skill is scoped to pending PR comments and must not be used to process reviewer output tables.
+- **First iteration:** Invoke the **triaging-pr-reviews** skill (`#triaging-pr-reviews`) against the existing PR review comments. Provide the PR number as the argument (e.g., `#triaging-pr-reviews #317`). For every review comment the skill keeps actionable, add a checklist item under **Open findings** on the loop-state comment (file/line, category, remediation). Do **not** require CRITICAL / HIGH / MEDIUM labels here — `#triaging-pr-reviews` does not emit reviewer severities.
+- **Subsequent iterations:** Extract the severity values directly from the reviewer agent's output table (the table already contains CRITICAL / HIGH / MEDIUM / LOW ratings). For each critical, high, or medium finding, update or add a checklist item on the loop-state comment. Do **not** re-invoke `#triaging-pr-reviews` — that skill is scoped to pending PR comments and must not be used to process reviewer output tables.
 
-Before creating any `bd` issue in this step, **look up existing open issues first** (`bd list` — use `bd query` to filter by open status if available) and match on the finding's file/line and category. If an open issue already tracks the same finding — a repeated reviewer comment or a rerun of this agent — **reuse and update that issue** (`bd update <id>` to refresh its severity and remediation, preserving the original file/line and creation context) instead of creating a duplicate. Only create a new issue when no open issue matches. This keeps Beads the single source of truth.
+Before adding a finding, read the current loop-state checklist and match on file/line and category. If an open item already tracks the same finding, **update that item** instead of duplicating. Only add a new checklist line when nothing matches.
 
-If the first iteration triage returns no actionable PR comments, stop — you are done. On subsequent iterations, track all critical, high, and medium severity findings from the reviewer table in Beads; if there are none, stop — you are done.
-
-Track all findings and iteration state in Beads (`bd`) — never in an ad-hoc markdown list or native agent task tool.
+If the first iteration triage returns no actionable PR comments, stop — you are done. On subsequent iterations, if there are no critical, high, or medium findings from the reviewer table, stop — you are done.
 
 ### Step 2 — Audit
 
@@ -168,11 +130,11 @@ Actively hunt for all of the following categories of defect:
 - **Filter-before-transform violations** — size limits, validation, and null checks MUST be applied BEFORE expensive operations such as decoding, parsing, or transforming data
 - **Over-broad error handling** — catch blocks that swallow all errors when only a specific error code (e.g., `ENOENT`) should be caught; non-recoverable errors (e.g., `EACCES`) must propagate, not be silently downgraded
 
-Create a `bd` issue for each new finding (`bd create`), **assigning a severity (critical / high / medium / low)** to each one so it can be classified consistently at exit alongside triage and reviewer findings. As in Step 1, first look up existing open issues and reuse a matching one rather than creating a duplicate.
+Add a checklist item on the loop-state comment for each new finding, **assigning a severity (critical / high / medium / low)**. As in Step 1, reuse a matching open item rather than creating a duplicate.
 
 ### Step 3 — Fix
 
-Resolve **all** open `bd` findings from Steps 1 and 2. Do not silently defer or skip any actionable triaged comment or any critical, high, or medium reviewer finding. If you cannot safely address a finding, or believe it is incorrect, reply to the relevant review thread (or the PR) with `DISPUTED: [reason]`, add the `needs-human-review` label, leave the `bd` issue open, and carry it forward for human review instead of making a speculative fix.
+Resolve **all** open findings from Steps 1 and 2 (unchecked checklist items and unreplied review threads). Do not silently defer or skip any actionable triaged comment or any critical, high, or medium reviewer finding. If you cannot safely address a finding, or believe it is incorrect, reply to the relevant review thread (or the PR) with `DISPUTED: [reason]`, add the `needs-human-review` label, leave the checklist item open, and carry it forward for human review instead of making a speculative fix.
 
 For each fix, follow the mandatory TDD sequence. **Exception:** if the finding is limited to documentation, comments, or non-executable content, skip steps 2–5 and apply the fix directly, then run `mise run ci && npm run build` to confirm nothing is broken.
 
@@ -189,7 +151,7 @@ For each fix, follow the mandatory TDD sequence. **Exception:** if the finding i
    sha="$(git rev-parse HEAD)"
    ```
 
-9. Close the corresponding `bd` issue (`bd close <id>`) so iteration state stays in Beads.
+9. Check off the corresponding item on the loop-state findings checklist and/or note resolution on the review thread so iteration state stays on the PR.
 10. **Reply to each addressed review thread** (not as a top-level PR comment) with the commit SHA and a brief description. Derive `owner`, `repo`, `number`, and `comment_id` from live sources — do not hard-code or leave as placeholders:
 
     ```bash
@@ -329,17 +291,17 @@ If you stop after 3 iterations with unresolved critical, high, or medium finding
 - Never skip a failing test or disable test coverage to force the build to pass.
 - Never mark a finding as resolved without implementing a concrete fix.
 - Do not conflate triage (classification) with implementation (fixing) — complete both separately per iteration.
+- Do not use beads/`bd` for findings or loop state.
 
 ## Mandatory
 
 - Follow Entry Checks, Loop Protocol, and Exit Conditions exactly as written.
-- Keep Beads (`bd`) as the single source of truth for findings and iteration state.
+- Keep GitHub PR comments, labels, and checklists as the source of truth for findings and iteration state.
 
 ## Commands
 
-- `gh` — query PR comments/threads, post replies, and apply labels.
+- `gh` — query PR comments/threads, post replies, update loop-state comments, and apply labels.
 - `jq` — parse CLI and API JSON output.
-- `bd` — create/close findings and track iteration state.
 - `git` — diff against the repository's default branch during the audit step.
 - `mise` / `npm` — run validation and build commands.
 
@@ -371,5 +333,5 @@ Run the reviewer step and continue iterating until no critical, high, or medium 
 
 ## Before Commit
 
-- Confirm the relevant `bd` issue is updated or closed.
+- Confirm the relevant loop-state checklist item is updated or checked off.
 - Confirm validation and verification steps have completed for the current fix.
