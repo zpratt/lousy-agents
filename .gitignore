@@ -132,7 +132,9 @@ packages/action/dist/*.map
 # macOS metadata
 .DS_Store
 
-# Dolt database files (added by bd init)
+# Leftover local issue-DB / Dolt artifacts (beads purged; keep ignores defensive)
+.beads/
+.beads-credential-key
 .dolt/
 *.db
 
@@ -144,6 +146,3 @@ packages/action/dist/*.map
 # Optional: Ignore cache to keep repo size down (sacrifices local build speed)
 **/graphify-out/cache/
 .graphify_*
-
-# Beads / Dolt files (added by bd init)
-.beads-credential-key

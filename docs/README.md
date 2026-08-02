@@ -2,6 +2,8 @@
 
 Welcome to the Lousy Agents documentation! This directory contains detailed documentation for all commands and features.
 
+Internal product docs (PRD, harness capability matrix): **[docs/product/](product/)**.
+
 ## Table of Contents
 
 ### Commands

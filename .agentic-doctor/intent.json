@@ -1,0 +1,14 @@
+{
+    "targetHarnesses": ["copilot", "claude", "codex", "antigravity"],
+    "desiredCapabilities": [
+        "copilot-workspace-instructions",
+        "multi-harness-inventory",
+        "cross-harness-edges",
+        "shared-agents-md-contract"
+    ],
+    "confirmedAnswers": {
+        "archetype": "intentional-hybrid",
+        "rationale": "This monorepo intentionally configures Copilot, Claude Code, Codex (AGENTS.md), and Gemini/antigravity roots. CLAUDE.md hard-imports .github/copilot-instructions.md as the shared engineering SoT; AGENTS.md carries multi-reader task-tracking and shell safety rules."
+    },
+    "intentSource": "pre-committed"
+}
