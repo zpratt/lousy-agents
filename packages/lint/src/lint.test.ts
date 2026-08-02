@@ -177,6 +177,111 @@ describe("runLint", () => {
         });
     });
 
+    describe("given the flag-only subagents target is not requested", () => {
+        it("does not run the subagents target when no flags are set", async () => {
+            const result = await runLint({ directory: tempDir });
+
+            const targets = result.outputs.map((o) => o.target);
+            expect(targets).not.toContain("subagent");
+        });
+
+        it("does not run the subagents target when other flags are set", async () => {
+            const options: LintOptions = {
+                directory: tempDir,
+                targets: { skills: true },
+            };
+
+            const result = await runLint(options);
+
+            const targets = result.outputs.map((o) => o.target);
+            expect(targets).not.toContain("subagent");
+        });
+    });
+
+    describe("given the subagents target is explicitly requested", () => {
+        it("runs only the subagents target", async () => {
+            const options: LintOptions = {
+                directory: tempDir,
+                targets: { subagents: true },
+            };
+
+            const result = await runLint(options);
+
+            expect(result.outputs).toHaveLength(1);
+            expect(result.outputs[0]?.target).toBe("subagent");
+        });
+
+        it("lints subagent frontmatter under .claude/agents", async () => {
+            const subagentsDir = join(tempDir, ".claude", "agents");
+            await mkdir(subagentsDir, { recursive: true });
+            await writeFile(
+                join(subagentsDir, "reviewer.md"),
+                "---\n---\n# No frontmatter fields",
+            );
+
+            const options: LintOptions = {
+                directory: tempDir,
+                targets: { subagents: true },
+            };
+
+            const result = await runLint(options);
+
+            expect(result.hasErrors).toBe(true);
+            expect(result.outputs[0]?.diagnostics.length).toBeGreaterThan(0);
+        });
+    });
+
+    describe("given the flag-only mcpServers target is not requested", () => {
+        it("does not run the mcpServers target when no flags are set", async () => {
+            const result = await runLint({ directory: tempDir });
+
+            const targets = result.outputs.map((o) => o.target);
+            expect(targets).not.toContain("mcp-server");
+        });
+
+        it("does not run the mcpServers target when other flags are set", async () => {
+            const options: LintOptions = {
+                directory: tempDir,
+                targets: { skills: true },
+            };
+
+            const result = await runLint(options);
+
+            const targets = result.outputs.map((o) => o.target);
+            expect(targets).not.toContain("mcp-server");
+        });
+    });
+
+    describe("given the mcpServers target is explicitly requested", () => {
+        it("runs only the mcpServers target", async () => {
+            const options: LintOptions = {
+                directory: tempDir,
+                targets: { mcpServers: true },
+            };
+
+            const result = await runLint(options);
+
+            expect(result.outputs).toHaveLength(1);
+            expect(result.outputs[0]?.target).toBe("mcp-server");
+        });
+
+        it("reports errors for malformed .mcp.json", async () => {
+            await writeFile(join(tempDir, ".mcp.json"), "{ not valid json");
+
+            const options: LintOptions = {
+                directory: tempDir,
+                targets: { mcpServers: true },
+            };
+
+            const result = await runLint(options);
+
+            expect(result.hasErrors).toBe(true);
+            expect(result.outputs[0]?.diagnostics[0]?.ruleId).toBe(
+                "mcpserver/invalid-json",
+            );
+        });
+    });
+
     describe("result structure", () => {
         it("each output contains expected summary fields", async () => {
             const result = await runLint({ directory: tempDir });

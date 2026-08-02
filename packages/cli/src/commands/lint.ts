@@ -3,79 +3,109 @@
  * Delegates to the lint package facade and handles CLI display concerns.
  */
 
-import type { LintFormatType, LintOutput } from "@lousy-agents/lint";
-import {
-    createFormatter,
-    LintValidationError,
-    runLint,
-} from "@lousy-agents/lint";
+import type { LintFormatType } from "@lousy-agents/lint";
+import { LintValidationError, runLint } from "@lousy-agents/lint";
 import type { CommandContext, CommandDef } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
+import { displayFormattedOutputs, sumWarnings } from "./lint-display.js";
+import { reportFailure, reportSuccess } from "./lint-report.js";
 
-/**
- * Formats and displays a LintOutput using consola.
- */
-function displayLintOutput(output: LintOutput, label: string): void {
-    if (output.summary.totalFiles === 0) {
-        consola.info(`No ${label} found`);
-        return;
+const VALID_FORMATS = new Set<LintFormatType>(["human", "json", "rdjsonl"]);
+
+function resolveTargetDir(context: CommandContext<LintArgs>): string {
+    if (typeof context.data?.targetDir === "string") {
+        return context.data.targetDir;
     }
+    return process.cwd();
+}
 
-    consola.info(`Discovered ${output.summary.totalFiles} ${label}`);
+function isLessonsSubcommand(rawArgs: string[]): boolean {
+    return rawArgs.some(
+        (token, idx) => token === "lessons" && rawArgs[idx - 1] !== "--format",
+    );
+}
 
-    const filesWithDiagnostics = new Set<string>();
+function resolveBooleanFlag(
+    context: CommandContext<LintArgs>,
+    key: keyof LintArgs,
+): boolean {
+    return context.args?.[key] === true || context.data?.[key] === true;
+}
 
-    for (const d of output.diagnostics) {
-        filesWithDiagnostics.add(d.filePath);
+function isLintFormatType(value: string): value is LintFormatType {
+    return VALID_FORMATS.has(value as LintFormatType);
+}
+
+function readRawFormat(context: CommandContext<LintArgs>): string {
+    if (typeof context.args?.format === "string") {
+        return context.args.format;
     }
+    if (typeof context.data?.format === "string") {
+        return context.data.format;
+    }
+    return "human";
+}
 
-    for (const file of output.filesAnalyzed) {
-        if (!filesWithDiagnostics.has(file)) {
-            consola.success(`${file}: OK`);
+function resolveFormat(context: CommandContext<LintArgs>): LintFormatType {
+    const rawFormat = readRawFormat(context);
+    if (isLintFormatType(rawFormat)) {
+        return rawFormat;
+    }
+    return "human";
+}
+
+function resolveLintTargets(context: CommandContext<LintArgs>) {
+    return {
+        skills: resolveBooleanFlag(context, "skills"),
+        agents: resolveBooleanFlag(context, "agents"),
+        subagents: resolveBooleanFlag(context, "subagents"),
+        hooks: resolveBooleanFlag(context, "hooks"),
+        instructions: resolveBooleanFlag(context, "instructions"),
+        mcpServers: resolveBooleanFlag(context, "mcpServers"),
+    };
+}
+
+async function executeLint(context: CommandContext<LintArgs>) {
+    try {
+        return await runLint({
+            directory: resolveTargetDir(context),
+            targets: resolveLintTargets(context),
+        });
+    } catch (error) {
+        if (error instanceof LintValidationError) {
+            consola.error(`Lint failed: ${error.message}`);
+            process.exitCode = 1;
+            return null;
         }
-    }
-
-    for (const d of output.diagnostics) {
-        const prefix = `${d.filePath}:${d.line}`;
-        const fieldInfo = d.field ? ` [${d.field}]` : "";
-
-        if (d.severity === "error") {
-            consola.error(`${prefix}${fieldInfo}: ${d.message}`);
-        } else if (d.severity === "warning") {
-            consola.warn(`${prefix}${fieldInfo}: ${d.message}`);
-        } else {
-            consola.info(`${prefix}${fieldInfo}: ${d.message}`);
-        }
+        throw error;
     }
 }
 
-/**
- * Displays instruction quality analysis results using consola.
- */
-function displayInstructionQuality(output: LintOutput): void {
-    const result = output.qualityResult;
-    if (!result) {
+async function runLintCommand(
+    context: CommandContext<LintArgs>,
+): Promise<void> {
+    if (isLessonsSubcommand(context.rawArgs ?? [])) {
         return;
     }
 
-    if (result.discoveredFiles.length === 0) {
-        consola.info("No instruction files found");
-    } else {
-        consola.info(
-            `Discovered ${result.discoveredFiles.length} instruction file(s)`,
-        );
-        for (const file of result.discoveredFiles) {
-            consola.info(`  ${file.filePath} (${file.format})`);
-        }
-        consola.info(
-            `Overall instruction quality score: ${result.overallQualityScore}%`,
-        );
+    const format = resolveFormat(context);
+    const result = await executeLint(context);
+    if (result === null) {
+        return;
     }
 
-    for (const suggestion of result.suggestions) {
-        consola.warn(suggestion.message);
+    const { outputs, hasErrors } = result;
+    const totalWarnings = sumWarnings(outputs);
+
+    displayFormattedOutputs(outputs, format);
+
+    if (hasErrors) {
+        reportFailure(outputs, totalWarnings, format);
+        return;
     }
+
+    reportSuccess(outputs, totalWarnings, format);
 }
 
 /**
@@ -94,6 +124,12 @@ const lintArgs = {
         description: "Lint custom agent frontmatter in .github/agents/",
         default: false,
     },
+    subagents: {
+        type: "boolean",
+        description:
+            "[flag-only, not default-on] Lint Claude Code subagent frontmatter in .claude/agents/",
+        default: false,
+    },
     hooks: {
         type: "boolean",
         description:
@@ -104,6 +140,12 @@ const lintArgs = {
         type: "boolean",
         description:
             "Analyze instruction quality across all instruction file formats",
+        default: false,
+    },
+    mcpServers: {
+        type: "boolean",
+        description:
+            "[flag-only, not default-on] Lint MCP server config files (.mcp.json, .vscode/mcp.json)",
         default: false,
     },
     format: {
@@ -120,134 +162,12 @@ export function createLintCommand(lintLessonsCmd: CommandDef) {
         meta: {
             name: "lint",
             description:
-                "Lint agent skills, custom agents, instruction files, and hook configurations. Validates frontmatter, instruction quality, and hook config schemas. Run `lint lessons` to validate lesson files.",
+                "Lint agent skills, custom agents, instruction files, and hook configurations. Validates frontmatter, instruction quality, and hook config schemas. Also supports flag-only (not default-on) subagent and MCP server config linting. Run `lint lessons` to validate lesson files.",
         },
         subCommands: {
             lessons: lintLessonsCmd,
         },
         args: lintArgs,
-        run: async (context: CommandContext<LintArgs>) => {
-            const rawTargetDir =
-                typeof context.data?.targetDir === "string"
-                    ? context.data.targetDir
-                    : process.cwd();
-
-            const rawArgs_ = context.rawArgs ?? [];
-            const lessonsIsSubcommand = rawArgs_.some(
-                (token, idx) =>
-                    token === "lessons" && rawArgs_[idx - 1] !== "--format",
-            );
-            if (lessonsIsSubcommand) {
-                return;
-            }
-
-            const lintSkillsFlag =
-                context.args?.skills === true || context.data?.skills === true;
-            const lintAgentsFlag =
-                context.args?.agents === true || context.data?.agents === true;
-            const lintHooksFlag =
-                context.args?.hooks === true || context.data?.hooks === true;
-            const lintInstructionsFlag =
-                context.args?.instructions === true ||
-                context.data?.instructions === true;
-
-            const rawFormat =
-                typeof context.args?.format === "string"
-                    ? context.args.format
-                    : typeof context.data?.format === "string"
-                      ? context.data.format
-                      : "human";
-            const validFormats = new Set<LintFormatType>([
-                "human",
-                "json",
-                "rdjsonl",
-            ]);
-            function isLintFormatType(value: string): value is LintFormatType {
-                return validFormats.has(value as LintFormatType);
-            }
-            const format: LintFormatType = isLintFormatType(rawFormat)
-                ? rawFormat
-                : "human";
-
-            let result: Awaited<ReturnType<typeof runLint>>;
-            try {
-                result = await runLint({
-                    directory: rawTargetDir,
-                    targets: {
-                        skills: lintSkillsFlag,
-                        agents: lintAgentsFlag,
-                        hooks: lintHooksFlag,
-                        instructions: lintInstructionsFlag,
-                    },
-                });
-            } catch (error) {
-                if (error instanceof LintValidationError) {
-                    consola.error(`Lint failed: ${error.message}`);
-                    process.exitCode = 1;
-                    return;
-                }
-                throw error;
-            }
-
-            const { outputs, hasErrors } = result;
-
-            let totalWarnings = 0;
-            for (const output of outputs) {
-                totalWarnings += output.summary.totalWarnings;
-            }
-
-            const targetLabels: Record<string, string> = {
-                skill: "skill(s)",
-                agent: "agent(s)",
-                hook: "hook config(s)",
-                instruction: "instruction file(s)",
-            };
-
-            if (format !== "human") {
-                const formatter = createFormatter(format);
-                const formatted = formatter.format(outputs);
-                if (formatted) {
-                    process.stdout.write(`${formatted}\n`);
-                }
-            } else {
-                for (const output of outputs) {
-                    const label = targetLabels[output.target] ?? output.target;
-                    if (output.target === "instruction") {
-                        displayInstructionQuality(output);
-                    } else {
-                        displayLintOutput(output, label);
-                    }
-                }
-            }
-
-            if (hasErrors) {
-                process.exitCode = 1;
-
-                if (format === "human") {
-                    const totalErrors = outputs.reduce(
-                        (sum, o) => sum + o.summary.totalErrors,
-                        0,
-                    );
-                    consola.error(
-                        `lint failed: ${totalErrors} error(s), ${totalWarnings} warning(s)`,
-                    );
-                }
-
-                return;
-            }
-
-            if (format === "human") {
-                if (totalWarnings > 0) {
-                    consola.warn(
-                        `Lint passed with ${totalWarnings} warning(s)`,
-                    );
-                } else {
-                    const targets = outputs
-                        .map((o) => targetLabels[o.target] ?? o.target)
-                        .join(", ");
-                    consola.success(`All ${targets} passed lint checks`);
-                }
-            }
-        },
+        run: runLintCommand,
     });
 }

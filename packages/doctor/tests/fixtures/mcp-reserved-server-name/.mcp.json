@@ -1,0 +1,12 @@
+{
+    "mcpServers": {
+        "__proto__": {
+            "type": "stdio",
+            "command": "node"
+        },
+        "good": {
+            "type": "stdio",
+            "command": "node"
+        }
+    }
+}

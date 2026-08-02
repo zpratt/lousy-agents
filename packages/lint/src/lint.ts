@@ -16,14 +16,18 @@ import { createAgentLintGateway } from "@lousy-agents/core/gateways/agent-lint-g
 import { createHookConfigGateway } from "@lousy-agents/core/gateways/hook-config-gateway.js";
 import { createInstructionFileDiscoveryGateway } from "@lousy-agents/core/gateways/instruction-file-discovery-gateway.js";
 import { createMarkdownAstGateway } from "@lousy-agents/core/gateways/markdown-ast-gateway.js";
+import { createMcpServersLintGateway } from "@lousy-agents/core/gateways/mcp-lint-gateway.js";
 import { createFeedbackLoopCommandsGateway } from "@lousy-agents/core/gateways/script-discovery-gateway.js";
 import { createSkillLintGateway } from "@lousy-agents/core/gateways/skill-lint-gateway.js";
+import { createSubagentLintGateway } from "@lousy-agents/core/gateways/subagent-lint-gateway.js";
 import { loadLintConfig } from "@lousy-agents/core/lib/lint-config.js";
 import { AnalyzeInstructionQualityUseCase } from "@lousy-agents/core/use-cases/analyze-instruction-quality.js";
 import { applySeverityFilter } from "@lousy-agents/core/use-cases/apply-severity-filter.js";
 import { LintAgentFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-agent-frontmatter.js";
 import { LintHookConfigUseCase } from "@lousy-agents/core/use-cases/lint-hook-config.js";
+import { LintMcpServersUseCase } from "@lousy-agents/core/use-cases/lint-mcp-servers.js";
 import { LintSkillFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-skill-frontmatter.js";
+import { LintSubagentFrontmatterUseCase } from "@lousy-agents/core/use-cases/lint-subagent-frontmatter.js";
 import { ZodError, z } from "zod";
 import { LintValidationError } from "./lint-errors.js";
 import { validateDirectory } from "./validate-directory.js";
@@ -43,8 +47,10 @@ const LintTargetsSchema = z
     .object({
         skills: z.boolean().optional(),
         agents: z.boolean().optional(),
+        subagents: z.boolean().optional(),
         hooks: z.boolean().optional(),
         instructions: z.boolean().optional(),
+        mcpServers: z.boolean().optional(),
     })
     .strict()
     .optional();
@@ -84,8 +90,20 @@ export interface LintOptions {
     readonly targets?: {
         readonly skills?: boolean;
         readonly agents?: boolean;
+        /**
+         * Flag-only target (not GA): lints `.claude/agents` subagent
+         * frontmatter. Never runs unless explicitly set to `true`, even
+         * when `targets` is entirely omitted.
+         */
+        readonly subagents?: boolean;
         readonly hooks?: boolean;
         readonly instructions?: boolean;
+        /**
+         * Flag-only target (not GA): validates MCP server config files
+         * (`.mcp.json`, `.vscode/mcp.json`). Never runs unless explicitly
+         * set to `true`, even when `targets` is entirely omitted.
+         */
+        readonly mcpServers?: boolean;
     };
     readonly logger?: LintLogger;
 }
@@ -165,6 +183,20 @@ async function lintAgents(targetDir: string): Promise<LintOutput> {
     return toLintOutput(output, "agent", output.totalAgents);
 }
 
+async function lintSubagents(targetDir: string): Promise<LintOutput> {
+    const gateway = createSubagentLintGateway();
+    const useCase = new LintSubagentFrontmatterUseCase(gateway);
+    const output = await useCase.execute({ targetDir });
+    return toLintOutput(output, "subagent", output.totalSubagents);
+}
+
+async function lintMcpServers(targetDir: string): Promise<LintOutput> {
+    const gateway = createMcpServersLintGateway();
+    const useCase = new LintMcpServersUseCase(gateway);
+    const output = await useCase.execute({ targetDir });
+    return toLintOutput(output, "mcp-server", output.totalFiles);
+}
+
 async function lintHooks(targetDir: string): Promise<LintOutput> {
     const gateway = createHookConfigGateway();
     const useCase = new LintHookConfigUseCase(gateway);
@@ -216,16 +248,27 @@ type TargetKey = keyof NonNullable<LintOptions["targets"]>;
 
 interface LintTargetDefinition {
     readonly key: TargetKey;
+    /**
+     * Whether this target runs when no target flags are set at all.
+     * `false` marks a flag-only (not GA) target — it only runs when its
+     * flag is explicitly set to `true`, regardless of what else is set.
+     */
+    readonly defaultEnabled: boolean;
     readonly execute: (targetDir: string) => Promise<LintOutput>;
 }
 
 function isTargetEnabled(
-    key: TargetKey,
+    target: LintTargetDefinition,
     targets: LintOptions["targets"],
 ): boolean {
-    if (!targets) return true;
+    if (!targets) {
+        return target.defaultEnabled;
+    }
     const hasAnyEnabled = Object.values(targets).some(Boolean);
-    return !hasAnyEnabled || targets[key] === true;
+    if (!hasAnyEnabled) {
+        return target.defaultEnabled;
+    }
+    return targets[target.key] === true;
 }
 
 /**
@@ -234,7 +277,10 @@ function isTargetEnabled(
  * Orchestrates all lint targets (skills, agents, hooks, instructions),
  * applies lint rule configuration, and returns structured results.
  *
- * When no targets are specified (or all are false), all targets are run.
+ * When no targets are specified (or all are false), the default-enabled
+ * targets are run (skills, agents, hooks, instructions). `subagents` and
+ * `mcpServers` are flag-only (not yet GA): they only run when explicitly
+ * set to `true`, even when no other target flags are set.
  *
  * @example
  * ```typescript
@@ -275,17 +321,28 @@ export async function runLint(options: LintOptions): Promise<LintResult> {
     }
 
     const lintTargets: readonly LintTargetDefinition[] = [
-        { key: "skills", execute: lintSkills },
-        { key: "agents", execute: lintAgents },
-        { key: "hooks", execute: lintHooks },
+        { key: "skills", defaultEnabled: true, execute: lintSkills },
+        { key: "agents", defaultEnabled: true, execute: lintAgents },
+        {
+            key: "subagents",
+            defaultEnabled: false,
+            execute: lintSubagents,
+        },
+        { key: "hooks", defaultEnabled: true, execute: lintHooks },
         {
             key: "instructions",
+            defaultEnabled: true,
             execute: (dir) => lintInstructions(dir, parsed.logger),
+        },
+        {
+            key: "mcpServers",
+            defaultEnabled: false,
+            execute: lintMcpServers,
         },
     ];
 
     const enabledTargets = lintTargets.filter((t) =>
-        isTargetEnabled(t.key, parsed.targets),
+        isTargetEnabled(t, parsed.targets),
     );
 
     const outputs: LintOutput[] = [];

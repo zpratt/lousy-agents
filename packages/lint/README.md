@@ -63,15 +63,17 @@ try {
 | Property | Type | Required | Description |
 | --- | --- | --- | --- |
 | `directory` | `string` | ✅ | Absolute or relative path to the project directory to lint |
-| `targets.skills` | `boolean` | — | Lint skill frontmatter: `.github/skills/*/SKILL.md`, `.claude/skills/*/SKILL.md`, `.agents/skills/*/SKILL.md` (skills listed in root `skills-lock.json` are omitted) |
+| `targets.skills` | `boolean` | — | Lint skill frontmatter: `.github/skills/*/SKILL.md`, `.claude/skills/*/SKILL.md`, `.agents/skills/*/SKILL.md`, `.pi/skills/*/SKILL.md`, `.pi/prompts/*/SKILL.md` (skills listed in root `skills-lock.json` are omitted) |
 | `targets.agents` | `boolean` | — | Lint agent frontmatter in `.github/agents/**/*.md` |
+| `targets.subagents` | `boolean` | — | **Flag-only (not GA)** — lint Claude Code subagent frontmatter in `.claude/agents/**/*.md`. Never runs unless explicitly `true`, even when `targets` is entirely omitted |
 | `targets.hooks` | `boolean` | — | Lint hook configs: `.github/hooks/agent-shell/hooks.json` (Copilot), `.claude/settings.json` and `.claude/settings.local.json` (Claude); only when content has `preToolUse` / `PreToolUse`; symlinks skipped |
 | `targets.instructions` | `boolean` | — | Lint instruction quality: `.github/copilot-instructions.md`, `.github/instructions/*.md`, `.github/agents/*.md` (dual-use with agents), root `AGENTS.md`, root `CLAUDE.md` |
+| `targets.mcpServers` | `boolean` | — | **Flag-only (not GA)** — validate MCP server config files: `.mcp.json`, `.vscode/mcp.json`. Never runs unless explicitly `true`, even when `targets` is entirely omitted |
 | `logger` | `LintLogger` | — | Custom logger for gateway diagnostics (must have a `.warn` method); defaults to `consola` |
 
-When `targets` is omitted or all flags are `false`, all targets are linted.
+When `targets` is omitted or all flags are `false`, the **default-enabled** targets run: skills, agents, hooks, instructions. `subagents` and `mcpServers` are flag-only — part of a phased rollout (see [Construct coverage](https://github.com/zpratt/lousy-agents/issues/1039)) — and only run when explicitly set to `true`, even if no other flags are set.
 
-Discovery paths come from the canonical agentic location catalog in `@lousy-agents/core`, shared with `doctor`. Lint validates these four targets only. Doctor may inventory additional constructs (MCP servers, plugins, subagents, multi-harness trees, etc.). Intentional differences: `skills-lock.json` filtering (lint only), hook `PreToolUse` / `preToolUse` content heuristic (lint only), and symlink policy (lint skips; doctor follows in-repo).
+Discovery paths come from the canonical agentic location catalog in `@lousy-agents/core`, shared with `doctor`. Doctor may inventory additional constructs lint still does not validate (plugins, multi-harness instruction trees, etc.). Intentional differences: `skills-lock.json` filtering (lint only), hook `PreToolUse` / `preToolUse` content heuristic (lint only, applies only to the two `.claude/settings*.json` / `.github/hooks/agent-shell/hooks.json` exact paths — kept, not relaxed, for this rollout), and symlink policy (lint skips; doctor follows in-repo).
 
 **Throws `LintValidationError`** when `directory` is empty, contains control characters, path traversal sequences, does not exist, or is not a directory.
 
@@ -155,7 +157,7 @@ import type {
 | `LintOutput` | Per-target result: `diagnostics`, `filesAnalyzed`, `summary`, optional `qualityResult` |
 | `LintDiagnostic` | Single diagnostic: `filePath`, `line`, `severity`, `message`, `ruleId`, `target` |
 | `LintSeverity` | `"error" \| "warning" \| "info"` |
-| `LintTarget` | `"skill" \| "agent" \| "instruction" \| "hook"` |
+| `LintTarget` | `"skill" \| "agent" \| "subagent" \| "instruction" \| "hook" \| "mcp-server"` |
 | `InstructionQualityResult` | Instruction quality scores and suggestions (populated when `instructions` target runs) |
 
 ---

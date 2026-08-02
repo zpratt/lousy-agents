@@ -3,7 +3,7 @@
  * Discovers agent files and parses YAML frontmatter.
  */
 
-import { basename, join, relative, resolve, sep } from "node:path";
+import { basename, join } from "node:path";
 import type { ParsedFrontmatter } from "../entities/skill.js";
 import { agentDirectoryRoots } from "../lib/agentic-location-matchers.js";
 import { parseFrontmatter } from "../lib/frontmatter.js";
@@ -11,11 +11,8 @@ import type {
     AgentLintGateway,
     DiscoveredAgentFile,
 } from "../use-cases/lint-agent-frontmatter.js";
-import {
-    listDirectoryWithinRoot,
-    pathExistsWithinRoot,
-    readFileNoFollow,
-} from "./file-system-utils.js";
+import { readFileNoFollow } from "./file-system-utils.js";
+import { discoverMarkdownFiles } from "./markdown-file-discovery.js";
 
 /** Maximum agent file size: 1 MB */
 const MAX_AGENT_FILE_BYTES = 1_048_576;
@@ -47,64 +44,19 @@ export class FileSystemAgentLintGateway implements AgentLintGateway {
         targetDir: string,
         agentsDir: string,
     ): Promise<DiscoveredAgentFile[]> {
-        try {
-            if (!(await pathExistsWithinRoot(targetDir, agentsDir))) {
-                return [];
-            }
-        } catch {
-            return [];
-        }
-
-        const resolvedAgentsDir = resolve(targetDir, agentsDir);
-        const agents: DiscoveredAgentFile[] = [];
-
-        const walk = async (dir: string): Promise<void> => {
-            const entries = await listDirectoryWithinRoot(targetDir, dir);
-
-            for (const entry of entries) {
-                const name = entry.name;
-                if (
-                    name.includes("..") ||
-                    name.includes("/") ||
-                    name.includes("\\")
-                ) {
-                    continue;
-                }
-
-                const entryPath = join(dir, name);
-                const absoluteEntryPath = join(targetDir, entryPath);
-                const resolvedPath = resolve(absoluteEntryPath);
-                const rel = relative(resolvedAgentsDir, resolvedPath);
-                if (rel.startsWith("..") || rel.startsWith(sep)) {
-                    continue;
-                }
-
-                if (entry.isSymbolicLink()) {
-                    continue;
-                }
-
-                if (entry.isDirectory()) {
-                    await walk(entryPath);
-                    continue;
-                }
-
-                if (!entry.isFile()) {
-                    continue;
-                }
-
-                if (!name.endsWith(".md")) {
-                    continue;
-                }
-
-                const agentName = name.endsWith(".agent.md")
+        const files = await discoverMarkdownFiles(
+            targetDir,
+            agentsDir,
+            (name) =>
+                name.endsWith(".agent.md")
                     ? basename(name, ".agent.md")
-                    : basename(name, ".md");
-                agents.push({ filePath: absoluteEntryPath, agentName });
-            }
-        };
+                    : basename(name, ".md"),
+        );
 
-        await walk(agentsDir);
-        return agents;
+        return files.map((file) => ({
+            filePath: file.filePath,
+            agentName: file.name,
+        }));
     }
 
     async readAgentFileContent(filePath: string): Promise<string> {

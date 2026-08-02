@@ -15,7 +15,7 @@ import {
  * - skills-lock.json: lint-only filter
  * - PreToolUse/preToolUse heuristic: lint-only
  * - symlink: lint skip / doctor follow
- * - doctor-only constructs: mcp-server, plugin, subagent, claude commands, pi skills, etc.
+ * - doctor-only constructs: mcp-server, plugin, claude commands, etc.
  * - lessons: lint subcommand only
  */
 const INTENTIONAL_EXCEPTIONS = [
@@ -27,14 +27,11 @@ const INTENTIONAL_EXCEPTIONS = [
 ] as const;
 
 const LINT_MAPPED_TARGETS: ReadonlyArray<Exclude<LintDiscoveryTarget, "none">> =
-    ["skills", "agents", "hooks", "instructions"];
+    ["skills", "agents", "subagents", "hooks", "instructions"];
 
 const DOCTOR_ONLY_ENTRY_IDS = [
-    "skill-pi",
-    "skill-pi-prompts",
     "hook-github-dir",
     "hook-claude-dir",
-    "subagent-claude",
     "agent-claude-commands",
     "plugin-codex",
 ] as const;

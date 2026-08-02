@@ -282,6 +282,146 @@ describe("lint command", () => {
         });
     });
 
+    describe("when running with --subagents flag", () => {
+        describe("when no subagents exist", () => {
+            it("should complete without error", async () => {
+                // Act & Assert
+                await expect(
+                    lintCommand.run({
+                        rawArgs: [],
+                        args: { _: [], subagents: true },
+                        cmd: lintCommand,
+                        data: { targetDir: testDir, subagents: true },
+                    }),
+                ).resolves.not.toThrow();
+            });
+        });
+
+        describe("when subagents have valid frontmatter", () => {
+            it("should complete without error", async () => {
+                // Arrange
+                const subagentsDir = join(testDir, ".claude", "agents");
+                await mkdir(subagentsDir, { recursive: true });
+                await writeFile(
+                    join(subagentsDir, "reviewer.md"),
+                    "---\nname: reviewer\ndescription: A reviewer subagent\n---\n# Reviewer\n",
+                );
+
+                // Act & Assert
+                await expect(
+                    lintCommand.run({
+                        rawArgs: [],
+                        args: { _: [], subagents: true },
+                        cmd: lintCommand,
+                        data: { targetDir: testDir, subagents: true },
+                    }),
+                ).resolves.not.toThrow();
+            });
+        });
+
+        describe("when subagents have invalid frontmatter", () => {
+            it("should set non-zero exit code", async () => {
+                // Arrange
+                const subagentsDir = join(testDir, ".claude", "agents");
+                await mkdir(subagentsDir, { recursive: true });
+                await writeFile(
+                    join(subagentsDir, "reviewer.md"),
+                    '---\nname: Reviewer\ndescription: ""\n---\n',
+                );
+
+                // Act
+                await lintCommand.run({
+                    rawArgs: [],
+                    args: { _: [], subagents: true },
+                    cmd: lintCommand,
+                    data: { targetDir: testDir, subagents: true },
+                });
+
+                // Assert
+                expect(process.exitCode).toBe(1);
+            });
+        });
+    });
+
+    describe("when running with --mcpServers flag", () => {
+        describe("when no MCP config files exist", () => {
+            it("should complete without error", async () => {
+                // Act & Assert
+                await expect(
+                    lintCommand.run({
+                        rawArgs: [],
+                        args: { _: [], mcpServers: true },
+                        cmd: lintCommand,
+                        data: { targetDir: testDir, mcpServers: true },
+                    }),
+                ).resolves.not.toThrow();
+            });
+        });
+
+        describe("when .mcp.json declares valid servers", () => {
+            it("should complete without error", async () => {
+                // Arrange
+                await writeFile(
+                    join(testDir, ".mcp.json"),
+                    JSON.stringify({
+                        mcpServers: { filesystem: { type: "stdio" } },
+                    }),
+                );
+
+                // Act & Assert
+                await expect(
+                    lintCommand.run({
+                        rawArgs: [],
+                        args: { _: [], mcpServers: true },
+                        cmd: lintCommand,
+                        data: { targetDir: testDir, mcpServers: true },
+                    }),
+                ).resolves.not.toThrow();
+            });
+        });
+
+        describe("when .mcp.json is malformed JSON", () => {
+            it("should set non-zero exit code", async () => {
+                // Arrange
+                await writeFile(join(testDir, ".mcp.json"), "{ not valid json");
+
+                // Act
+                await lintCommand.run({
+                    rawArgs: [],
+                    args: { _: [], mcpServers: true },
+                    cmd: lintCommand,
+                    data: { targetDir: testDir, mcpServers: true },
+                });
+
+                // Assert
+                expect(process.exitCode).toBe(1);
+            });
+        });
+    });
+
+    describe("when running with no flags", () => {
+        it("should not run the flag-only subagents or mcpServers targets", async () => {
+            // Arrange — invalid subagent that would fail lint if the target ran
+            const subagentsDir = join(testDir, ".claude", "agents");
+            await mkdir(subagentsDir, { recursive: true });
+            await writeFile(
+                join(subagentsDir, "reviewer.md"),
+                "# No frontmatter here\n",
+            );
+
+            // Act
+            await lintCommand.run({
+                rawArgs: [],
+                args: { _: [] },
+                cmd: lintCommand,
+                data: { targetDir: testDir },
+            });
+
+            // Assert — flag-only target did not run, so no failure surfaced
+            expect(process.exitCode).toBeUndefined();
+        });
+    });
+
     describe("when running with --format json", () => {
         it("should output valid JSON for valid skills", async () => {
             // Arrange

@@ -631,4 +631,98 @@ describe("Lint command end-to-end", () => {
             ).resolves.not.toThrow();
         });
     });
+
+    describe("given the real citty CLI parser (kebab-case flags, not hand-built context)", () => {
+        async function runCli(
+            repoDir: string,
+            cliArgs: string[],
+        ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+            const tsxPath = join(process.cwd(), "node_modules", ".bin", "tsx");
+            const entryPath = join(cliPackageDir, "src", "index.ts");
+            try {
+                const result = await execFileAsync(
+                    tsxPath,
+                    [entryPath, "lint", ...cliArgs],
+                    {
+                        cwd: repoDir,
+                        // biome-ignore lint/style/useNamingConvention: env var
+                        env: { ...process.env, NO_COLOR: "1" },
+                    },
+                );
+                return {
+                    stdout: result.stdout,
+                    stderr: result.stderr,
+                    exitCode: 0,
+                };
+            } catch (err: unknown) {
+                const execErr = err as {
+                    stdout?: string;
+                    stderr?: string;
+                    code?: number;
+                };
+                return {
+                    stdout: execErr.stdout ?? "",
+                    stderr: execErr.stderr ?? "",
+                    exitCode: execErr.code ?? 1,
+                };
+            }
+        }
+
+        describe("given a repository with an invalid MCP server config and no target flags", () => {
+            it("should not fail lint, since --mcp-servers is flag-only", async () => {
+                // Arrange
+                const repoDir = join(projectDir, "kebab-mcp-flag-only-repo");
+                await mkdir(repoDir, { recursive: true });
+                await writeFile(join(repoDir, ".mcp.json"), "{ not valid json");
+
+                // Act
+                const { exitCode } = await runCli(repoDir, []);
+
+                // Assert
+                expect(exitCode).toBe(0);
+            });
+        });
+
+        describe("given a repository with an invalid MCP server config and --mcp-servers", () => {
+            it("should fail lint through the real --mcp-servers kebab-case flag", async () => {
+                // Arrange
+                const repoDir = join(projectDir, "kebab-mcp-servers-repo");
+                await mkdir(repoDir, { recursive: true });
+                await writeFile(join(repoDir, ".mcp.json"), "{ not valid json");
+
+                // Act
+                const { stderr, exitCode } = await runCli(repoDir, [
+                    "--mcp-servers",
+                ]);
+
+                // Assert
+                expect(exitCode).toBe(1);
+                expect(stderr).toMatch(
+                    /Invalid JSON in MCP server configuration file/,
+                );
+            });
+        });
+
+        describe("given a repository with an invalid Claude Code subagent and --subagents", () => {
+            it("should fail lint through the real --subagents kebab-case flag", async () => {
+                // Arrange
+                const repoDir = join(projectDir, "kebab-subagents-repo");
+                const subagentsDir = join(repoDir, ".claude", "agents");
+                await mkdir(subagentsDir, { recursive: true });
+                await writeFile(
+                    join(subagentsDir, "reviewer.md"),
+                    "# Reviewer\n\nNo frontmatter here.\n",
+                );
+
+                // Act
+                const { stderr, exitCode } = await runCli(repoDir, [
+                    "--subagents",
+                ]);
+
+                // Assert
+                expect(exitCode).toBe(1);
+                expect(stderr).toMatch(/Missing YAML frontmatter/);
+            });
+        });
+    });
 });

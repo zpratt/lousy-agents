@@ -12,9 +12,11 @@ export type RuleConfigMap = Readonly<Record<string, RuleSeverityConfig>>;
 /** Lint configuration organized by target */
 export interface LintRulesConfig {
     readonly agents: RuleConfigMap;
+    readonly subagents: RuleConfigMap;
     readonly hooks: RuleConfigMap;
     readonly instructions: RuleConfigMap;
     readonly skills: RuleConfigMap;
+    readonly mcpServers: RuleConfigMap;
 }
 
 /** Default severity levels for all known lint rules */
@@ -28,6 +30,26 @@ export const DEFAULT_LINT_RULES: LintRulesConfig = {
         "agent/missing-description": "error",
         "agent/invalid-description": "error",
         "agent/invalid-field": "warn",
+    },
+    subagents: {
+        "subagent/missing-frontmatter": "error",
+        "subagent/invalid-frontmatter": "error",
+        "subagent/missing-name": "error",
+        // Claude Code's documented subagent contract requires only `name`
+        // and `description`; it neither specifies a name format beyond
+        // "unique identifier" nor ties `name` to the filename the way
+        // VS Code derives a Copilot custom agent's name from
+        // `<name>.agent.md`. Defaulting these to "warn" avoids failing
+        // lint for subagents that are valid per Claude Code's own docs.
+        "subagent/invalid-name-format": "warn",
+        "subagent/name-mismatch": "warn",
+        "subagent/missing-description": "error",
+        "subagent/invalid-description": "error",
+        "subagent/invalid-field": "warn",
+    },
+    mcpServers: {
+        "mcpserver/invalid-json": "error",
+        "mcpserver/invalid-config": "error",
     },
     hooks: {
         "hook/invalid-json": "error",

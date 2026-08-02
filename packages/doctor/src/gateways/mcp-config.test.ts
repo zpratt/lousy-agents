@@ -69,6 +69,22 @@ describe("enumerateMcpServers", () => {
         });
     });
 
+    describe("when a source declares a server named '__proto__'", () => {
+        it("should skip the source instead of silently dropping the reserved-name server", async () => {
+            // Arrange — zod's record() reconstructs parsed output via plain
+            // assignment, so a "__proto__" key is silently swallowed by the
+            // JS magic setter unless the raw config is rejected up front.
+            const records = await enumerateMcpServers(
+                fixture("mcp-reserved-server-name"),
+            );
+
+            // Assert — the whole file is treated as invalid (consistent
+            // with how a schema-validation failure is handled), not
+            // partially inventoried with the reserved-name server missing.
+            expect(records).toEqual([]);
+        });
+    });
+
     describe("when the source is .vscode/mcp.json", () => {
         it("should attribute records to the copilot harness", async () => {
             const records = await enumerateMcpServers(

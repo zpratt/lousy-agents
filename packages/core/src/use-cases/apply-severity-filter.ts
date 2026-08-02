@@ -21,8 +21,10 @@ import type {
 const TARGET_TO_CONFIG_KEY: Record<LintTarget, keyof LintRulesConfig> = {
     skill: "skills",
     agent: "agents",
+    subagent: "subagents",
     hook: "hooks",
     instruction: "instructions",
+    "mcp-server": "mcpServers",
 };
 
 /**
