@@ -60,6 +60,27 @@ export interface MarkdownStructure {
 }
 
 /**
+ * Shape of a generic AST node, narrowed from the `unknown` elements of
+ * {@link MarkdownStructure.ast}'s children. Kept intentionally loose so
+ * this port stays free of any concrete AST library's types.
+ */
+export interface AstNodeLike {
+    readonly type: string;
+    readonly children?: readonly unknown[];
+    readonly value?: string;
+}
+
+/** Type guard narrowing an `unknown` AST child to {@link AstNodeLike}. */
+export function isAstNodeLike(node: unknown): node is AstNodeLike {
+    return (
+        typeof node === "object" &&
+        node !== null &&
+        "type" in node &&
+        typeof (node as { type: unknown }).type === "string"
+    );
+}
+
+/**
  * Port for Markdown AST operations.
  */
 export interface MarkdownAstGateway {
@@ -635,23 +656,16 @@ export class AnalyzeInstructionQualityUseCase {
         return parts.join(" ");
     }
 
-    private collectText(
-        node: { type: string; children?: unknown[]; value?: string },
-        parts: string[],
-    ): void {
+    private collectText(node: unknown, parts: string[]): void {
+        if (!isAstNodeLike(node)) {
+            return;
+        }
         if (node.type === "text" && typeof node.value === "string") {
             parts.push(node.value);
         }
         if (Array.isArray(node.children)) {
             for (const child of node.children) {
-                this.collectText(
-                    child as {
-                        type: string;
-                        children?: unknown[];
-                        value?: string;
-                    },
-                    parts,
-                );
+                this.collectText(child, parts);
             }
         }
     }

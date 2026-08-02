@@ -5,6 +5,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { Octokit } from "@octokit/rest";
+import type { Endpoints } from "@octokit/types";
 import { z } from "zod";
 import type { Ruleset } from "../entities/copilot-setup.js";
 import type {
@@ -13,6 +14,9 @@ import type {
 } from "../use-cases/check-copilot-review-ruleset.js";
 
 const execFileAsync = promisify(execFile);
+
+type CreateRepoRulesetParameters =
+    Endpoints["POST /repos/{owner}/{repo}/rulesets"]["parameters"];
 
 const RulesetRuleSchema = z.object({
     type: z.string(),
@@ -187,11 +191,20 @@ export class OctokitRulesetGateway implements RulesetGateway {
             throw new Error("Not authenticated");
         }
         try {
-            await this.octokit.rest.repos.createRepoRuleset({
+            const params: CreateRepoRulesetParameters = {
                 owner,
                 repo,
-                ...payload,
-            });
+                name: payload.name,
+                enforcement: payload.enforcement,
+                target: payload.target,
+                // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
+                bypass_actors:
+                    payload.bypass_actors as CreateRepoRulesetParameters["bypass_actors"],
+                conditions:
+                    payload.conditions as CreateRepoRulesetParameters["conditions"],
+                rules: payload.rules as CreateRepoRulesetParameters["rules"],
+            };
+            await this.octokit.rest.repos.createRepoRuleset(params);
         } catch (error) {
             const details = formatOctokitError(error);
             throw new Error(

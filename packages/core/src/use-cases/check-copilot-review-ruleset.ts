@@ -13,10 +13,13 @@ export interface RulesetGateway {
     ): Promise<void>;
 }
 
+export type RulesetEnforcement = "active" | "disabled" | "evaluate";
+export type RulesetTarget = "branch" | "push" | "tag";
+
 export interface RulesetPayload {
     name: string;
-    enforcement: string;
-    target: string;
+    enforcement: RulesetEnforcement;
+    target: RulesetTarget;
     // biome-ignore lint/style/useNamingConvention: GitHub API schema requires snake_case
     bypass_actors: Array<Record<string, unknown>>;
     conditions: Record<string, unknown>;

@@ -13,6 +13,7 @@ import type {
     MarkdownInlineCode,
     MarkdownStructure,
 } from "../use-cases/analyze-instruction-quality.js";
+import { isAstNodeLike } from "../use-cases/analyze-instruction-quality.js";
 import { readFileNoFollow } from "./file-system-utils.js";
 
 /** Maximum instruction file size: 1 MB */
@@ -146,23 +147,17 @@ function containsWordBoundary(text: string, keyword: string): boolean {
 /**
  * Extracts plain text content from any AST node recursively.
  */
-function extractTextFromNode(node: {
-    type: string;
-    children?: unknown[];
-    value?: string;
-}): string {
+function extractTextFromNode(node: unknown): string {
+    if (!isAstNodeLike(node)) {
+        return "";
+    }
+
     if (node.value && typeof node.value === "string") {
         return node.value;
     }
 
     if (Array.isArray(node.children)) {
-        return (
-            node.children as {
-                type: string;
-                children?: unknown[];
-                value?: string;
-            }[]
-        )
+        return node.children
             .map((child) => extractTextFromNode(child))
             .join(" ");
     }
