@@ -35,6 +35,7 @@
         "dev": "tsx packages/cli/src/index.ts",
         "build": "npm run build --workspace=packages/lint --workspace=packages/doctor --workspace=packages/cli --workspace=packages/mcp --workspace=packages/agent-shell --workspace=packages/action",
         "start": "node packages/cli/dist/index.js",
+        "typecheck": "npm run typecheck --workspace=packages/core --workspace=packages/lint --workspace=packages/doctor --workspace=packages/cli --workspace=packages/mcp --workspace=packages/agent-shell --workspace=packages/action",
         "test": "vitest run",
         "test:integration": "vitest run --config vitest.integration.config.ts",
         "lint": "biome check .",

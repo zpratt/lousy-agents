@@ -52,8 +52,9 @@ Mise manages tools and Node. Prefer file-scoped checks while iterating; run the 
 ```bash
 mise run test            # Unit tests (vitest)
 mise run lint            # All lint tools in parallel
+mise run typecheck       # Strict tsc --noEmit across all workspace packages
 npm run build            # Production build of publishable packages
-mise run ci              # Full validation: lint -> test -> test-integration -> smoke-test
+mise run ci              # Full validation: lint -> typecheck -> test -> test-integration -> smoke-test
 ```
 
 If a command fails, read the error, fix the root cause, and re-run the same command until it passes. Do not skip failures or weaken tests to force green.
@@ -80,7 +81,7 @@ If validation fails, fix the issue and re-run until green.
 mise run ci
 ```
 
-Runs lint, unit tests, integration tests, and smoke tests (integration/smoke depend on build). If `mise run ci` fails, fix the reported step and re-run until it passes.
+Runs lint, strict typecheck, unit tests, integration tests, and smoke tests (integration/smoke depend on build). If `mise run ci` fails, fix the reported step and re-run until it passes.
 
 ## Feedback Loop
 

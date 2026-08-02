@@ -90,6 +90,11 @@ run = [
   ] }, # These run in parallel!
 ]
 
+[tasks.typecheck]
+description = "Strict TypeScript check (tsc --noEmit) for workspace packages"
+depends = ["build"]
+run = "npm run typecheck"
+
 [tasks.test]
 description = "Run unit tests in this project"
 run = "npm test"
@@ -122,6 +127,7 @@ run = [
 description = 'Run CI tasks'
 run = [
   { task = 'lint' },
+  { task = 'typecheck' },
   { task = 'test' },
   { task = 'test-integration' },
   { task = 'smoke-test' },

@@ -19,6 +19,7 @@
         "node": "v25.9.0"
     },
     "scripts": {
-        "build": "rspack build --config rspack.config.ts"
+        "build": "rspack build --config rspack.config.ts",
+        "typecheck": "tsc --noEmit"
     }
 }

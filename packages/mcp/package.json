@@ -33,7 +33,8 @@
         "lousy-agents-mcp": "dist/mcp-server.js"
     },
     "scripts": {
-        "build": "rspack build --config rspack.config.ts && chmod +x dist/mcp-server.js"
+        "build": "rspack build --config rspack.config.ts && chmod +x dist/mcp-server.js",
+        "typecheck": "tsc --noEmit"
     },
     "dependencies": {
         "@modelcontextprotocol/sdk": "1.30.0",

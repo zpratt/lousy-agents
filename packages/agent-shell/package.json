@@ -33,7 +33,8 @@
         "agent-shell": "dist/index.js"
     },
     "scripts": {
-        "build": "rspack build --config rspack.config.ts && chmod +x dist/index.js"
+        "build": "rspack build --config rspack.config.ts && chmod +x dist/index.js",
+        "typecheck": "tsc --noEmit"
     },
     "dependencies": {
         "@openclaw/fs-safe": "0.5.1",

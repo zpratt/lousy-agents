@@ -23,6 +23,9 @@
         "./formatters/*": "./src/formatters/*",
         "./lib/*": "./src/lib/*"
     },
+    "scripts": {
+        "typecheck": "tsc --noEmit"
+    },
     "dependencies": {
         "@github-actions-workflow-ts/lib": "2.5.0",
         "@octokit/rest": "22.0.1",
