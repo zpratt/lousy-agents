@@ -63,13 +63,15 @@ try {
 | Property | Type | Required | Description |
 | --- | --- | --- | --- |
 | `directory` | `string` | ✅ | Absolute or relative path to the project directory to lint |
-| `targets.skills` | `boolean` | — | Lint skill files (`.github/skills/`) |
-| `targets.agents` | `boolean` | — | Lint agent files (`.github/agents/`) |
-| `targets.hooks` | `boolean` | — | Lint hook configuration: `.github/hooks/agent-shell/hooks.json` (Copilot), `.claude/settings.json` and `.claude/settings.local.json` (Claude) |
-| `targets.instructions` | `boolean` | — | Lint instruction files (`.github/instructions/`, `.github/copilot-instructions.md`) |
+| `targets.skills` | `boolean` | — | Lint skill frontmatter: `.github/skills/*/SKILL.md`, `.claude/skills/*/SKILL.md`, `.agents/skills/*/SKILL.md` (skills listed in root `skills-lock.json` are omitted) |
+| `targets.agents` | `boolean` | — | Lint agent frontmatter in `.github/agents/**/*.md` |
+| `targets.hooks` | `boolean` | — | Lint hook configs: `.github/hooks/agent-shell/hooks.json` (Copilot), `.claude/settings.json` and `.claude/settings.local.json` (Claude); only when content has `preToolUse` / `PreToolUse`; symlinks skipped |
+| `targets.instructions` | `boolean` | — | Lint instruction quality: `.github/copilot-instructions.md`, `.github/instructions/*.md`, `.github/agents/*.md` (dual-use with agents), root `AGENTS.md`, root `CLAUDE.md` |
 | `logger` | `LintLogger` | — | Custom logger for gateway diagnostics (must have a `.warn` method); defaults to `consola` |
 
 When `targets` is omitted or all flags are `false`, all targets are linted.
+
+Discovery paths come from the canonical agentic location catalog in `@lousy-agents/core`, shared with `doctor`. Lint validates these four targets only. Doctor may inventory additional constructs (MCP servers, plugins, subagents, multi-harness trees, etc.). Intentional differences: `skills-lock.json` filtering (lint only), hook `PreToolUse` / `preToolUse` content heuristic (lint only), and symlink policy (lint skips; doctor follows in-repo).
 
 **Throws `LintValidationError`** when `directory` is empty, contains control characters, path traversal sequences, does not exist, or is not a directory.
 
