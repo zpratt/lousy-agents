@@ -162,6 +162,62 @@ describe("Lint rule registry", () => {
             }
         });
 
+        it("should contain all known subagent rule IDs", () => {
+            // Arrange
+            const expectedSubagentRules = [
+                "subagent/missing-frontmatter",
+                "subagent/invalid-frontmatter",
+                "subagent/missing-name",
+                "subagent/invalid-name-format",
+                "subagent/name-mismatch",
+                "subagent/missing-description",
+                "subagent/invalid-description",
+                "subagent/invalid-field",
+            ];
+
+            // Assert
+            for (const ruleId of expectedSubagentRules) {
+                expect(DEFAULT_LINT_RULES.subagents).toHaveProperty(ruleId);
+            }
+            expect(Object.keys(DEFAULT_LINT_RULES.subagents)).toHaveLength(
+                expectedSubagentRules.length,
+            );
+        });
+
+        it("should default subagent/invalid-name-format and subagent/name-mismatch to warn, since Claude Code's documented subagent contract only requires name and description and does not tie name to filename", () => {
+            // Assert
+            expect(
+                DEFAULT_LINT_RULES.subagents["subagent/invalid-name-format"],
+            ).toBe("warn");
+            expect(DEFAULT_LINT_RULES.subagents["subagent/name-mismatch"]).toBe(
+                "warn",
+            );
+        });
+
+        it("should default subagent/invalid-field to warn", () => {
+            // Assert
+            expect(DEFAULT_LINT_RULES.subagents["subagent/invalid-field"]).toBe(
+                "warn",
+            );
+        });
+
+        it("should default all other subagent rules to error", () => {
+            // Arrange
+            const warnRules = new Set([
+                "subagent/invalid-name-format",
+                "subagent/name-mismatch",
+                "subagent/invalid-field",
+            ]);
+            const errorRules = Object.entries(
+                DEFAULT_LINT_RULES.subagents,
+            ).filter(([id]) => !warnRules.has(id));
+
+            // Assert
+            for (const [_ruleId, severity] of errorRules) {
+                expect(severity).toBe("error");
+            }
+        });
+
         it("should default hook/missing-matcher and hook/missing-timeout to warn", () => {
             // Assert
             expect(DEFAULT_LINT_RULES.hooks["hook/missing-matcher"]).toBe(

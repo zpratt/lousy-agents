@@ -124,11 +124,8 @@ describe("AGENTIC_LOCATION_CATALOG", () => {
                 path: string;
                 construct: AgenticLocationEntry["primaryConstruct"];
             }> = [
-                { path: ".pi/skills", construct: "skill" },
-                { path: ".pi/prompts", construct: "skill" },
                 { path: ".github/hooks", construct: "hook" },
                 { path: ".claude/hooks", construct: "hook" },
-                { path: ".claude/agents", construct: "subagent" },
                 { path: ".claude/commands", construct: "agent" },
                 { path: ".codex-plugin", construct: "plugin" },
             ];
@@ -141,6 +138,35 @@ describe("AGENTIC_LOCATION_CATALOG", () => {
                 expect(entry?.primaryConstruct).toBe(construct);
                 expect(entry?.lintTarget).toBe("none");
             }
+        });
+    });
+
+    describe("when encoding lint-mapped skill and subagent locations", () => {
+        it("should map .pi/skills and .pi/prompts to skill lint targets", () => {
+            // Arrange
+            const piRoots: ReadonlyArray<{
+                path: string;
+            }> = [{ path: ".pi/skills" }, { path: ".pi/prompts" }];
+
+            // Act / Assert
+            for (const { path } of piRoots) {
+                const entry = findByPath(path);
+                expect(entry).toBeDefined();
+                expect(entry?.matchKind).toBe("directory-prefix");
+                expect(entry?.primaryConstruct).toBe("skill");
+                expect(entry?.lintTarget).toBe("skills");
+            }
+        });
+
+        it("should map .claude/agents to the subagents lint target", () => {
+            // Act
+            const entry = findByPath(".claude/agents");
+
+            // Assert
+            expect(entry).toBeDefined();
+            expect(entry?.matchKind).toBe("directory-prefix");
+            expect(entry?.primaryConstruct).toBe("subagent");
+            expect(entry?.lintTarget).toBe("subagents");
         });
     });
 

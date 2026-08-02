@@ -16,23 +16,38 @@ Validates agent skills, custom agents, hook configurations, and instruction file
 
 ## Discovery locations
 
-Lint validates four targets only. Paths come from the shared agentic location catalog in `@lousy-agents/core` (also used by `doctor`).
+Paths come from the shared agentic location catalog in `@lousy-agents/core` (also used by `doctor`). Lint validates the following targets — **skills, agents, hooks, and instructions run by default**; **subagents and MCP servers are flag-only** (see [Rollout status](#rollout-status)).
 
-| Target | Discovered paths |
-| ------ | ---------------- |
-| **Skills** | `.github/skills/*/SKILL.md`, `.claude/skills/*/SKILL.md`, `.agents/skills/*/SKILL.md` (one level of skill directories). Skills listed in root `skills-lock.json` are omitted from lint. |
-| **Agents** | `.github/agents/**/*.md` (markdown agent definitions) |
-| **Hooks** | `.github/hooks/agent-shell/hooks.json` (Copilot); `.claude/settings.json`, `.claude/settings.local.json` (Claude). Only files whose content includes a `preToolUse` / `PreToolUse` marker are discovered. Symlinks are skipped. |
-| **Instructions** | `.github/copilot-instructions.md`, `.github/instructions/*.md`, `.github/agents/*.md` (dual-use with agent lint), root `AGENTS.md`, root `CLAUDE.md` |
+| Target | Default-on | Discovered paths |
+| ------ | ---------- | ---------------- |
+| **Skills** | Yes | `.github/skills/*/SKILL.md`, `.claude/skills/*/SKILL.md`, `.agents/skills/*/SKILL.md`, `.pi/skills/*/SKILL.md`, `.pi/prompts/*/SKILL.md` (one level of skill directories). Skills listed in root `skills-lock.json` are omitted from lint. |
+| **Agents** | Yes | `.github/agents/**/*.md` (markdown agent definitions) |
+| **Subagents** | No — flag-only | `.claude/agents/**/*.md` (Claude Code subagent definitions) |
+| **Hooks** | Yes | `.github/hooks/agent-shell/hooks.json` (Copilot); `.claude/settings.json`, `.claude/settings.local.json` (Claude). Only files whose content includes a `preToolUse` / `PreToolUse` marker are discovered. Symlinks are skipped. |
+| **Instructions** | Yes | `.github/copilot-instructions.md`, `.github/instructions/*.md`, `.github/agents/*.md` (dual-use with agent lint), root `AGENTS.md`, root `CLAUDE.md` |
+| **MCP servers** | No — flag-only | `.mcp.json`, `.vscode/mcp.json` |
+
+### Rollout status
+
+New construct kinds ship **flag-only first**, then get promoted to default-on once they pass a GA checklist (catalog coverage, rules, docs, CLI/API wiring, parity tests). This mirrors the rollout policy of the [lint construct-coverage epic](https://github.com/zpratt/lousy-agents/issues/1039).
+
+| Kind | Status |
+| ---- | ------ |
+| Skills, agents, hooks, instructions | GA — default-on |
+| Subagents (`--subagents`) | Flag-only |
+| MCP servers (`--mcp-servers`) | Flag-only |
+| `.claude/commands` under the agents target | Not yet covered — Claude Code slash commands use a different frontmatter contract than Copilot custom agents (no required `name` field); reusing the existing agent rule set would misclassify valid command files. Deferred pending a command-specific rule set. |
+| Multi-harness instruction formats (GEMINI.md, hermes, crush conventions) | Not yet covered — deferred pending a structural-baseline rule design for formats without quality scoring. |
+| Plugins (`.codex-plugin`) | Explicitly deferred (not silently skipped) — no stable on-disk manifest schema is evidenced in this repo's fixtures or docs. Doctor still inventories plugin locations; lint does not validate them. |
 
 ### Lint vs doctor
 
-Lint and doctor share the same catalog. Lint validates the four targets above. Doctor may inventory additional constructs the linter does not validate (MCP servers, plugins, subagents, multi-harness trees, and other catalog entries with no lint target).
+Lint and doctor share the same catalog. Doctor may inventory additional constructs the linter does not validate (plugins, multi-harness instruction trees, and other catalog entries with no lint target).
 
 Intentional policy differences (not catalog drift):
 
 - **skills-lock.json** — lint-only filter for locked third-party skills
-- **Hook content heuristic** — lint only discovers hook configs that contain `preToolUse` / `PreToolUse`
+- **Hook content heuristic** — lint only discovers hook configs that contain `preToolUse` / `PreToolUse`. This heuristic is kept (not relaxed) for now: hook config files without that marker remain undiscovered by lint even though doctor may inventory the containing directory.
 - **Symlinks** — lint skips symlinked targets; doctor follows in-repo symlinks when inventorying
 
 ## Configuration
@@ -52,6 +67,9 @@ export default {
         "agent/invalid-name-format": "warn",
         "agent/name-mismatch": "off",
       },
+      subagents: {
+        "subagent/name-mismatch": "off",
+      },
       hooks: {
         "hook/missing-timeout": "off",
       },
@@ -60,6 +78,9 @@ export default {
       },
       skills: {
         "skill/missing-allowed-tools": "error",
+      },
+      mcpServers: {
+        "mcpserver/invalid-config": "warn",
       },
     },
   },
@@ -79,9 +100,11 @@ export default {
 When no configuration file is found, or when a rule is not specified in the configuration, the lint command uses the default severity for each rule. Defaults match the current hardcoded behavior:
 
 - **Agent rules**: All default to `"error"` except `agent/invalid-field` which defaults to `"warn"`
+- **Subagent rules**: All default to `"error"` except `subagent/invalid-field`, `subagent/invalid-name-format`, and `subagent/name-mismatch`, which default to `"warn"` — Claude Code's documented subagent contract only requires `name` and `description`; it does not specify a name format or tie `name` to the filename the way Copilot custom agents do
 - **Instruction rules**: All default to `"warn"`
 - **Skill rules**: All default to `"error"` except `skill/missing-allowed-tools` and `skill/missing-argument-hint` which default to `"warn"`
 - **Hook rules**: All default to `"error"` except `hook/missing-matcher` and `hook/missing-timeout` which default to `"warn"`
+- **MCP server rules**: All default to `"error"`
 
 ### Configuration File Formats
 
@@ -99,26 +122,28 @@ The configuration is loaded using [c12](https://github.com/unjs/c12) with the na
 
 ### Basic Usage
 
-Run from your project root to lint everything (skills, agents, hooks, and instructions):
+Run from your project root to lint the default-on targets (skills, agents, hooks, and instructions):
 
 ```bash
 npx @lousy-agents/cli lint
 ```
 
-When no target flags are provided, the command runs all linters (skills, agents, hooks, and instructions).
+When no target flags are provided, the command runs the default-on linters (skills, agents, hooks, and instructions). The flag-only `subagents` and `mcpServers` targets never run unless explicitly requested — see [Rollout status](#rollout-status).
 
 ### Target Flags
 
 Use flags to lint specific targets:
 
-| Flag / Subcommand | Description |
-| ------ | ------------- |
-| `--skills` | Lint skill frontmatter in `.github/skills/`, `.claude/skills/`, and `.agents/skills/` |
-| `--agents` | Lint agent frontmatter in `.github/agents/` |
-| `--hooks` | Lint hook configuration files for Copilot and Claude Code |
-| `--instructions` | Analyze instruction quality across all instruction file formats |
-| `lessons` | Validate lesson files in `.lousy-agents/lessons/` — see [Agent Lessons](lessons.md#lint-lessons) |
-| `--format <type>` | Output format: `human` (default), `json`, or `rdjsonl` |
+| Flag / Subcommand | Default-on | Description |
+| ------ | ---------- | ------------- |
+| `--skills` | Yes | Lint skill frontmatter in `.github/skills/`, `.claude/skills/`, `.agents/skills/`, `.pi/skills/`, and `.pi/prompts/` |
+| `--agents` | Yes | Lint agent frontmatter in `.github/agents/` |
+| `--subagents` | No — flag-only | Lint Claude Code subagent frontmatter in `.claude/agents/` |
+| `--hooks` | Yes | Lint hook configuration files for Copilot and Claude Code |
+| `--instructions` | Yes | Analyze instruction quality across all instruction file formats |
+| `--mcp-servers` | No — flag-only | Validate MCP server config files (`.mcp.json`, `.vscode/mcp.json`) |
+| `lessons` | — | Validate lesson files in `.lousy-agents/lessons/` — see [Agent Lessons](lessons.md#lint-lessons) |
+| `--format <type>` | — | Output format: `human` (default), `json`, or `rdjsonl` |
 
 ```bash
 # Lint only skills
@@ -133,7 +158,13 @@ npx @lousy-agents/cli lint --hooks
 # Analyze only instruction quality
 npx @lousy-agents/cli lint --instructions
 
-# Lint everything (same as no flags)
+# Lint Claude Code subagents (flag-only, opt in explicitly)
+npx @lousy-agents/cli lint --subagents
+
+# Validate MCP server configs (flag-only, opt in explicitly)
+npx @lousy-agents/cli lint --mcp-servers
+
+# Lint the default-on targets (same as no flags)
 npx @lousy-agents/cli lint
 ```
 
@@ -234,6 +265,52 @@ Discovered 1 agent(s)
 ✖ .github/agents/security.md:2 [name]: Name must contain only lowercase letters, numbers, and hyphens
 ✖ .github/agents/security.md:3 [description]: Description is required
 lint failed: 2 error(s), 0 warning(s)
+```
+
+---
+
+## Subagent Linting (`--subagents`) — flag-only
+
+**Not default-on.** Only runs when `--subagents` is explicitly passed, even if no other target flags are set — see [Rollout status](#rollout-status).
+
+Validates YAML frontmatter in `.claude/agents/**/*.md` files, discovered recursively (Claude Code subagent definitions). Rules mirror agent linting: Claude Code subagents require the same `name` + `description` frontmatter contract as Copilot custom agents.
+
+### What It Validates
+
+| Field | Required? | Validation |
+| ------- | ----------- | ------------ |
+| `name` | Yes | Non-empty, lowercase with hyphens, max 64 chars, matches filename stem |
+| `description` | Yes | Non-empty, max 1024 chars, not whitespace-only |
+
+### Rule IDs
+
+| Rule ID | Default Severity | Description |
+| --------- | ----------------- | ------------- |
+| `subagent/missing-frontmatter` | `error` | No YAML frontmatter found |
+| `subagent/invalid-frontmatter` | `error` | YAML frontmatter present but could not be parsed |
+| `subagent/missing-name` | `error` | Name field is missing |
+| `subagent/invalid-name-format` | `warn` | Name is not lowercase alphanumeric with hyphens or exceeds 64 chars — not required by Claude Code's own subagent contract, so this is opinionated stricter validation, not a spec violation |
+| `subagent/name-mismatch` | `warn` | Name does not match the filename stem — Claude Code identifies subagents by the `name` field, not the filename, so this is a style suggestion, not a spec violation |
+| `subagent/missing-description` | `error` | Description field is missing |
+| `subagent/invalid-description` | `error` | Description is whitespace-only, too long, or wrong type |
+| `subagent/invalid-field` | `warn` | Other field validation failure |
+
+### Examples
+
+#### Successful Subagent Lint
+
+```
+Discovered 1 subagent(s)
+✔ .claude/agents/reviewer.md: OK
+All subagent(s) passed lint checks
+```
+
+#### Subagent Lint With Errors
+
+```
+Discovered 1 subagent(s)
+✖ .claude/agents/reviewer.md:1: Missing YAML frontmatter. Subagent files must begin with --- delimited YAML frontmatter.
+lint failed: 1 error(s), 0 warning(s)
 ```
 
 ---
@@ -364,6 +441,46 @@ Lint passed with 1 warning(s)
 
 ---
 
+## MCP Server Config Linting (`--mcp-servers`) — flag-only
+
+**Not default-on.** Only runs when `--mcp-servers` is explicitly passed, even if no other target flags are set — see [Rollout status](#rollout-status).
+
+Validates MCP server configuration files: `.mcp.json` (shared — read by both Claude Code and Copilot) and `.vscode/mcp.json` (Copilot in VS Code). One config file can declare multiple servers; diagnostics are scoped to the config file, not to individual servers. A file declaring zero servers is not an error.
+
+### What It Validates
+
+- The file parses as valid JSON
+- When present, `mcpServers` (Claude Code's `.mcp.json` convention) or `servers` (VS Code's `.vscode/mcp.json` convention) is a map of server name to server declaration — both keys are accepted regardless of which file is being read
+- Each server declaration's optional `type` / `transport` fields, when present, must be non-empty strings
+- Server names must not be `__proto__`, `constructor`, or `prototype` (reserved JavaScript property names)
+
+### Rule IDs
+
+| Rule ID | Default Severity | Description |
+| --------- | ----------------- | ------------- |
+| `mcpserver/invalid-json` | `error` | JSON parsing failed |
+| `mcpserver/invalid-config` | `error` | Configuration structure does not match expected schema (e.g. `mcpServers` is not a map, or a server declaration has an empty `type`/`transport`) |
+
+### Examples
+
+#### Successful MCP Server Lint
+
+```
+Discovered 1 MCP server config(s)
+✔ .mcp.json: OK
+All MCP server config(s) passed lint checks
+```
+
+#### MCP Server Lint With Errors
+
+```
+Discovered 1 MCP server config(s)
+✖ .mcp.json:1: Invalid JSON in MCP server configuration file: Unexpected token in JSON
+lint failed: 1 error(s), 0 warning(s)
+```
+
+---
+
 ## Output Formats (`--format`)
 
 ### Human (default)
@@ -475,7 +592,7 @@ jobs:
           github_token: ${{ github.token }}
 ```
 
-When no target inputs are set, the action lints all targets (skills, agents, hooks, and instructions).
+When no target inputs are set, the action lints the default-on targets (skills, agents, hooks, and instructions). The flag-only `subagents` and `mcpServers` targets are not yet exposed as Action inputs — per the [rollout policy](#rollout-status), Action inputs are added only once a kind reaches GA (or is explicitly marked experimental). Use the `@lousy-agents/cli` or `@lousy-agents/lint` package directly if you need them in CI today.
 
 ### Inputs
 

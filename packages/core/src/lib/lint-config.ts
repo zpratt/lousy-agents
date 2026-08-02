@@ -21,9 +21,11 @@ const RuleConfigMapSchema = z.record(
 /** Zod schema for the lint.rules section of the config */
 const LintRulesConfigSchema = z.object({
     agents: RuleConfigMapSchema.optional(),
+    subagents: RuleConfigMapSchema.optional(),
     hooks: RuleConfigMapSchema.optional(),
     instructions: RuleConfigMapSchema.optional(),
     skills: RuleConfigMapSchema.optional(),
+    mcpServers: RuleConfigMapSchema.optional(),
 });
 
 /** Zod schema for the lint section of the config */
@@ -87,11 +89,19 @@ export async function loadLintConfig(
 
     return {
         agents: mergeTargetRules(DEFAULT_LINT_RULES.agents, rules.agents),
+        subagents: mergeTargetRules(
+            DEFAULT_LINT_RULES.subagents,
+            rules.subagents,
+        ),
         hooks: mergeTargetRules(DEFAULT_LINT_RULES.hooks, rules.hooks),
         instructions: mergeTargetRules(
             DEFAULT_LINT_RULES.instructions,
             rules.instructions,
         ),
         skills: mergeTargetRules(DEFAULT_LINT_RULES.skills, rules.skills),
+        mcpServers: mergeTargetRules(
+            DEFAULT_LINT_RULES.mcpServers,
+            rules.mcpServers,
+        ),
     };
 }

@@ -14,6 +14,7 @@ import {
     normalizeRepoRelativePath,
     primaryConstructTypeForPath,
     skillDirectoryRoots,
+    subagentDirectoryRoots,
 } from "./agentic-location-matchers.js";
 
 describe("normalizeRepoRelativePath", () => {
@@ -350,7 +351,13 @@ describe("lintTargetEntries", () => {
             expect(entries.length).toBeGreaterThan(0);
             expect(entries.every((e) => e.lintTarget === "skills")).toBe(true);
             expect(entries.map((e) => e.path).sort()).toEqual(
-                [".agents/skills", ".claude/skills", ".github/skills"].sort(),
+                [
+                    ".agents/skills",
+                    ".claude/skills",
+                    ".github/skills",
+                    ".pi/prompts",
+                    ".pi/skills",
+                ].sort(),
             );
         });
     });
@@ -404,13 +411,19 @@ describe("lintTargetEntries", () => {
 });
 
 describe("skillDirectoryRoots", () => {
-    it("should return the three lint skill directory roots", () => {
+    it("should return all catalog skill directory roots", () => {
         // Act
         const roots = skillDirectoryRoots();
 
         // Assert
         expect([...roots].sort()).toEqual(
-            [".agents/skills", ".claude/skills", ".github/skills"].sort(),
+            [
+                ".agents/skills",
+                ".claude/skills",
+                ".github/skills",
+                ".pi/prompts",
+                ".pi/skills",
+            ].sort(),
         );
     });
 });
@@ -422,6 +435,16 @@ describe("agentDirectoryRoots", () => {
 
         // Assert
         expect(roots).toEqual([".github/agents"]);
+    });
+});
+
+describe("subagentDirectoryRoots", () => {
+    it("should return .claude/agents", () => {
+        // Act
+        const roots = subagentDirectoryRoots();
+
+        // Assert
+        expect(roots).toEqual([".claude/agents"]);
     });
 });
 

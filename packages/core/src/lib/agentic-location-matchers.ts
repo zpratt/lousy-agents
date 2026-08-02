@@ -15,11 +15,15 @@ import {
  * Collapses `.` / `..` segments. Returns "" when the path is absolute or
  * escapes the repository root — callers treat "" as non-matching.
  */
-export function normalizeRepoRelativePath(path: string): string {
-    const normalized = path.replaceAll("\\", "/");
+function isAbsoluteRepoPath(normalized: string): boolean {
     // POSIX absolute, UNC-style leading slash after backslash conversion,
     // and Windows drive-letter absolute (C:/..., d:\...).
-    if (normalized.startsWith("/") || /^[A-Za-z]:(\/|$)/.test(normalized)) {
+    return normalized.startsWith("/") || /^[A-Za-z]:(\/|$)/.test(normalized);
+}
+
+export function normalizeRepoRelativePath(path: string): string {
+    const normalized = path.replaceAll("\\", "/");
+    if (isAbsoluteRepoPath(normalized)) {
         return "";
     }
 
@@ -28,10 +32,10 @@ export function normalizeRepoRelativePath(path: string): string {
         if (segment === "" || segment === ".") {
             continue;
         }
+        if (segment === ".." && resolved.length === 0) {
+            return "";
+        }
         if (segment === "..") {
-            if (resolved.length === 0) {
-                return "";
-            }
             resolved.pop();
             continue;
         }
@@ -100,10 +104,11 @@ export function constructTypesForPath(
     if (!best) {
         return [];
     }
-    if (best.secondaryConstructs && best.secondaryConstructs.length > 0) {
-        return [best.primaryConstruct, ...best.secondaryConstructs];
+    const secondary = best.secondaryConstructs ?? [];
+    if (secondary.length === 0) {
+        return [best.primaryConstruct];
     }
-    return [best.primaryConstruct];
+    return [best.primaryConstruct, ...secondary];
 }
 
 export function lintTargetEntries(
@@ -129,17 +134,27 @@ export function agentDirectoryRoots(
         .map((entry) => entry.path);
 }
 
+export function subagentDirectoryRoots(
+    catalog: readonly AgenticLocationEntry[] = AGENTIC_LOCATION_CATALOG,
+): readonly string[] {
+    return lintTargetEntries("subagents", catalog)
+        .filter((entry) => entry.matchKind === "directory-prefix")
+        .map((entry) => entry.path);
+}
+
+function isHookConfigEntry(
+    entry: AgenticLocationEntry,
+): entry is AgenticLocationEntry & {
+    hookPlatform: "copilot" | "claude";
+} {
+    return entry.matchKind === "exact" && entry.hookPlatform != null;
+}
+
 export function hookConfigPaths(
     catalog: readonly AgenticLocationEntry[] = AGENTIC_LOCATION_CATALOG,
 ): ReadonlyArray<{ relativePath: string; platform: "copilot" | "claude" }> {
     return lintTargetEntries("hooks", catalog)
-        .filter(
-            (
-                entry,
-            ): entry is AgenticLocationEntry & {
-                hookPlatform: "copilot" | "claude";
-            } => entry.matchKind === "exact" && entry.hookPlatform != null,
-        )
+        .filter(isHookConfigEntry)
         .map((entry) => ({
             relativePath: entry.path,
             platform: entry.hookPlatform,

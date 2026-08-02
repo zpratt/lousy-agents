@@ -17,6 +17,7 @@ export type AgenticConstructType =
 export type LintDiscoveryTarget =
     | "skills"
     | "agents"
+    | "subagents"
     | "hooks"
     | "instructions"
     | "none";
@@ -75,13 +76,13 @@ export const AGENTIC_LOCATION_CATALOG: readonly AgenticLocationEntry[] = [
         lintTarget: "skills",
         harnessHints: ["shared"],
     },
-    // Doctor-only skill locations
+    // Additional skill roots (SKILL.md convention, no alternate layout documented)
     {
         id: "skill-pi",
         path: ".pi/skills",
         matchKind: "directory-prefix",
         primaryConstruct: "skill",
-        lintTarget: "none",
+        lintTarget: "skills",
         harnessHints: ["pi"],
     },
     {
@@ -89,7 +90,7 @@ export const AGENTIC_LOCATION_CATALOG: readonly AgenticLocationEntry[] = [
         path: ".pi/prompts",
         matchKind: "directory-prefix",
         primaryConstruct: "skill",
-        lintTarget: "none",
+        lintTarget: "skills",
         harnessHints: ["pi"],
     },
     // Agent lint root (dual-role: agent + instruction)
@@ -185,13 +186,13 @@ export const AGENTIC_LOCATION_CATALOG: readonly AgenticLocationEntry[] = [
         harnessHints: ["claude"],
         instructionFormat: "claude-md",
     },
-    // Doctor-only construct locations
+    // Subagent lint root
     {
         id: "subagent-claude",
         path: ".claude/agents",
         matchKind: "directory-prefix",
         primaryConstruct: "subagent",
-        lintTarget: "none",
+        lintTarget: "subagents",
         harnessHints: ["claude"],
     },
     {

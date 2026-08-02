@@ -10,7 +10,13 @@ import type { InstructionQualityResult } from "./instruction-quality.js";
 export type LintSeverity = "error" | "warning" | "info";
 
 /** A lint target category */
-export type LintTarget = "skill" | "agent" | "instruction" | "hook";
+export type LintTarget =
+    | "skill"
+    | "agent"
+    | "subagent"
+    | "instruction"
+    | "hook"
+    | "mcp-server";
 
 /** A single lint diagnostic */
 export interface LintDiagnostic {
