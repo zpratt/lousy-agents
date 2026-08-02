@@ -43,7 +43,7 @@ interface CopilotSetupRulesetGateway extends RulesetGateway {
 
 type PromptFunction = (
     message: string,
-    options: { type: string; default?: boolean },
+    options: { type: "confirm"; default?: boolean },
 ) => Promise<boolean>;
 
 const copilotSetupArgs = {

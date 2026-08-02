@@ -90,6 +90,17 @@ function parseExplicitFiles(rawFiles: string): string[] {
         .filter(Boolean);
 }
 
+const contextArgs = {
+    files: {
+        type: "string",
+        description:
+            "Comma-separated list of file paths to match lessons against (PreToolUse dispatch; for debug use — real hook invocations pass paths via stdin)",
+        default: "",
+    },
+} as const;
+
+type ContextArgs = typeof contextArgs;
+
 export function createContextCommand(useCase: LessonContextUseCase) {
     return defineCommand({
         meta: {
@@ -97,15 +108,8 @@ export function createContextCommand(useCase: LessonContextUseCase) {
             description:
                 "Inject relevant lessons into Claude hooks as additionalContext",
         },
-        args: {
-            files: {
-                type: "string",
-                description:
-                    "Comma-separated list of file paths to match lessons against (PreToolUse dispatch; for debug use — real hook invocations pass paths via stdin)",
-                default: "",
-            },
-        },
-        run: async (context: CommandContext) => {
+        args: contextArgs,
+        run: async (context: CommandContext<ContextArgs>) => {
             const rootDir =
                 typeof context.data?.targetDir === "string"
                     ? context.data.targetDir

@@ -3,6 +3,23 @@ import type { CommandContext } from "citty";
 import { defineCommand } from "citty";
 import { consola } from "consola";
 
+const initHooksArgs = {
+    force: {
+        type: "boolean",
+        description:
+            "Overwrite existing hook configuration even if already present",
+        default: false,
+    },
+    "no-session-start": {
+        type: "boolean",
+        description:
+            "Disable the SessionStart hook for invariant lesson injection (enabled by default)",
+        default: false,
+    },
+} as const;
+
+type InitHooksArgs = typeof initHooksArgs;
+
 export function createInitHooksCommand(useCase: InitHooksUseCase) {
     return defineCommand({
         meta: {
@@ -10,21 +27,8 @@ export function createInitHooksCommand(useCase: InitHooksUseCase) {
             description:
                 "Initialize Claude Code hook configuration for lousy-agents context injection",
         },
-        args: {
-            force: {
-                type: "boolean",
-                description:
-                    "Overwrite existing hook configuration even if already present",
-                default: false,
-            },
-            "no-session-start": {
-                type: "boolean",
-                description:
-                    "Disable the SessionStart hook for invariant lesson injection (enabled by default)",
-                default: false,
-            },
-        },
-        run: async (context: CommandContext) => {
+        args: initHooksArgs,
+        run: async (context: CommandContext<InitHooksArgs>) => {
             const rootDir =
                 typeof context.data?.targetDir === "string"
                     ? context.data.targetDir
