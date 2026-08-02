@@ -2,11 +2,17 @@
  * Shared file system utilities for gateways.
  */
 
-import { constants } from "node:fs";
-import { access, lstat, open, realpath, stat } from "node:fs/promises";
-import { join, relative, resolve, sep } from "node:path";
+import { access, realpath, stat } from "node:fs/promises";
+import { relative, resolve, sep } from "node:path";
 import { FsSafeError, root } from "@openclaw/fs-safe";
 import type { DirEntry } from "@openclaw/fs-safe/types";
+import { readFileNoFollow } from "./read-file-no-follow.js";
+import {
+    rejectSymlinkSegments,
+    symlinkNotAllowedError,
+} from "./symlink-path-guard.js";
+
+export { readFileNoFollow };
 
 export interface SafeDirEntry {
     readonly name: string;
@@ -36,35 +42,40 @@ export async function fileExists(path: string): Promise<boolean> {
 }
 
 function isPathWithinRoot(rootPath: string, candidatePath: string): boolean {
-    return (
-        candidatePath === rootPath ||
-        candidatePath.startsWith(`${rootPath}${sep}`)
-    );
+    if (candidatePath === rootPath) {
+        return true;
+    }
+    // When root is `/` (or `C:\`), appending sep would yield `//` / `C:\\` and
+    // incorrectly reject every in-root path. Use root as the prefix when it
+    // already ends with the separator.
+    const prefix = rootPath.endsWith(sep) ? rootPath : `${rootPath}${sep}`;
+    return candidatePath.startsWith(prefix);
 }
 
 function mapFsSafeError(error: unknown, relativePath: string): never {
-    if (error instanceof FsSafeError) {
-        switch (error.code) {
-            case "outside-workspace":
-            case "invalid-path":
-                throw new Error(
-                    `Resolved path is outside target directory: ${relativePath}`,
-                    { cause: error },
-                );
-            case "path-alias":
-            case "symlink":
-                throw new Error(
-                    `Symlinks are not allowed: path contains symbolic link: ${relativePath}`,
-                    { cause: error },
-                );
-            case "too-large":
-                throw new Error(
-                    `File ${relativePath} exceeds size limit: ${error.message}`,
-                    { cause: error },
-                );
-            default:
-                throw error;
-        }
+    if (!(error instanceof FsSafeError)) {
+        throw error;
+    }
+
+    const safePath = JSON.stringify(relativePath);
+
+    if (error.code === "outside-workspace" || error.code === "invalid-path") {
+        throw new Error(
+            `Resolved path is outside target directory: ${safePath}`,
+            { cause: error },
+        );
+    }
+    if (error.code === "path-alias" || error.code === "symlink") {
+        throw new Error(
+            `Symlinks are not allowed: path contains symbolic link: ${safePath}`,
+            { cause: error },
+        );
+    }
+    if (error.code === "too-large") {
+        throw new Error(
+            `File ${safePath} exceeds size limit: ${error.message}`,
+            { cause: error },
+        );
     }
     throw error;
 }
@@ -77,12 +88,34 @@ async function createSafeRoot(targetDir: string, maxBytes?: number) {
     });
 }
 
+/**
+ * fs-safe 0.5 exists/stat/list canonicalize through in-root symlinks; open/read
+ * still honor symlinks:"reject". Enforce reject on every root-bounded op.
+ */
+async function assertNoSymlinksWithinRoot(
+    targetDir: string,
+    relativePath: string,
+): Promise<void> {
+    if (!relativePath) {
+        return;
+    }
+
+    const absolutePath = await resolvePathWithinRoot(targetDir, relativePath);
+    const rootPath = await realpath(targetDir);
+    await rejectSymlinkSegments(
+        rootPath,
+        relative(rootPath, absolutePath),
+        () => symlinkNotAllowedError(relativePath),
+    );
+}
+
 export async function readTextWithinRoot(
     targetDir: string,
     relativePath: string,
     maxBytes: number,
 ): Promise<string> {
     try {
+        await assertNoSymlinksWithinRoot(targetDir, relativePath);
         const safeRoot = await createSafeRoot(targetDir, maxBytes);
         return await safeRoot.readText(relativePath, { maxBytes });
     } catch (error: unknown) {
@@ -95,6 +128,7 @@ export async function listDirectoryWithinRoot(
     relativePath: string,
 ): Promise<SafeDirEntry[]> {
     try {
+        await assertNoSymlinksWithinRoot(targetDir, relativePath);
         const safeRoot = await createSafeRoot(targetDir);
         const entries = await safeRoot.list(relativePath, {
             withFileTypes: true,
@@ -119,6 +153,7 @@ export async function pathExistsWithinRoot(
     relativePath: string,
 ): Promise<boolean> {
     try {
+        await assertNoSymlinksWithinRoot(targetDir, relativePath);
         const safeRoot = await createSafeRoot(targetDir);
         return await safeRoot.exists(relativePath);
     } catch (error: unknown) {
@@ -141,6 +176,7 @@ export async function statWithinRoot(
     relativePath: string,
 ): Promise<SafePathStat> {
     try {
+        await assertNoSymlinksWithinRoot(targetDir, relativePath);
         const safeRoot = await createSafeRoot(targetDir);
         return await safeRoot.stat(relativePath);
     } catch (error: unknown) {
@@ -186,33 +222,12 @@ export async function assertPathHasNoSymbolicLinks(
         );
     }
 
-    const relativePath = relative(rootPath, absolutePath);
-    if (!relativePath || relativePath === ".") {
-        return;
-    }
-
-    const segments = relativePath.split(sep);
-    let currentPath = rootPath;
-
-    for (const segment of segments) {
-        currentPath = join(currentPath, segment);
-
-        try {
-            const stats = await lstat(currentPath);
-            if (stats.isSymbolicLink()) {
-                throw new Error(`Path contains symbolic link: ${currentPath}`);
-            }
-        } catch (error) {
-            if (
-                error instanceof Error &&
-                "code" in error &&
-                error.code === "ENOENT"
-            ) {
-                return;
-            }
-            throw error;
-        }
-    }
+    await rejectSymlinkSegments(
+        rootPath,
+        relative(rootPath, absolutePath),
+        (segmentPath) =>
+            new Error(`Path contains symbolic link: ${segmentPath}`),
+    );
 }
 
 /**
@@ -240,61 +255,5 @@ export async function assertFileSizeWithinLimit(
         throw new Error(
             `${context} exceeds size limit (${fileStats.size} bytes > ${maxBytes} bytes)`,
         );
-    }
-}
-
-/**
- * Reads a file atomically with symlink and size protection.
- *
- * Uses `O_NOFOLLOW` (where available) to atomically reject symlinks at
- * the kernel level, eliminating the TOCTOU window between `lstat()` and
- * `readFile()`. Falls back to `lstat()` on platforms without `O_NOFOLLOW`.
- * Validates file size via `fstat()` on the opened file descriptor so the
- * size check and the read operate on the same inode.
- */
-export async function readFileNoFollow(
-    filePath: string,
-    maxBytes: number,
-): Promise<string> {
-    const hasNoFollow =
-        typeof constants.O_NOFOLLOW === "number" && constants.O_NOFOLLOW !== 0;
-
-    const safePath = JSON.stringify(filePath);
-
-    let fh: Awaited<ReturnType<typeof open>>;
-    if (hasNoFollow) {
-        try {
-            fh = await open(
-                filePath,
-                constants.O_RDONLY | constants.O_NOFOLLOW,
-            );
-        } catch (error: unknown) {
-            if (
-                error instanceof Error &&
-                "code" in error &&
-                error.code === "ELOOP"
-            ) {
-                throw new Error(`Symlinks are not allowed: ${safePath}`);
-            }
-            throw error;
-        }
-    } else {
-        const stats = await lstat(filePath);
-        if (stats.isSymbolicLink()) {
-            throw new Error(`Symlinks are not allowed: ${safePath}`);
-        }
-        fh = await open(filePath, constants.O_RDONLY);
-    }
-
-    try {
-        const fdStats = await fh.stat();
-        if (fdStats.size > maxBytes) {
-            throw new Error(
-                `File ${safePath} exceeds size limit (${fdStats.size} bytes > ${maxBytes} bytes)`,
-            );
-        }
-        return await fh.readFile("utf-8");
-    } finally {
-        await fh.close();
     }
 }
