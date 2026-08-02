@@ -1,5 +1,6 @@
 import { FsSafeError, root } from "@openclaw/fs-safe";
 import type { DirEntry } from "@openclaw/fs-safe/types";
+import { assertNoSymlinksWithinRoot } from "./symlink-path-guard.js";
 
 export interface SafeDirEntry {
     readonly name: string;
@@ -16,28 +17,29 @@ export interface SafePathStat {
 }
 
 function mapFsSafeError(error: unknown, relativePath: string): never {
-    if (error instanceof FsSafeError) {
-        switch (error.code) {
-            case "outside-workspace":
-            case "invalid-path":
-                throw new Error(
-                    `Resolved path is outside target directory: ${relativePath}`,
-                    { cause: error },
-                );
-            case "path-alias":
-            case "symlink":
-                throw new Error(
-                    `Symlinks are not allowed: path contains symbolic link: ${relativePath}`,
-                    { cause: error },
-                );
-            case "too-large":
-                throw new Error(
-                    `File ${relativePath} exceeds size limit: ${error.message}`,
-                    { cause: error },
-                );
-            default:
-                throw error;
-        }
+    if (!(error instanceof FsSafeError)) {
+        throw error;
+    }
+
+    const safePath = JSON.stringify(relativePath);
+
+    if (error.code === "outside-workspace" || error.code === "invalid-path") {
+        throw new Error(
+            `Resolved path is outside target directory: ${safePath}`,
+            { cause: error },
+        );
+    }
+    if (error.code === "path-alias" || error.code === "symlink") {
+        throw new Error(
+            `Symlinks are not allowed: path contains symbolic link: ${safePath}`,
+            { cause: error },
+        );
+    }
+    if (error.code === "too-large") {
+        throw new Error(
+            `File ${safePath} exceeds size limit: ${error.message}`,
+            { cause: error },
+        );
     }
     throw error;
 }
@@ -65,6 +67,7 @@ export async function readBytesWithinRoot(
     maxBytes: number,
 ): Promise<Buffer> {
     try {
+        await assertNoSymlinksWithinRoot(targetDir, relativePath);
         const safeRoot = await createSafeRoot(targetDir, maxBytes);
         return await safeRoot.readBytes(relativePath, { maxBytes });
     } catch (error: unknown) {
@@ -78,6 +81,7 @@ export async function readTextWithinRoot(
     maxBytes: number,
 ): Promise<string> {
     try {
+        await assertNoSymlinksWithinRoot(targetDir, relativePath);
         const safeRoot = await createSafeRoot(targetDir, maxBytes);
         return await safeRoot.readText(relativePath, { maxBytes });
     } catch (error: unknown) {
@@ -90,6 +94,7 @@ export async function listDirectoryWithinRoot(
     relativePath: string,
 ): Promise<SafeDirEntry[]> {
     try {
+        await assertNoSymlinksWithinRoot(targetDir, relativePath);
         const safeRoot = await createSafeRoot(targetDir);
         const entries = await safeRoot.list(relativePath, {
             withFileTypes: true,
@@ -105,6 +110,7 @@ export async function statWithinRoot(
     relativePath: string,
 ): Promise<SafePathStat> {
     try {
+        await assertNoSymlinksWithinRoot(targetDir, relativePath);
         const safeRoot = await createSafeRoot(targetDir);
         return await safeRoot.stat(relativePath);
     } catch (error: unknown) {
@@ -117,6 +123,7 @@ export async function pathExistsWithinRoot(
     relativePath: string,
 ): Promise<boolean> {
     try {
+        await assertNoSymlinksWithinRoot(targetDir, relativePath);
         const safeRoot = await createSafeRoot(targetDir);
         return await safeRoot.exists(relativePath);
     } catch (error: unknown) {

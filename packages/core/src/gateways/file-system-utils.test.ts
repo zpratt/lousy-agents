@@ -1,15 +1,34 @@
-import { mkdir, rm, stat, symlink, writeFile } from "node:fs/promises";
+import {
+    link,
+    mkdir,
+    realpath,
+    rm,
+    stat,
+    symlink,
+    writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { FsSafeError, root } from "@openclaw/fs-safe";
 import Chance from "chance";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+    assertFileSizeWithinLimit,
+    assertPathHasNoSymbolicLinks,
     listDirectoryWithinRoot,
     pathExistsWithinRoot,
     readFileNoFollow,
     readTextWithinRoot,
     statWithinRoot,
 } from "./file-system-utils.js";
+
+vi.mock("@openclaw/fs-safe", async (importOriginal) => {
+    const actual = await importOriginal<typeof import("@openclaw/fs-safe")>();
+    return {
+        ...actual,
+        root: vi.fn(actual.root),
+    };
+});
 
 const chance = new Chance();
 
@@ -214,6 +233,32 @@ describe("listDirectoryWithinRoot", () => {
             ]);
         });
     });
+
+    describe("given the root relative path", () => {
+        it("should list entries for '.'", async () => {
+            await writeFile(join(testDir, "nested", "one.md"), "");
+
+            const entries = await listDirectoryWithinRoot(testDir, ".");
+
+            expect(entries.map((entry) => entry.name)).toContain("nested");
+        });
+    });
+
+    describe("given a symlinked directory", () => {
+        it.skipIf(process.platform === "win32")(
+            "should reject with a symlinks-not-allowed error",
+            async () => {
+                const realDir = join(testDir, "real-nested");
+                await mkdir(realDir, { recursive: true });
+                await writeFile(join(realDir, "one.md"), "");
+                await symlink(realDir, join(testDir, "nested-link"));
+
+                await expect(
+                    listDirectoryWithinRoot(testDir, "nested-link"),
+                ).rejects.toThrow(/symlinks are not allowed/i);
+            },
+        );
+    });
 });
 
 describe("pathExistsWithinRoot", () => {
@@ -239,6 +284,14 @@ describe("pathExistsWithinRoot", () => {
         });
     });
 
+    describe("given the root relative path", () => {
+        it("should return true for '.'", async () => {
+            const exists = await pathExistsWithinRoot(testDir, ".");
+
+            expect(exists).toBe(true);
+        });
+    });
+
     describe("given a traversal path", () => {
         it("should reject instead of returning false", async () => {
             await expect(
@@ -246,6 +299,216 @@ describe("pathExistsWithinRoot", () => {
             ).rejects.toThrow("outside target directory");
         });
     });
+
+    describe("given a symlinked file", () => {
+        it.skipIf(process.platform === "win32")(
+            "should reject with a symlinks-not-allowed error",
+            async () => {
+                await writeFile(join(testDir, "real.txt"), chance.word());
+                await symlink(
+                    join(testDir, "real.txt"),
+                    join(testDir, "link.txt"),
+                );
+
+                await expect(
+                    pathExistsWithinRoot(testDir, "link.txt"),
+                ).rejects.toThrow(/symlinks are not allowed/i);
+            },
+        );
+    });
+});
+
+describe("createSafeRoot policy", () => {
+    let testDir: string;
+
+    beforeEach(async () => {
+        testDir = join(
+            tmpdir(),
+            `file-system-utils-policy-${chance.hash({ length: 8 })}`,
+        );
+        await mkdir(testDir, { recursive: true });
+        await writeFile(join(testDir, "file.txt"), chance.word());
+        vi.mocked(root).mockClear();
+    });
+
+    afterEach(async () => {
+        await rm(testDir, { recursive: true, force: true });
+    });
+
+    it("should open roots with hardlinks and symlinks rejected", async () => {
+        await readTextWithinRoot(testDir, "file.txt", 1_048_576);
+
+        expect(root).toHaveBeenCalledWith(
+            testDir,
+            expect.objectContaining({
+                hardlinks: "reject",
+                symlinks: "reject",
+            }),
+        );
+    });
+});
+
+describe("mapFsSafeError via readTextWithinRoot", () => {
+    let testDir: string;
+
+    beforeEach(async () => {
+        testDir = join(
+            tmpdir(),
+            `file-system-utils-maperr-${chance.hash({ length: 8 })}`,
+        );
+        await mkdir(testDir, { recursive: true });
+        await writeFile(join(testDir, "file.txt"), chance.word());
+    });
+
+    afterEach(async () => {
+        await rm(testDir, { recursive: true, force: true });
+        vi.mocked(root).mockImplementation(
+            (
+                await vi.importActual<typeof import("@openclaw/fs-safe")>(
+                    "@openclaw/fs-safe",
+                )
+            ).root,
+        );
+    });
+
+    it("should map FsSafeError symlink codes to a symlink-not-allowed message", async () => {
+        vi.mocked(root).mockResolvedValue({
+            readText: async () => {
+                throw new FsSafeError("symlink", "symlink open blocked");
+            },
+        } as Awaited<ReturnType<typeof root>>);
+
+        await expect(
+            readTextWithinRoot(testDir, "file.txt", 1_048_576),
+        ).rejects.toThrow(/symlinks are not allowed/i);
+    });
+
+    it("should map FsSafeError path-alias codes to a symlink-not-allowed message", async () => {
+        vi.mocked(root).mockResolvedValue({
+            readText: async () => {
+                throw new FsSafeError("path-alias", "alias escaped root");
+            },
+        } as Awaited<ReturnType<typeof root>>);
+
+        await expect(
+            readTextWithinRoot(testDir, "file.txt", 1_048_576),
+        ).rejects.toThrow(/symlinks are not allowed/i);
+    });
+
+    it("should map FsSafeError too-large codes to a size limit message", async () => {
+        vi.mocked(root).mockResolvedValue({
+            readText: async () => {
+                throw new FsSafeError("too-large", "budget exceeded");
+            },
+        } as Awaited<ReturnType<typeof root>>);
+
+        await expect(
+            readTextWithinRoot(testDir, "file.txt", 1_048_576),
+        ).rejects.toThrow(/exceeds size limit/i);
+    });
+});
+
+describe("assertFileSizeWithinLimit", () => {
+    let testDir: string;
+
+    beforeEach(async () => {
+        testDir = join(
+            tmpdir(),
+            `file-system-utils-size-${chance.hash({ length: 8 })}`,
+        );
+        await mkdir(testDir, { recursive: true });
+    });
+
+    afterEach(async () => {
+        await rm(testDir, { recursive: true, force: true });
+    });
+
+    describe("given a file at exactly the size limit", () => {
+        it("should resolve without throwing", async () => {
+            const maxBytes = 64;
+            const filePath = join(testDir, "exact.bin");
+            await writeFile(filePath, "x".repeat(maxBytes));
+
+            await expect(
+                assertFileSizeWithinLimit(filePath, maxBytes, "fixture"),
+            ).resolves.toBeUndefined();
+        });
+    });
+
+    describe("given a file one byte over the size limit", () => {
+        it("should reject with a size limit error", async () => {
+            const maxBytes = 64;
+            const filePath = join(testDir, "over.bin");
+            await writeFile(filePath, "x".repeat(maxBytes + 1));
+
+            await expect(
+                assertFileSizeWithinLimit(filePath, maxBytes, "fixture"),
+            ).rejects.toThrow(/exceeds size limit/i);
+        });
+    });
+});
+
+describe("assertPathHasNoSymbolicLinks", () => {
+    let testDir: string;
+
+    beforeEach(async () => {
+        testDir = join(
+            tmpdir(),
+            `file-system-utils-assert-symlink-${chance.hash({ length: 8 })}`,
+        );
+        await mkdir(testDir, { recursive: true });
+    });
+
+    afterEach(async () => {
+        await rm(testDir, { recursive: true, force: true });
+    });
+
+    describe("given the root path itself", () => {
+        it("should resolve without throwing", async () => {
+            const rootPath = await realpath(testDir);
+
+            await expect(
+                assertPathHasNoSymbolicLinks(testDir, rootPath),
+            ).resolves.toBeUndefined();
+        });
+    });
+});
+
+describe("readTextWithinRoot hardlink policy", () => {
+    let testDir: string;
+
+    beforeEach(async () => {
+        testDir = join(
+            tmpdir(),
+            `file-system-utils-hardlink-${chance.hash({ length: 8 })}`,
+        );
+        await mkdir(testDir, { recursive: true });
+        vi.mocked(root).mockImplementation(
+            (
+                await vi.importActual<typeof import("@openclaw/fs-safe")>(
+                    "@openclaw/fs-safe",
+                )
+            ).root,
+        );
+    });
+
+    afterEach(async () => {
+        await rm(testDir, { recursive: true, force: true });
+    });
+
+    it.skipIf(process.platform === "win32")(
+        "should reject a hardlinked file when hardlinks are rejected",
+        async () => {
+            const realFile = join(testDir, "real.txt");
+            const hardLink = join(testDir, "hard.txt");
+            await writeFile(realFile, chance.sentence());
+            await link(realFile, hardLink);
+
+            await expect(
+                readTextWithinRoot(testDir, "hard.txt", 1_048_576),
+            ).rejects.toThrow();
+        },
+    );
 });
 
 describe("statWithinRoot", () => {
