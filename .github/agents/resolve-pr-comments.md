@@ -71,7 +71,15 @@ if ! gh api --paginate "repos/$owner/$repo/issues/$pr_number/comments" \
   echo "ERROR: failed to list PR issue comments for loop-state lookup." >&2
   exit 1
 fi
-loop_comment_id="$(head -n1 "$loop_ids_file" | tr -d '[:space:]')"
+# Fail closed if more than one match (silent head -n1 would PATCH the wrong comment).
+match_count="$(grep -E '^[0-9]+$' "$loop_ids_file" | wc -l | tr -d '[:space:]')"
+if [ "${match_count:-0}" -gt 1 ]; then
+  echo "ERROR: found $match_count loop-state comments containing marker; expected 0 or 1. IDs:" >&2
+  cat "$loop_ids_file" >&2
+  rm -f "$loop_ids_file"
+  exit 1
+fi
+loop_comment_id="$(grep -E '^[0-9]+$' "$loop_ids_file" | head -n1 | tr -d '[:space:]')"
 rm -f "$loop_ids_file"
 
 if [ -z "$loop_comment_id" ]; then
