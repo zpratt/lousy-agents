@@ -8,6 +8,7 @@ import type {
     DiscoveredInstructionFile,
     InstructionFileFormat,
 } from "../entities/instruction-quality.js";
+import { instructionDiscoveryEntries } from "../lib/agentic-location-matchers.js";
 import type { InstructionFileDiscoveryGateway } from "../use-cases/analyze-instruction-quality.js";
 import {
     listDirectoryWithinRoot,
@@ -28,49 +29,30 @@ export class FileSystemInstructionFileDiscoveryGateway
     ): Promise<DiscoveredInstructionFile[]> {
         const files: DiscoveredInstructionFile[] = [];
 
-        // .github/copilot-instructions.md
-        const copilotInstructions = join(".github", "copilot-instructions.md");
-        if (await this.safePathExists(targetDir, copilotInstructions)) {
-            files.push({
-                filePath: join(targetDir, copilotInstructions),
-                format: "copilot-instructions",
-            });
-        }
+        for (const entry of instructionDiscoveryEntries()) {
+            const format = entry.instructionFormat;
+            if (format == null) {
+                continue;
+            }
 
-        // .github/instructions/*.md
-        const instructionsDir = join(".github", "instructions");
-        await this.discoverMdFilesInDir(
-            targetDir,
-            instructionsDir,
-            "copilot-scoped",
-            files,
-        );
+            const relativePath = join(...entry.path.split("/"));
 
-        // .github/agents/*.md
-        const agentsDir = join(".github", "agents");
-        await this.discoverMdFilesInDir(
-            targetDir,
-            agentsDir,
-            "copilot-agent",
-            files,
-        );
+            if (entry.matchKind === "exact") {
+                if (await this.safePathExists(targetDir, relativePath)) {
+                    files.push({
+                        filePath: join(targetDir, relativePath),
+                        format,
+                    });
+                }
+                continue;
+            }
 
-        // AGENTS.md at repo root
-        const agentsMd = "AGENTS.md";
-        if (await this.safePathExists(targetDir, agentsMd)) {
-            files.push({
-                filePath: join(targetDir, agentsMd),
-                format: "agents-md",
-            });
-        }
-
-        // CLAUDE.md at repo root
-        const claudeMd = "CLAUDE.md";
-        if (await this.safePathExists(targetDir, claudeMd)) {
-            files.push({
-                filePath: join(targetDir, claudeMd),
-                format: "claude-md",
-            });
+            await this.discoverMdFilesInDir(
+                targetDir,
+                relativePath,
+                format,
+                files,
+            );
         }
 
         return files;

@@ -1,8 +1,9 @@
 import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { instructionDiscoveryEntries } from "../lib/agentic-location-matchers.js";
 import { FileSystemInstructionFileDiscoveryGateway } from "./instruction-file-discovery-gateway.js";
 
 const chance = new Chance();
@@ -196,6 +197,42 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
                 "copilot-agent",
                 "copilot-instructions",
             ]);
+        });
+    });
+
+    describe("when files exist for every instructionDiscoveryEntries() location", () => {
+        it("should discover each catalog entry with its instructionFormat", async () => {
+            // Arrange
+            const entries = instructionDiscoveryEntries();
+            const expectedFormats: string[] = [];
+            for (const [index, entry] of entries.entries()) {
+                const format = entry.instructionFormat;
+                if (format == null) {
+                    continue;
+                }
+                expectedFormats.push(format);
+                const relativePath = join(...entry.path.split("/"));
+                if (entry.matchKind === "exact") {
+                    const absolutePath = join(testDir, relativePath);
+                    await mkdir(dirname(absolutePath), { recursive: true });
+                    await writeFile(absolutePath, `# ${format}\n`);
+                } else {
+                    const dirPath = join(testDir, relativePath);
+                    await mkdir(dirPath, { recursive: true });
+                    await writeFile(
+                        join(dirPath, `entry-${index}.md`),
+                        `# ${format}\n`,
+                    );
+                }
+            }
+
+            // Act
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            // Assert
+            expect(files).toHaveLength(expectedFormats.length);
+            const formats = files.map((f) => f.format).sort();
+            expect(formats).toEqual([...expectedFormats].sort());
         });
     });
 });

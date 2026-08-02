@@ -9,6 +9,7 @@ import type {
     DiscoveredSkillFile,
     ParsedFrontmatter,
 } from "../entities/skill.js";
+import { skillDirectoryRoots } from "../lib/agentic-location-matchers.js";
 import { parseFrontmatter } from "../lib/frontmatter.js";
 import type { SkillLintGateway } from "../use-cases/lint-skill-frontmatter.js";
 import {
@@ -22,14 +23,10 @@ import {
 /** Maximum skill file size: 1 MB */
 const MAX_SKILL_FILE_BYTES = 1_048_576;
 
-/**
- * Skill directory locations to search for SKILL.md files.
- */
-const SKILL_DIRECTORIES = [
-    join(".github", "skills"),
-    join(".claude", "skills"),
-    join(".agents", "skills"),
-] as const;
+/** Catalog skill roots converted to OS-native relative paths. */
+const SKILL_DIRECTORIES = skillDirectoryRoots().map((root) =>
+    join(...root.split("/")),
+);
 
 /** Maximum lock file size: 256 KB */
 const MAX_LOCK_FILE_BYTES = 262_144;

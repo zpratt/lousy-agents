@@ -5,6 +5,7 @@
 
 import { join } from "node:path";
 import type { DiscoveredHookFile, HookPlatform } from "../entities/hook.js";
+import { hookConfigPaths } from "../lib/agentic-location-matchers.js";
 import type { HookConfigLintGateway } from "../use-cases/lint-hook-config.js";
 import { readFileNoFollow, resolveSafePath } from "./file-system-utils.js";
 
@@ -17,26 +18,11 @@ const COPILOT_HOOK_PATTERN = /"preToolUse"\s*:/;
 /** Matches the Claude hook key `"PreToolUse":` to detect hook section presence */
 const CLAUDE_HOOK_PATTERN = /"PreToolUse"\s*:/;
 
-/**
- * Hook configuration file locations to search.
- */
-const HOOK_CONFIG_PATHS: ReadonlyArray<{
-    relativePath: string;
-    platform: "copilot" | "claude";
-}> = [
-    {
-        relativePath: join(".github", "hooks", "agent-shell", "hooks.json"),
-        platform: "copilot",
-    },
-    {
-        relativePath: join(".claude", "settings.json"),
-        platform: "claude",
-    },
-    {
-        relativePath: join(".claude", "settings.local.json"),
-        platform: "claude",
-    },
-];
+/** Catalog hook config paths converted to OS-native relative paths. */
+const HOOK_CONFIG_PATHS = hookConfigPaths().map((entry) => ({
+    relativePath: join(...entry.relativePath.split("/")),
+    platform: entry.platform,
+}));
 
 /**
  * File system implementation of the hook config lint gateway.

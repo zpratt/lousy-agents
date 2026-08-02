@@ -5,6 +5,7 @@
 
 import { basename, join, relative, resolve, sep } from "node:path";
 import type { ParsedFrontmatter } from "../entities/skill.js";
+import { agentDirectoryRoots } from "../lib/agentic-location-matchers.js";
 import { parseFrontmatter } from "../lib/frontmatter.js";
 import type {
     AgentLintGateway,
@@ -19,13 +20,33 @@ import {
 /** Maximum agent file size: 1 MB */
 const MAX_AGENT_FILE_BYTES = 1_048_576;
 
+/** Catalog agent roots converted to OS-native relative paths. */
+const AGENT_DIRECTORIES = agentDirectoryRoots().map((root) =>
+    join(...root.split("/")),
+);
+
 /**
  * File system implementation of the agent lint gateway.
  */
 export class FileSystemAgentLintGateway implements AgentLintGateway {
     async discoverAgents(targetDir: string): Promise<DiscoveredAgentFile[]> {
-        const agentsDir = join(".github", "agents");
+        const agents: DiscoveredAgentFile[] = [];
 
+        for (const agentsDir of AGENT_DIRECTORIES) {
+            const discovered = await this.discoverAgentsInDir(
+                targetDir,
+                agentsDir,
+            );
+            agents.push(...discovered);
+        }
+
+        return agents;
+    }
+
+    private async discoverAgentsInDir(
+        targetDir: string,
+        agentsDir: string,
+    ): Promise<DiscoveredAgentFile[]> {
         try {
             if (!(await pathExistsWithinRoot(targetDir, agentsDir))) {
                 return [];
