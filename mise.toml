@@ -22,6 +22,15 @@ yamllint = "1.38.0"                # Created with `mise use --pin yamllint`
 "pipx:semgrep" = "1.163.0"
 devcontainer-cli = "0.87.0"
 "pipx:graphifyy" = "0.8.27"
+"github:lousy-agents/coach" = "0.2.1"
+
+[tasks.coach-baseline]
+description = "Run coach codesignal baseline scan (all tracked files at HEAD)"
+run = "coach codesignal --baseline"
+
+[tasks.coach-branch]
+description = "Run coach codesignal against changes on the current branch vs main"
+run = "coach codesignal --base main"
 
 [tasks.yamllint]
 description = "Running yamllint locally on all yaml files"
