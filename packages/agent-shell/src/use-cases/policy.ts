@@ -6,7 +6,7 @@ import { SHELL_METACHAR_PATTERN } from "../lib/sanitize.js";
 
 export interface PolicyDeps {
     realpath: (path: string) => Promise<string>;
-    readFile: (path: string, encoding: string) => Promise<string>;
+    readFile: (path: string, encoding: BufferEncoding) => Promise<string>;
     readFileWithinRoot?: (
         rootDir: string,
         relativePath: string,
