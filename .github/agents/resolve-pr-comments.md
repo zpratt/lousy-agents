@@ -60,9 +60,19 @@ owner="$(gh repo view --json owner -q .owner.login)" || { echo "ERROR: gh repo v
 repo="$(gh repo view --json name -q .name)" || { echo "ERROR: gh repo view failed" >&2; exit 1; }
 
 marker='<!-- pr-remediation-loop -->'
-# Find existing loop-state comment (if any)
-loop_comment_id="$(gh api "repos/$owner/$repo/issues/$pr_number/comments" --paginate \
-  --jq --arg m "$marker" '.[] | select(.body | contains($m)) | .id' | head -n1)"
+# Find existing loop-state comment (if any).
+# Note: gh --jq does NOT accept jq --arg flags; embed the fixed marker in the filter.
+# --paginate + --jq applies the filter per page and streams matching ids (one per line).
+loop_ids_file="$(mktemp)"
+if ! gh api --paginate "repos/$owner/$repo/issues/$pr_number/comments" \
+  --jq ".[] | select(.body | type == \"string\" and contains(\"${marker}\")) | .id" \
+  >"$loop_ids_file"; then
+  rm -f "$loop_ids_file"
+  echo "ERROR: failed to list PR issue comments for loop-state lookup." >&2
+  exit 1
+fi
+loop_comment_id="$(head -n1 "$loop_ids_file" | tr -d '[:space:]')"
+rm -f "$loop_ids_file"
 
 if [ -z "$loop_comment_id" ]; then
   body=$(cat <<EOF
@@ -79,23 +89,50 @@ Iterations (max 3):
 
 EOF
 )
-  loop_comment_id="$(gh api "repos/$owner/$repo/issues/$pr_number/comments" -f body="$body" --jq .id)"
+  if ! loop_comment_id="$(gh api "repos/$owner/$repo/issues/$pr_number/comments" -f body="$body" --jq .id)"; then
+    echo "ERROR: failed to create loop-state PR comment." >&2
+    exit 1
+  fi
+fi
+if ! [[ "$loop_comment_id" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: loop_comment_id is not a valid numeric ID (got: '$loop_comment_id')" >&2
+  exit 1
 fi
 ```
 
 At the start of each iteration, read the loop-state comment, count completed iterations, stop if the next would exceed 3, and mark the next iteration checkbox:
 
 ```bash
-body="$(gh api "repos/$owner/$repo/issues/comments/$loop_comment_id" --jq .body)"
+if ! body="$(gh api "repos/$owner/$repo/issues/comments/$loop_comment_id" --jq .body)"; then
+  echo "ERROR: failed to read loop-state comment $loop_comment_id" >&2
+  exit 1
+fi
+if [ -z "$body" ] || [ "$body" = "null" ]; then
+  echo "ERROR: loop-state comment body is empty." >&2
+  exit 1
+fi
 completed="$(printf '%s\n' "$body" | grep -c '^\- \[x\] iteration ' || true)"
 N=$((completed + 1))
 if [ "$N" -gt 3 ]; then
   echo "ERROR: 3-iteration limit reached. Escalating." >&2
   exit 1
 fi
-# Mark iteration N complete in the comment body (replace first matching unchecked box)
-updated="$(printf '%s\n' "$body" | sed "0,/^- \[ \] iteration $N/{s/^- \[ \] iteration $N/- [x] iteration $N/;}")"
-gh api "repos/$owner/$repo/issues/comments/$loop_comment_id" -X PATCH -f body="$updated" >/dev/null
+# Mark iteration N complete (portable awk — GNU sed 0,/re/ fails on macOS BSD sed)
+updated="$(printf '%s\n' "$body" | awk -v n="$N" '
+  !done && $0 ~ ("^- \\[ \\] iteration " n "( |$)") {
+    sub(/^- \[ \]/, "- [x]")
+    done = 1
+  }
+  { print }
+')"
+if [ "$updated" = "$body" ]; then
+  echo "ERROR: failed to mark iteration $N complete in loop-state comment (no matching unchecked box)." >&2
+  exit 1
+fi
+if ! gh api "repos/$owner/$repo/issues/comments/$loop_comment_id" -X PATCH -f body="$updated" >/dev/null; then
+  echo "ERROR: failed to PATCH loop-state comment $loop_comment_id" >&2
+  exit 1
+fi
 ```
 
 ### Step 1 — Triage

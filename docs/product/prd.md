@@ -1,6 +1,6 @@
 # Lousy Agents PRD — Harness Engineering Era (v1)
 
-> Internal product definition for the era in which **doctor** (#890) becomes the center of gravity: high-confidence harness configuration across homogeneous and heterogeneous agent setups. Implementation status claims follow the evidence hierarchy in [`harness-capability-matrix.md`](./harness-capability-matrix.md): only behavior locked by release notes and/or passing tests counts as **Shipped**.
+> Internal product definition for the era in which **doctor** (#890) becomes the center of gravity: high-confidence harness configuration across homogeneous and heterogeneous agent setups. Implementation status claims follow the evidence hierarchy in [`harness-capability-matrix.md`](./harness-capability-matrix.md): only behavior locked by release notes **and** passing tests counts as **Shipped**.
 
 ## 1. Product Purpose
 
@@ -14,7 +14,7 @@ Lousy Agents helps platform and harness engineers see what agentic configuration
 
 ## 2. One-Sentence Positioning
 
-A harness-engineering toolkit that inventories, lints, and diagnoses coding-agent configuration — so multi-harness repos get the same confidence single-harness lint never could.
+A harness-engineering toolkit that inventories, lints, and diagnoses coding-agent configuration — for single- or multi-harness repos, aimed at cross-harness confidence single-harness lint cannot provide.
 
 ## 3. Target User (this era)
 
@@ -71,7 +71,7 @@ This era’s wedge is deliberately narrow: **inventory → edges → archetypes 
 | `@lousy-agents/action` | GitHub Action + reviewdog for lint |
 | Docs under `docs/` | User-facing command docs; **this tree** for internal product contracts |
 
-**Doctor is the spine of this era** even if undocumented relative to `init`/`lint`: it is the only surface that treats multi-harness composition as a first-class problem (#890, shipped spine v5.16–5.17).
+**Doctor is the spine of this era** even if undocumented relative to `init`/`lint`: it is the only surface that treats multi-harness composition as a first-class problem (doctor spine v5.16–5.17 shipped; full #890 criteria/intent still **Partial** — see matrix).
 
 ### Era narrative (gravity)
 
@@ -114,8 +114,8 @@ Not abandoned — out of scope for this era’s success bar:
 | **GraphQL `init` kind** | README “Not Started”; no customer pull vs doctor spine |
 | **Full #890 intent write-back** and durable interactive intent authoring | Spine reads intent; complete write-back loop is a follow-on |
 | **Wisdom-gated evaluation** as a hard dependency | Wisdom client degrades gracefully today; gating eval on wisdom is not the v1 trust bar |
-| **Standalone doctor npm marketing / docs.modzed** until intentional | Package exists in-workspace (`@lousy-agents/agentic-doctor`); public docs and publish posture wait on intentional productization |
-| **Beads as product surface** | Internal task tracking for this repo’s agents — not a Lousy Agents end-user feature |
+| **Standalone doctor npm marketing / docs.modzed.io page** until intentional | Package exists in-workspace (`@lousy-agents/agentic-doctor`); public docs and publish posture wait on intentional productization |
+| **Beads as product surface** | Purged from this repo’s agent workflow (not productized). Durable tracking is GitHub epic → sub-issues → PR checklists — not a Lousy Agents end-user feature |
 
 ## 10. Non-Goals
 

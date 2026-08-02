@@ -185,7 +185,7 @@ Validation must be automated via GitHub Actions and runnable locally the same wa
 
 **🚫 Never do:**
 - Use beads/`bd` or a local issue database for task tracking
-- Track durable work only in ad-hoc markdown lists or inline comments (use GitHub issues/PR checklists)
+- Track durable work in ad-hoc markdown lists or inline comments alone (use GitHub issues/PR checklists)
 - Skip the TDD workflow
 - Store secrets in code (use environment variables)
 - Use Jest (use Vitest)

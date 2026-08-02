@@ -18,7 +18,7 @@ When a capability is harness-agnostic (e.g. published package surface), use the 
 
 | Status | Meaning |
 | --- | --- |
-| **Shipped** | Locked by release notes and/or passing tests; externally usable |
+| **Shipped** | Locked by release notes **and** passing tests; externally usable for that harness cell |
 | **Partial** | Inventory/lint only, incomplete surface, or thinner depth than Copilot baseline |
 | **Specified** | Spec / #890 acceptance criteria exist; not fully built |
 | **Planned** | Intended; no complete spec lock yet |
@@ -61,21 +61,21 @@ Legend abbreviations: **S** Shipped · **P** Partial · **Sp** Specified · **Pl
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | **Project scaffold** (`init` kinds) | S | — | — | — | — | — | — | — | G | webapp / api / cli shipped (README roadmap). Templates are Copilot-oriented. GraphQL init **Parked**. |
 | **Resource scaffold** (`new` agents/skills) | S | — | — | — | — | — | — | — | G | `new --copilot-agent`, `new skill` → `.github/agents/`, `.github/skills/` only. |
-| **Env/setup workflow** | S | S | — | — | — | — | — | — | G | `copilot-setup` CLI + rulesets. Claude Code web setup via MCP `create_claude_code_web_setup` (README ✅). |
+| **Env/setup workflow** | S | P | — | — | — | — | — | — | G | `copilot-setup` CLI + rulesets **Shipped**. Claude Code web setup is MCP-only (`create_claude_code_web_setup`); no `claude-setup` CLI peer → **Partial**. |
 | **Instruction roots** | S | S | P | P | P | P | P | S | G | Lint instruction discovery: Copilot paths, `CLAUDE.md`, `AGENTS.md`. Doctor footprints cover all roster harnesses for inventory. |
-| **Skill discovery/lint** | S | S | S | — | — | P | P | — | G | Lint: `.github/skills/` (baseline), `.claude/skills/` **v5.5**, `.agents/skills/` **v5.13**. Doctor types `.agents/skills/`, `.pi/skills/`, `.pi/prompts/` as skills when inventoried. |
+| **Skill discovery/lint** | S | S | S | — | — | — | P | — | G | Lint: `.github/skills/` (baseline), `.claude/skills/` **v5.5**, `.agents/skills/` **v5.13**. Doctor skill construct typing only for `.agents/skills/`, `.pi/skills/`, `.pi/prompts/` — **not** `.claude/skills` or `.github/skills`. crush lists `.agents/skills/` in conventions but does not own skill lint → **N/A**. |
 | **Agent/subagent discovery** | S | P | — | — | — | — | — | — | G | Lint agents: `.github/agents/` only. Doctor: `.claude/agents/` → `subagent`, `.claude/commands/` → `agent` (inventory, not frontmatter lint parity). |
 | **Hook lint** | S | S | — | — | — | — | — | — | G | Copilot `.github/hooks/agent-shell/hooks.json`; Claude `.claude/settings.json` (+ local). Unified lint **v5.7** era; baseline unified diagnostics **v2.9**. |
 | **Instruction quality lint** | S | S | P | — | — | — | — | P | G | Formats in `docs/lint.md`: Copilot instructions/agents, `CLAUDE.md`, `AGENTS.md`. Quality dimensions: structural context, execution clarity, loop completeness. |
-| **Doctor inventory + edges** | S | S | S | P | S | S | S | S | G | `@lousy-agents/agentic-doctor` + CLI `doctor` **v5.16**; JSON inventory + typed edges **v5.17**. Edges: hard-import / soft-reference / glob-binding per footprint. antigravity `needs-verification`. |
+| **Doctor inventory + edges** | P | P | S | P | P | P | P | S | G | CLI `doctor` **v5.16** + JSON inventory/edges **v5.17** shipped as spine. **Partial** where footprint is thin or construct typing holes exist: copilot indicators are instructions-only (`.github/{skills,agents,hooks}` not inventoried); `.claude/skills` typed as **instruction** not `skill`; hermes/crush/pi are footprint + soft edges without deep product surface. antigravity `needs-verification`. |
 | **Doctor archetypes + criteria** | S | S | P | P | P | P | P | S | G | Archetypes: pure, intentional-hybrid, canonical-contract, accidental-sprawl, none, ambiguous. Seed criteria skew Copilot/Claude/Codex missing-required + cross-harness drift advisories. |
-| **MCP server inventory** | S | S | Sp | — | — | — | — | S | G | JSON `mcpServers` from `.mcp.json` (shared) and `.vscode/mcp.json` (copilot). Codex `[mcp_servers.*]` TOML **deferred** (spec open question). |
+| **MCP server inventory** | S | — | Sp | — | — | — | — | S | G | JSON `mcpServers` only: `.mcp.json` → **shared** (Claude + Copilot readers; not a claude-attributed source), `.vscode/mcp.json` → **copilot**. Codex `[mcp_servers.*]` TOML **Specified**/deferred. Aligns with PRD MCP **Partial** summary. |
 | **Declared intent** (`.agentic-doctor/intent.json`) | P | P | P | P | P | P | P | P | G | Read + evaluate against criteria **Partial**. Full #890 intent write-back, wisdom-gated eval, durable elicitation **Specified / Parked** (see PRD). |
 | **Lessons inject/capture** | — | S | — | — | — | — | — | — | G | Claude Code hooks + `.lousy-agents/lessons/` **v5.14** (`init-hooks`, `lint lessons`). |
-| **agent-shell telemetry/policy** | S | S | — | — | — | — | — | — | G | Package **v4.0** (telemetry/policy); preToolUse policy **v5.6**; flight recorder / init **v5.9**. Hook lint paths cover Copilot + Claude wiring. |
+| **agent-shell telemetry/policy** | S | P | — | — | — | — | — | — | G | Package **v4.0** / policy **v5.6** / init **v5.9**. Writes Copilot hooks under `.github/hooks/agent-shell/*` only. Claude may appear as a **telemetry actor**; not a Claude hook/policy product. Hook lint ≠ agent-shell support. |
 | **MCP tools package** | S | S | — | — | — | — | — | S | G | `@lousy-agents/mcp` published; tools are client-agnostic; deepest integration docs target VS Code / Copilot / Claude Code web. |
 | **Lint API / `lintContent`** | S* | S* | S* | — | — | — | — | — | G | `runLint` **Shipped** (`@lousy-agents/lint`). `lintContent` string API **Specified** (`.github/specs/lint-string-input.spec.md`); not a full shipped export path yet. \*per discovered paths above. |
-| **GitHub Action + reviewdog** | S | S | S | — | — | — | — | — | G | `action.yml` / `@lousy-agents/action` — skills/agents/hooks/instructions via reviewdog reporters. Skill inputs document `.github` + `.claude` paths. |
+| **GitHub Action + reviewdog** | S | S | P | — | — | — | — | — | G | `action.yml` / `@lousy-agents/action` — skills/agents/hooks/instructions via reviewdog. Agents lint path is `.github/agents/` only; Codex value is mainly `.agents/skills` + `AGENTS.md` → **Partial** for codex. |
 | **Fleet/CI doctor JSON** | P | P | P | P | P | P | P | P | G | `doctor --format json` + `--ci` + `--summary` exist (v5.16–5.17). Fleet aggregation productization and intentional public doctor docs **not** shipped. |
 
 ---
