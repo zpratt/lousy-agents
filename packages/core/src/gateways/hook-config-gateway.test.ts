@@ -1,9 +1,10 @@
 // biome-ignore-all lint/style/useNamingConvention: Claude Code API uses PascalCase hook event names (PreToolUse)
 import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { hookConfigPaths } from "../lib/agentic-location-matchers.js";
 import { FileSystemHookConfigGateway } from "./hook-config-gateway.js";
 
 const chance = new Chance();
@@ -220,6 +221,56 @@ describe("FileSystemHookConfigGateway", () => {
 
                 // Assert
                 expect(result).toEqual([]);
+            });
+        });
+
+        describe("given hook sections at every catalog hook path", () => {
+            it("should discover files from all hookConfigPaths()", async () => {
+                // Arrange
+                const catalogPaths = hookConfigPaths();
+                for (const entry of catalogPaths) {
+                    const relativePath = join(...entry.relativePath.split("/"));
+                    const absolutePath = join(testDir, relativePath);
+                    await mkdir(dirname(absolutePath), { recursive: true });
+                    const body =
+                        entry.platform === "copilot"
+                            ? JSON.stringify({
+                                  version: 1,
+                                  hooks: {
+                                      preToolUse: [
+                                          {
+                                              type: "command",
+                                              bash: "./check.sh",
+                                          },
+                                      ],
+                                  },
+                              })
+                            : JSON.stringify({
+                                  hooks: {
+                                      PreToolUse: [
+                                          {
+                                              hooks: [
+                                                  {
+                                                      type: "command",
+                                                      command: "./check.sh",
+                                                  },
+                                              ],
+                                          },
+                                      ],
+                                  },
+                              });
+                    await writeFile(absolutePath, body);
+                }
+
+                // Act
+                const result = await gateway.discoverHookFiles(testDir);
+
+                // Assert
+                expect(result).toHaveLength(catalogPaths.length);
+                const platforms = result.map((f) => f.platform).sort();
+                expect(platforms).toEqual(
+                    [...catalogPaths.map((p) => p.platform)].sort(),
+                );
             });
         });
     });

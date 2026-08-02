@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { skillDirectoryRoots } from "../lib/agentic-location-matchers.js";
 import { FileSystemSkillLintGateway } from "./skill-lint-gateway.js";
 
 const chance = new Chance();
@@ -273,6 +274,35 @@ describe("SkillLintGateway", () => {
                 expect(result).toHaveLength(3);
                 const names = result.map((s) => s.skillName).sort();
                 expect(names).toEqual([agentsSkill, claudeSkill, copilotSkill]);
+            });
+        });
+
+        describe("given skills under every catalog skill root", () => {
+            it("should discover SKILL.md from all skillDirectoryRoots()", async () => {
+                // Arrange — one skill per catalog root
+                const expectedNames: string[] = [];
+                for (const [index, root] of skillDirectoryRoots().entries()) {
+                    const skillName = `catalog-skill-${index}`;
+                    expectedNames.push(skillName);
+                    const skillDir = join(
+                        testDir,
+                        ...root.split("/"),
+                        skillName,
+                    );
+                    await mkdir(skillDir, { recursive: true });
+                    await writeFile(
+                        join(skillDir, "SKILL.md"),
+                        `---\nname: ${skillName}\n---\n`,
+                    );
+                }
+
+                // Act
+                const result = await gateway.discoverSkills(testDir);
+
+                // Assert
+                expect(result).toHaveLength(expectedNames.length);
+                const names = result.map((s) => s.skillName).sort();
+                expect(names).toEqual([...expectedNames].sort());
             });
         });
 

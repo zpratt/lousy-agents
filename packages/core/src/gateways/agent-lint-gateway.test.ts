@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { agentDirectoryRoots } from "../lib/agentic-location-matchers.js";
 import { FileSystemAgentLintGateway } from "./agent-lint-gateway.js";
 
 const chance = new Chance();
@@ -149,6 +150,31 @@ describe("FileSystemAgentLintGateway", () => {
                 // Assert
                 expect(agents).toHaveLength(1);
                 expect(agents[0].agentName).toBe("security");
+            });
+        });
+
+        describe("when agents exist under every catalog agent root", () => {
+            it("should discover markdown from all agentDirectoryRoots()", async () => {
+                // Arrange
+                const expectedNames: string[] = [];
+                for (const [index, root] of agentDirectoryRoots().entries()) {
+                    const agentName = `catalog-agent-${index}`;
+                    expectedNames.push(agentName);
+                    const agentsDir = join(testDir, ...root.split("/"));
+                    await mkdir(agentsDir, { recursive: true });
+                    await writeFile(
+                        join(agentsDir, `${agentName}.md`),
+                        `---\nname: ${agentName}\ndescription: test\n---\n`,
+                    );
+                }
+
+                // Act
+                const agents = await gateway.discoverAgents(testDir);
+
+                // Assert
+                expect(agents).toHaveLength(expectedNames.length);
+                const names = agents.map((a) => a.agentName).sort();
+                expect(names).toEqual([...expectedNames].sort());
             });
         });
     });

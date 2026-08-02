@@ -1,3 +1,5 @@
+import type { AgenticConstructType } from "@lousy-agents/core/entities/agentic-location-catalog.js";
+
 export type HarnessName =
     | "claude"
     | "copilot"
@@ -8,14 +10,7 @@ export type HarnessName =
     | "pi"
     | "shared";
 
-export type ConstructType =
-    | "instruction"
-    | "skill"
-    | "agent"
-    | "subagent"
-    | "mcp-server"
-    | "plugin"
-    | "hook";
+export type ConstructType = AgenticConstructType;
 
 export type EdgeType = "hard-import" | "soft-reference" | "glob-binding";
 

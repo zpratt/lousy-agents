@@ -5,7 +5,7 @@ Validates agent skills, custom agents, hook configurations, and instruction file
 ## Features
 
 - **Unified Linting**: Lint skills, agents, hook configurations, and instruction files through a single command
-- **Automatic Discovery**: Finds targets across `.github/skills/`, `.claude/skills/`, `.agents/skills/`, `.github/agents/`, `.github/hooks/agent-shell/`, `.claude/`, and instruction file locations
+- **Automatic Discovery**: Finds targets from the canonical agentic location catalog in `@lousy-agents/core` (see [Discovery locations](#discovery-locations))
 - **Frontmatter Validation**: Checks for required fields and validates their format
 - **Hook Configuration Validation**: Validates JSON hook config files for Copilot and Claude Code against expected schemas
 - **Instruction Quality Analysis**: Scores feedback loop documentation across three dimensions (structural context, execution clarity, loop completeness)
@@ -13,6 +13,27 @@ Validates agent skills, custom agents, hook configurations, and instruction file
 - **Multiple Output Formats**: Human-readable (default), JSON, and reviewdog-compatible JSON Lines
 - **Configurable Rules**: Customize rule severity per-project via `lousy-agents.config.ts`
 - **Exit Codes**: Returns non-zero exit code when errors are found, enabling CI integration
+
+## Discovery locations
+
+Lint validates four targets only. Paths come from the shared agentic location catalog in `@lousy-agents/core` (also used by `doctor`).
+
+| Target | Discovered paths |
+| ------ | ---------------- |
+| **Skills** | `.github/skills/*/SKILL.md`, `.claude/skills/*/SKILL.md`, `.agents/skills/*/SKILL.md` (one level of skill directories). Skills listed in root `skills-lock.json` are omitted from lint. |
+| **Agents** | `.github/agents/**/*.md` (markdown agent definitions) |
+| **Hooks** | `.github/hooks/agent-shell/hooks.json` (Copilot); `.claude/settings.json`, `.claude/settings.local.json` (Claude). Only files whose content includes a `preToolUse` / `PreToolUse` marker are discovered. Symlinks are skipped. |
+| **Instructions** | `.github/copilot-instructions.md`, `.github/instructions/*.md`, `.github/agents/*.md` (dual-use with agent lint), root `AGENTS.md`, root `CLAUDE.md` |
+
+### Lint vs doctor
+
+Lint and doctor share the same catalog. Lint validates the four targets above. Doctor may inventory additional constructs the linter does not validate (MCP servers, plugins, subagents, multi-harness trees, and other catalog entries with no lint target).
+
+Intentional policy differences (not catalog drift):
+
+- **skills-lock.json** — lint-only filter for locked third-party skills
+- **Hook content heuristic** — lint only discovers hook configs that contain `preToolUse` / `PreToolUse`
+- **Symlinks** — lint skips symlinked targets; doctor follows in-repo symlinks when inventorying
 
 ## Configuration
 
@@ -120,7 +141,9 @@ npx @lousy-agents/cli lint
 
 ## Skill Linting (`--skills`)
 
-Validates YAML frontmatter in `.github/skills/*/SKILL.md`, `.claude/skills/*/SKILL.md`, and `.agents/skills/*/SKILL.md` files.
+Validates YAML frontmatter in `.github/skills/*/SKILL.md`, `.claude/skills/*/SKILL.md`, and `.agents/skills/*/SKILL.md` files (one directory level under each skills root).
+
+When a root `skills-lock.json` is present, skill names listed under its `skills` key are treated as locked third-party installs and are omitted from skill lint discovery. Malformed or missing lock files are ignored (no filtering).
 
 ### What It Validates
 
