@@ -43,6 +43,11 @@ const config: Configuration = {
         parser: {
             javascript: {
                 importMeta: false,
+                // @openclaw/fs-safe 0.5 loads bundled natives via
+                // new URL("../dist/native/", import.meta.url). Keep that as
+                // runtime code so the bundle does not need the multi-platform
+                // .node matrix (JS fallback is used).
+                url: false,
             },
         },
         rules: [
