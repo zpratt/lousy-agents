@@ -40,7 +40,7 @@
         "zod": "4.4.3"
     },
     "devDependencies": {
-        "@octokit/types": "16.0.0",
+        "@octokit/types": "17.0.0",
         "@types/mdast": "4.0.4",
         "@types/picomatch": "4.0.3"
     }
