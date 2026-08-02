@@ -2,6 +2,14 @@
  * Entities - Core domain types and interfaces
  */
 export type {
+    AgenticConstructType,
+    AgenticHarnessHint,
+    AgenticLocationEntry,
+    CatalogMatchKind,
+    LintDiscoveryTarget,
+} from "./agentic-location-catalog.js";
+export { AGENTIC_LOCATION_CATALOG } from "./agentic-location-catalog.js";
+export type {
     ClaudeEnvironmentRecommendation,
     ClaudeSettings,
     ClaudeSetupAction,
