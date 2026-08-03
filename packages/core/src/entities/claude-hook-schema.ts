@@ -135,7 +135,10 @@ export const ClaudeHookHandlerSchema = z.discriminatedUnion("type", [
 export const ClaudeHookEntrySchema = z
     .object({
         matcher: z.string().optional(),
-        hooks: z.array(ClaudeHookHandlerSchema).max(MAX_HOOKS_PER_ENTRY),
+        hooks: z
+            .array(ClaudeHookHandlerSchema)
+            .min(1, "Hook entry must include at least one handler")
+            .max(MAX_HOOKS_PER_ENTRY),
     })
     .strict();
 

@@ -1037,5 +1037,74 @@ describe("LintHookConfigUseCase", () => {
             );
             expect(preToolUseError).toBeUndefined();
         });
+
+        it("should name only the specific key in each unrecognized-keys diagnostic", async () => {
+            // Arrange — two stray fields on one handler expand into two
+            // diagnostics; each message must name only its own key
+            const config = {
+                hooks: {
+                    PreToolUse: [
+                        {
+                            matcher: "Bash",
+                            hooks: [
+                                {
+                                    type: "command",
+                                    command: "/path/to/guard.sh",
+                                    strayAlpha: true,
+                                    strayBeta: true,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            };
+
+            // Act
+            const result = await lintClaudeConfig(config);
+
+            // Assert
+            const invalidConfig = result.results[0]?.diagnostics.filter(
+                (d) => d.ruleId === "hook/invalid-config",
+            );
+            expect(invalidConfig).toHaveLength(2);
+
+            const alpha = invalidConfig?.find((d) =>
+                d.field?.endsWith("strayAlpha"),
+            );
+            const beta = invalidConfig?.find((d) =>
+                d.field?.endsWith("strayBeta"),
+            );
+            expect(alpha?.message).toContain("strayAlpha");
+            expect(alpha?.message).not.toContain("strayBeta");
+            expect(beta?.message).toContain("strayBeta");
+            expect(beta?.message).not.toContain("strayAlpha");
+        });
+
+        it("should reject a hook entry whose handler array is empty", async () => {
+            // Arrange — an entry with no handlers is a no-op that silently
+            // does nothing; lint should surface it
+            const config = {
+                hooks: {
+                    PreToolUse: [
+                        {
+                            matcher: "Bash",
+                            hooks: [],
+                        },
+                    ],
+                },
+            };
+
+            // Act
+            const result = await lintClaudeConfig(config);
+
+            // Assert
+            const emptyHandlers = result.results[0]?.diagnostics.find(
+                (d) =>
+                    d.severity === "error" &&
+                    d.field?.includes("hooks.PreToolUse"),
+            );
+            expect(emptyHandlers).toBeDefined();
+            expect(result.totalErrors).toBeGreaterThan(0);
+        });
     });
 });

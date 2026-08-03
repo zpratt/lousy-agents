@@ -28,7 +28,9 @@ const HOOK_CONFIG_PATHS = hookConfigPaths().map((entry) => ({
  * Structural check for a `hooks` object on a parsed settings file.
  *
  * Uses `Object.hasOwn` so a `hooks` key inherited from the prototype chain
- * cannot make an unrelated file look like a hook config.
+ * cannot make an unrelated file look like a hook config. Arrays are rejected
+ * even though `typeof [] === "object"`, because a hooks section is keyed by
+ * event name.
  */
 function hasHooksSection(parsed: unknown): boolean {
     if (
@@ -45,7 +47,7 @@ function hasHooksSection(parsed: unknown): boolean {
 
     const hooks = (parsed as { hooks: unknown }).hooks;
 
-    return hooks !== null && typeof hooks === "object";
+    return hooks !== null && typeof hooks === "object" && !Array.isArray(hooks);
 }
 
 /**

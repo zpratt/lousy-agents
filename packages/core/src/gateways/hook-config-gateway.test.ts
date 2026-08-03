@@ -192,6 +192,25 @@ describe("FileSystemHookConfigGateway", () => {
                 expect(result).toEqual([]);
             });
         });
+
+        describe("given a claude settings.json whose hooks value is an array", () => {
+            it("should not discover the file", async () => {
+                // Arrange — hooks must be an object keyed by event name;
+                // an array is not a hooks section
+                const claudeDir = join(testDir, ".claude");
+                await mkdir(claudeDir, { recursive: true });
+                await writeFile(
+                    join(claudeDir, "settings.json"),
+                    JSON.stringify({ hooks: [] }),
+                );
+
+                // Act
+                const result = await gateway.discoverHookFiles(testDir);
+
+                // Assert
+                expect(result).toEqual([]);
+            });
+        });
         describe("given a symbolic link at a known hook path", () => {
             it("should not discover the symlinked file", async () => {
                 // Arrange

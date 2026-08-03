@@ -45,7 +45,7 @@ function toClaudeDiagnostics(issue: core.$ZodIssue): HookLintDiagnostic[] {
             severity: "error" as const,
             message: isEventName
                 ? `Unknown hook event '${key}'. A misspelled event never fires. Valid events: ${CLAUDE_HOOK_EVENTS.join(", ")}`
-                : issue.message,
+                : `Unrecognized key: "${key}"`,
             field: [...issue.path, key].join("."),
             ruleId: isEventName ? "hook/unknown-event" : "hook/invalid-config",
         }));
