@@ -55,6 +55,7 @@ export const DEFAULT_LINT_RULES: LintRulesConfig = {
         "hook/invalid-json": "error",
         "hook/invalid-config": "error",
         "hook/missing-command": "error",
+        "hook/unknown-event": "error",
         "hook/missing-matcher": "warn",
         "hook/missing-timeout": "warn",
     },

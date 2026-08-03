@@ -192,6 +192,25 @@ describe("FileSystemHookConfigGateway", () => {
                 expect(result).toEqual([]);
             });
         });
+
+        describe("given a claude settings.json whose hooks value is an array", () => {
+            it("should not discover the file", async () => {
+                // Arrange — hooks must be an object keyed by event name;
+                // an array is not a hooks section
+                const claudeDir = join(testDir, ".claude");
+                await mkdir(claudeDir, { recursive: true });
+                await writeFile(
+                    join(claudeDir, "settings.json"),
+                    JSON.stringify({ hooks: [] }),
+                );
+
+                // Act
+                const result = await gateway.discoverHookFiles(testDir);
+
+                // Assert
+                expect(result).toEqual([]);
+            });
+        });
         describe("given a symbolic link at a known hook path", () => {
             it("should not discover the symlinked file", async () => {
                 // Arrange
@@ -271,6 +290,46 @@ describe("FileSystemHookConfigGateway", () => {
                 expect(platforms).toEqual(
                     [...catalogPaths.map((p) => p.platform)].sort(),
                 );
+            });
+        });
+
+        /*
+         * Regression spec for https://github.com/zpratt/lousy-agents/issues/1035.
+         *
+         * Discovery previously gated on the literal `"PreToolUse":` key, so a
+         * settings file using any of the other 30 documented hook events was
+         * never discovered and therefore never linted.
+         */
+        describe("given a claude settings.json whose only hook event is SessionStart", () => {
+            it("should discover the file", async () => {
+                // Arrange — mirrors this repository's own .claude/settings.json
+                const claudeDir = join(testDir, ".claude");
+                await mkdir(claudeDir, { recursive: true });
+                await writeFile(
+                    join(claudeDir, "settings.json"),
+                    JSON.stringify({
+                        hooks: {
+                            SessionStart: [
+                                {
+                                    matcher: "startup|resume",
+                                    hooks: [
+                                        {
+                                            type: "command",
+                                            command: "./setup.sh",
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    }),
+                );
+
+                // Act
+                const result = await gateway.discoverHookFiles(testDir);
+
+                // Assert
+                expect(result).toHaveLength(1);
+                expect(result[0]?.platform).toBe("claude");
             });
         });
     });

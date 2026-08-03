@@ -31,6 +31,7 @@ describe("Lint rule registry", () => {
                 "hook/invalid-json",
                 "hook/invalid-config",
                 "hook/missing-command",
+                "hook/unknown-event",
                 "hook/missing-matcher",
                 "hook/missing-timeout",
             ];

@@ -802,4 +802,309 @@ describe("LintHookConfigUseCase", () => {
             expect(result.totalErrors).toBe(0);
         });
     });
+
+    /*
+     * Regression specs for https://github.com/zpratt/lousy-agents/issues/1035.
+     *
+     * The Claude hook schema previously modelled a small slice of the
+     * documented hook format (https://code.claude.com/docs/en/hooks): one of
+     * 31 events, one of 5 handler types, and two of the handler fields. That
+     * both rejected valid configs and let broken ones through unexamined.
+     */
+    describe("given the documented claude code hook format (issue #1035)", () => {
+        async function lintClaudeConfig(config: unknown) {
+            const discovered: DiscoveredHookFile[] = [
+                { filePath: "/repo/.claude/settings.json", platform: "claude" },
+            ];
+            const gateway = createMockGateway({
+                discoverHookFiles: vi.fn().mockResolvedValue(discovered),
+                readFileContent: vi
+                    .fn()
+                    .mockResolvedValue(JSON.stringify(config)),
+            });
+
+            return new LintHookConfigUseCase(gateway).execute({
+                targetDir: chance.word(),
+            });
+        }
+
+        it("should accept a command handler carrying the documented optional fields", async () => {
+            // Arrange
+            const config = {
+                hooks: {
+                    PreToolUse: [
+                        {
+                            matcher: "Bash",
+                            hooks: [
+                                {
+                                    type: "command",
+                                    command: "/path/to/guard.sh",
+                                    timeout: 30,
+                                    statusMessage: "Validating command...",
+                                    args: ["--strict"],
+                                    shell: "bash",
+                                    async: false,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            };
+
+            // Act
+            const result = await lintClaudeConfig(config);
+
+            // Assert
+            expect(result.results[0]?.diagnostics).toEqual([]);
+            expect(result.totalErrors).toBe(0);
+        });
+
+        it("should accept the non-command handler types documented for claude code", async () => {
+            // Arrange
+            const config = {
+                hooks: {
+                    PreToolUse: [
+                        {
+                            matcher: "Bash",
+                            hooks: [
+                                {
+                                    type: "http",
+                                    url: "http://localhost:8080/pre-tool-use",
+                                },
+                            ],
+                        },
+                        {
+                            matcher: "Write|Edit",
+                            hooks: [
+                                {
+                                    type: "mcp_tool",
+                                    server: "my_server",
+                                    tool: "security_scan",
+                                },
+                            ],
+                        },
+                        {
+                            matcher: "*",
+                            hooks: [
+                                {
+                                    type: "prompt",
+                                    prompt: "Should this be allowed? $ARGUMENTS",
+                                },
+                            ],
+                        },
+                        {
+                            matcher: "Bash",
+                            hooks: [
+                                {
+                                    type: "agent",
+                                    prompt: "Validate this command: $ARGUMENTS",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            };
+
+            // Act
+            const result = await lintClaudeConfig(config);
+
+            // Assert
+            expect(result.results[0]?.diagnostics).toEqual([]);
+            expect(result.totalErrors).toBe(0);
+        });
+
+        it("should not report hook/missing-command for a handler type that takes no command", async () => {
+            // Arrange
+            const config = {
+                hooks: {
+                    PreToolUse: [
+                        {
+                            matcher: "Bash",
+                            hooks: [
+                                {
+                                    type: "http",
+                                    url: "http://localhost:8080/pre-tool-use",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            };
+
+            // Act
+            const result = await lintClaudeConfig(config);
+
+            // Assert
+            const missingCommand = result.results[0]?.diagnostics.filter(
+                (d) => d.ruleId === "hook/missing-command",
+            );
+            expect(missingCommand).toEqual([]);
+        });
+
+        it("should report an empty command in an event other than PreToolUse", async () => {
+            // Arrange — the same defect the linter already catches under
+            // PreToolUse, moved to SessionStart
+            const config = {
+                hooks: {
+                    PreToolUse: [
+                        {
+                            matcher: "Bash",
+                            hooks: [
+                                {
+                                    type: "command",
+                                    command: "/path/to/guard.sh",
+                                },
+                            ],
+                        },
+                    ],
+                    SessionStart: [
+                        { hooks: [{ type: "command", command: "" }] },
+                    ],
+                },
+            };
+
+            // Act
+            const result = await lintClaudeConfig(config);
+
+            // Assert
+            const emptyCommand = result.results[0]?.diagnostics.find(
+                (d) => d.ruleId === "hook/missing-command",
+            );
+            expect(emptyCommand).toBeDefined();
+            expect(emptyCommand?.severity).toBe("error");
+        });
+
+        it("should report a misspelled hook event name as an error", async () => {
+            // Arrange — `PostToolsUse` is not a claude code event, so the
+            // hook silently never fires
+            const config = {
+                hooks: {
+                    PreToolUse: [
+                        {
+                            matcher: "Bash",
+                            hooks: [
+                                {
+                                    type: "command",
+                                    command: "/path/to/guard.sh",
+                                },
+                            ],
+                        },
+                    ],
+                    PostToolsUse: [
+                        {
+                            hooks: [
+                                {
+                                    type: "command",
+                                    command: "/path/to/lint.sh",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            };
+
+            // Act
+            const result = await lintClaudeConfig(config);
+
+            // Assert
+            const unknownEvent = result.results[0]?.diagnostics.find((d) =>
+                d.field?.includes("PostToolsUse"),
+            );
+            expect(unknownEvent).toBeDefined();
+            expect(unknownEvent?.severity).toBe("error");
+        });
+
+        it("should lint a settings file whose only hook event is SessionStart", async () => {
+            // Arrange — mirrors this repository's own .claude/settings.json
+            const config = {
+                hooks: {
+                    SessionStart: [
+                        {
+                            matcher: "startup|resume",
+                            hooks: [{ type: "command", command: "" }],
+                        },
+                    ],
+                },
+            };
+
+            // Act
+            const result = await lintClaudeConfig(config);
+
+            // Assert — a required-PreToolUse error is the current (wrong)
+            // behaviour; the empty command is the defect worth reporting
+            const preToolUseError = result.results[0]?.diagnostics.find(
+                (d) => d.field === "hooks.PreToolUse",
+            );
+            expect(preToolUseError).toBeUndefined();
+        });
+
+        it("should name only the specific key in each unrecognized-keys diagnostic", async () => {
+            // Arrange — two stray fields on one handler expand into two
+            // diagnostics; each message must name only its own key
+            const config = {
+                hooks: {
+                    PreToolUse: [
+                        {
+                            matcher: "Bash",
+                            hooks: [
+                                {
+                                    type: "command",
+                                    command: "/path/to/guard.sh",
+                                    strayAlpha: true,
+                                    strayBeta: true,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            };
+
+            // Act
+            const result = await lintClaudeConfig(config);
+
+            // Assert
+            const invalidConfig = result.results[0]?.diagnostics.filter(
+                (d) => d.ruleId === "hook/invalid-config",
+            );
+            expect(invalidConfig).toHaveLength(2);
+
+            const alpha = invalidConfig?.find((d) =>
+                d.field?.endsWith("strayAlpha"),
+            );
+            const beta = invalidConfig?.find((d) =>
+                d.field?.endsWith("strayBeta"),
+            );
+            expect(alpha?.message).toContain("strayAlpha");
+            expect(alpha?.message).not.toContain("strayBeta");
+            expect(beta?.message).toContain("strayBeta");
+            expect(beta?.message).not.toContain("strayAlpha");
+        });
+
+        it("should reject a hook entry whose handler array is empty", async () => {
+            // Arrange — an entry with no handlers is a no-op that silently
+            // does nothing; lint should surface it
+            const config = {
+                hooks: {
+                    PreToolUse: [
+                        {
+                            matcher: "Bash",
+                            hooks: [],
+                        },
+                    ],
+                },
+            };
+
+            // Act
+            const result = await lintClaudeConfig(config);
+
+            // Assert
+            const emptyHandlers = result.results[0]?.diagnostics.find(
+                (d) =>
+                    d.severity === "error" &&
+                    d.field?.includes("hooks.PreToolUse"),
+            );
+            expect(emptyHandlers).toBeDefined();
+            expect(result.totalErrors).toBeGreaterThan(0);
+        });
+    });
 });

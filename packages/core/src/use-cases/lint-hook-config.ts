@@ -1,10 +1,15 @@
-// biome-ignore-all lint/style/useNamingConvention: Claude Code API uses PascalCase hook event names (PreToolUse)
 /**
- * Use case for linting pre-tool-use hook configurations.
+ * Use case for linting hook configurations.
  * Validates GitHub Copilot and Claude Code hook config files.
  */
 
-import { z } from "zod";
+import type { core } from "zod";
+import {
+    CLAUDE_HOOK_EVENTS,
+    type ClaudeHookEntry,
+    ClaudeHooksConfigSchema,
+    MATCHER_SUPPORTING_EVENTS,
+} from "../entities/claude-hook-schema.js";
 import { CopilotHooksConfigSchema } from "../entities/copilot-hook-schema.js";
 import type {
     DiscoveredHookFile,
@@ -12,42 +17,91 @@ import type {
     HookLintResult,
 } from "../entities/hook.js";
 
-export { CopilotHooksConfigSchema };
+export { ClaudeHooksConfigSchema, CopilotHooksConfigSchema };
 
 const INVALID_JSON_MESSAGE_PREFIX = "Invalid JSON in hook configuration file";
 
-/**
- * Zod schema for a single Claude Code hook command entry.
- */
-const ClaudeHookCommandSchema = z
-    .object({
-        type: z.literal("command"),
-        command: z.string().min(1, "Hook command must not be empty"),
-    })
-    .strict();
+/** Joins a Zod issue path into the dotted `field` shown on a diagnostic. */
+function toFieldPath(path: PropertyKey[]): string | undefined {
+    return path.length > 0 ? path.join(".") : undefined;
+}
 
 /**
- * Zod schema for a single Claude Code PreToolUse hook entry.
+ * Expands a single Zod issue into diagnostics.
+ *
+ * `unrecognized_keys` issues carry every offending key on one issue whose path
+ * points at the *containing* object, so they are expanded into one diagnostic
+ * per key. A stray key directly under `hooks` is a misspelled event name —
+ * the most valuable defect this linter can catch, since Claude Code silently
+ * never fires such a hook.
  */
-const ClaudePreToolUseEntrySchema = z
-    .object({
-        matcher: z.string().optional(),
-        hooks: z.array(ClaudeHookCommandSchema).min(1),
-    })
-    .strict();
+function toClaudeDiagnostics(issue: core.$ZodIssue): HookLintDiagnostic[] {
+    if (issue.code === "unrecognized_keys") {
+        const isEventName =
+            issue.path.length === 1 && issue.path[0] === "hooks";
+
+        return issue.keys.map((key) => ({
+            line: 1,
+            severity: "error" as const,
+            message: isEventName
+                ? `Unknown hook event '${key}'. A misspelled event never fires. Valid events: ${CLAUDE_HOOK_EVENTS.join(", ")}`
+                : `Unrecognized key: "${key}"`,
+            field: [...issue.path, key].join("."),
+            ruleId: isEventName ? "hook/unknown-event" : "hook/invalid-config",
+        }));
+    }
+
+    const lastPathSegment = issue.path.at(-1);
+    const isMissingCommand =
+        lastPathSegment === "command" &&
+        (issue.code === "too_small" || issue.code === "invalid_type");
+
+    return [
+        {
+            line: 1,
+            severity: "error",
+            message: issue.message,
+            field: toFieldPath([...issue.path]),
+            ruleId: isMissingCommand
+                ? "hook/missing-command"
+                : "hook/invalid-config",
+        },
+    ];
+}
 
 /**
- * Zod schema for the Claude Code hooks section within settings.
+ * Warns when an entry omits `matcher` for an event that supports one.
+ *
+ * Events that accept no matcher (`Stop`, `UserPromptSubmit`, …) are skipped:
+ * an omitted matcher there is the only valid spelling, not an oversight.
  */
-export const ClaudeHooksConfigSchema = z
-    .object({
-        hooks: z
-            .object({
-                PreToolUse: z.array(ClaudePreToolUseEntrySchema).min(1),
-            })
-            .passthrough(),
-    })
-    .passthrough();
+function collectMissingMatcherWarnings(
+    hooks: Record<string, readonly ClaudeHookEntry[] | undefined>,
+): HookLintDiagnostic[] {
+    const diagnostics: HookLintDiagnostic[] = [];
+
+    for (const event of CLAUDE_HOOK_EVENTS) {
+        if (!MATCHER_SUPPORTING_EVENTS.has(event)) {
+            continue;
+        }
+
+        const entries = hooks[event] ?? [];
+
+        entries.forEach((entry, index) => {
+            if (entry.matcher === undefined) {
+                diagnostics.push({
+                    line: 1,
+                    severity: "warning",
+                    message: `Recommended field 'matcher' is missing from ${event} hook entry. Without a matcher, the hook runs for every occurrence.`,
+                    field: `hooks.${event}[${index}].matcher`,
+                    ruleId: "hook/missing-matcher",
+                });
+            }
+        });
+    }
+
+    return diagnostics;
+}
 
 /**
  * Port for hook config lint gateway operations.
@@ -228,51 +282,14 @@ export class LintHookConfigUseCase {
     }
 
     private validateClaudeConfig(parsed: unknown): HookLintDiagnostic[] {
-        const diagnostics: HookLintDiagnostic[] = [];
-
         const result = ClaudeHooksConfigSchema.safeParse(parsed);
 
         if (!result.success) {
-            for (const issue of result.error.issues) {
-                const lastPathSegment =
-                    issue.path.length > 0
-                        ? issue.path[issue.path.length - 1]
-                        : undefined;
-                const isMissingCommand =
-                    lastPathSegment === "command" &&
-                    (issue.code === "too_small" ||
-                        issue.code === "invalid_type");
-
-                diagnostics.push({
-                    line: 1,
-                    severity: "error",
-                    message: issue.message,
-                    field:
-                        issue.path.length > 0
-                            ? issue.path.join(".")
-                            : undefined,
-                    ruleId: isMissingCommand
-                        ? "hook/missing-command"
-                        : "hook/invalid-config",
-                });
-            }
-
-            return diagnostics;
+            return result.error.issues.flatMap((issue) =>
+                toClaudeDiagnostics(issue),
+            );
         }
 
-        for (const [index, entry] of result.data.hooks.PreToolUse.entries()) {
-            if (entry.matcher === undefined) {
-                diagnostics.push({
-                    line: 1,
-                    severity: "warning",
-                    message:
-                        "Recommended field 'matcher' is missing from PreToolUse hook entry. Without a matcher, the hook runs for all tools.",
-                    field: `hooks.PreToolUse[${index}].matcher`,
-                    ruleId: "hook/missing-matcher",
-                });
-            }
-        }
-
-        return diagnostics;
+        return collectMissingMatcherWarnings(result.data.hooks);
     }
 }

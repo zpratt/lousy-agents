@@ -15,14 +15,40 @@ const MAX_CONFIG_FILE_BYTES = 1_048_576;
 /** Matches the Copilot hook key `"preToolUse":` to detect hook section presence */
 const COPILOT_HOOK_PATTERN = /"preToolUse"\s*:/;
 
-/** Matches the Claude hook key `"PreToolUse":` to detect hook section presence */
-const CLAUDE_HOOK_PATTERN = /"PreToolUse"\s*:/;
+/** Matches the Claude hook key `"hooks":` to detect hook section presence */
+const CLAUDE_HOOK_PATTERN = /"hooks"\s*:/;
 
 /** Catalog hook config paths converted to OS-native relative paths. */
 const HOOK_CONFIG_PATHS = hookConfigPaths().map((entry) => ({
     relativePath: join(...entry.relativePath.split("/")),
     platform: entry.platform,
 }));
+
+/**
+ * Structural check for a `hooks` object on a parsed settings file.
+ *
+ * Uses `Object.hasOwn` so a `hooks` key inherited from the prototype chain
+ * cannot make an unrelated file look like a hook config. Arrays are rejected
+ * even though `typeof [] === "object"`, because a hooks section is keyed by
+ * event name.
+ */
+function hasHooksSection(parsed: unknown): boolean {
+    if (
+        parsed === null ||
+        typeof parsed !== "object" ||
+        Array.isArray(parsed)
+    ) {
+        return false;
+    }
+
+    if (!Object.hasOwn(parsed, "hooks")) {
+        return false;
+    }
+
+    const hooks = (parsed as { hooks: unknown }).hooks;
+
+    return hooks !== null && typeof hooks === "object" && !Array.isArray(hooks);
+}
 
 /**
  * File system implementation of the hook config lint gateway.
@@ -105,9 +131,13 @@ export class FileSystemHookConfigGateway implements HookConfigLintGateway {
     }
 
     /**
-     * Lightweight heuristic to check if a file may contain a pre-tool-use hooks section.
-     * Uses substring search rather than JSON.parse so that files with invalid JSON are
-     * still discovered and surfaced as `hook/invalid-json` diagnostics by the use case.
+     * Checks whether a file may contain a hooks section.
+     *
+     * Claude Code settings files carry much more than hooks, and the `hooks`
+     * key is generic enough to appear inside unrelated string values, so a
+     * parsed structural check is used when the JSON is well-formed. Malformed
+     * JSON falls back to a substring search so the file is still discovered
+     * and surfaced as a `hook/invalid-json` diagnostic by the use case.
      */
     private mayContainHookSection(
         content: string,
@@ -116,7 +146,15 @@ export class FileSystemHookConfigGateway implements HookConfigLintGateway {
         if (platform === "copilot") {
             return COPILOT_HOOK_PATTERN.test(content);
         }
-        return CLAUDE_HOOK_PATTERN.test(content);
+
+        let parsed: unknown;
+        try {
+            parsed = JSON.parse(content);
+        } catch {
+            return CLAUDE_HOOK_PATTERN.test(content);
+        }
+
+        return hasHooksSection(parsed);
     }
 }
 

@@ -23,7 +23,7 @@ Paths come from the shared agentic location catalog in `@lousy-agents/core` (als
 | **Skills** | Yes | `.github/skills/*/SKILL.md`, `.claude/skills/*/SKILL.md`, `.agents/skills/*/SKILL.md`, `.pi/skills/*/SKILL.md`, `.pi/prompts/*/SKILL.md` (one level of skill directories). Skills listed in root `skills-lock.json` are omitted from lint. |
 | **Agents** | Yes | `.github/agents/**/*.md` (markdown agent definitions) |
 | **Subagents** | No — flag-only | `.claude/agents/**/*.md` (Claude Code subagent definitions) |
-| **Hooks** | Yes | `.github/hooks/agent-shell/hooks.json` (Copilot); `.claude/settings.json`, `.claude/settings.local.json` (Claude). Only files whose content includes a `preToolUse` / `PreToolUse` marker are discovered. Symlinks are skipped. |
+| **Hooks** | Yes | `.github/hooks/agent-shell/hooks.json` (Copilot); `.claude/settings.json`, `.claude/settings.local.json` (Claude). Copilot files are discovered only when their content includes a `preToolUse` marker; Claude files are discovered whenever they declare a `hooks` object. Symlinks are skipped. |
 | **Instructions** | Yes | `.github/copilot-instructions.md`, `.github/instructions/*.md`, `.github/agents/*.md` (dual-use with agent lint), root `AGENTS.md`, root `CLAUDE.md` |
 | **MCP servers** | No — flag-only | `.mcp.json`, `.vscode/mcp.json` |
 
@@ -47,7 +47,7 @@ Lint and doctor share the same catalog. Doctor may inventory additional construc
 Intentional policy differences (not catalog drift):
 
 - **skills-lock.json** — lint-only filter for locked third-party skills
-- **Hook content heuristic** — lint only discovers hook configs that contain `preToolUse` / `PreToolUse`. This heuristic is kept (not relaxed) for now: hook config files without that marker remain undiscovered by lint even though doctor may inventory the containing directory.
+- **Hook content heuristic** — Copilot hook configs are only discovered when they contain `preToolUse`; a Copilot config without that marker remains undiscovered by lint even though doctor may inventory the containing directory. Claude settings files no longer use a per-event marker: they are discovered whenever they declare a `hooks` object.
 - **Symlinks** — lint skips symlinked targets; doctor follows in-repo symlinks when inventorying
 
 ## Configuration
@@ -385,7 +385,7 @@ Validates hook configuration files for GitHub Copilot and Claude Code. Catches J
 | `.claude/settings.json` | Claude Code |
 | `.claude/settings.local.json` | Claude Code (local override) |
 
-Discovery is heuristic-based: Copilot hook configs are only discovered if they contain the `"preToolUse"` key, and Claude settings files are only discovered if they contain the `"PreToolUse"` key. For example, a `.github/hooks/agent-shell/hooks.json` file that only defines `sessionStart` hooks (and no `preToolUse` hooks) will not be discovered or linted. Symlinks are skipped for security.
+Discovery differs by platform. Claude settings files are discovered when they contain a `hooks` object, regardless of which events it declares; when the JSON is malformed, a `"hooks":` substring match is used instead so the file is still reported as `hook/invalid-json`. Copilot hook configs remain heuristic-based: they are only discovered if they contain the `"preToolUse"` key, so a `.github/hooks/agent-shell/hooks.json` that only defines `sessionStart` hooks will not be discovered or linted. Symlinks are skipped for security.
 
 ### What It Validates
 
@@ -398,10 +398,10 @@ Discovery is heuristic-based: Copilot hook configs are only discovered if they c
 
 **Claude Code hooks** (`.claude/settings.json`, `.claude/settings.local.json`):
 
-- `hooks.PreToolUse` array with at least one entry
-- Each entry must have a `hooks` array with at least one command
-- Each command must have a non-empty `command` field
-- Recommends `matcher` field on each `PreToolUse` entry (without it, hooks run for all tools)
+- A `hooks` object whose keys are Claude Code hook event names. Every event is optional and any combination may be used; an unknown event name is an error, since a misspelled event silently never fires
+- Each entry must have a `hooks` array of handlers and may carry an optional `matcher`
+- Each handler is validated against its `type`: `command` (requires `command`), `http` (requires `url`), `mcp_tool` (requires `server` and `tool`), `prompt` and `agent` (require `prompt`). Shared optional fields (`timeout`, `statusMessage`, `if`, `once`) and type-specific ones (`args`, `shell`, `async`, `headers`, `model`, …) are accepted
+- Recommends `matcher` on entries for events that support one (without it, the hook runs for every occurrence). Events that accept no matcher — `Stop`, `UserPromptSubmit`, and others — are exempt
 
 ### Rule IDs
 
@@ -410,7 +410,8 @@ Discovery is heuristic-based: Copilot hook configs are only discovered if they c
 | `hook/invalid-json` | `error` | JSON parsing failed |
 | `hook/invalid-config` | `error` | Configuration structure does not match expected schema |
 | `hook/missing-command` | `error` | Hook command field missing or empty |
-| `hook/missing-matcher` | `warn` | Recommended `matcher` field missing from Claude `PreToolUse` entry |
+| `hook/unknown-event` | `error` | Unknown Claude hook event name — a misspelled event silently never fires |
+| `hook/missing-matcher` | `warn` | Recommended `matcher` field missing from a Claude hook entry whose event supports one |
 | `hook/missing-timeout` | `warn` | Recommended `timeoutSec` field missing from Copilot hook command |
 
 ### Examples
@@ -435,7 +436,7 @@ lint failed: 1 error(s), 0 warning(s)
 
 ```
 Discovered 1 hook config(s)
-⚠ .claude/settings.json:1 [hooks.PreToolUse[0].matcher]: Recommended field 'matcher' is missing from PreToolUse hook entry. Without a matcher, the hook runs for all tools.
+⚠ .claude/settings.json:1 [hooks.PreToolUse[0].matcher]: Recommended field 'matcher' is missing from PreToolUse hook entry. Without a matcher, the hook runs for every occurrence.
 Lint passed with 1 warning(s)
 ```
 
