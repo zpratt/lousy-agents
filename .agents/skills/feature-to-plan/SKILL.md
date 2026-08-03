@@ -55,7 +55,7 @@ Work in a read-only planning phase first. If the runtime provides a dedicated pl
 
 1. **Discover product and engineering context.** Read whatever conventional files the repo provides — for example `AGENTS.md`, `README.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, `CONTRIBUTING.md`, anything under `.github/instructions/`, or product docs under `docs/`. Don't assume any specific file exists; use what's there.
 2. **Seed Context & Goal.** Based on the argument:
-   - **Issue reference (`#N` or matches `^\d+$`):** fetch the issue and treat its Context & Goal and Acceptance Criteria sections (if present) as the starting point. Note any cross-reference IDs in the issue footer.
+   - **Issue reference (`#N` or matches `^\d+$`):** fetch the issue and treat its Context & Goal and Acceptance Criteria sections (if present) as the starting point. Note any cross-reference IDs (e.g., a beads ID) in the issue footer.
 
      ```bash
      gh issue view <N> --json title,body,labels,comments
