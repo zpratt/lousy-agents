@@ -1,0 +1,10 @@
+{
+  "name": "triaging-pr-reviews",
+  "displayName": "Triaging PR Reviews",
+  "description": "Triage and analyze PR review comments — classify concerns, verify claims against actual code, evaluate trade-offs",
+  "license": "BSD-2-Clause",
+  "repository": "https://github.com/lousy-agents/skills",
+  "homepage": "https://github.com/lousy-agents/skills#readme",
+  "skills": "./",
+  "keywords": ["PR", "review", "triage", "code-review", "Copilot"]
+}

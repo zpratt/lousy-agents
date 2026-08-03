@@ -1,0 +1,10 @@
+{
+  "name": "feature-to-plan",
+  "displayName": "Feature to Plan",
+  "description": "Turn feature requests, PRDs, and backlog issues into structured EARS-format specs",
+  "license": "BSD-2-Clause",
+  "repository": "https://github.com/lousy-agents/skills",
+  "homepage": "https://github.com/lousy-agents/skills#readme",
+  "skills": "./",
+  "keywords": ["planning", "spec", "EARS", "requirements"]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "mutation-hunter",
+  "displayName": "Mutation Hunter",
+  "description": "Uncover test coverage gaps by applying semantic mutations to production TypeScript code",
+  "license": "BSD-2-Clause",
+  "repository": "https://github.com/lousy-agents/skills",
+  "homepage": "https://github.com/lousy-agents/skills#readme",
+  "skills": "./",
+  "keywords": ["testing", "mutation", "coverage", "TypeScript"]
+}

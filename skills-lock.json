@@ -1,29 +1,47 @@
 {
   "version": 1,
   "skills": {
+    "curate-release": {
+      "source": "lousy-agents/skills",
+      "sourceType": "github",
+      "skillPath": "skills/curate-release/SKILL.md",
+      "computedHash": "a223fade925197b236cc432b564ced726ce75b82d832502d8cd75f8d987c79d0"
+    },
     "feature-to-plan": {
       "source": "lousy-agents/skills",
       "sourceType": "github",
       "skillPath": "skills/feature-to-plan/SKILL.md",
-      "computedHash": "8f6dea87cfa3f6702425fe0ac1001c9f2627ac104b5d4e11e456e5f5cc630c64"
+      "computedHash": "f9312e3b09af89cbdbf3502e6b7a84f8cec676ec1facf8817ff0d5b16b46570b"
     },
     "mutation-hunter": {
       "source": "lousy-agents/skills",
       "sourceType": "github",
       "skillPath": "skills/mutation-hunter/SKILL.md",
-      "computedHash": "6c5b6b9d9a31d4ba4188e8fa1cb11490c3a939c5d0d6c9f7229a943aa6196332"
+      "computedHash": "f984497e3f617a178b8ad76abc30e271e429b76565f9dba1e09afa47f1c3bfba"
+    },
+    "plan-to-graph": {
+      "source": "lousy-agents/skills",
+      "sourceType": "github",
+      "skillPath": "skills/plan-to-graph/SKILL.md",
+      "computedHash": "9b847c23b28c0ea7640e1bea1f25b8d61d9336176819f842e705ee09117bd2c2"
     },
     "rugged-evil-tester": {
       "source": "lousy-agents/skills",
       "sourceType": "github",
       "skillPath": "skills/rugged-evil-tester/SKILL.md",
-      "computedHash": "0079167b24c8b7f4dbb84f8d6979262138649bd4ad694958ff5c0d0d6055eb57"
+      "computedHash": "6a5e425f3a6712d5c041cb04f3f0bfdfd1181b7c9fa622e591ca6a83ec3924ec"
+    },
+    "spec-auditor": {
+      "source": "lousy-agents/skills",
+      "sourceType": "github",
+      "skillPath": "skills/spec-auditor/SKILL.md",
+      "computedHash": "fcb342c750eb3b5c9e93ba773bdcf5eae7edd13c4e3bb6167667bda521303efc"
     },
     "triaging-pr-reviews": {
       "source": "lousy-agents/skills",
       "sourceType": "github",
       "skillPath": "skills/triaging-pr-reviews/SKILL.md",
-      "computedHash": "fdc4f97df19569b3d5cc78ecce9eb229ebc57752be371d2b66629d34b32e7e58"
+      "computedHash": "49e4ad641b94d51c66e02c49401db6fad81634cba9e8d41beff50d9f0fbaf87d"
     }
   }
 }

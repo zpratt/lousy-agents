@@ -1,0 +1,10 @@
+{
+  "name": "plan-to-graph",
+  "displayName": "Plan to Graph",
+  "description": "Convert approved specs, master plans, or GitHub epics into native GitHub Issue dependency graphs with sub-issues and blocking relationships",
+  "license": "BSD-2-Clause",
+  "repository": "https://github.com/lousy-agents/skills",
+  "homepage": "https://github.com/lousy-agents/skills#readme",
+  "skills": "./",
+  "keywords": ["planning", "graph", "github-issues", "sub-issues", "blocking-dependencies", "epics", "tasks"]
+}

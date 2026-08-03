@@ -1,0 +1,10 @@
+{
+  "name": "curate-release",
+  "displayName": "Curate Release",
+  "description": "Rewrite a pull request's commits into a coherent release story that semantic-release can publish, without changing file contents",
+  "license": "BSD-2-Clause",
+  "repository": "https://github.com/lousy-agents/skills",
+  "homepage": "https://github.com/lousy-agents/skills#readme",
+  "skills": "./",
+  "keywords": ["git", "commit-history", "conventional-commits", "semantic-release", "changelog", "release-notes", "pull-request"]
+}
