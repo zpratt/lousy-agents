@@ -56,7 +56,7 @@
         "chance": "1.1.13",
         "dependency-cruiser": "18.1.1",
         "fast-check": "4.9.0",
-        "testcontainers": "12.0.4",
+        "testcontainers": "12.1.0",
         "tsx": "4.23.5",
         "typescript": "7.0.2",
         "vitest": "4.1.10",
