@@ -14,8 +14,8 @@
     },
     "dependencies": {
         "@emotion/server": "11.11.0",
-        "@mui/material": "9.2.0",
-        "@mui/material-nextjs": "9.1.1",
+        "@mui/material": "9.3.0",
+        "@mui/material-nextjs": "9.3.0",
         "next": "16.3.0",
         "react": "19.2.8",
         "react-dom": "19.2.8"
