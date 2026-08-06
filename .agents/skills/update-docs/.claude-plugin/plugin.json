@@ -1,0 +1,10 @@
+{
+    "name": "update-docs",
+    "displayName": "Update Docs",
+    "description": "Audits customer-facing documentation against implemented specs, produces a gap report, and drafts file edits that bring docs into alignment with shipped behavior",
+    "license": "BSD-2-Clause",
+    "repository": "https://github.com/lousy-agents/skills",
+    "homepage": "https://github.com/lousy-agents/skills#readme",
+    "skills": "./",
+    "keywords": ["documentation", "docs", "audit", "spec", "gap-report", "markdown", "developer-docs"]
+}
