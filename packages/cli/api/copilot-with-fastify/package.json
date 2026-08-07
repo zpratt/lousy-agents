@@ -33,7 +33,7 @@
         "@modelcontextprotocol/server-sequential-thinking": "2026.7.4",
         "@testcontainers/postgresql": "12.1.0",
         "@types/node": "24.13.3",
-        "@upstash/context7-mcp": "3.2.5",
+        "@upstash/context7-mcp": "4.0.0",
         "chance": "1.1.13",
         "testcontainers": "12.1.0",
         "tsx": "4.23.10",
