@@ -35,7 +35,7 @@
         "@vitest/ui": "4.1.10",
         "eslint": "10.8.0",
         "eslint-config-next": "16.3.0",
-        "happy-dom": "20.11.1",
+        "happy-dom": "20.11.2",
         "jsdom": "30.0.1",
         "typescript": "7.0.2",
         "vitest": "4.1.10",
