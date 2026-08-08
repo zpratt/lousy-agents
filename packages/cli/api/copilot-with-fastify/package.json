@@ -17,7 +17,7 @@
     },
     "dependencies": {
         "@fastify/cors": "11.3.0",
-        "@fastify/sensible": "6.0.4",
+        "@fastify/sensible": "6.0.5",
         "fastify": "5.11.3",
         "kysely": "0.29.4",
         "pino": "10.3.1",
