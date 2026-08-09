@@ -115,6 +115,25 @@ export interface FeedbackLoopCommandsGateway {
     getMandatoryCommands(targetDir: string): Promise<string[]>;
 }
 
+/**
+ * Expanded Claude instruction content for one entrypoint after verified `@` imports.
+ * Port type — concrete expansion lives behind an adapter.
+ */
+export interface EffectiveClaudeInstructionDocument {
+    readonly content: string;
+}
+
+/**
+ * Port for expanding Claude Code `@path` imports into an ordered effective document.
+ * Only invoked for discovered `claude-md` entrypoints.
+ */
+export interface ClaudeInstructionImportExpander {
+    expandClaudeEntrypoint(input: {
+        readonly repoRoot: string;
+        readonly absoluteFilePath: string;
+    }): Promise<EffectiveClaudeInstructionDocument>;
+}
+
 /** Maximum number of raw heading pattern entries accepted before deduplication. */
 const MAX_RAW_HEADING_PATTERNS = 1000;
 
@@ -172,6 +191,7 @@ export class AnalyzeInstructionQualityUseCase {
         private readonly discoveryGateway: InstructionFileDiscoveryGateway,
         private readonly astGateway: MarkdownAstGateway,
         private readonly commandsGateway: FeedbackLoopCommandsGateway,
+        private readonly claudeImportExpander?: ClaudeInstructionImportExpander,
     ) {}
 
     /**
@@ -324,13 +344,14 @@ export class AnalyzeInstructionQualityUseCase {
             };
         }
 
-        // Analyze each file
+        // Analyze each file (Claude entrypoints use effective import-expanded content)
         const fileStructures = new Map<string, MarkdownStructure>();
         const parsingErrors: ParsingError[] = [];
         for (const file of discoveredFiles) {
             try {
-                const structure = await this.astGateway.parseFile(
-                    file.filePath,
+                const structure = await this.resolveAnalysisStructure(
+                    file,
+                    parsed.targetDir,
                 );
                 fileStructures.set(file.filePath, structure);
             } catch (error) {
@@ -459,6 +480,30 @@ export class AnalyzeInstructionQualityUseCase {
             },
             diagnostics,
         };
+    }
+
+    /**
+     * Resolves the Markdown structure used for content-sensitive rules on one
+     * discovered entrypoint. Claude entrypoints expand verified `@` imports when
+     * an expander is injected; all other formats parse the physical file only.
+     */
+    private async resolveAnalysisStructure(
+        file: DiscoveredInstructionFile,
+        targetDir: string,
+    ): Promise<MarkdownStructure> {
+        if (
+            file.format === "claude-md" &&
+            this.claudeImportExpander !== undefined
+        ) {
+            const effective =
+                await this.claudeImportExpander.expandClaudeEntrypoint({
+                    repoRoot: targetDir,
+                    absoluteFilePath: file.filePath,
+                });
+            return this.astGateway.parseContent(effective.content);
+        }
+
+        return this.astGateway.parseFile(file.filePath);
     }
 
     private findBestScore(
