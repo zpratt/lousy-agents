@@ -38,7 +38,8 @@ Scaffolds new projects with everything needed for effective AI-assisted developm
 - CI workflow with lint, test, and build jobs
 - Dev Container setup with:
   - Pre-installed tools (GitHub CLI, actionlint, shellcheck, yamllint)
-  - MCP servers pre-cached (context7-mcp, sequential-thinking)
+  - MCP servers pre-cached (sequential-thinking); context7 is invoked via version-pinned `npx` (not a package.json dependency)
+  - Residual risk: `@upstash/context7-mcp@4.0.0` still pulls `@hono/node-server@1.x` at runtime until upstream publishes a fixed release — it is kept out of lockfiles intentionally
   - Docker-outside-of-docker support
 - EditorConfig and Node.js version management
 
@@ -75,7 +76,8 @@ Scaffolds new projects with everything needed for effective AI-assisted developm
   - MCP servers configuration (context7, sequential-thinking, lousy-agents)
 - Dev Container setup with:
   - Pre-installed tools (GitHub CLI, actionlint, shellcheck, yamllint)
-  - MCP servers pre-cached (context7-mcp, sequential-thinking)
+  - MCP servers pre-cached (sequential-thinking); context7 is invoked via version-pinned `npx` (not a package.json dependency)
+  - Residual risk: `@upstash/context7-mcp@4.0.0` still pulls `@hono/node-server@1.x` at runtime until upstream publishes a fixed release — it is kept out of lockfiles intentionally
   - Docker-outside-of-docker support
   - Port forwarding for API server (3000) and PostgreSQL (5432)
 - EditorConfig and Node.js version management

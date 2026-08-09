@@ -3,12 +3,14 @@
         "context7": {
             "type": "stdio",
             "command": "npx",
-            "args": ["@upstash/context7-mcp"]
+            "args": ["@upstash/context7-mcp@4.0.0"]
         },
         "sequential-thinking": {
             "type": "stdio",
             "command": "npx",
-            "args": ["@modelcontextprotocol/server-sequential-thinking"]
+            "args": [
+                "@modelcontextprotocol/server-sequential-thinking@2026.7.4"
+            ]
         },
         "lousy-agents": {
             "type": "stdio",

@@ -7,5 +7,5 @@ mise install --yes --locked
 
 npm ci
 
-claude mcp add --transport stdio context7 npx @upstash/context7-mcp
-claude mcp add --transport stdio sequential-thinking npx @modelcontextprotocol/server-sequential-thinking
+claude mcp add --transport stdio context7 npx @upstash/context7-mcp@4.0.0
+claude mcp add --transport stdio sequential-thinking npx @modelcontextprotocol/server-sequential-thinking@2026.7.4

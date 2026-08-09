@@ -19,11 +19,10 @@
         "zod": "4.4.3"
     },
     "devDependencies": {
-        "@biomejs/biome": "2.5.3",
+        "@biomejs/biome": "2.5.7",
         "@lousy-agents/mcp": "5.20.0",
         "@modelcontextprotocol/server-sequential-thinking": "2026.7.4",
         "@types/node": "24.13.3",
-        "@upstash/context7-mcp": "4.0.0",
         "chance": "1.1.13",
         "tsx": "4.23.11",
         "typescript": "7.0.2",
