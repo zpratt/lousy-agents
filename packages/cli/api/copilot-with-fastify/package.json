@@ -28,7 +28,7 @@
         "zod": "4.4.3"
     },
     "devDependencies": {
-        "@biomejs/biome": "2.5.3",
+        "@biomejs/biome": "2.5.7",
         "@lousy-agents/mcp": "5.20.0",
         "@modelcontextprotocol/server-sequential-thinking": "2026.7.4",
         "@testcontainers/postgresql": "12.1.0",
