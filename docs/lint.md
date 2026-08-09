@@ -42,7 +42,7 @@ New construct kinds ship **flag-only first**, then get promoted to default-on on
 
 ### Lint vs doctor
 
-Lint and doctor share the same catalog. Doctor may inventory additional constructs the linter does not validate (plugins, multi-harness instruction trees, and other catalog entries with no lint target).
+Lint and doctor share the same catalog. Doctor may inventory additional constructs the linter does not validate (plugins, multi-harness instruction trees, and other catalog entries with no lint target). Full doctor command reference: [`doctor.md`](doctor.md).
 
 Intentional policy differences (not catalog drift):
 
