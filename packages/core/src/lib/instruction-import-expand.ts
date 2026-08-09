@@ -378,7 +378,8 @@ class ExpansionSession {
 
     recordEdge(edge: ImportEdge): void {
         this.edges.push(edge);
-        if (edge.status === "resolved" || !edge.ruleId) {
+        // Failures always carry ruleId; resolved edges do not.
+        if (!edge.ruleId) {
             return;
         }
         this.diagnostics.push({

@@ -356,4 +356,101 @@ describe("buildEffectiveDocument", () => {
             expect(result.content).not.toContain("SHOULD-NOT-APPEAR");
         });
     });
+
+    describe("given expansion graph and emit limits", () => {
+        it("should reject the edge at the exact maxEdges limit", async () => {
+            await writeFile(join(repoRoot, "CLAUDE.md"), "@./a.md\n@./b.md\n");
+            await writeFile(join(repoRoot, "a.md"), "A\n");
+            await writeFile(join(repoRoot, "b.md"), "B\n");
+
+            const result = await buildEffectiveDocument({
+                repoRoot,
+                rootRelativePath: "CLAUDE.md",
+                limits: { maxEdges: 1 },
+            });
+
+            expect(
+                result.edges.filter((edge) => edge.status === "resolved"),
+            ).toHaveLength(1);
+            expect(
+                result.edges.some((edge) => edge.status === "size-exceeded"),
+            ).toBe(true);
+            expect(result.content).toContain("A\n");
+            expect(result.content).toContain("@./b.md");
+            expect(result.content).not.toContain("B\n");
+            expect(
+                result.expansionDiagnostics.some(
+                    (diagnostic) =>
+                        diagnostic.ruleId ===
+                        "instruction/import-size-exceeded",
+                ),
+            ).toBe(true);
+        });
+
+        it("should reject a new unique file at the exact maxUniqueFiles limit", async () => {
+            // Root counts as the first unique file; maxUniqueFiles=1 blocks any import target.
+            await writeFile(join(repoRoot, "CLAUDE.md"), "@./extra.md\n");
+            await writeFile(join(repoRoot, "extra.md"), "EXTRA\n");
+
+            const result = await buildEffectiveDocument({
+                repoRoot,
+                rootRelativePath: "CLAUDE.md",
+                limits: { maxUniqueFiles: 1 },
+            });
+
+            expect(result.edges[0]?.status).toBe("size-exceeded");
+            expect(result.content).toBe("@./extra.md\n");
+            expect(result.content).not.toContain("EXTRA");
+            expect(result.expansionDiagnostics[0]?.ruleId).toBe(
+                "instruction/import-size-exceeded",
+            );
+        });
+
+        it("should stop expansion when a later literal would exceed the emit budget", async () => {
+            // Root emits "X\n" (2) then expands body (4) then trailing "TAIL\n" (5).
+            // Budget 6 allows "X\n" + "ABCD" exactly; trailing literal is clipped.
+            await writeFile(
+                join(repoRoot, "CLAUDE.md"),
+                "X\n@./body.md\nTAIL\n",
+            );
+            await writeFile(join(repoRoot, "body.md"), "ABCD");
+
+            const result = await buildEffectiveDocument({
+                repoRoot,
+                rootRelativePath: "CLAUDE.md",
+                limits: { maxEmittedBytes: 6 },
+            });
+
+            expect(result.content).toBe("X\nABCD");
+            expect(result.content).not.toContain("TAIL");
+            expect(result.edges[0]?.status).toBe("resolved");
+        });
+
+        it("should leave a token unexpanded when the emit budget is already exhausted", async () => {
+            // Prefix alone consumes the entire budget before the import token.
+            // Correct full-fit (`text.length <= room`) still enters expandToken,
+            // which records the resolved target path on the failed edge after read.
+            // Weakening full-fit to `<` aborts before expandToken and omits target.
+            await writeFile(
+                join(repoRoot, "CLAUDE.md"),
+                "PREFIX\n@./body.md\n",
+            );
+            await writeFile(join(repoRoot, "body.md"), "BODY\n");
+
+            const result = await buildEffectiveDocument({
+                repoRoot,
+                rootRelativePath: "CLAUDE.md",
+                limits: { maxEmittedBytes: "PREFIX\n".length },
+            });
+
+            expect(result.content.startsWith("PREFIX\n")).toBe(true);
+            expect(result.content).not.toContain("BODY");
+            const exceeded = result.edges.find(
+                (edge) => edge.status === "size-exceeded",
+            );
+            expect(exceeded).toBeDefined();
+            expect(exceeded?.target).toBe("body.md");
+            expect(exceeded?.rawTarget).toBe("./body.md");
+        });
+    });
 });
