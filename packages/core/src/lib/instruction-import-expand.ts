@@ -217,54 +217,50 @@ function createLiteralSegment(
     };
 }
 
+const RULE_ID_BY_STATUS = {
+    unresolved: "instruction/import-unresolved",
+    "not-regular": "instruction/import-unresolved",
+    escape: "instruction/import-escape",
+    absolute: "instruction/import-escape",
+    home: "instruction/import-escape",
+    symlink: "instruction/import-symlink",
+    cycle: "instruction/import-cycle",
+    "depth-exceeded": "instruction/import-depth-exceeded",
+    "size-exceeded": "instruction/import-size-exceeded",
+    resolved: undefined,
+} as const satisfies Record<ImportEdgeStatus, string | undefined>;
+
+const FAILURE_MESSAGE_BY_STATUS = {
+    unresolved: (rawTarget: string) =>
+        `Import target could not be resolved: ${rawTarget}`,
+    escape: (rawTarget: string) =>
+        `Import target escapes the repository root: ${rawTarget}`,
+    absolute: (rawTarget: string) =>
+        `Absolute import paths are not allowed: ${rawTarget}`,
+    home: (rawTarget: string) =>
+        `Home-directory import paths are not allowed: ${rawTarget}`,
+    symlink: (rawTarget: string) =>
+        `Import target path contains a symbolic link: ${rawTarget}`,
+    cycle: (rawTarget: string) =>
+        `Import cycle detected while resolving: ${rawTarget}`,
+    "depth-exceeded": (rawTarget: string) =>
+        `Import depth limit exceeded while resolving: ${rawTarget}`,
+    "size-exceeded": (rawTarget: string) =>
+        `Import expansion size or graph limit exceeded while resolving: ${rawTarget}`,
+    "not-regular": (rawTarget: string) =>
+        `Import target is not a regular file: ${rawTarget}`,
+    resolved: () => "",
+} as const satisfies Record<ImportEdgeStatus, (rawTarget: string) => string>;
+
 function ruleIdForStatus(status: ImportEdgeStatus): string | undefined {
-    switch (status) {
-        case "unresolved":
-        case "not-regular":
-            return "instruction/import-unresolved";
-        case "escape":
-        case "absolute":
-        case "home":
-            return "instruction/import-escape";
-        case "symlink":
-            return "instruction/import-symlink";
-        case "cycle":
-            return "instruction/import-cycle";
-        case "depth-exceeded":
-            return "instruction/import-depth-exceeded";
-        case "size-exceeded":
-            return "instruction/import-size-exceeded";
-        case "resolved":
-            return undefined;
-    }
+    return RULE_ID_BY_STATUS[status];
 }
 
 function messageForFailure(
     status: ImportEdgeStatus,
     rawTarget: string,
 ): string {
-    switch (status) {
-        case "unresolved":
-            return `Import target could not be resolved: ${rawTarget}`;
-        case "escape":
-            return `Import target escapes the repository root: ${rawTarget}`;
-        case "absolute":
-            return `Absolute import paths are not allowed: ${rawTarget}`;
-        case "home":
-            return `Home-directory import paths are not allowed: ${rawTarget}`;
-        case "symlink":
-            return `Import target path contains a symbolic link: ${rawTarget}`;
-        case "cycle":
-            return `Import cycle detected while resolving: ${rawTarget}`;
-        case "depth-exceeded":
-            return `Import depth limit exceeded while resolving: ${rawTarget}`;
-        case "size-exceeded":
-            return `Import expansion size or graph limit exceeded while resolving: ${rawTarget}`;
-        case "not-regular":
-            return `Import target is not a regular file: ${rawTarget}`;
-        case "resolved":
-            return "";
-    }
+    return FAILURE_MESSAGE_BY_STATUS[status](rawTarget);
 }
 
 function classifyPathError(error: unknown): ImportEdgeStatus {
