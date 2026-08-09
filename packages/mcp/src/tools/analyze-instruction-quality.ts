@@ -2,6 +2,7 @@
  * MCP tool handler for analyzing instruction quality.
  */
 
+import { createClaudeInstructionImportExpander } from "@lousy-agents/core/gateways/claude-instruction-import-expander.js";
 import { fileExists } from "@lousy-agents/core/gateways/file-system-utils.js";
 import { createInstructionFileDiscoveryGateway } from "@lousy-agents/core/gateways/instruction-file-discovery-gateway.js";
 import { createMarkdownAstGateway } from "@lousy-agents/core/gateways/markdown-ast-gateway.js";
@@ -36,6 +37,7 @@ export const analyzeInstructionQualityHandler: ToolHandler = async (
             discoveryGateway,
             astGateway,
             commandsGateway,
+            createClaudeInstructionImportExpander(),
         );
 
         const output = await useCase.execute({ targetDir: dir });
