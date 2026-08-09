@@ -647,129 +647,137 @@ describe("Init command", () => {
             ["webapp", "package.json"],
             ["api", "package.json"],
             ["cli", "package.json"],
-        ])("should create expected scaffolding for %s project type", async (projectType: string, expectedFile: string) => {
-            // Arrange
-            const projectName = chance.word().toLowerCase();
-            mockPrompt = createMockPrompt(
-                projectType as SupportedProjectType,
-                projectName,
-            );
+        ])(
+            "should create expected scaffolding for %s project type",
+            async (projectType: string, expectedFile: string) => {
+                // Arrange
+                const projectName = chance.word().toLowerCase();
+                mockPrompt = createMockPrompt(
+                    projectType as SupportedProjectType,
+                    projectName,
+                );
 
-            // Act
-            await initCommand.run({
-                rawArgs: [],
-                args: { _: [] },
-                cmd: initCommand,
-                data: { prompt: mockPrompt, targetDir: testDir },
-            });
+                // Act
+                await initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                });
 
-            // Assert
-            const fullPath = join(testDir, expectedFile);
-            await expect(access(fullPath)).resolves.toBeUndefined();
-        });
+                // Assert
+                const fullPath = join(testDir, expectedFile);
+                await expect(access(fullPath)).resolves.toBeUndefined();
+            },
+        );
 
-        it.each([
-            "webapp",
-            "api",
-            "cli",
-        ] as const)("should create Vitest configuration files when %s project type is selected", async (projectType) => {
-            // Arrange
-            const projectName = chance.word().toLowerCase();
-            mockPrompt = createMockPrompt(projectType, projectName);
-            const vitestConfigFile = join(testDir, "vitest.config.ts");
-            const vitestSetupFile = join(testDir, "vitest.setup.ts");
+        it.each(["webapp", "api", "cli"] as const)(
+            "should create Vitest configuration files when %s project type is selected",
+            async (projectType) => {
+                // Arrange
+                const projectName = chance.word().toLowerCase();
+                mockPrompt = createMockPrompt(projectType, projectName);
+                const vitestConfigFile = join(testDir, "vitest.config.ts");
+                const vitestSetupFile = join(testDir, "vitest.setup.ts");
 
-            // Act
-            await initCommand.run({
-                rawArgs: [],
-                args: { _: [] },
-                cmd: initCommand,
-                data: { prompt: mockPrompt, targetDir: testDir },
-            });
+                // Act
+                await initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                });
 
-            // Assert
-            await expect(access(vitestConfigFile)).resolves.toBeUndefined();
-            await expect(access(vitestSetupFile)).resolves.toBeUndefined();
-        });
+                // Assert
+                await expect(access(vitestConfigFile)).resolves.toBeUndefined();
+                await expect(access(vitestSetupFile)).resolves.toBeUndefined();
+            },
+        );
 
-        it.each([
-            "webapp",
-            "api",
-            "cli",
-        ] as const)("should create .github/workflows/copilot-setup-steps.yml for %s project type", async (projectType) => {
-            // Arrange
-            const projectName = chance.word().toLowerCase();
-            mockPrompt = createMockPrompt(projectType, projectName);
-            const copilotSetupFile = join(
-                testDir,
-                ".github",
-                "workflows",
-                "copilot-setup-steps.yml",
-            );
+        it.each(["webapp", "api", "cli"] as const)(
+            "should create .github/workflows/copilot-setup-steps.yml for %s project type",
+            async (projectType) => {
+                // Arrange
+                const projectName = chance.word().toLowerCase();
+                mockPrompt = createMockPrompt(projectType, projectName);
+                const copilotSetupFile = join(
+                    testDir,
+                    ".github",
+                    "workflows",
+                    "copilot-setup-steps.yml",
+                );
 
-            // Act
-            await initCommand.run({
-                rawArgs: [],
-                args: { _: [] },
-                cmd: initCommand,
-                data: { prompt: mockPrompt, targetDir: testDir },
-            });
+                // Act
+                await initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                });
 
-            // Assert
-            await expect(access(copilotSetupFile)).resolves.toBeUndefined();
-            const content = await readFile(copilotSetupFile, "utf-8");
-            expect(content).toContain("name: Copilot Setup Steps");
-            expect(content).toContain("Checkout code");
+                // Assert
+                await expect(access(copilotSetupFile)).resolves.toBeUndefined();
+                const content = await readFile(copilotSetupFile, "utf-8");
+                expect(content).toContain("name: Copilot Setup Steps");
+                expect(content).toContain("Checkout code");
 
-            // Parse YAML and verify workflow structure
-            const workflow = parseYaml(content);
-            expect(workflow).toBeDefined();
-            expect(workflow).not.toBeNull();
-            expect(typeof workflow).toBe("object");
-            expect(workflow).toHaveProperty("jobs.copilot-setup-steps");
+                // Parse YAML and verify workflow structure
+                const workflow = parseYaml(content);
+                expect(workflow).toBeDefined();
+                expect(workflow).not.toBeNull();
+                expect(typeof workflow).toBe("object");
+                expect(workflow).toHaveProperty("jobs.copilot-setup-steps");
 
-            // Verify least-privilege permissions
-            const workflowObj = workflow as Record<string, unknown>;
-            expect(typeof workflowObj.jobs).toBe("object");
-            expect(workflowObj.jobs).not.toBeNull();
-            const jobs = workflowObj.jobs as Record<string, unknown>;
-            expect(typeof jobs["copilot-setup-steps"]).toBe("object");
-            expect(jobs["copilot-setup-steps"]).not.toBeNull();
-            const job = jobs["copilot-setup-steps"] as Record<string, unknown>;
-            expect(job.permissions).toEqual({
-                contents: "read",
-            });
+                // Verify least-privilege permissions
+                const workflowObj = workflow as Record<string, unknown>;
+                expect(typeof workflowObj.jobs).toBe("object");
+                expect(workflowObj.jobs).not.toBeNull();
+                const jobs = workflowObj.jobs as Record<string, unknown>;
+                expect(typeof jobs["copilot-setup-steps"]).toBe("object");
+                expect(jobs["copilot-setup-steps"]).not.toBeNull();
+                const job = jobs["copilot-setup-steps"] as Record<
+                    string,
+                    unknown
+                >;
+                expect(job.permissions).toEqual({
+                    contents: "read",
+                });
 
-            // Verify steps include checkout and node setup
-            expect(Array.isArray(job.steps)).toBe(true);
-            const steps = job.steps as Array<Record<string, unknown>>;
-            expect(steps.length).toBeGreaterThanOrEqual(2);
+                // Verify steps include checkout and node setup
+                expect(Array.isArray(job.steps)).toBe(true);
+                const steps = job.steps as Array<Record<string, unknown>>;
+                expect(steps.length).toBeGreaterThanOrEqual(2);
 
-            // Verify checkout action is SHA-pinned
-            const checkoutStep = steps.find((s) => s.name === "Checkout code");
-            expect(checkoutStep).toBeDefined();
-            expect(checkoutStep?.uses).toMatch(
-                /^actions\/checkout@[0-9a-f]{40}$/,
-            );
+                // Verify checkout action is SHA-pinned
+                const checkoutStep = steps.find(
+                    (s) => s.name === "Checkout code",
+                );
+                expect(checkoutStep).toBeDefined();
+                expect(checkoutStep?.uses).toMatch(
+                    /^actions\/checkout@[0-9a-f]{40}$/,
+                );
 
-            // Verify Node.js setup is included and SHA-pinned
-            const nodeSetupStep = steps.find((s) => s.name === "Setup node");
-            expect(nodeSetupStep).toBeDefined();
-            expect(nodeSetupStep?.uses).toMatch(
-                /^actions\/setup-node@[0-9a-f]{40}$/,
-            );
-            expect(nodeSetupStep?.with).toHaveProperty(
-                "node-version-file",
-                ".nvmrc",
-            );
+                // Verify Node.js setup is included and SHA-pinned
+                const nodeSetupStep = steps.find(
+                    (s) => s.name === "Setup node",
+                );
+                expect(nodeSetupStep).toBeDefined();
+                expect(nodeSetupStep?.uses).toMatch(
+                    /^actions\/setup-node@[0-9a-f]{40}$/,
+                );
+                expect(nodeSetupStep?.with).toHaveProperty(
+                    "node-version-file",
+                    ".nvmrc",
+                );
 
-            // Verify a Node.js install step is present
-            const installStep = steps.find(
-                (s) => s.name === "Install Node.js dependencies",
-            );
-            expect(installStep).toBeDefined();
-            expect(typeof installStep?.run).toBe("string");
-        });
+                // Verify a Node.js install step is present
+                const installStep = steps.find(
+                    (s) => s.name === "Install Node.js dependencies",
+                );
+                expect(installStep).toBeDefined();
+                expect(typeof installStep?.run).toBe("string");
+            },
+        );
 
         it("should preserve existing copilot-setup-steps.yml workflow file", async () => {
             // Arrange
@@ -813,224 +821,271 @@ jobs:
             expect(actualContent).not.toContain("Copilot Setup Steps");
         });
 
-        it.each([
-            "webapp",
-            "api",
-            "cli",
-        ] as const)("should create .github/instructions directory with instruction files for %s project type", async (projectType) => {
-            // Arrange
-            const projectName = chance.word().toLowerCase();
-            mockPrompt = createMockPrompt(projectType, projectName);
-            const instructionsDir = join(testDir, ".github", "instructions");
+        it.each(["webapp", "api", "cli"] as const)(
+            "should create .github/instructions directory with instruction files for %s project type",
+            async (projectType) => {
+                // Arrange
+                const projectName = chance.word().toLowerCase();
+                mockPrompt = createMockPrompt(projectType, projectName);
+                const instructionsDir = join(
+                    testDir,
+                    ".github",
+                    "instructions",
+                );
 
-            // Act
-            await initCommand.run({
-                rawArgs: [],
-                args: { _: [] },
-                cmd: initCommand,
-                data: { prompt: mockPrompt, targetDir: testDir },
-            });
+                // Act
+                await initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                });
 
-            // Assert
-            await expect(access(instructionsDir)).resolves.toBeUndefined();
-            await expect(
-                access(join(instructionsDir, "test.instructions.md")),
-            ).resolves.toBeUndefined();
-            await expect(
-                access(join(instructionsDir, "spec.instructions.md")),
-            ).resolves.toBeUndefined();
-            await expect(
-                access(join(instructionsDir, "pipeline.instructions.md")),
-            ).resolves.toBeUndefined();
-            await expect(
-                access(
-                    join(
-                        instructionsDir,
-                        "software-architecture.instructions.md",
+                // Assert
+                await expect(access(instructionsDir)).resolves.toBeUndefined();
+                await expect(
+                    access(join(instructionsDir, "test.instructions.md")),
+                ).resolves.toBeUndefined();
+                await expect(
+                    access(join(instructionsDir, "spec.instructions.md")),
+                ).resolves.toBeUndefined();
+                await expect(
+                    access(join(instructionsDir, "pipeline.instructions.md")),
+                ).resolves.toBeUndefined();
+                await expect(
+                    access(
+                        join(
+                            instructionsDir,
+                            "software-architecture.instructions.md",
+                        ),
                     ),
-                ),
-            ).resolves.toBeUndefined();
-        });
+                ).resolves.toBeUndefined();
+            },
+        );
 
-        it.each([
-            "webapp",
-            "api",
-            "cli",
-        ] as const)("should create .github/ISSUE_TEMPLATE/feature-to-spec.yml for %s project type", async (projectType) => {
-            // Arrange
-            const projectName = chance.word().toLowerCase();
-            mockPrompt = createMockPrompt(projectType, projectName);
-            const featureToSpecFile = join(
-                testDir,
-                ".github",
-                "ISSUE_TEMPLATE",
-                "feature-to-spec.yml",
-            );
+        it.each(["webapp", "api", "cli"] as const)(
+            "should create .github/ISSUE_TEMPLATE/feature-to-spec.yml for %s project type",
+            async (projectType) => {
+                // Arrange
+                const projectName = chance.word().toLowerCase();
+                mockPrompt = createMockPrompt(projectType, projectName);
+                const featureToSpecFile = join(
+                    testDir,
+                    ".github",
+                    "ISSUE_TEMPLATE",
+                    "feature-to-spec.yml",
+                );
 
-            // Act
-            await initCommand.run({
-                rawArgs: [],
-                args: { _: [] },
-                cmd: initCommand,
-                data: { prompt: mockPrompt, targetDir: testDir },
-            });
+                // Act
+                await initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                });
 
-            // Assert
-            await expect(access(featureToSpecFile)).resolves.toBeUndefined();
-            const content = await readFile(featureToSpecFile, "utf-8");
-            expect(content).toContain("Copilot Feature To Spec");
-            expect(content).toContain("copilot-ready");
-        });
+                // Assert
+                await expect(
+                    access(featureToSpecFile),
+                ).resolves.toBeUndefined();
+                const content = await readFile(featureToSpecFile, "utf-8");
+                expect(content).toContain("Copilot Feature To Spec");
+                expect(content).toContain("copilot-ready");
+            },
+        );
 
-        it.each([
-            "webapp",
-            "api",
-            "cli",
-        ] as const)("should create .github/workflows/assign-copilot.yml for %s project type", async (projectType) => {
-            // Arrange
-            const projectName = chance.word().toLowerCase();
-            mockPrompt = createMockPrompt(projectType, projectName);
-            const assignCopilotFile = join(
-                testDir,
-                ".github",
-                "workflows",
-                "assign-copilot.yml",
-            );
+        it.each(["webapp", "api", "cli"] as const)(
+            "should create .github/workflows/assign-copilot.yml for %s project type",
+            async (projectType) => {
+                // Arrange
+                const projectName = chance.word().toLowerCase();
+                mockPrompt = createMockPrompt(projectType, projectName);
+                const assignCopilotFile = join(
+                    testDir,
+                    ".github",
+                    "workflows",
+                    "assign-copilot.yml",
+                );
 
-            // Act
-            await initCommand.run({
-                rawArgs: [],
-                args: { _: [] },
-                cmd: initCommand,
-                data: { prompt: mockPrompt, targetDir: testDir },
-            });
+                // Act
+                await initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                });
 
-            // Assert
-            await expect(access(assignCopilotFile)).resolves.toBeUndefined();
-            const content = await readFile(assignCopilotFile, "utf-8");
-            expect(content).toContain("Auto-Assign Copilot");
-            expect(content).toContain("@copilot");
-        });
+                // Assert
+                await expect(
+                    access(assignCopilotFile),
+                ).resolves.toBeUndefined();
+                const content = await readFile(assignCopilotFile, "utf-8");
+                expect(content).toContain("Auto-Assign Copilot");
+                expect(content).toContain("@copilot");
+            },
+        );
 
-        it.each([
-            "webapp",
-            "api",
-            "cli",
-        ] as const)("should create .github/specs/README.md for %s project type", async (projectType) => {
-            // Arrange
-            const projectName = chance.word().toLowerCase();
-            mockPrompt = createMockPrompt(projectType, projectName);
-            const specsReadmeFile = join(
-                testDir,
-                ".github",
-                "specs",
-                "README.md",
-            );
+        it.each(["webapp", "api", "cli"] as const)(
+            "should create .github/specs/README.md for %s project type",
+            async (projectType) => {
+                // Arrange
+                const projectName = chance.word().toLowerCase();
+                mockPrompt = createMockPrompt(projectType, projectName);
+                const specsReadmeFile = join(
+                    testDir,
+                    ".github",
+                    "specs",
+                    "README.md",
+                );
 
-            // Act
-            await initCommand.run({
-                rawArgs: [],
-                args: { _: [] },
-                cmd: initCommand,
-                data: { prompt: mockPrompt, targetDir: testDir },
-            });
+                // Act
+                await initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                });
 
-            // Assert
-            await expect(access(specsReadmeFile)).resolves.toBeUndefined();
-            const content = await readFile(specsReadmeFile, "utf-8");
-            expect(content).toContain("Specifications Directory");
-            expect(content).toContain("EARS");
-        });
+                // Assert
+                await expect(access(specsReadmeFile)).resolves.toBeUndefined();
+                const content = await readFile(specsReadmeFile, "utf-8");
+                expect(content).toContain("Specifications Directory");
+                expect(content).toContain("EARS");
+            },
+        );
 
-        it.each([
-            "webapp",
-            "api",
-            "cli",
-        ] as const)("should create .gitignore for %s project type", async (projectType) => {
-            // Arrange
-            const projectName = chance.word().toLowerCase();
-            mockPrompt = createMockPrompt(projectType, projectName);
-            const gitignoreFile = join(testDir, ".gitignore");
+        it.each(["webapp", "api", "cli"] as const)(
+            "should create .gitignore for %s project type",
+            async (projectType) => {
+                // Arrange
+                const projectName = chance.word().toLowerCase();
+                mockPrompt = createMockPrompt(projectType, projectName);
+                const gitignoreFile = join(testDir, ".gitignore");
 
-            // Act
-            await initCommand.run({
-                rawArgs: [],
-                args: { _: [] },
-                cmd: initCommand,
-                data: { prompt: mockPrompt, targetDir: testDir },
-            });
+                // Act
+                await initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                });
 
-            // Assert
-            await expect(access(gitignoreFile)).resolves.toBeUndefined();
-            const content = await readFile(gitignoreFile, "utf-8");
-            expect(content).toContain("node_modules/");
-            if (projectType === "webapp") {
-                expect(content).toContain(".next/");
-            } else {
-                expect(content).not.toContain(".next/");
-            }
-        });
+                // Assert
+                await expect(access(gitignoreFile)).resolves.toBeUndefined();
+                const content = await readFile(gitignoreFile, "utf-8");
+                expect(content).toContain("node_modules/");
+                if (projectType === "webapp") {
+                    expect(content).toContain(".next/");
+                } else {
+                    expect(content).not.toContain(".next/");
+                }
+            },
+        );
 
-        it.each([
-            "webapp",
-            "api",
-            "cli",
-        ] as const)("should create .vscode/mcp.json with correct MCP server args for %s project type", async (projectType) => {
-            // Arrange
-            const projectName = chance.word().toLowerCase();
-            mockPrompt = createMockPrompt(projectType, projectName);
-            const mcpJsonFile = join(testDir, ".vscode", "mcp.json");
+        it.each(["webapp", "api", "cli"] as const)(
+            "should create .vscode/mcp.json with correct MCP server args for %s project type",
+            async (projectType) => {
+                // Arrange
+                const projectName = chance.word().toLowerCase();
+                mockPrompt = createMockPrompt(projectType, projectName);
+                const mcpJsonFile = join(testDir, ".vscode", "mcp.json");
 
-            // Act
-            await initCommand.run({
-                rawArgs: [],
-                args: { _: [] },
-                cmd: initCommand,
-                data: { prompt: mockPrompt, targetDir: testDir },
-            });
+                // Act
+                await initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                });
 
-            // Assert
-            await expect(access(mcpJsonFile)).resolves.toBeUndefined();
-            const content = await readFile(mcpJsonFile, "utf-8");
-            const parsed = JSON.parse(content) as {
-                servers: {
-                    "lousy-agents": { args: string[] };
+                // Assert
+                await expect(access(mcpJsonFile)).resolves.toBeUndefined();
+                const content = await readFile(mcpJsonFile, "utf-8");
+                const parsed = JSON.parse(content) as {
+                    servers: {
+                        context7: { args: string[] };
+                        "sequential-thinking": { args: string[] };
+                        "lousy-agents": { args: string[] };
+                    };
                 };
-            };
-            expect(parsed.servers["lousy-agents"].args).toEqual([
-                "-p",
-                "@lousy-agents/mcp",
-                "lousy-agents-mcp",
-            ]);
-        });
+                expect(parsed.servers.context7.args).toEqual([
+                    "@upstash/context7-mcp@4.0.0",
+                ]);
+                expect(parsed.servers["sequential-thinking"].args).toEqual([
+                    "@modelcontextprotocol/server-sequential-thinking@2026.7.4",
+                ]);
+                expect(parsed.servers["lousy-agents"].args).toEqual([
+                    "-p",
+                    "@lousy-agents/mcp",
+                    "lousy-agents-mcp",
+                ]);
 
-        it.each([
-            "webapp",
-            "api",
-            "cli",
-        ] as const)("should create .github/workflows/ci.yml with lint, test, and build jobs for %s project type", async (projectType) => {
-            // Arrange
-            const projectName = chance.word().toLowerCase();
-            mockPrompt = createMockPrompt(projectType, projectName);
-            const ciYmlFile = join(testDir, ".github", "workflows", "ci.yml");
+                const packageJsonFile = join(testDir, "package.json");
+                const packageJson = await readFile(packageJsonFile, "utf-8");
+                expect(packageJson).not.toContain("@upstash/context7-mcp");
 
-            // Act
-            await initCommand.run({
-                rawArgs: [],
-                args: { _: [] },
-                cmd: initCommand,
-                data: { prompt: mockPrompt, targetDir: testDir },
-            });
+                const devcontainerFile = join(
+                    testDir,
+                    ".devcontainer",
+                    "devcontainer.json",
+                );
+                const devcontainerContent = await readFile(
+                    devcontainerFile,
+                    "utf-8",
+                );
+                const devcontainer = JSON.parse(devcontainerContent);
+                expect(devcontainer).toMatchObject({
+                    customizations: {
+                        vscode: {
+                            mcp: {
+                                servers: {
+                                    context7: {
+                                        args: ["@upstash/context7-mcp@4.0.0"],
+                                    },
+                                    "sequential-thinking": {
+                                        args: [
+                                            "@modelcontextprotocol/server-sequential-thinking@2026.7.4",
+                                        ],
+                                    },
+                                },
+                            },
+                        },
+                    },
+                });
+            },
+        );
 
-            // Assert
-            await expect(access(ciYmlFile)).resolves.toBeUndefined();
-            const content = await readFile(ciYmlFile, "utf-8");
-            expect(content).toContain("name: CI");
-            expect(content).toContain("jobs:");
-            expect(content).toContain("lint:");
-            expect(content).toContain("build:");
-            expect(content).toMatch(/needs:\s*\[lint/);
-        });
+        it.each(["webapp", "api", "cli"] as const)(
+            "should create .github/workflows/ci.yml with lint, test, and build jobs for %s project type",
+            async (projectType) => {
+                // Arrange
+                const projectName = chance.word().toLowerCase();
+                mockPrompt = createMockPrompt(projectType, projectName);
+                const ciYmlFile = join(
+                    testDir,
+                    ".github",
+                    "workflows",
+                    "ci.yml",
+                );
+
+                // Act
+                await initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                });
+
+                // Assert
+                await expect(access(ciYmlFile)).resolves.toBeUndefined();
+                const content = await readFile(ciYmlFile, "utf-8");
+                expect(content).toContain("name: CI");
+                expect(content).toContain("jobs:");
+                expect(content).toContain("lint:");
+                expect(content).toContain("build:");
+                expect(content).toMatch(/needs:\s*\[lint/);
+            },
+        );
     });
 
     describe("when preserving existing files across project types", () => {
@@ -1045,118 +1100,121 @@ jobs:
             await teardownTestDir(testDir);
         });
 
-        it.each([
-            "webapp",
-            "api",
-            "cli",
-        ] as const)("should preserve existing feature-to-spec.yml file for %s project type", async (projectType) => {
-            // Arrange
-            const projectName = chance.word().toLowerCase();
-            mockPrompt = createMockPrompt(projectType, projectName);
-            const issueTemplateDir = join(testDir, ".github", "ISSUE_TEMPLATE");
-            const featureToSpecFile = join(
-                issueTemplateDir,
-                "feature-to-spec.yml",
-            );
-            const existingContent = `---\nname: Custom Template\n`;
-            await mkdir(issueTemplateDir, { recursive: true });
-            await writeFile(featureToSpecFile, existingContent);
+        it.each(["webapp", "api", "cli"] as const)(
+            "should preserve existing feature-to-spec.yml file for %s project type",
+            async (projectType) => {
+                // Arrange
+                const projectName = chance.word().toLowerCase();
+                mockPrompt = createMockPrompt(projectType, projectName);
+                const issueTemplateDir = join(
+                    testDir,
+                    ".github",
+                    "ISSUE_TEMPLATE",
+                );
+                const featureToSpecFile = join(
+                    issueTemplateDir,
+                    "feature-to-spec.yml",
+                );
+                const existingContent = `---\nname: Custom Template\n`;
+                await mkdir(issueTemplateDir, { recursive: true });
+                await writeFile(featureToSpecFile, existingContent);
 
-            // Act
-            await initCommand.run({
-                rawArgs: [],
-                args: { _: [] },
-                cmd: initCommand,
-                data: { prompt: mockPrompt, targetDir: testDir },
-            });
+                // Act
+                await initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                });
 
-            // Assert
-            const content = await readFile(featureToSpecFile, "utf-8");
-            expect(content).toBe(existingContent);
-        });
+                // Assert
+                const content = await readFile(featureToSpecFile, "utf-8");
+                expect(content).toBe(existingContent);
+            },
+        );
 
-        it.each([
-            "webapp",
-            "api",
-            "cli",
-        ] as const)("should preserve existing assign-copilot.yml file for %s project type", async (projectType) => {
-            // Arrange
-            const projectName = chance.word().toLowerCase();
-            mockPrompt = createMockPrompt(projectType, projectName);
-            const workflowsDir = join(testDir, ".github", "workflows");
-            const assignCopilotFile = join(workflowsDir, "assign-copilot.yml");
-            const existingContent = `---\nname: Custom Workflow\n`;
-            await mkdir(workflowsDir, { recursive: true });
-            await writeFile(assignCopilotFile, existingContent);
+        it.each(["webapp", "api", "cli"] as const)(
+            "should preserve existing assign-copilot.yml file for %s project type",
+            async (projectType) => {
+                // Arrange
+                const projectName = chance.word().toLowerCase();
+                mockPrompt = createMockPrompt(projectType, projectName);
+                const workflowsDir = join(testDir, ".github", "workflows");
+                const assignCopilotFile = join(
+                    workflowsDir,
+                    "assign-copilot.yml",
+                );
+                const existingContent = `---\nname: Custom Workflow\n`;
+                await mkdir(workflowsDir, { recursive: true });
+                await writeFile(assignCopilotFile, existingContent);
 
-            // Act
-            await initCommand.run({
-                rawArgs: [],
-                args: { _: [] },
-                cmd: initCommand,
-                data: { prompt: mockPrompt, targetDir: testDir },
-            });
+                // Act
+                await initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                });
 
-            // Assert
-            const content = await readFile(assignCopilotFile, "utf-8");
-            expect(content).toBe(existingContent);
-        });
+                // Assert
+                const content = await readFile(assignCopilotFile, "utf-8");
+                expect(content).toBe(existingContent);
+            },
+        );
 
-        it.each([
-            "webapp",
-            "api",
-            "cli",
-        ] as const)("should preserve existing specs directory content for %s project type", async (projectType) => {
-            // Arrange
-            const projectName = chance.word().toLowerCase();
-            mockPrompt = createMockPrompt(projectType, projectName);
-            const specsDir = join(testDir, ".github", "specs");
-            const existingSpecFile = join(specsDir, "existing-spec.md");
-            const existingContent = `# Existing Spec\n\nSome content`;
-            await mkdir(specsDir, { recursive: true });
-            await writeFile(existingSpecFile, existingContent);
+        it.each(["webapp", "api", "cli"] as const)(
+            "should preserve existing specs directory content for %s project type",
+            async (projectType) => {
+                // Arrange
+                const projectName = chance.word().toLowerCase();
+                mockPrompt = createMockPrompt(projectType, projectName);
+                const specsDir = join(testDir, ".github", "specs");
+                const existingSpecFile = join(specsDir, "existing-spec.md");
+                const existingContent = `# Existing Spec\n\nSome content`;
+                await mkdir(specsDir, { recursive: true });
+                await writeFile(existingSpecFile, existingContent);
 
-            // Act
-            await initCommand.run({
-                rawArgs: [],
-                args: { _: [] },
-                cmd: initCommand,
-                data: { prompt: mockPrompt, targetDir: testDir },
-            });
+                // Act
+                await initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                });
 
-            // Assert
-            const content = await readFile(existingSpecFile, "utf-8");
-            expect(content).toBe(existingContent);
-        });
+                // Assert
+                const content = await readFile(existingSpecFile, "utf-8");
+                expect(content).toBe(existingContent);
+            },
+        );
 
-        it.each([
-            "webapp",
-            "api",
-            "cli",
-        ] as const)("should preserve existing package.json file for %s project type", async (projectType) => {
-            // Arrange
-            const projectName = chance.word().toLowerCase();
-            mockPrompt = createMockPrompt(projectType, projectName);
-            const packageJsonFile = join(testDir, "package.json");
-            const existingContent = JSON.stringify(
-                { name: chance.word(), version: "1.0.0" },
-                null,
-                2,
-            );
-            await writeFile(packageJsonFile, existingContent);
+        it.each(["webapp", "api", "cli"] as const)(
+            "should preserve existing package.json file for %s project type",
+            async (projectType) => {
+                // Arrange
+                const projectName = chance.word().toLowerCase();
+                mockPrompt = createMockPrompt(projectType, projectName);
+                const packageJsonFile = join(testDir, "package.json");
+                const existingContent = JSON.stringify(
+                    { name: chance.word(), version: "1.0.0" },
+                    null,
+                    2,
+                );
+                await writeFile(packageJsonFile, existingContent);
 
-            // Act
-            await initCommand.run({
-                rawArgs: [],
-                args: { _: [] },
-                cmd: initCommand,
-                data: { prompt: mockPrompt, targetDir: testDir },
-            });
+                // Act
+                await initCommand.run({
+                    rawArgs: [],
+                    args: { _: [] },
+                    cmd: initCommand,
+                    data: { prompt: mockPrompt, targetDir: testDir },
+                });
 
-            // Assert
-            const content = await readFile(packageJsonFile, "utf-8");
-            expect(content).toBe(existingContent);
-        });
+                // Assert
+                const content = await readFile(packageJsonFile, "utf-8");
+                expect(content).toBe(existingContent);
+            },
+        );
     });
 
     describe("when using CLI arguments", () => {
@@ -1273,50 +1331,53 @@ jobs:
             ["webapp", "package.json"],
             ["api", "package.json"],
             ["cli", "package.json"],
-        ])("should create identical project structure for %s type regardless of input method", async (projectType: string, verifyPath: string) => {
-            // Arrange
-            const cliTestDir = join(tmpdir(), `test-cli-${chance.guid()}`);
-            const promptTestDir = join(
-                tmpdir(),
-                `test-prompt-${chance.guid()}`,
-            );
-            await mkdir(cliTestDir, { recursive: true });
-            await mkdir(promptTestDir, { recursive: true });
-            const projectName = chance.word().toLowerCase();
-            const mockPrompt = vi
-                .fn()
-                .mockResolvedValueOnce(projectType)
-                .mockResolvedValueOnce(projectName);
+        ])(
+            "should create identical project structure for %s type regardless of input method",
+            async (projectType: string, verifyPath: string) => {
+                // Arrange
+                const cliTestDir = join(tmpdir(), `test-cli-${chance.guid()}`);
+                const promptTestDir = join(
+                    tmpdir(),
+                    `test-prompt-${chance.guid()}`,
+                );
+                await mkdir(cliTestDir, { recursive: true });
+                await mkdir(promptTestDir, { recursive: true });
+                const projectName = chance.word().toLowerCase();
+                const mockPrompt = vi
+                    .fn()
+                    .mockResolvedValueOnce(projectType)
+                    .mockResolvedValueOnce(projectName);
 
-            try {
-                // Act
-                await initCommand.run({
-                    rawArgs: ["--kind", projectType, "--name", projectName],
-                    args: { _: [], kind: projectType, name: projectName },
-                    cmd: initCommand,
-                    data: { prompt: vi.fn(), targetDir: cliTestDir },
-                });
+                try {
+                    // Act
+                    await initCommand.run({
+                        rawArgs: ["--kind", projectType, "--name", projectName],
+                        args: { _: [], kind: projectType, name: projectName },
+                        cmd: initCommand,
+                        data: { prompt: vi.fn(), targetDir: cliTestDir },
+                    });
 
-                await initCommand.run({
-                    rawArgs: [],
-                    args: { _: [] },
-                    cmd: initCommand,
-                    data: {
-                        prompt: mockPrompt,
-                        targetDir: promptTestDir,
-                    },
-                });
+                    await initCommand.run({
+                        rawArgs: [],
+                        args: { _: [] },
+                        cmd: initCommand,
+                        data: {
+                            prompt: mockPrompt,
+                            targetDir: promptTestDir,
+                        },
+                    });
 
-                // Assert
-                const cliPath = join(cliTestDir, verifyPath);
-                const promptPath = join(promptTestDir, verifyPath);
-                await expect(access(cliPath)).resolves.toBeUndefined();
-                await expect(access(promptPath)).resolves.toBeUndefined();
-            } finally {
-                await rm(cliTestDir, { recursive: true, force: true });
-                await rm(promptTestDir, { recursive: true, force: true });
-            }
-        });
+                    // Assert
+                    const cliPath = join(cliTestDir, verifyPath);
+                    const promptPath = join(promptTestDir, verifyPath);
+                    await expect(access(cliPath)).resolves.toBeUndefined();
+                    await expect(access(promptPath)).resolves.toBeUndefined();
+                } finally {
+                    await rm(cliTestDir, { recursive: true, force: true });
+                    await rm(promptTestDir, { recursive: true, force: true });
+                }
+            },
+        );
     });
 
     describe("when project name is provided", () => {

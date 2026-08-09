@@ -9,6 +9,24 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const chance = new Chance();
 
+/**
+ * Build a log-query fixture command that cannot be a substring of another
+ * fixture command. chance.word() pairs like "gac"/"gactek" make
+ * `stdout.not.toContain(other)` fail when the shorter token appears inside
+ * the longer one in table output.
+ *
+ * Must stay ≤ 50 chars: log-format truncates COMMAND cells at MAX_COMMAND_LEN.
+ */
+function uniqueEchoCommand(label: string): string {
+    const command = `echo ${label}_${chance.hash({ length: 8 })}`;
+    if (command.length > 50) {
+        throw new Error(
+            `uniqueEchoCommand label too long (${command.length}): ${label}`,
+        );
+    }
+    return command;
+}
+
 const testDir = dirname(fileURLToPath(import.meta.url));
 const SHIM_SRC = resolve(testDir, "../../src/index.ts");
 const TSX_BIN = resolve(testDir, "../../../../node_modules/.bin/tsx");
@@ -103,7 +121,7 @@ function makeScriptEndEvent(overrides: Partial<Record<string, unknown>> = {}) {
         session_id: chance.guid(),
         event: "script_end",
         script: "test",
-        command: `echo ${chance.word()}`,
+        command: uniqueEchoCommand("default"),
         package: chance.word(),
         package_version: "1.0.0",
         actor: "human",
@@ -148,8 +166,8 @@ describe("Log query integration", { timeout: 30_000 }, () => {
             const oldSessionId = chance.guid();
             const recentSessionId = chance.guid();
 
-            const oldCommand = `echo ${chance.word()}`;
-            const recentCommand = `echo ${chance.word()}`;
+            const oldCommand = uniqueEchoCommand("old-session");
+            const recentCommand = uniqueEchoCommand("recent-session");
 
             const oldEvent = makeScriptEndEvent({
                 session_id: oldSessionId,
@@ -189,8 +207,8 @@ describe("Log query integration", { timeout: 30_000 }, () => {
             const targetActor = "claude-code";
             const otherActor = "human";
 
-            const targetCommand = `echo ${chance.word()}`;
-            const otherCommand = `echo ${chance.word()}`;
+            const targetCommand = uniqueEchoCommand("target-actor");
+            const otherCommand = uniqueEchoCommand("other-actor");
 
             const targetEvent = makeScriptEndEvent({
                 session_id: sessionId,
@@ -229,8 +247,8 @@ describe("Log query integration", { timeout: 30_000 }, () => {
             const eventsDir = defaultEventsDir(tmpDir);
             const sessionId = chance.guid();
 
-            const failureCommand = `echo ${chance.word()}`;
-            const successCommand = `echo ${chance.word()}`;
+            const failureCommand = uniqueEchoCommand("failure");
+            const successCommand = uniqueEchoCommand("success");
 
             const failureEvent = makeScriptEndEvent({
                 session_id: sessionId,
@@ -266,8 +284,8 @@ describe("Log query integration", { timeout: 30_000 }, () => {
             const targetScript = "test";
             const otherScript = "build";
 
-            const targetCommand = `echo ${chance.word()}`;
-            const otherCommand = `echo ${chance.word()}`;
+            const targetCommand = uniqueEchoCommand("target-script");
+            const otherCommand = uniqueEchoCommand("other-script");
 
             const targetEvent = makeScriptEndEvent({
                 session_id: sessionId,
@@ -306,8 +324,8 @@ describe("Log query integration", { timeout: 30_000 }, () => {
             const eventsDir = defaultEventsDir(tmpDir);
             const sessionId = chance.guid();
 
-            const recentCommand = `echo ${chance.word()}`;
-            const oldCommand = `echo ${chance.word()}`;
+            const recentCommand = uniqueEchoCommand("recent-window");
+            const oldCommand = uniqueEchoCommand("old-window");
 
             const recentEvent = makeScriptEndEvent({
                 session_id: sessionId,
@@ -394,9 +412,9 @@ describe("Log query integration", { timeout: 30_000 }, () => {
             const eventsDir = defaultEventsDir(tmpDir);
             const sessionId = chance.guid();
 
-            const matchCommand = `echo match-${chance.guid()}`;
-            const wrongActorCommand = `echo wrong-actor-${chance.guid()}`;
-            const successCommand = `echo success-${chance.guid()}`;
+            const matchCommand = uniqueEchoCommand("match");
+            const wrongActorCommand = uniqueEchoCommand("wrong-actor");
+            const successCommand = uniqueEchoCommand("success-and");
 
             const matchingEvent = makeScriptEndEvent({
                 session_id: sessionId,
@@ -445,7 +463,7 @@ describe("Log query integration", { timeout: 30_000 }, () => {
             // Arrange
             const customDir = join(tmpDir, "custom-logs");
             const sessionId = chance.guid();
-            const customCommand = `echo ${chance.word()}`;
+            const customCommand = uniqueEchoCommand("custom-dir");
 
             const event = makeScriptEndEvent({
                 session_id: sessionId,
@@ -520,7 +538,7 @@ describe("Log query integration", { timeout: 30_000 }, () => {
             // Arrange
             const eventsDir = defaultEventsDir(tmpDir);
             const sessionId = chance.guid();
-            const validCommand = `echo ${chance.word()}`;
+            const validCommand = uniqueEchoCommand("valid-jsonl");
 
             // Build the poisoned JSON string directly (JS object literal syntax
             // treats "__proto__" as a prototype setter, not an own-property, so

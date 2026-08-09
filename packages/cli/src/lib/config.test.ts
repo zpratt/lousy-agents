@@ -1,6 +1,28 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { consola } from "consola";
 import { describe, expect, it, vi } from "vitest";
 import { getProjectStructure, loadInitConfig } from "./config.js";
+
+const CLI_SRC_LIB_DIR = dirname(fileURLToPath(import.meta.url));
+const MONOREPO_ROOT = join(CLI_SRC_LIB_DIR, "../../../..");
+const API_TEMPLATE_DIR = join(
+    CLI_SRC_LIB_DIR,
+    "../../api/copilot-with-fastify",
+);
+
+function lockfileHasHonoNodeServer1x(lockfilePath: string): boolean {
+    const lockfile = JSON.parse(readFileSync(lockfilePath, "utf-8")) as {
+        packages?: Record<string, { version?: string }>;
+    };
+    return Object.entries(lockfile.packages ?? {}).some(
+        ([path, meta]) =>
+            path.endsWith("node_modules/@hono/node-server") &&
+            typeof meta.version === "string" &&
+            meta.version.startsWith("1."),
+    );
+}
 
 describe("Config", () => {
     describe("loadInitConfig", () => {
@@ -187,55 +209,55 @@ describe("Config", () => {
             );
         });
 
-        it.each([
-            "cli",
-            "webapp",
-            "api",
-        ] as const)("should include feature-to-plan skill files with content in %s structure", async (projectType) => {
-            // Act
-            const structure = await getProjectStructure(projectType);
+        it.each(["cli", "webapp", "api"] as const)(
+            "should include feature-to-plan skill files with content in %s structure",
+            async (projectType) => {
+                // Act
+                const structure = await getProjectStructure(projectType);
 
-            // Assert — verify file nodes exist and have non-empty, correct content
-            const skillFileExpectations: Array<[string, string, number]> = [
-                [
-                    ".agents/skills/feature-to-plan/SKILL.md",
-                    "Approval Gate",
-                    2000,
-                ],
-                [
-                    ".agents/skills/feature-to-plan/references/interactive-flow.md",
-                    "Phase 1",
-                    3000,
-                ],
-                [
-                    ".agents/skills/feature-to-plan/references/spec-format.md",
-                    "EARS",
-                    1000,
-                ],
-            ];
+                // Assert — verify file nodes exist and have non-empty, correct content
+                const skillFileExpectations: Array<[string, string, number]> = [
+                    [
+                        ".agents/skills/feature-to-plan/SKILL.md",
+                        "Approval Gate",
+                        2000,
+                    ],
+                    [
+                        ".agents/skills/feature-to-plan/references/interactive-flow.md",
+                        "Phase 1",
+                        3000,
+                    ],
+                    [
+                        ".agents/skills/feature-to-plan/references/spec-format.md",
+                        "EARS",
+                        1000,
+                    ],
+                ];
 
-            for (const [
-                filePath,
-                expectedContent,
-                minLength,
-            ] of skillFileExpectations) {
-                const fileNode = structure?.nodes.find(
-                    (node) => node.type === "file" && node.path === filePath,
-                );
-                expect(
-                    fileNode,
-                    `Expected file node for ${filePath} in ${projectType} structure`,
-                ).toBeDefined();
-                expect(
-                    fileNode?.content,
-                    `Expected ${filePath} to contain "${expectedContent}"`,
-                ).toContain(expectedContent);
-                expect(
-                    fileNode?.content.length,
-                    `Expected ${filePath} content length to be at least ${minLength}`,
-                ).toBeGreaterThanOrEqual(minLength);
-            }
-        });
+                for (const [
+                    filePath,
+                    expectedContent,
+                    minLength,
+                ] of skillFileExpectations) {
+                    const fileNode = structure?.nodes.find(
+                        (node) =>
+                            node.type === "file" && node.path === filePath,
+                    );
+                    expect(
+                        fileNode,
+                        `Expected file node for ${filePath} in ${projectType} structure`,
+                    ).toBeDefined();
+                    expect(
+                        fileNode?.content,
+                        `Expected ${filePath} to contain "${expectedContent}"`,
+                    ).toContain(expectedContent);
+                    expect(
+                        fileNode?.content.length,
+                        `Expected ${filePath} content length to be at least ${minLength}`,
+                    ).toBeGreaterThanOrEqual(minLength);
+                }
+            },
+        );
 
         it("should keep feature-to-plan skill file content identical across all project types", async () => {
             // Arrange
@@ -274,34 +296,155 @@ describe("Config", () => {
             }
         });
 
-        it.each([
-            "cli",
-            "webapp",
-            "api",
-        ] as const)("should include feature-to-plan skill directory nodes in %s structure", async (projectType) => {
-            // Act
-            const structure = await getProjectStructure(projectType);
-
-            // Assert — directory nodes must be present so the scaffold writer
-            // can create files under them without failing at runtime
-            const skillDirs = [
-                ".agents",
-                ".agents/skills",
-                ".agents/skills/feature-to-plan",
-                ".agents/skills/feature-to-plan/references",
-            ];
-
-            for (const dirPath of skillDirs) {
-                const dirNode = structure?.nodes.find(
-                    (node) =>
-                        node.type === "directory" && node.path === dirPath,
-                );
-                expect(
-                    dirNode,
-                    `Expected directory node for ${dirPath} in ${projectType} structure`,
-                ).toBeDefined();
-            }
+        it("should not resolve @hono/node-server 1.x in monorepo or api scaffold lockfiles", () => {
+            expect(
+                lockfileHasHonoNodeServer1x(
+                    join(MONOREPO_ROOT, "package-lock.json"),
+                ),
+            ).toBe(false);
+            expect(
+                lockfileHasHonoNodeServer1x(
+                    join(API_TEMPLATE_DIR, "package-lock.json"),
+                ),
+            ).toBe(false);
         });
+
+        it("should pin monorepo devcontainer MCP installs and omit context7 from root package.json", () => {
+            const rootPackageJson = readFileSync(
+                join(MONOREPO_ROOT, "package.json"),
+                "utf-8",
+            );
+            expect(rootPackageJson).not.toContain("@upstash/context7-mcp");
+
+            const setupSh = readFileSync(
+                join(MONOREPO_ROOT, ".devcontainer/setup.sh"),
+                "utf-8",
+            );
+            expect(setupSh).toContain("@upstash/context7-mcp@4.0.0");
+            expect(setupSh).toContain(
+                "@modelcontextprotocol/server-sequential-thinking@2026.7.4",
+            );
+            expect(setupSh).not.toMatch(/@upstash\/context7-mcp(?!@4\.0\.0)/);
+
+            const rootDevcontainer = JSON.parse(
+                readFileSync(
+                    join(MONOREPO_ROOT, ".devcontainer/devcontainer.json"),
+                    "utf-8",
+                ),
+            );
+            expect(rootDevcontainer).toMatchObject({
+                customizations: {
+                    vscode: {
+                        mcp: {
+                            servers: {
+                                context7: {
+                                    args: ["@upstash/context7-mcp@4.0.0"],
+                                },
+                                "sequential-thinking": {
+                                    args: [
+                                        "@modelcontextprotocol/server-sequential-thinking@2026.7.4",
+                                    ],
+                                },
+                            },
+                        },
+                    },
+                },
+            });
+        });
+
+        it.each(["cli", "webapp", "api"] as const)(
+            "should not list @upstash/context7-mcp in %s package.json (lockfile hygiene)",
+            async (projectType) => {
+                const structure = await getProjectStructure(projectType);
+                const packageJson = structure?.nodes.find(
+                    (node) =>
+                        node.type === "file" && node.path === "package.json",
+                )?.content;
+                expect(packageJson).toBeDefined();
+                expect(packageJson).not.toContain("@upstash/context7-mcp");
+            },
+        );
+
+        it.each(["cli", "webapp", "api"] as const)(
+            "should pin MCP package versions in %s .vscode/mcp.json and devcontainer",
+            async (projectType) => {
+                const structure = await getProjectStructure(projectType);
+                const mcpJson = structure?.nodes.find(
+                    (node) =>
+                        node.type === "file" &&
+                        node.path === ".vscode/mcp.json",
+                )?.content;
+                expect(mcpJson).toBeDefined();
+                expect(mcpJson).toEqual(expect.any(String));
+                const parsed = JSON.parse(String(mcpJson));
+                expect(parsed).toMatchObject({
+                    servers: {
+                        context7: {
+                            args: ["@upstash/context7-mcp@4.0.0"],
+                        },
+                        "sequential-thinking": {
+                            args: [
+                                "@modelcontextprotocol/server-sequential-thinking@2026.7.4",
+                            ],
+                        },
+                    },
+                });
+
+                const devcontainerJson = structure?.nodes.find(
+                    (node) =>
+                        node.type === "file" &&
+                        node.path === ".devcontainer/devcontainer.json",
+                )?.content;
+                expect(devcontainerJson).toBeDefined();
+                const devcontainer = JSON.parse(String(devcontainerJson));
+                expect(devcontainer).toMatchObject({
+                    customizations: {
+                        vscode: {
+                            mcp: {
+                                servers: {
+                                    context7: {
+                                        args: ["@upstash/context7-mcp@4.0.0"],
+                                    },
+                                    "sequential-thinking": {
+                                        args: [
+                                            "@modelcontextprotocol/server-sequential-thinking@2026.7.4",
+                                        ],
+                                    },
+                                },
+                            },
+                        },
+                    },
+                });
+            },
+        );
+
+        it.each(["cli", "webapp", "api"] as const)(
+            "should include feature-to-plan skill directory nodes in %s structure",
+            async (projectType) => {
+                // Act
+                const structure = await getProjectStructure(projectType);
+
+                // Assert — directory nodes must be present so the scaffold writer
+                // can create files under them without failing at runtime
+                const skillDirs = [
+                    ".agents",
+                    ".agents/skills",
+                    ".agents/skills/feature-to-plan",
+                    ".agents/skills/feature-to-plan/references",
+                ];
+
+                for (const dirPath of skillDirs) {
+                    const dirNode = structure?.nodes.find(
+                        (node) =>
+                            node.type === "directory" && node.path === dirPath,
+                    );
+                    expect(
+                        dirNode,
+                        `Expected directory node for ${dirPath} in ${projectType} structure`,
+                    ).toBeDefined();
+                }
+            },
+        );
 
         it("should throw a descriptive error when a feature-to-plan skill file is missing", async () => {
             const missingRelativePath =
