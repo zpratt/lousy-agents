@@ -17,7 +17,7 @@
       "source": "lousy-agents/skills",
       "sourceType": "github",
       "skillPath": "skills/mutation-hunter/SKILL.md",
-      "computedHash": "f984497e3f617a178b8ad76abc30e271e429b76565f9dba1e09afa47f1c3bfba"
+      "computedHash": "27eee75e065e40ab4633c87ea64ea1c4021d58dd7464efb9cd468d281bc2ccbe"
     },
     "plan-to-graph": {
       "source": "lousy-agents/skills",
