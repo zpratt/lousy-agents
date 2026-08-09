@@ -235,7 +235,7 @@ Use the root install to work on all workspace packages together. The root `npm r
 | MCP server package | ✅ Complete |
 | Claude Code web environment setup | ✅ Complete |
 | Agent lesson system (context injection & capture) | ✅ Complete |
-| Multi-harness configuration doctor (inventory, edges, archetype, CI JSON) | ✅ Complete |
+| Multi-harness configuration doctor (inventory, edges, archetype, CI JSON) | ✅ Shipped (spine; intent/capability gates and some harness depth still Partial) |
 
 ## Documentation
 

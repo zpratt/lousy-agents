@@ -8,7 +8,7 @@ Primary entry:
 npx @lousy-agents/cli doctor
 ```
 
-The same pipeline ships as `@lousy-agents/agentic-doctor` (bin: `agentic-doctor`) for library and standalone use. Most folks should start with the CLI.
+The implementation package is `@lousy-agents/agentic-doctor` (bin: `agentic-doctor`) inside this monorepo. It is **not** published to the public npm registry today. Use `@lousy-agents/cli doctor` for installable runs.
 
 ## Features
 
@@ -24,9 +24,9 @@ The same pipeline ships as `@lousy-agents/agentic-doctor` (bin: `agentic-doctor`
 1. Scan the current working directory for harness footprints and composition edges.
 2. Classify the repository archetype and compute harness dominance.
 3. Load optional declared intent from `.agentic-doctor/intent.json`.
-4. On an interactive TTY without `--ci`, ask short ambiguity questions when intent is missing (answers are not auto-written to disk).
+4. On an interactive TTY without `--ci`, optionally ask short ambiguity questions when intent is missing. Answers are only acknowledged (`Noted.`); they are **not** written to disk and **do not** change findings for that run. Doctor re-reads `.agentic-doctor/intent.json` afterward in case you created it in another terminal.
 5. Evaluate the criteria catalog against inventory, archetype, and intent.
-6. Print a human report or JSON. Exit `1` when any **critical** or **high** finding is classified as a **defect**.
+6. Print a human report or JSON. Exit `1` when any **critical** or **high** finding is classified as a **defect**. When the archetype is `none`, human mode prints that no agentic constructs were found and skips the full findings layout.
 
 This is a tight feedback loop for multi-agent work: inventory what the fleet can see, name the composition pattern, fail CI only on blocking defects.
 
@@ -35,7 +35,7 @@ This is a tight feedback loop for multi-agent work: inventory what the fleet can
 | Flag | Type | Default | Description |
 | ------ | ------ | --------- | ------------- |
 | `--summary` | boolean | `false` | Show archetype classification only. Skips criteria evaluation. JSON still includes `inventory`. |
-| `--format` | `human` \| `json` | `human` | Output format. |
+| `--format` | `human` \| `json` | `human` | Output format. Any value other than `json` is treated as `human`. |
 | `--ci` | boolean | `false` | Force non-interactive mode. Skips intent elicitation prompts. |
 
 ## Usage
@@ -328,7 +328,7 @@ Example:
 
 Commit the artifact when multi-harness posture is deliberate. That raises the floor for the next human or agent session: intent is shared law in git, not tribal knowledge in someone's terminal scrollback.
 
-Interactive prompts on a TTY do not write this file for you. Create or update it in source control yourself.
+Interactive prompts on a TTY do not write this file, and yes/no answers are not applied to the in-memory intent for that run. Create or update `.agentic-doctor/intent.json` in source control yourself, then re-run doctor.
 
 ## Exit codes and CI
 
@@ -370,7 +370,8 @@ After parallel agent runs on different directories, run full doctor before merge
 We are honest about what is Partial today:
 
 - Codex MCP servers declared only in TOML are not inventoried yet.
-- Intent write-back from interactive prompts is not implemented; commit `.agentic-doctor/intent.json` yourself.
+- Intent write-back from interactive prompts is not implemented; prompt answers are discarded after `Noted.` Commit `.agentic-doctor/intent.json` yourself.
+- `@lousy-agents/agentic-doctor` is not on the public npm registry yet; installable entry is `@lousy-agents/cli doctor`.
 - Shipped criteria do not yet gate on `desiredCapabilities` or `targetHarnesses` beyond presence of the intent file.
 - Human output summarizes findings; the full inventory and edge graph are JSON-only.
 - Harness depth is uneven. Copilot and Claude are strongest; other footprints are thinner.

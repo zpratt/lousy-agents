@@ -56,7 +56,7 @@ Recommended reading order for new users:
 2. [init](init.md) — scaffold your first project
 3. [copilot-setup](copilot-setup.md) — add GitHub Copilot environment setup to an existing repository
 4. [new](new.md) and [lint](lint.md) — extend and validate your project scaffolding
-5. [doctor](doctor.md) — inventory multi-harness composition and gate known preconditions
+5. [doctor](doctor.md) — inventory multi-harness composition and evaluate known preconditions
 6. [MCP Server](mcp-server.md) — add the separately published `@lousy-agents/mcp` package if you want MCP integration
 
 ## Command Reference
