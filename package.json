@@ -45,14 +45,13 @@
         "lint:yaml": "yamllint ."
     },
     "devDependencies": {
-        "@biomejs/biome": "2.5.3",
+        "@biomejs/biome": "2.5.7",
         "@modelcontextprotocol/server-sequential-thinking": "2026.7.4",
         "@rspack/cli": "2.1.8",
         "@rspack/core": "2.1.8",
         "@types/chance": "1.1.8",
         "@types/mdast": "4.0.4",
         "@types/node": "25.9.5",
-        "@upstash/context7-mcp": "4.0.0",
         "chance": "1.1.13",
         "dependency-cruiser": "18.1.1",
         "fast-check": "4.9.0",
