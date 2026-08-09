@@ -34,6 +34,31 @@ describe("createClaudeInstructionImportExpander", () => {
         });
 
         expect(result.content).toBe("intro\n## Commands\n\n");
+        expect(result.effectiveRoot).toBe(claudePath);
+        expect(result.resolvedImports).toEqual([join(repoRoot, "AGENTS.md")]);
+        expect(result.expansionDiagnostics).toEqual([]);
+    });
+
+    it("should return expansion diagnostics with absolute importer path and line/column", async () => {
+        const claudePath = join(repoRoot, "CLAUDE.md");
+        await writeFile(claudePath, "intro\n@./missing.md\n");
+
+        const expander = createClaudeInstructionImportExpander();
+        const result = await expander.expandClaudeEntrypoint({
+            repoRoot,
+            absoluteFilePath: claudePath,
+        });
+
+        expect(result.expansionDiagnostics).toHaveLength(1);
+        expect(result.expansionDiagnostics[0]).toMatchObject({
+            ruleId: "instruction/import-unresolved",
+            filePath: claudePath,
+            line: 2,
+            column: 1,
+            endLine: 2,
+            endColumn: 14,
+        });
+        expect(result.resolvedImports).toEqual([]);
     });
 
     it("should reject an absolute path outside the repository root", async () => {

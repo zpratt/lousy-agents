@@ -19,6 +19,7 @@
 export type {
     CommandQualityScores,
     DiscoveredInstructionFile,
+    EffectiveInstructionDocumentProvenance,
     InstructionFileFormat,
     InstructionQualityResult,
     InstructionSuggestion,

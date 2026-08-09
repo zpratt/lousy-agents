@@ -65,6 +65,12 @@ export const DEFAULT_LINT_RULES: LintRulesConfig = {
         "instruction/command-outside-section": "warn",
         "instruction/missing-error-handling": "warn",
         "instruction/missing-structural-heading": "warn",
+        "instruction/import-unresolved": "warn",
+        "instruction/import-escape": "warn",
+        "instruction/import-symlink": "warn",
+        "instruction/import-cycle": "warn",
+        "instruction/import-depth-exceeded": "warn",
+        "instruction/import-size-exceeded": "warn",
     },
     skills: {
         "skill/invalid-frontmatter": "error",

@@ -1844,6 +1844,224 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                 );
                 expect(wrapperMissing).toEqual([]);
             });
+
+            it("should expose effective document provenance for a successful Coach wrapper expansion", async () => {
+                const claudePath = join(repoRoot, "CLAUDE.md");
+                const agentsPath = join(repoRoot, "AGENTS.md");
+                await writeFile(claudePath, "@./AGENTS.md\n");
+                await writeFile(agentsPath, compliantAgentsBody());
+
+                const useCase = createRealUseCase([
+                    { filePath: claudePath, format: "claude-md" },
+                    { filePath: agentsPath, format: "agents-md" },
+                ]);
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                expect(output.result.effectiveDocuments).toEqual([
+                    {
+                        effectiveRoot: claudePath,
+                        resolvedImports: [agentsPath],
+                    },
+                ]);
+            });
+        });
+
+        describe("import expansion failure diagnostics", () => {
+            it("should emit instruction/import-unresolved on the importer token for a missing target", async () => {
+                const claudePath = join(repoRoot, "CLAUDE.md");
+                const content = "intro\n@./missing.md\n";
+                await writeFile(claudePath, content);
+
+                const useCase = createRealUseCase([
+                    { filePath: claudePath, format: "claude-md" },
+                ]);
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                const diag = output.diagnostics.find(
+                    (d) => d.ruleId === "instruction/import-unresolved",
+                );
+                expect(diag).toMatchObject({
+                    filePath: claudePath,
+                    line: 2,
+                    column: 1,
+                    severity: "warning",
+                    target: "instruction",
+                    ruleId: "instruction/import-unresolved",
+                });
+                expect(diag?.message).toContain("missing.md");
+            });
+
+            it("should emit instruction/import-escape on the importer token for a path escape", async () => {
+                const claudePath = join(repoRoot, "CLAUDE.md");
+                await writeFile(claudePath, "@../outside.md\n");
+
+                const useCase = createRealUseCase([
+                    { filePath: claudePath, format: "claude-md" },
+                ]);
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                const diag = output.diagnostics.find(
+                    (d) => d.ruleId === "instruction/import-escape",
+                );
+                expect(diag).toMatchObject({
+                    filePath: claudePath,
+                    line: 1,
+                    column: 1,
+                    severity: "warning",
+                    ruleId: "instruction/import-escape",
+                });
+            });
+
+            it.skipIf(process.platform === "win32")(
+                "should emit instruction/import-symlink on the importer token for a symlink target",
+                async () => {
+                    const { symlink } = await import("node:fs/promises");
+                    await writeFile(join(repoRoot, "real.md"), "secret\n");
+                    await symlink(
+                        join(repoRoot, "real.md"),
+                        join(repoRoot, "link.md"),
+                    );
+                    const claudePath = join(repoRoot, "CLAUDE.md");
+                    await writeFile(claudePath, "@./link.md\n");
+
+                    const useCase = createRealUseCase([
+                        { filePath: claudePath, format: "claude-md" },
+                    ]);
+
+                    const output = await useCase.execute({
+                        targetDir: repoRoot,
+                    });
+
+                    const diag = output.diagnostics.find(
+                        (d) => d.ruleId === "instruction/import-symlink",
+                    );
+                    expect(diag).toMatchObject({
+                        filePath: claudePath,
+                        line: 1,
+                        column: 1,
+                        severity: "warning",
+                        ruleId: "instruction/import-symlink",
+                    });
+                },
+            );
+
+            it("should emit instruction/import-cycle on the importer token that closes the cycle", async () => {
+                const aPath = join(repoRoot, "a.md");
+                const bPath = join(repoRoot, "b.md");
+                await writeFile(aPath, "@./b.md\n");
+                await writeFile(bPath, "@./a.md\n");
+
+                const useCase = createRealUseCase([
+                    { filePath: aPath, format: "claude-md" },
+                ]);
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                const diag = output.diagnostics.find(
+                    (d) => d.ruleId === "instruction/import-cycle",
+                );
+                expect(diag).toMatchObject({
+                    filePath: bPath,
+                    line: 1,
+                    column: 1,
+                    severity: "warning",
+                    ruleId: "instruction/import-cycle",
+                });
+            });
+
+            it("should emit instruction/import-depth-exceeded when nested imports exceed the depth limit", async () => {
+                await writeFile(join(repoRoot, "d1.md"), "@./d2.md\n");
+                await writeFile(join(repoRoot, "d2.md"), "@./d3.md\n");
+                await writeFile(join(repoRoot, "d3.md"), "@./d4.md\n");
+                await writeFile(join(repoRoot, "d4.md"), "@./d5.md\n");
+                await writeFile(join(repoRoot, "d5.md"), "leaf\n");
+                const rootPath = join(repoRoot, "root.md");
+                await writeFile(rootPath, "@./d1.md\n");
+
+                const useCase = createRealUseCase([
+                    { filePath: rootPath, format: "claude-md" },
+                ]);
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                const diag = output.diagnostics.find(
+                    (d) => d.ruleId === "instruction/import-depth-exceeded",
+                );
+                expect(diag).toBeDefined();
+                expect(diag?.severity).toBe("warning");
+                expect(diag?.ruleId).toBe("instruction/import-depth-exceeded");
+                expect(diag?.filePath).toBe(join(repoRoot, "d4.md"));
+                expect(diag?.line).toBe(1);
+                expect(diag?.column).toBe(1);
+            });
+
+            it("should emit instruction/import-size-exceeded from expander diagnostics", async () => {
+                const claudePath = join(repoRoot, "CLAUDE.md");
+                await writeFile(claudePath, "no imports\n");
+
+                const expander: ClaudeInstructionImportExpander = {
+                    expandClaudeEntrypoint: async () => ({
+                        content: "no imports\n",
+                        effectiveRoot: claudePath,
+                        resolvedImports: [],
+                        expansionDiagnostics: [
+                            {
+                                ruleId: "instruction/import-size-exceeded",
+                                message:
+                                    "Import expansion size or graph limit exceeded while resolving: ./huge.md",
+                                filePath: claudePath,
+                                line: 1,
+                                column: 1,
+                                endLine: 1,
+                                endColumn: 11,
+                            },
+                        ],
+                    }),
+                };
+                const useCase = createRealUseCase(
+                    [{ filePath: claudePath, format: "claude-md" }],
+                    expander,
+                );
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                const diag = output.diagnostics.find(
+                    (d) => d.ruleId === "instruction/import-size-exceeded",
+                );
+                expect(diag).toMatchObject({
+                    filePath: claudePath,
+                    line: 1,
+                    column: 1,
+                    severity: "warning",
+                    ruleId: "instruction/import-size-exceeded",
+                });
+            });
+
+            it("should attribute nested unresolved import diagnostics to the nested importer path", async () => {
+                const claudePath = join(repoRoot, "CLAUDE.md");
+                const midPath = join(repoRoot, "mid.md");
+                await writeFile(claudePath, "@./mid.md\n");
+                await writeFile(midPath, "mid\n@./gone.md\n");
+
+                const useCase = createRealUseCase([
+                    { filePath: claudePath, format: "claude-md" },
+                ]);
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                const diag = output.diagnostics.find(
+                    (d) => d.ruleId === "instruction/import-unresolved",
+                );
+                expect(diag).toMatchObject({
+                    filePath: midPath,
+                    line: 2,
+                    column: 1,
+                    severity: "warning",
+                });
+            });
         });
 
         describe("A15: no supported imports and non-Claude entrypoints", () => {
