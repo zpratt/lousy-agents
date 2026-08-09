@@ -83,6 +83,7 @@ AI coding assistants work best when given clear constraints. Without structure, 
 - **[`init`](docs/init.md)** - Scaffold new projects with testing, linting, and Copilot configuration
 - **[`new`](docs/new.md)** - Create new resources like custom GitHub Copilot agents
 - **[`lint`](docs/lint.md)** - Validate skills, agents, hook configurations, and instruction files
+- **[`doctor`](docs/doctor.md)** - Inventory multi-harness agentic config, classify composition archetype, and evaluate preconditions
 - **[`copilot-setup`](docs/copilot-setup.md)** - Generate GitHub Actions workflows for Copilot environment setup
 - **[`init-hooks`](docs/lessons.md#init-hooks)** - Wire Claude Code hooks for lesson injection and capture
 
@@ -167,6 +168,7 @@ For detailed documentation on each command, see:
 - **[`init` command](docs/init.md)** - Scaffold new projects
 - **[`new` command](docs/new.md)** - Create new resources
 - **[`lint` command](docs/lint.md)** - Validate skills, agents, hook configurations, and instruction files
+- **[`doctor` command](docs/doctor.md)** - Diagnose multi-harness agentic configuration
 - **[`copilot-setup` command](docs/copilot-setup.md)** - Generate Copilot workflows
 - **[`init-hooks` command](docs/lessons.md#init-hooks)** - Wire Claude Code hooks for agent lessons
 - **[MCP Server](docs/mcp-server.md)** - AI assistant integration
@@ -195,6 +197,13 @@ npx @lousy-agents/cli copilot-setup
 
 ```bash
 npx @lousy-agents/cli lint
+```
+
+**Diagnose multi-harness agentic configuration:**
+
+```bash
+npx @lousy-agents/cli doctor
+npx @lousy-agents/cli doctor --format json --ci
 ```
 
 ## Contributing
@@ -226,6 +235,7 @@ Use the root install to work on all workspace packages together. The root `npm r
 | MCP server package | ✅ Complete |
 | Claude Code web environment setup | ✅ Complete |
 | Agent lesson system (context injection & capture) | ✅ Complete |
+| Multi-harness configuration doctor (inventory, edges, archetype, CI JSON) | ✅ Shipped (spine; intent/capability gates and some harness depth still Partial) |
 
 ## Documentation
 
@@ -233,10 +243,12 @@ Use the root install to work on all workspace packages together. The root `npm r
 - **[Then `copilot-setup`](docs/copilot-setup.md)** - Generate workflow setup for existing repositories
 - **[`new` Command](docs/new.md)** - Create new resources after your scaffold is in place
 - **[`lint` Command](docs/lint.md)** - Validate skills, agents, hook configurations, and instruction files
+- **[`doctor` Command](docs/doctor.md)** - Diagnose multi-harness agentic configuration and composition
 - **[Agent Lessons](docs/lessons.md)** - Accumulate durable knowledge across Claude Code sessions
 - **[MCP Server](docs/mcp-server.md)** - Configure the separately published `@lousy-agents/mcp` package
-- **[agent-shell](packages/agent-shell/README.md)** - Add npm script execution telemetry
+- **[agent-shell](packages/agent-shell/README.md)** - Add npm script telemetry
 - **[@lousy-agents/lint API](packages/lint/README.md)** - Programmatic lint API for your own tools
+- **[@lousy-agents/agentic-doctor](packages/doctor/README.md)** - Doctor package landing page
 
 ## Reference Examples
 

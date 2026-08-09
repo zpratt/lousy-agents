@@ -21,6 +21,10 @@ npx @lousy-agents/cli new
 
 # Validate skills, agents, and instruction files
 npx @lousy-agents/cli lint
+
+# Diagnose multi-harness agentic configuration
+npx @lousy-agents/cli doctor
+npx @lousy-agents/cli doctor --format json --ci
 ```
 
 ## Documentation
@@ -29,6 +33,7 @@ npx @lousy-agents/cli lint
 - `init` command: [`docs/init.md`](https://github.com/zpratt/lousy-agents/blob/main/docs/init.md)
 - `new` command: [`docs/new.md`](https://github.com/zpratt/lousy-agents/blob/main/docs/new.md)
 - `lint` command: [`docs/lint.md`](https://github.com/zpratt/lousy-agents/blob/main/docs/lint.md)
+- `doctor` command: [`docs/doctor.md`](https://github.com/zpratt/lousy-agents/blob/main/docs/doctor.md)
 - `copilot-setup` command: [`docs/copilot-setup.md`](https://github.com/zpratt/lousy-agents/blob/main/docs/copilot-setup.md)
 
 ## Reference Examples

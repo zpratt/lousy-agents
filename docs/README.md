@@ -26,6 +26,12 @@ Internal product docs (PRD, harness capability matrix): **[docs/product/](produc
   - Multiple output formats (human, JSON, reviewdog)
   - CI integration
 
+- **[`doctor` Command](doctor.md)** - Diagnose multi-harness agentic configuration
+  - Inventory constructs and composition edges across harnesses
+  - Archetype classification (pure, hybrid, sprawl, and related labels)
+  - Criteria findings with CI-friendly JSON output
+  - Declared intent via `.agentic-doctor/intent.json`
+
 - **[`copilot-setup` Command](copilot-setup.md)** - Generate GitHub Actions workflows for Copilot environment setup
   - Environment detection
   - Workflow analysis and merging
@@ -38,6 +44,8 @@ Internal product docs (PRD, harness capability matrix): **[docs/product/](produc
   - VS Code configuration
   - Usage examples
 
+- **[Agent Lessons](lessons.md)** - Durable lesson capture and injection for Claude Code sessions
+
 ## Getting Started
 
 If you're new to Lousy Agents, start with the main [README](../README.md) for the package overview and quick start.
@@ -48,7 +56,8 @@ Recommended reading order for new users:
 2. [init](init.md) — scaffold your first project
 3. [copilot-setup](copilot-setup.md) — add GitHub Copilot environment setup to an existing repository
 4. [new](new.md) and [lint](lint.md) — extend and validate your project scaffolding
-5. [MCP Server](mcp-server.md) — add the separately published `@lousy-agents/mcp` package if you want MCP integration
+5. [doctor](doctor.md) — inventory multi-harness composition and evaluate known preconditions
+6. [MCP Server](mcp-server.md) — add the separately published `@lousy-agents/mcp` package if you want MCP integration
 
 ## Command Reference
 
@@ -91,6 +100,16 @@ The `copilot-setup` command analyzes your project and generates GitHub Actions w
 - Version file support
 - Generated workflow examples
 - Copilot PR review ruleset creation (with GHAS-aware code scanning)
+
+### `doctor`
+
+The `doctor` command inventories agentic constructs across coding-agent harnesses, classifies composition archetype, and evaluates known preconditions. See the [complete doctor documentation](doctor.md) for:
+
+- Inventory and composition edges (including JSON `inventory[]` / `edges[]`)
+- Archetype labels and dominance scoring
+- Criteria catalog and blocking exit rules
+- Declared intent (`.agentic-doctor/intent.json`)
+- CI usage with `--format json --ci`
 
 ### MCP Server
 
