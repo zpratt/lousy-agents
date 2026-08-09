@@ -91,17 +91,16 @@ interface ImportToken {
 
 interface ExpandResult {
     readonly content: string;
-    readonly segments: EffectiveSegment[];
+    readonly segments: readonly EffectiveSegment[];
 }
 
-interface MutableState {
-    readonly limits: ExpansionLimits;
-    readonly contentCache: Map<string, string>;
-    readonly uniqueFiles: Set<string>;
-    readonly edges: ImportEdge[];
-    readonly diagnostics: ExpansionDiagnostic[];
-    emittedBytes: number;
-}
+type TokenExpansion =
+    | {
+          kind: "expanded";
+          content: string;
+          segments: readonly EffectiveSegment[];
+      }
+    | { kind: "unexpanded" };
 
 function resolveLimits(
     overrides: Partial<ExpansionLimits> | undefined,
@@ -129,11 +128,17 @@ function isInsideCodeRegion(
     );
 }
 
-function findCodeRegions(content: string): TextRange[] {
+function collectRegexRanges(
+    content: string,
+    pattern: RegExp,
+    skipInside?: readonly TextRange[],
+): TextRange[] {
     const regions: TextRange[] = [];
-
-    for (const match of content.matchAll(FENCED_CODE_RE)) {
+    for (const match of content.matchAll(pattern)) {
         if (match.index === undefined) {
+            continue;
+        }
+        if (skipInside && isInsideCodeRegion(match.index, skipInside)) {
             continue;
         }
         regions.push({
@@ -141,21 +146,13 @@ function findCodeRegions(content: string): TextRange[] {
             end: match.index + match[0].length,
         });
     }
-
-    for (const match of content.matchAll(INLINE_CODE_RE)) {
-        if (match.index === undefined) {
-            continue;
-        }
-        if (isInsideCodeRegion(match.index, regions)) {
-            continue;
-        }
-        regions.push({
-            start: match.index,
-            end: match.index + match[0].length,
-        });
-    }
-
     return regions;
+}
+
+function findCodeRegions(content: string): TextRange[] {
+    const fenced = collectRegexRanges(content, FENCED_CODE_RE);
+    const inline = collectRegexRanges(content, INLINE_CODE_RE, fenced);
+    return [...fenced, ...inline];
 }
 
 function findImportTokens(content: string): ImportToken[] {
@@ -196,18 +193,17 @@ function rebaseSegments(
     }));
 }
 
-function appendLiteralSegment(
-    segments: EffectiveSegment[],
+function createLiteralSegment(
     contentOffset: number,
     sourcePath: string,
     sourceStart: number,
     text: string,
     importChain: readonly string[],
-): void {
+): EffectiveSegment | undefined {
     if (text.length === 0) {
-        return;
+        return undefined;
     }
-    segments.push({
+    return {
         effectiveRange: {
             start: contentOffset,
             end: contentOffset + text.length,
@@ -218,12 +214,13 @@ function appendLiteralSegment(
             end: sourceStart + text.length,
         },
         importChain: [...importChain],
-    });
+    };
 }
 
 function ruleIdForStatus(status: ImportEdgeStatus): string | undefined {
     switch (status) {
         case "unresolved":
+        case "not-regular":
             return "instruction/import-unresolved";
         case "escape":
         case "absolute":
@@ -237,8 +234,6 @@ function ruleIdForStatus(status: ImportEdgeStatus): string | undefined {
             return "instruction/import-depth-exceeded";
         case "size-exceeded":
             return "instruction/import-size-exceeded";
-        case "not-regular":
-            return "instruction/import-unresolved";
         case "resolved":
             return undefined;
     }
@@ -272,19 +267,6 @@ function messageForFailure(
     }
 }
 
-function recordEdge(state: MutableState, edge: ImportEdge): void {
-    state.edges.push(edge);
-    if (edge.status === "resolved" || !edge.ruleId) {
-        return;
-    }
-    state.diagnostics.push({
-        ruleId: edge.ruleId,
-        message: messageForFailure(edge.status, edge.rawTarget),
-        filePath: edge.importer,
-        range: edge.tokenRange,
-    });
-}
-
 function classifyPathError(error: unknown): ImportEdgeStatus {
     if (!(error instanceof Error)) {
         return "unresolved";
@@ -309,12 +291,6 @@ function classifyPathError(error: unknown): ImportEdgeStatus {
         message.includes("too-large")
     ) {
         return "size-exceeded";
-    }
-    if ("code" in error && (error as NodeJS.ErrnoException).code === "ENOENT") {
-        return "unresolved";
-    }
-    if (message.includes("ENOENT") || message.includes("not found")) {
-        return "unresolved";
     }
     return "unresolved";
 }
@@ -356,228 +332,231 @@ function normalizeRelativeWithinRoot(
     return { ok: true, relativePath: toPosixRelative(normalized) };
 }
 
-async function readCachedFile(
-    repoRoot: string,
-    relativePath: string,
-    state: MutableState,
-): Promise<
-    | { ok: true; content: string; isNewUnique: boolean }
-    | { ok: false; status: ImportEdgeStatus }
-> {
-    const cached = state.contentCache.get(relativePath);
-    if (cached !== undefined) {
-        return { ok: true, content: cached, isNewUnique: false };
-    }
-
-    try {
-        await resolvePathWithinRoot(repoRoot, relativePath);
-    } catch (error: unknown) {
-        return { ok: false, status: classifyPathError(error) };
-    }
-
-    try {
-        const stats = await statWithinRoot(repoRoot, relativePath);
-        if (stats.isSymbolicLink) {
-            return { ok: false, status: "symlink" };
-        }
-        if (!stats.isFile) {
-            return { ok: false, status: "not-regular" };
-        }
-    } catch (error: unknown) {
-        return { ok: false, status: classifyPathError(error) };
-    }
-
-    const isNewUnique = !state.uniqueFiles.has(relativePath);
-    if (isNewUnique && state.uniqueFiles.size >= state.limits.maxUniqueFiles) {
-        return { ok: false, status: "size-exceeded" };
-    }
-
-    try {
-        const content = await readTextWithinRoot(
-            repoRoot,
-            relativePath,
-            state.limits.maxFileBytes,
-        );
-        state.contentCache.set(relativePath, content);
-        if (isNewUnique) {
-            state.uniqueFiles.add(relativePath);
-        }
-        return { ok: true, content, isNewUnique };
-    } catch (error: unknown) {
-        return { ok: false, status: classifyPathError(error) };
-    }
+function isUnsafeRootPath(rootRelativePath: string): boolean {
+    return (
+        !rootRelativePath ||
+        rootRelativePath === ".." ||
+        rootRelativePath.startsWith(`..${sep}`) ||
+        rootRelativePath.startsWith("../") ||
+        isAbsolute(rootRelativePath)
+    );
 }
 
-async function expandContent(
-    repoRoot: string,
-    sourcePath: string,
-    content: string,
-    hop: number,
-    stack: readonly string[],
-    importChain: readonly string[],
-    state: MutableState,
-): Promise<ExpandResult> {
-    const tokens = findImportTokens(content);
-    const segments: EffectiveSegment[] = [];
-    let output = "";
-    let cursor = 0;
+/**
+ * Owns expansion bookkeeping for a single buildEffectiveDocument call.
+ * Mutations stay on the session instance rather than shared parameter bags.
+ */
+class ExpansionSession {
+    readonly limits: ExpansionLimits;
+    private readonly contentCache = new Map<string, string>();
+    private readonly uniqueFiles = new Set<string>();
+    private readonly edges: ImportEdge[] = [];
+    private readonly diagnostics: ExpansionDiagnostic[] = [];
+    private emittedBytes = 0;
 
-    const flushLiteral = (from: number, to: number): boolean => {
-        if (to <= from) {
-            return true;
-        }
-        const text = content.slice(from, to);
-        if (state.emittedBytes + text.length > state.limits.maxEmittedBytes) {
-            return false;
-        }
-        appendLiteralSegment(
-            segments,
-            output.length,
-            sourcePath,
-            from,
-            text,
-            importChain,
-        );
-        output += text;
-        state.emittedBytes += text.length;
-        return true;
-    };
-
-    for (const token of tokens) {
-        if (!flushLiteral(cursor, token.start)) {
-            recordEdge(state, {
-                importer: sourcePath,
-                tokenRange: { start: token.start, end: token.end },
-                rawTarget: token.rawTarget,
-                status: "size-exceeded",
-                ruleId: ruleIdForStatus("size-exceeded"),
-            });
-            // Keep remaining source literal if possible, else stop.
-            const rest = content.slice(token.start);
-            const room = state.limits.maxEmittedBytes - state.emittedBytes;
-            if (room > 0) {
-                const clipped = rest.slice(0, room);
-                appendLiteralSegment(
-                    segments,
-                    output.length,
-                    sourcePath,
-                    token.start,
-                    clipped,
-                    importChain,
-                );
-                output += clipped;
-                state.emittedBytes += clipped.length;
-            }
-            return { content: output, segments };
-        }
-
-        const expansion = await expandToken(
-            repoRoot,
-            sourcePath,
-            token,
-            hop,
-            stack,
-            importChain,
-            state,
-            output.length,
-        );
-
-        if (expansion.kind === "expanded") {
-            output += expansion.content;
-            segments.push(...expansion.segments);
-        } else {
-            const tokenText = content.slice(token.start, token.end);
-            if (
-                state.emittedBytes + tokenText.length >
-                state.limits.maxEmittedBytes
-            ) {
-                const room = state.limits.maxEmittedBytes - state.emittedBytes;
-                if (room > 0) {
-                    const clipped = tokenText.slice(0, room);
-                    appendLiteralSegment(
-                        segments,
-                        output.length,
-                        sourcePath,
-                        token.start,
-                        clipped,
-                        importChain,
-                    );
-                    output += clipped;
-                    state.emittedBytes += clipped.length;
-                }
-                return { content: output, segments };
-            }
-            appendLiteralSegment(
-                segments,
-                output.length,
-                sourcePath,
-                token.start,
-                tokenText,
-                importChain,
-            );
-            output += tokenText;
-            state.emittedBytes += tokenText.length;
-        }
-
-        cursor = token.end;
+    constructor(limits: ExpansionLimits) {
+        this.limits = limits;
     }
 
-    if (!flushLiteral(cursor, content.length)) {
-        const rest = content.slice(cursor);
-        const room = state.limits.maxEmittedBytes - state.emittedBytes;
-        if (room > 0) {
-            const clipped = rest.slice(0, room);
-            appendLiteralSegment(
-                segments,
-                output.length,
-                sourcePath,
-                cursor,
-                clipped,
-                importChain,
-            );
-            output += clipped;
-            state.emittedBytes += clipped.length;
-        }
+    get edgeCount(): number {
+        return this.edges.length;
     }
 
-    return { content: output, segments };
-}
+    get remainingEmitBudget(): number {
+        return this.limits.maxEmittedBytes - this.emittedBytes;
+    }
 
-async function expandToken(
-    repoRoot: string,
-    importerPath: string,
-    token: ImportToken,
-    hop: number,
-    stack: readonly string[],
-    importChain: readonly string[],
-    state: MutableState,
-    outputOffset: number,
-): Promise<
-    | { kind: "expanded"; content: string; segments: EffectiveSegment[] }
-    | { kind: "unexpanded" }
-> {
-    const fail = (
+    isEmitBudgetExhausted(): boolean {
+        return this.emittedBytes >= this.limits.maxEmittedBytes;
+    }
+
+    snapshot(): {
+        edges: readonly ImportEdge[];
+        diagnostics: readonly ExpansionDiagnostic[];
+    } {
+        return {
+            edges: [...this.edges],
+            diagnostics: [...this.diagnostics],
+        };
+    }
+
+    recordEdge(edge: ImportEdge): void {
+        this.edges.push(edge);
+        if (edge.status === "resolved" || !edge.ruleId) {
+            return;
+        }
+        this.diagnostics.push({
+            ruleId: edge.ruleId,
+            message: messageForFailure(edge.status, edge.rawTarget),
+            filePath: edge.importer,
+            range: edge.tokenRange,
+        });
+    }
+
+    recordFailure(
+        importer: string,
+        token: ImportToken,
         status: ImportEdgeStatus,
         target?: string,
-    ): { kind: "unexpanded" } => {
-        recordEdge(state, {
-            importer: importerPath,
+    ): void {
+        this.recordEdge({
+            importer,
             tokenRange: { start: token.start, end: token.end },
             rawTarget: token.rawTarget,
             target,
             status,
             ruleId: ruleIdForStatus(status),
         });
-        return { kind: "unexpanded" };
-    };
+    }
 
-    if (state.edges.length >= state.limits.maxEdges) {
-        return fail("size-exceeded");
+    recordResolved(importer: string, token: ImportToken, target: string): void {
+        this.recordEdge({
+            importer,
+            tokenRange: { start: token.start, end: token.end },
+            rawTarget: token.rawTarget,
+            target,
+            status: "resolved",
+        });
+    }
+
+    /**
+     * Emit up to `text` against the remaining byte budget.
+     * Returns emitted text (possibly clipped) and whether the full text fit.
+     */
+    takeEmitBudget(text: string): { emitted: string; complete: boolean } {
+        if (text.length === 0) {
+            return { emitted: "", complete: true };
+        }
+        const room = this.remainingEmitBudget;
+        if (room <= 0) {
+            return { emitted: "", complete: false };
+        }
+        if (text.length <= room) {
+            this.emittedBytes += text.length;
+            return { emitted: text, complete: true };
+        }
+        this.emittedBytes += room;
+        return { emitted: text.slice(0, room), complete: false };
+    }
+
+    async readFile(
+        repoRoot: string,
+        relativePath: string,
+    ): Promise<
+        { ok: true; content: string } | { ok: false; status: ImportEdgeStatus }
+    > {
+        const cached = this.contentCache.get(relativePath);
+        if (cached !== undefined) {
+            return { ok: true, content: cached };
+        }
+
+        try {
+            await resolvePathWithinRoot(repoRoot, relativePath);
+        } catch (error: unknown) {
+            return { ok: false, status: classifyPathError(error) };
+        }
+
+        try {
+            const stats = await statWithinRoot(repoRoot, relativePath);
+            if (stats.isSymbolicLink) {
+                return { ok: false, status: "symlink" };
+            }
+            if (!stats.isFile) {
+                return { ok: false, status: "not-regular" };
+            }
+        } catch (error: unknown) {
+            return { ok: false, status: classifyPathError(error) };
+        }
+
+        const isNewUnique = !this.uniqueFiles.has(relativePath);
+        if (
+            isNewUnique &&
+            this.uniqueFiles.size >= this.limits.maxUniqueFiles
+        ) {
+            return { ok: false, status: "size-exceeded" };
+        }
+
+        try {
+            const content = await readTextWithinRoot(
+                repoRoot,
+                relativePath,
+                this.limits.maxFileBytes,
+            );
+            this.contentCache.set(relativePath, content);
+            if (isNewUnique) {
+                this.uniqueFiles.add(relativePath);
+            }
+            return { ok: true, content };
+        } catch (error: unknown) {
+            return { ok: false, status: classifyPathError(error) };
+        }
+    }
+}
+
+interface ContentBuilder {
+    output: string;
+    segments: EffectiveSegment[];
+}
+
+function appendEmittedLiteral(
+    builder: ContentBuilder,
+    sourcePath: string,
+    sourceStart: number,
+    text: string,
+    importChain: readonly string[],
+): void {
+    const segment = createLiteralSegment(
+        builder.output.length,
+        sourcePath,
+        sourceStart,
+        text,
+        importChain,
+    );
+    if (!segment) {
+        return;
+    }
+    builder.segments.push(segment);
+    builder.output += text;
+}
+
+function emitSourceSlice(
+    session: ExpansionSession,
+    builder: ContentBuilder,
+    sourcePath: string,
+    content: string,
+    from: number,
+    to: number,
+    importChain: readonly string[],
+): boolean {
+    if (to <= from) {
+        return true;
+    }
+    const { emitted, complete } = session.takeEmitBudget(
+        content.slice(from, to),
+    );
+    appendEmittedLiteral(builder, sourcePath, from, emitted, importChain);
+    return complete;
+}
+
+async function expandToken(
+    session: ExpansionSession,
+    repoRoot: string,
+    importerPath: string,
+    token: ImportToken,
+    hop: number,
+    stack: readonly string[],
+    importChain: readonly string[],
+    outputOffset: number,
+): Promise<TokenExpansion> {
+    if (session.edgeCount >= session.limits.maxEdges) {
+        session.recordFailure(importerPath, token, "size-exceeded");
+        return { kind: "unexpanded" };
     }
 
     const nextHop = hop + 1;
-    if (nextHop > state.limits.maxDepth) {
-        return fail("depth-exceeded");
+    if (nextHop > session.limits.maxDepth) {
+        session.recordFailure(importerPath, token, "depth-exceeded");
+        return { kind: "unexpanded" };
     }
 
     const normalized = normalizeRelativeWithinRoot(
@@ -585,50 +564,129 @@ async function expandToken(
         token.rawTarget,
     );
     if (!normalized.ok) {
-        return fail(normalized.status);
+        session.recordFailure(importerPath, token, normalized.status);
+        return { kind: "unexpanded" };
     }
 
     const targetPath = normalized.relativePath;
-
     if (stack.includes(targetPath)) {
-        return fail("cycle", targetPath);
+        session.recordFailure(importerPath, token, "cycle", targetPath);
+        return { kind: "unexpanded" };
     }
 
-    // Pre-check emitted budget with a zero-length probe: actual size checked after read.
-    const readResult = await readCachedFile(repoRoot, targetPath, state);
+    const readResult = await session.readFile(repoRoot, targetPath);
     if (!readResult.ok) {
-        return fail(readResult.status, targetPath);
+        session.recordFailure(
+            importerPath,
+            token,
+            readResult.status,
+            targetPath,
+        );
+        return { kind: "unexpanded" };
     }
 
-    if (state.emittedBytes >= state.limits.maxEmittedBytes) {
-        return fail("size-exceeded", targetPath);
+    if (session.isEmitBudgetExhausted()) {
+        session.recordFailure(importerPath, token, "size-exceeded", targetPath);
+        return { kind: "unexpanded" };
     }
 
-    // Temporarily reserve uniqueness already handled in readCachedFile.
     const child = await expandContent(
+        session,
         repoRoot,
         targetPath,
         readResult.content,
         nextHop,
         [...stack, targetPath],
         [...importChain, targetPath],
-        state,
     );
 
-    // expandContent already accounted emitted bytes for child content.
-    recordEdge(state, {
-        importer: importerPath,
-        tokenRange: { start: token.start, end: token.end },
-        rawTarget: token.rawTarget,
-        target: targetPath,
-        status: "resolved",
-    });
-
+    session.recordResolved(importerPath, token, targetPath);
     return {
         kind: "expanded",
         content: child.content,
         segments: rebaseSegments(child.segments, outputOffset),
     };
+}
+
+async function expandContent(
+    session: ExpansionSession,
+    repoRoot: string,
+    sourcePath: string,
+    content: string,
+    hop: number,
+    stack: readonly string[],
+    importChain: readonly string[],
+): Promise<ExpandResult> {
+    const tokens = findImportTokens(content);
+    const builder: ContentBuilder = { output: "", segments: [] };
+    let cursor = 0;
+
+    for (const token of tokens) {
+        const literalOk = emitSourceSlice(
+            session,
+            builder,
+            sourcePath,
+            content,
+            cursor,
+            token.start,
+            importChain,
+        );
+        if (!literalOk) {
+            session.recordFailure(sourcePath, token, "size-exceeded");
+            emitSourceSlice(
+                session,
+                builder,
+                sourcePath,
+                content,
+                token.start,
+                content.length,
+                importChain,
+            );
+            return { content: builder.output, segments: builder.segments };
+        }
+
+        const expansion = await expandToken(
+            session,
+            repoRoot,
+            sourcePath,
+            token,
+            hop,
+            stack,
+            importChain,
+            builder.output.length,
+        );
+
+        if (expansion.kind === "expanded") {
+            builder.output += expansion.content;
+            builder.segments.push(...expansion.segments);
+        } else {
+            const tokenOk = emitSourceSlice(
+                session,
+                builder,
+                sourcePath,
+                content,
+                token.start,
+                token.end,
+                importChain,
+            );
+            if (!tokenOk) {
+                return { content: builder.output, segments: builder.segments };
+            }
+        }
+
+        cursor = token.end;
+    }
+
+    emitSourceSlice(
+        session,
+        builder,
+        sourcePath,
+        content,
+        cursor,
+        content.length,
+        importChain,
+    );
+    return { content: builder.output, segments: builder.segments };
 }
 
 /**
@@ -640,55 +698,36 @@ export async function buildEffectiveDocument(
     const limits = resolveLimits(input.limits);
     const rootRelativePath = toPosixRelative(normalize(input.rootRelativePath));
 
-    if (
-        !rootRelativePath ||
-        rootRelativePath === ".." ||
-        rootRelativePath.startsWith(`..${sep}`) ||
-        rootRelativePath.startsWith("../") ||
-        isAbsolute(rootRelativePath)
-    ) {
+    if (isUnsafeRootPath(rootRelativePath)) {
         throw new Error(
             `Root path is outside repository root: ${input.rootRelativePath}`,
         );
     }
 
-    const state: MutableState = {
-        limits,
-        contentCache: new Map(),
-        uniqueFiles: new Set(),
-        edges: [],
-        diagnostics: [],
-        emittedBytes: 0,
-    };
-
-    const rootRead = await readCachedFile(
-        input.repoRoot,
-        rootRelativePath,
-        state,
-    );
+    const session = new ExpansionSession(limits);
+    const rootRead = await session.readFile(input.repoRoot, rootRelativePath);
     if (!rootRead.ok) {
         throw new Error(
             `Unable to read root instruction file ${rootRelativePath}: ${rootRead.status}`,
         );
     }
 
-    // Ensure relative() style identity for stack membership
-    const rootKey = rootRelativePath;
     const expanded = await expandContent(
+        session,
         input.repoRoot,
-        rootKey,
+        rootRelativePath,
         rootRead.content,
         0,
-        [rootKey],
-        [rootKey],
-        state,
+        [rootRelativePath],
+        [rootRelativePath],
     );
+    const snapshot = session.snapshot();
 
     return {
-        root: rootKey,
+        root: rootRelativePath,
         content: expanded.content,
         orderedSegments: expanded.segments,
-        edges: state.edges,
-        expansionDiagnostics: state.diagnostics,
+        edges: snapshot.edges,
+        expansionDiagnostics: snapshot.diagnostics,
     };
 }
