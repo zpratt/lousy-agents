@@ -493,30 +493,56 @@ class ExpansionSession {
     }
 }
 
-interface ContentBuilder {
-    output: string;
-    segments: EffectiveSegment[];
-}
+class ContentBuilder {
+    private outputText = "";
+    private readonly builtSegments: EffectiveSegment[] = [];
 
-function appendEmittedLiteral(
-    builder: ContentBuilder,
-    sourcePath: string,
-    sourceStart: number,
-    text: string,
-    importChain: readonly string[],
-): void {
-    const segment = createLiteralSegment(
-        builder.output.length,
-        sourcePath,
-        sourceStart,
-        text,
-        importChain,
-    );
-    if (!segment) {
-        return;
+    get output(): string {
+        return this.outputText;
     }
-    builder.segments.push(segment);
-    builder.output += text;
+
+    get length(): number {
+        return this.outputText.length;
+    }
+
+    get segments(): readonly EffectiveSegment[] {
+        return this.builtSegments;
+    }
+
+    appendLiteral(
+        sourcePath: string,
+        sourceStart: number,
+        text: string,
+        importChain: readonly string[],
+    ): void {
+        const segment = createLiteralSegment(
+            this.outputText.length,
+            sourcePath,
+            sourceStart,
+            text,
+            importChain,
+        );
+        if (!segment) {
+            return;
+        }
+        this.builtSegments.push(segment);
+        this.outputText += text;
+    }
+
+    appendExpanded(
+        content: string,
+        segments: readonly EffectiveSegment[],
+    ): void {
+        this.outputText += content;
+        this.builtSegments.push(...segments);
+    }
+
+    toResult(): ExpandResult {
+        return {
+            content: this.outputText,
+            segments: [...this.builtSegments],
+        };
+    }
 }
 
 function emitSourceSlice(
@@ -534,7 +560,7 @@ function emitSourceSlice(
     const { emitted, complete } = session.takeEmitBudget(
         content.slice(from, to),
     );
-    appendEmittedLiteral(builder, sourcePath, from, emitted, importChain);
+    builder.appendLiteral(sourcePath, from, emitted, importChain);
     return complete;
 }
 
@@ -618,7 +644,7 @@ async function expandContent(
     importChain: readonly string[],
 ): Promise<ExpandResult> {
     const tokens = findImportTokens(content);
-    const builder: ContentBuilder = { output: "", segments: [] };
+    const builder = new ContentBuilder();
     let cursor = 0;
 
     for (const token of tokens) {
@@ -642,7 +668,7 @@ async function expandContent(
                 content.length,
                 importChain,
             );
-            return { content: builder.output, segments: builder.segments };
+            return builder.toResult();
         }
 
         const expansion = await expandToken(
@@ -653,12 +679,11 @@ async function expandContent(
             hop,
             stack,
             importChain,
-            builder.output.length,
+            builder.length,
         );
 
         if (expansion.kind === "expanded") {
-            builder.output += expansion.content;
-            builder.segments.push(...expansion.segments);
+            builder.appendExpanded(expansion.content, expansion.segments);
         } else {
             const tokenOk = emitSourceSlice(
                 session,
@@ -670,7 +695,7 @@ async function expandContent(
                 importChain,
             );
             if (!tokenOk) {
-                return { content: builder.output, segments: builder.segments };
+                return builder.toResult();
             }
         }
 
@@ -686,7 +711,7 @@ async function expandContent(
         content.length,
         importChain,
     );
-    return { content: builder.output, segments: builder.segments };
+    return builder.toResult();
 }
 
 /**
