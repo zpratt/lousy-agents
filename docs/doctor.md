@@ -132,16 +132,18 @@ Advisories never fail the process on their own. Medium defects (for example miss
 
 | Criterion ID | Harness | Severity | Classification | Category | What it means |
 | ------------ | ------- | -------- | -------------- | -------- | ------------- |
-| `missing-copilot-instructions` | copilot | critical | defect | missing-required | `.github/copilot-instructions.md` is missing. Copilot has no workspace instruction entry point. |
-| `missing-claude-md` | claude | high | defect | missing-required | Neither `CLAUDE.md` nor `.claude/` is present for Claude Code. |
-| `missing-agents-md` | codex | high | defect | missing-required | Neither `AGENTS.md` nor `AGENTS.override.md` is present for Codex. |
-| `malformed-claude-import` | claude | high | defect | malformed-reference | A Claude `@path` hard-import points at a missing file or escapes the repo root. |
-| `cross-harness-drift` | all | high | advisory | drift | Archetype is `accidental-sprawl`: multiple harnesses with no cross-harness references. |
+| `missing-copilot-instructions` | copilot | critical | defect | missing-required | `.github/copilot-instructions.md` is missing while Copilot constructs are present (for example `.github/instructions/`). Blocks CI. |
+| `missing-claude-md` | claude | high | defect | missing-required | Neither `CLAUDE.md` nor `.claude/` is present while the Claude harness is attributed. In practice Claude is usually detected only via those paths, so this finding is rare. |
+| `missing-agents-md` | codex | high | defect | missing-required | Neither `AGENTS.md` nor `AGENTS.override.md` is present while Codex is attributed (for example via `.agents/skills/` or `.codex/`). Blocks CI. |
+| `malformed-claude-import` | claude | high | defect | malformed-reference | A Claude `@path` hard-import is malformed (missing target or path traversal). Blocks CI. |
+| `cross-harness-drift` | all | high | advisory | drift | Archetype is `accidental-sprawl`: multiple harnesses with no cross-harness references. Does not block CI. |
 | `wrong-direction-copilot-imports-claude` | copilot | medium | advisory | wrong-direction | A Copilot file uses Claude `@path` hard-import syntax toward a Claude file. Copilot does not process `@path` hard-imports. |
 | `wrong-direction-copilot-links-claude` | copilot | medium | advisory | wrong-direction | A Copilot file soft-references a Claude file (markdown link or frontmatter `see:` / `references:` / `requires:`). Copilot CLI does not follow those links. |
-| `missing-intent-artifact` | all | medium | defect | governance | Constructs exist but `.agentic-doctor/intent.json` is missing. Capability preconditions cannot be graded against declared intent. |
-| `missing-hermes-config` | hermes | medium | advisory | missing-required | Hermes footprint is present without `.hermes.md` or `HERMES.md`. |
-| `missing-crush-config` | crush | medium | advisory | missing-required | Crush footprint is present without `crush.json`. |
+| `missing-intent-artifact` | all | medium | defect | governance | Constructs exist but `.agentic-doctor/intent.json` is missing or invalid. Visible, non-blocking. |
+| `missing-hermes-config` | hermes | medium | advisory | missing-required | Hermes is attributed (for example via `SOUL.md`) without `.hermes.md` or `HERMES.md`. |
+| `missing-crush-config` | crush | medium | advisory | missing-required | Crush is attributed (for example via `.crush/`) without `crush.json`. |
+
+Missing-required checks run only when that harness already appears in the inventory. They fire when the harness was detected through a path other than the required entry file (Copilot via `.github/instructions/` is the common critical case).
 
 Use findings as referee input for humans and review agents. Feed durable ones into shared rules (`AGENTS.md`, `CLAUDE.md`) so the next wave of agents inherits the constraint.
 
@@ -181,12 +183,12 @@ Archetype: intentional-hybrid
 ✔ No findings.
 ```
 
-When findings exist, each line looks like:
+When findings exist (header plus severity-ordered lines):
 
 ```
-  [HIGH][defect] missing-claude-md: Claude Code requires CLAUDE.md or .claude/ directory to load project instructions.
-  [HIGH][advisory] cross-harness-drift: Multiple AI harnesses are configured but share no cross-harness references...
-  [MEDIUM][defect] missing-intent-artifact: No declared intent artifact found at .agentic-doctor/intent.json... [assumed intent]
+Findings (2):
+  [HIGH][advisory] cross-harness-drift: Multiple AI harnesses are configured but share no cross-harness references. This may indicate accidental configuration sprawl rather than intentional multi-harness setup.
+  [MEDIUM][defect] missing-intent-artifact: No declared intent artifact found at .agentic-doctor/intent.json. Without declared intent, the doctor cannot evaluate capability preconditions. [assumed intent]
 ```
 
 Tags are `[SEVERITY][classification]`. Findings with `assumedIntent: true` append `[assumed intent]`. Optional evidence citations print on the following line when present.
@@ -204,7 +206,7 @@ Tags are `[SEVERITY][classification]`. Findings with `assumedIntent: true` appen
 | `crossHarnessEdges` | number | Count of edges with `crossHarness: true` |
 | `inventory` | array | One entry per construct |
 | `edges` | array | Flattened composition edges |
-| `findings` | array | Criteria results (empty array when none). Omitted from evaluation when `--summary` is set. |
+| `findings` | array | Criteria results (empty array when none). Present only on full evaluate, not on `--summary`. |
 | `snapshotRef` | string? | Present when a local `wisdom/` graph is available |
 
 **Inventory item fields:** `id`, `path`, `harness`, `constructType`, `loadMechanism` (`referenced` \| `convention-loaded`), optional `serverName` / `transport` for `mcp-server` records.
@@ -217,7 +219,7 @@ Tags are `[SEVERITY][classification]`. Findings with `assumedIntent: true` appen
 | ----- | ---- | ----- |
 | `id` | string | Stable id, usually `criterionId:targetId` |
 | `criterionId` | string | Matches the criteria table |
-| `targetId` | string | What was graded (harness, path pair, or `all:intent`) |
+| `targetId` | string | What was graded: `all:intent`, `all:<archetype>` (drift), `harness:all`, or a harness pair |
 | `severity` | `critical` \| `high` \| `medium` \| `low` \| `info` | Ordering key in human output |
 | `category` | string | `missing-required`, `malformed-reference`, `wrong-direction`, `drift`, `governance`, or `composition-style` |
 | `classification` | `defect` \| `advisory` \| `info` | Only `defect` can block CI when severity is critical/high |
@@ -234,20 +236,26 @@ Reviewer agents can filter without re-scanning source:
 - Blocking gate set: `findings.filter(f => (f.severity === "critical" || f.severity === "high") && f.classification === "defect")`
 - Drift signal: `archetype`, `crossHarnessEdges`, and advisories with `criterionId === "cross-harness-drift"`
 
-Example fragment:
+Example fragment from an `accidental-sprawl` repo (no cross-harness edges, no intent file). High advisory does not fail CI; medium defect does not fail CI either:
 
 ```json
 {
-  "archetype": "intentional-hybrid",
-  "dominanceScore": 0.41,
-  "totalRecords": 59,
+  "archetype": "accidental-sprawl",
+  "dominanceScore": 0.5,
+  "totalRecords": 2,
   "harnessBreakdown": [
-    { "harness": "claude", "count": 26 },
-    { "harness": "codex", "count": 23 },
-    { "harness": "copilot", "count": 8 }
+    { "harness": "claude", "count": 1 },
+    { "harness": "copilot", "count": 1 }
   ],
-  "crossHarnessEdges": 1,
+  "crossHarnessEdges": 0,
   "inventory": [
+    {
+      "id": "copilot:.github/copilot-instructions.md",
+      "path": ".github/copilot-instructions.md",
+      "harness": "copilot",
+      "constructType": "instruction",
+      "loadMechanism": "convention-loaded"
+    },
     {
       "id": "claude:CLAUDE.md",
       "path": "CLAUDE.md",
@@ -256,15 +264,7 @@ Example fragment:
       "loadMechanism": "convention-loaded"
     }
   ],
-  "edges": [
-    {
-      "from": "CLAUDE.md",
-      "to": ".github/copilot-instructions.md",
-      "type": "hard-import",
-      "malformed": false,
-      "crossHarness": true
-    }
-  ],
+  "edges": [],
   "findings": [
     {
       "id": "missing-intent-artifact:all:intent",
@@ -278,9 +278,9 @@ Example fragment:
       "description": "No declared intent artifact found at .agentic-doctor/intent.json. Without declared intent, the doctor cannot evaluate capability preconditions."
     },
     {
-      "id": "cross-harness-drift:all:archetype",
+      "id": "cross-harness-drift:all:accidental-sprawl",
       "criterionId": "cross-harness-drift",
-      "targetId": "all:archetype",
+      "targetId": "all:accidental-sprawl",
       "severity": "high",
       "category": "drift",
       "classification": "advisory",
@@ -345,12 +345,14 @@ Interactive prompts on a TTY do not write this file for you. Create or update it
 | `0` | No blocking findings, or `--summary` (no evaluate) |
 | `1` | At least one critical or high **defect** on a full evaluate |
 
-Gating step (fails the job on blocking defects, keeps the report):
+Gating step (fails the job on blocking defects, keeps the report). Redirect does not hide doctor's exit code:
 
 ```yaml
 - name: Agentic configuration doctor
   run: npx @lousy-agents/cli doctor --format json --ci > doctor-report.json
 ```
+
+Example: a repo with Copilot instruction fragments under `.github/instructions/` but no `.github/copilot-instructions.md` exits `1` on full evaluate (`missing-copilot-instructions` is a critical defect). The same repo with `--summary` still exits `0`.
 
 Non-gating composition snapshot for PR artifacts or fleet baselines (always exit `0` from doctor):
 
