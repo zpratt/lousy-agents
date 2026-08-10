@@ -61,10 +61,25 @@ export const analyzeInstructionQualityHandler: ToolHandler = async (
             diagnostics: output.diagnostics.map((d) => ({
                 filePath: d.filePath,
                 line: d.line,
+                ...(d.column !== undefined ? { column: d.column } : {}),
+                ...(d.endLine !== undefined ? { endLine: d.endLine } : {}),
+                ...(d.endColumn !== undefined
+                    ? { endColumn: d.endColumn }
+                    : {}),
                 severity: d.severity,
                 message: d.message,
                 ruleId: d.ruleId,
             })),
+            ...(output.result.effectiveDocuments !== undefined
+                ? {
+                      effectiveDocuments: output.result.effectiveDocuments.map(
+                          (doc) => ({
+                              effectiveRoot: doc.effectiveRoot,
+                              resolvedImports: [...doc.resolvedImports],
+                          }),
+                      ),
+                  }
+                : {}),
         });
     } catch (error) {
         return errorResponse(

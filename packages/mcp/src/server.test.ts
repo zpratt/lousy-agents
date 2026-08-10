@@ -1010,5 +1010,71 @@ npm run test
             expect(result.success).toBe(false);
             expect(result.error).toContain("does not exist");
         });
+
+        it("should include additive effectiveDocuments and import diagnostic positions without dropping existing fields", async () => {
+            // Arrange
+            await writeFile(
+                join(testDir, "package.json"),
+                JSON.stringify({ scripts: { test: "vitest run" } }),
+            );
+            const agentsPath = join(testDir, "AGENTS.md");
+            const claudePath = join(testDir, "CLAUDE.md");
+            await writeFile(
+                agentsPath,
+                [
+                    "## Validation",
+                    "",
+                    "```bash",
+                    "npm test",
+                    "```",
+                    "",
+                    "If tests fail, fix them before proceeding.",
+                    "",
+                ].join("\n"),
+            );
+            await writeFile(
+                claudePath,
+                ["@./AGENTS.md", "", "@./missing-import.md", ""].join("\n"),
+            );
+
+            // Act
+            const response = await analyzeInstructionQualityHandler({
+                targetDir: testDir,
+            });
+            const result = parseResult(response);
+
+            // Assert — existing fields preserved
+            expect(result.success).toBe(true);
+            expect(Array.isArray(result.discoveredFiles)).toBe(true);
+            expect(Array.isArray(result.commandScores)).toBe(true);
+            expect(typeof result.overallQualityScore).toBe("number");
+            expect(Array.isArray(result.suggestions)).toBe(true);
+            expect(Array.isArray(result.parsingErrors)).toBe(true);
+            expect(Array.isArray(result.diagnostics)).toBe(true);
+
+            // Assert — additive provenance
+            expect(result.effectiveDocuments).toEqual([
+                {
+                    effectiveRoot: claudePath,
+                    resolvedImports: [agentsPath],
+                },
+            ]);
+
+            // Assert — import diagnostic uses physical importer path + ruleId + positions
+            const diagnostics = result.diagnostics as Array<
+                Record<string, unknown>
+            >;
+            const importDiag = diagnostics.find(
+                (d) => d.ruleId === "instruction/import-unresolved",
+            );
+            expect(importDiag).toMatchObject({
+                filePath: claudePath,
+                line: 3,
+                column: 1,
+                ruleId: "instruction/import-unresolved",
+            });
+            expect(importDiag).toHaveProperty("endLine");
+            expect(importDiag).toHaveProperty("endColumn");
+        });
     });
 });

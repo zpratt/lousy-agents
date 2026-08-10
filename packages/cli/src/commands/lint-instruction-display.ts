@@ -34,6 +34,13 @@ export function displayInstructionQuality(output: LintOutput): void {
     for (const file of result.discoveredFiles) {
         consola.info(`  ${file.filePath} (${file.format})`);
     }
+    if (result.effectiveDocuments !== undefined) {
+        for (const doc of result.effectiveDocuments) {
+            consola.info(
+                `  ${doc.effectiveRoot}: ${doc.resolvedImports.length} resolved import(s)`,
+            );
+        }
+    }
     consola.info(
         `Overall instruction quality score: ${result.overallQualityScore}%`,
     );

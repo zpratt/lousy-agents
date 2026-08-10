@@ -75,6 +75,12 @@ describe("Lint rule registry", () => {
                 "instruction/command-outside-section",
                 "instruction/missing-error-handling",
                 "instruction/missing-structural-heading",
+                "instruction/import-unresolved",
+                "instruction/import-escape",
+                "instruction/import-symlink",
+                "instruction/import-cycle",
+                "instruction/import-depth-exceeded",
+                "instruction/import-size-exceeded",
             ];
 
             // Assert
