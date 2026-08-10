@@ -347,11 +347,87 @@ Each feedback loop command is scored on three dimensions (0 or 1 each):
 | `instruction/command-not-in-code-block` | `warn` | Command appears only in prose, not in a code block |
 | `instruction/command-outside-section` | `warn` | Command is not under a dedicated feedback loop section |
 | `instruction/missing-error-handling` | `warn` | Command has no error handling guidance |
-| `instruction/missing-structural-heading` | `warn` | Instruction file is missing one or more recommended structural heading sections; may emit multiple warnings per file (one per missing section) |
+| `instruction/missing-structural-heading` | `warn` | Instruction file is missing one or more recommended structural heading sections; may emit multiple warnings per file (one per missing section). For Claude entrypoints (`CLAUDE.md`), evaluated against the **effective** document after `@` import expansion |
+| `instruction/import-unresolved` | `warn` | Claude `@` import target could not be resolved, or is not a regular file |
+| `instruction/import-escape` | `warn` | Claude `@` import escapes the repository root, or uses an absolute / `~/` path |
+| `instruction/import-symlink` | `warn` | Claude `@` import path contains a symbolic link (final target or intermediate) |
+| `instruction/import-cycle` | `warn` | Claude `@` import graph contains a cycle |
+| `instruction/import-depth-exceeded` | `warn` | Claude `@` import exceeds the maximum hop depth |
+| `instruction/import-size-exceeded` | `warn` | Claude `@` import expansion exceeded a size or graph limit (unique files, edges, emitted bytes, or per-file bytes) |
 
-The `instruction/missing-structural-heading` rule warns when an instruction file does not contain one or more of the following recommended heading sections: **Validation**, **Verification**, **Feedback Loop**, **Mandatory**, **Before Commit**, **Validation Suite**, **Commands**. These headings guide coding agents through validation and verification workflows. Because instruction files stack on each other across the filesystem, this rule fires per file and is a warning (not an error).
+The `instruction/missing-structural-heading` rule warns when an instruction file does not contain one or more of the following recommended heading sections: **Validation**, **Verification**, **Feedback Loop**, **Mandatory**, **Before Commit**, **Validation Suite**, **Commands**. These headings guide coding agents through validation and verification workflows. Because instruction files stack on each other across the filesystem, this rule fires per file and is a warning (not an error). For Claude entrypoints, headings are checked on the **effective** document after verified `@` imports are expanded (see [Claude shared-instruction imports](#claude-shared-instruction-imports)), so a thin wrapper that imports a shared file with those headings does not get false missing-heading warnings.
 
-The **composite score** per command is the average of the three dimensions. The **overall quality score** (0–100%) is the average of all mandatory command composite scores.
+The **composite score** per command is the average of the three dimensions. The **overall quality score** (0–100%) is the average of all mandatory command composite scores. Suppressing missing-heading warnings via import expansion does **not** by itself change `overallQualityScore` — headings are diagnostic-only and are not a scoring dimension. Expansion can still change the score when imported content affects command-scoring rules (structural context, execution clarity, loop completeness) that consume the effective body.
+
+### Claude shared-instruction imports
+
+When `lint --instructions` analyzes a Claude entrypoint (`CLAUDE.md` format), it expands verified Claude `@` imports into a single **ordered effective document**, then runs content-sensitive instruction rules against that expanded body. Other instruction formats (Copilot, root `AGENTS.md`, custom agents) are analyzed as physical files only — no import expansion.
+
+#### Token recognition
+
+Only **verified native `@path` tokens** are imports:
+
+- Match is line-start `@path` (same shape as doctor `HARD_IMPORT`)
+- The path must include `/` (for example `@./AGENTS.md` or `@../shared/rules.md`)
+- Tokens inside inline code or fenced code blocks are ignored
+- Markdown links (`[text](./file.md)`) are **not** imports
+
+#### Ordered splice
+
+A successful import is **spliced at the token position** in document order: content before the token, then the expanded import body (itself expanded recursively), then content after the token. Expansion is not a set-union of files and not append-at-end.
+
+#### Path policy
+
+Import targets resolve **relative to the importing file**, must stay **inside the repository root**, and must be **regular files**:
+
+- Importer-relative resolution (`@./AGENTS.md` next to the importer)
+- In-repo regular files only
+- **Symlink-hostile**: both intermediate path components and the final target are rejected if they are symbolic links
+- Absolute paths and `~/` (home-directory) paths are rejected (`instruction/import-escape`)
+
+#### Safety limits (internal defaults)
+
+Limits are fixed internal defaults today (not configurable via CLI flags). They match the shipped expander defaults:
+
+| Limit | Default |
+| ----- | ------- |
+| Max depth / hops | `4` (root entrypoint is hop `0`; the first import is hop `1`) |
+| Max unique files | `64` |
+| Max edges | `256` |
+| Max emitted bytes | `512_000` |
+| Max file bytes (per read) | `1_048_576` |
+
+Exceeding a size/graph limit emits `instruction/import-size-exceeded`. Exceeding hop depth emits `instruction/import-depth-exceeded`.
+
+#### Branch-local failures
+
+Import failures are **branch-local**: a failed edge stays unexpanded (the original `@path` token remains in the effective text for that edge), and independent valid edges on the same file or elsewhere in the graph continue to expand. Cycles, missing targets, escapes, symlinks, and limit hits do not abort the whole analysis.
+
+#### Provenance and output
+
+- **Diagnostics** for import failures point at the **owning physical importer file** and the token location (line/column when available), not a synthetic effective path. CLI `--format json` / `rdjsonl` emit those diagnostics only (no quality-result envelope)
+- **MCP** `analyze_instruction_quality` (and the in-memory library `InstructionQualityResult`) include additive `effectiveDocuments` when Claude entrypoints were expanded. Each entry has:
+  - `effectiveRoot` — absolute path of the Claude entrypoint
+  - `resolvedImports` — absolute paths of successfully resolved import targets (first-seen order)
+- **Human CLI** prints a resolved-import count per expanded entrypoint using the absolute effective root, for example: `/repo/CLAUDE.md: 1 resolved import(s)`
+
+#### Non-goals
+
+- No hierarchical merge simulation for Codex, OpenCode, Pi, or other multi-file instruction stacks
+- Copilot `@` references are deferred (not expanded)
+- Markdown links are not imports
+- Only verified native `@path` tokens outside code spans/fences participate
+- Limits are not exposed as user-facing CLI flags
+
+#### Coach-style wrapper pattern
+
+A common pattern is a thin Claude entrypoint that imports shared instructions:
+
+```markdown
+@./AGENTS.md
+```
+
+When `AGENTS.md` already has the recommended structural headings, `instruction/missing-structural-heading` is evaluated on the expanded effective document, so the thin `CLAUDE.md` wrapper does **not** get false missing-heading warnings. Shared body content also participates in command-quality scoring through the same effective document.
 
 ### Examples
 
@@ -361,6 +437,7 @@ The **composite score** per command is the average of the three dimensions. The 
 Discovered 2 instruction file(s)
   .github/copilot-instructions.md (copilot-instructions)
   CLAUDE.md (claude-md)
+  /repo/CLAUDE.md: 1 resolved import(s)
 Overall instruction quality score: 67%
 ⚠ Some commands are not documented in code blocks
 ```
