@@ -1,9 +1,15 @@
 /**
- * Black-box CLI acceptance locks for Claude `@` instruction import expansion
- * (matrix cells A2–A6, A11–A13 + deterministic diagnostic ordering).
+ * End-customer acceptance locks for shared Claude instruction imports.
  *
- * Runs the real CLI entrypoint via tsx against tmpdir fixtures with real discovery
- * (root CLAUDE.md + AGENTS.md only as entrypoints).
+ * Persona: multi-harness repo authors who keep a thin CLAUDE.md wrapper that
+ * `@`-imports canonical AGENTS.md (and related) content. They run
+ * `lousy-agents lint --instructions` (CLI / CI / reviewdog) and expect:
+ * - no false missing-heading noise on correct wrappers
+ * - actionable diagnostics when imports are broken or unsafe
+ * - isolation between harness entrypoints (Claude vs AGENTS)
+ *
+ * Boundary: real CLI entrypoint via tsx against tmpdir fixtures with real
+ * discovery (root CLAUDE.md + AGENTS.md as entrypoints).
  */
 
 import { execFile } from "node:child_process";
@@ -24,7 +30,7 @@ const cliPackageDir = resolve(
     "..",
 );
 
-/** Mirrors DEFAULT_STRUCTURAL_HEADING_PATTERNS without importing production internals. */
+/** Recommended structural sections customers expect in instruction docs. */
 const STRUCTURAL_HEADINGS = [
     "Validation",
     "Verification",
@@ -162,7 +168,7 @@ function diagnosticOrderKey(d: LintDiagnosticJson): string {
     ].join("\0");
 }
 
-describe("Claude instruction import black-box acceptance (CLI)", () => {
+describe("when customers lint shared Claude instruction imports", () => {
     let projectDir: string;
 
     async function makeRepoDir(label: string): Promise<string> {
@@ -186,11 +192,11 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
         }
     });
 
-    describe("A2: wrapper text before/after import with ordered splice", () => {
-        it("should suppress missing-structural-heading on CLAUDE when AGENTS supplies headings via mid-document import", async () => {
-            // Arrange — headings split across pre-import wrapper, imported body, and post-import wrapper
-            // so only ordered splice (not replace-with-import, drop-before, or physical-file-only) yields a full set.
-            const repoDir = await makeRepoDir("a2");
+    describe("when a thin CLAUDE.md wrapper mixes local guidance with an imported shared doc", () => {
+        it("should not report missing structural headings on the wrapper when the combined document is complete", async () => {
+            // Arrange — customer keeps Validation on the wrapper, middle sections in AGENTS.md,
+            // and remaining sections after the import (Coach-style shared-instruction layout).
+            const repoDir = await makeRepoDir("wrapper-local-and-import");
             const claudePath = join(repoDir, "CLAUDE.md");
             const agentsPath = join(repoDir, "AGENTS.md");
 
@@ -239,9 +245,9 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
             // Act
             const diagnostics = await lintInstructionsJson(repoDir);
 
-            // Assert — CLAUDE effective doc has all headings via ordered splice
+            // Assert — wrapper is complete via effective shared content
             expect(missingStructural(diagnostics, claudePath)).toEqual([]);
-            // AGENTS is its own entrypoint and only has the imported third
+            // AGENTS is still judged on its own thin body as a separate entrypoint
             expect(missingStructural(diagnostics, agentsPath).length).toBe(
                 STRUCTURAL_HEADINGS.length - importedHeadings.length,
             );
@@ -251,10 +257,10 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
         });
     });
 
-    describe("A3: multiple valid imports; structure split across files", () => {
-        it("should compose structural headings from two imported parts under CLAUDE", async () => {
+    describe("when instruction structure is split across several imported files", () => {
+        it("should treat the CLAUDE.md entrypoint as complete when the imported parts supply every required section", async () => {
             // Arrange
-            const repoDir = await makeRepoDir("a3");
+            const repoDir = await makeRepoDir("split-across-imports");
             const claudePath = join(repoDir, "CLAUDE.md");
             const partA = join(repoDir, "part-a.md");
             const partB = join(repoDir, "part-b.md");
@@ -291,10 +297,10 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
         });
     });
 
-    describe("A4: same source imported twice with deterministic positional semantics", () => {
-        it("should expand a repeated import without cycle diagnostics and keep CLAUDE structurally complete", async () => {
-            // Arrange — small dual expand still supplies structure twice without cycle noise
-            const repoDir = await makeRepoDir("a4-structure");
+    describe("when the same shared file is imported more than once in one wrapper", () => {
+        it("should accept the wrapper as complete without reporting a circular import", async () => {
+            // Arrange — customers sometimes re-include a shared fragment at two positions
+            const repoDir = await makeRepoDir("repeated-import-complete");
             const claudePath = join(repoDir, "CLAUDE.md");
             const sharedPath = join(repoDir, "shared.md");
 
@@ -324,11 +330,9 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
             ).toEqual([]);
         });
 
-        it("should double-count emitted bytes when the same large source is imported twice", async () => {
-            // Arrange — DEFAULT_MAX_EMITTED_BYTES is 512_000. A body larger than the budget
-            // exhausts emit capacity on the first splice; the second splice then fails with
-            // import-size-exceeded only when both positions are expanded (not dedupe-once).
-            const repoDir = await makeRepoDir("a4-bytes");
+        it("should warn when repeating a very large import would make effective instructions unbounded", async () => {
+            // Arrange — a huge shared body included twice must not silently grow without bound
+            const repoDir = await makeRepoDir("repeated-import-too-large");
             const claudePath = join(repoDir, "CLAUDE.md");
             const sharedPath = join(repoDir, "shared.md");
             const largeBody = `${"x".repeat(512_001)}\n`;
@@ -357,7 +361,7 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
             // Act
             const diagnostics = await lintInstructionsJson(repoDir);
 
-            // Assert
+            // Assert — actionable size warning on the wrapper, not a cycle false positive
             expect(byRule(diagnostics, "instruction/import-cycle")).toEqual([]);
             const sizeExceeded = byRule(
                 diagnostics,
@@ -370,10 +374,10 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
         });
     });
 
-    describe("A5: nested import depth limit (default 4 hops)", () => {
-        it("should include four-hop nested content and suppress missing-structural-heading", async () => {
-            // Arrange — CLAUDE(0) -> h1(1) -> h2(2) -> h3(3) -> h4(4 leaf with headings)
-            const repoDir = await makeRepoDir("a5-ok");
+    describe("when shared docs nest imports several levels deep", () => {
+        it("should honor a moderate nest of shared files and not warn about missing headings on the wrapper", async () => {
+            // Arrange — CLAUDE → layer → layer → layer → leaf with full guidance
+            const repoDir = await makeRepoDir("moderate-nest");
             const claudePath = join(repoDir, "CLAUDE.md");
 
             await writeFile(claudePath, "@./h1.md\n");
@@ -392,9 +396,9 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
             expect(missingStructural(diagnostics, claudePath)).toEqual([]);
         });
 
-        it("should emit import-depth-exceeded on the fifth hop and not follow it for structure", async () => {
-            // Arrange — headings only on hop 5 so following it would incorrectly clear missing-structural
-            const repoDir = await makeRepoDir("a5-deep");
+        it("should warn at the too-deep import and not pretend deeper content completed the wrapper", async () => {
+            // Arrange — required sections live only past the supported nest depth
+            const repoDir = await makeRepoDir("too-deep-nest");
             const claudePath = join(repoDir, "CLAUDE.md");
 
             await writeFile(claudePath, "@./d1.md\n");
@@ -407,7 +411,7 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
             // Act
             const diagnostics = await lintInstructionsJson(repoDir);
 
-            // Assert
+            // Assert — depth warning on the file that tried to go too deep; wrapper still incomplete
             const depth = byRule(
                 diagnostics,
                 "instruction/import-depth-exceeded",
@@ -422,10 +426,10 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
         });
     });
 
-    describe("A6: direct and indirect cycles with independent branch continuation", () => {
-        it("should emit import-cycle for a direct cycle without hanging", async () => {
+    describe("when import graphs contain cycles", () => {
+        it("should report a circular import quickly when two files point at each other", async () => {
             // Arrange
-            const repoDir = await makeRepoDir("a6-direct");
+            const repoDir = await makeRepoDir("direct-cycle");
             const claudePath = join(repoDir, "CLAUDE.md");
             const otherPath = join(repoDir, "other.md");
 
@@ -443,9 +447,9 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
             );
         });
 
-        it("should emit import-cycle for an indirect cycle and still expand an independent good branch", async () => {
-            // Arrange
-            const repoDir = await makeRepoDir("a6-indirect");
+        it("should still use a healthy import branch when another branch is circular", async () => {
+            // Arrange — one broken cycle plus a complete shared doc on a separate import
+            const repoDir = await makeRepoDir("cycle-plus-good-branch");
             const claudePath = join(repoDir, "CLAUDE.md");
 
             await writeFile(
@@ -460,7 +464,7 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
             // Act
             const diagnostics = await lintInstructionsJson(repoDir);
 
-            // Assert — cycle reported, good branch still supplies structure
+            // Assert — cycle is visible, but the good branch still completes the wrapper
             expect(
                 byRule(diagnostics, "instruction/import-cycle").length,
             ).toBeGreaterThanOrEqual(1);
@@ -468,10 +472,10 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
         });
     });
 
-    describe("A11: non-import @path forms are not expanded", () => {
-        it("should not emit import-unresolved for fenced, inline, link, or malformed @paths when targets are missing", async () => {
-            // Arrange — only real line-start imports are expandable; fake paths must not produce unresolved
-            const repoDir = await makeRepoDir("a11");
+    describe("when docs mention @paths that are not real imports", () => {
+        it("should not warn about missing files for examples inside code, links, or malformed tokens", async () => {
+            // Arrange — only a real line-start import should be followed
+            const repoDir = await makeRepoDir("docs-not-imports");
             const claudePath = join(repoDir, "CLAUDE.md");
 
             await writeFile(
@@ -500,7 +504,7 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
             // Act
             const diagnostics = await lintInstructionsJson(repoDir);
 
-            // Assert
+            // Assert — no false "file not found" noise from documentation examples
             const unresolved = byRule(
                 diagnostics,
                 "instruction/import-unresolved",
@@ -523,10 +527,10 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
         });
     });
 
-    describe("A12: wide unique-file fan-out and repeated-edge limits", () => {
-        it("should emit import-size-exceeded when unique imports exceed DEFAULT_MAX_UNIQUE_FILES (64)", async () => {
-            // Arrange — root counts as unique file #1; 64 distinct targets => 65th unique is rejected
-            const repoDir = await makeRepoDir("a12-unique");
+    describe("when an import graph is pathologically wide", () => {
+        it("should warn when a wrapper pulls in more unique files than lint will expand", async () => {
+            // Arrange — many distinct shared fragments under one wrapper
+            const repoDir = await makeRepoDir("too-many-unique-imports");
             const claudePath = join(repoDir, "CLAUDE.md");
 
             const uniqueCount = 64;
@@ -556,7 +560,7 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
             // Act
             const diagnostics = await lintInstructionsJson(repoDir);
 
-            // Assert
+            // Assert — bounded work with a clear warning on the wrapper
             const sizeExceeded = byRule(
                 diagnostics,
                 "instruction/import-size-exceeded",
@@ -568,9 +572,9 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
             expect(missingStructural(diagnostics, claudePath)).toEqual([]);
         });
 
-        it("should emit import-size-exceeded when the same target is imported past DEFAULT_MAX_EDGES (256)", async () => {
-            // Arrange — DEFAULT_MAX_EDGES=256; the 257th edge must fail even if the target is unique-cached
-            const repoDir = await makeRepoDir("a12-edges");
+        it("should warn when the same import is repeated far beyond a reasonable graph size", async () => {
+            // Arrange — pathological repeat of one fragment must not hang or run unbounded
+            const repoDir = await makeRepoDir("too-many-repeated-imports");
             const claudePath = join(repoDir, "CLAUDE.md");
             const sharedPath = join(repoDir, "shared.md");
             const edgeCount = 257;
@@ -613,10 +617,10 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
         });
     });
 
-    describe("A13: two entrypoints with different context (no bleed)", () => {
-        it("should not let CLAUDE expanded imports suppress missing-structural-heading on AGENTS.md", async () => {
-            // Arrange — CLAUDE imports a private full leaf; AGENTS is thin and must stay incomplete
-            const repoDir = await makeRepoDir("a13");
+    describe("when CLAUDE.md and AGENTS.md are both present as entrypoints", () => {
+        it("should not let Claude's imported guidance silence missing-section warnings on AGENTS.md", async () => {
+            // Arrange — Claude imports a private complete leaf; AGENTS is intentionally thin
+            const repoDir = await makeRepoDir("entrypoint-isolation");
             const claudePath = join(repoDir, "CLAUDE.md");
             const agentsPath = join(repoDir, "AGENTS.md");
             const leafPath = join(repoDir, "claude-only-leaf.md");
@@ -638,7 +642,7 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
             // Act
             const diagnostics = await lintInstructionsJson(repoDir);
 
-            // Assert
+            // Assert — each harness entrypoint is judged on its own effective content
             expect(missingStructural(diagnostics, claudePath)).toEqual([]);
             const agentsMissing = missingStructural(diagnostics, agentsPath);
             expect(agentsMissing.length).toBe(STRUCTURAL_HEADINGS.length - 1);
@@ -648,10 +652,10 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
         });
     });
 
-    describe("deterministic diagnostic ordering", () => {
-        it("should emit the same ordered key diagnostics across repeated CLI runs", async () => {
-            // Arrange — multiple import failures with stable physical provenance
-            const repoDir = await makeRepoDir("order");
+    describe("when CI consumers re-run lint on the same broken import graph", () => {
+        it("should report the same import problems in the same order every time", async () => {
+            // Arrange — missing targets and a path escape that reviewdog/JSON consumers will annotate
+            const repoDir = await makeRepoDir("stable-diagnostics");
 
             await writeFile(
                 join(repoDir, "CLAUDE.md"),
@@ -691,8 +695,7 @@ describe("Claude instruction import black-box acceptance (CLI)", () => {
             const keys1 = importDiags1.map(diagnosticOrderKey);
             const keys2 = importDiags2.map(diagnosticOrderKey);
 
-            // Canonical order mirrors AnalyzeInstructionQualityUseCase.compareImportDiagnostics:
-            // filePath → line → column → ruleId
+            // Stable consumer order: file path → line → column → rule
             const canonicalKeys = [...importDiags1]
                 .sort((a, b) => {
                     const pathCmp = normalizePath(a.filePath).localeCompare(
