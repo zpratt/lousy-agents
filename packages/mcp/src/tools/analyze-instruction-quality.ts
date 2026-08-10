@@ -2,6 +2,7 @@
  * MCP tool handler for analyzing instruction quality.
  */
 
+import { createClaudeInstructionImportExpander } from "@lousy-agents/core/gateways/claude-instruction-import-expander.js";
 import { fileExists } from "@lousy-agents/core/gateways/file-system-utils.js";
 import { createInstructionFileDiscoveryGateway } from "@lousy-agents/core/gateways/instruction-file-discovery-gateway.js";
 import { createMarkdownAstGateway } from "@lousy-agents/core/gateways/markdown-ast-gateway.js";
@@ -36,6 +37,7 @@ export const analyzeInstructionQualityHandler: ToolHandler = async (
             discoveryGateway,
             astGateway,
             commandsGateway,
+            createClaudeInstructionImportExpander(),
         );
 
         const output = await useCase.execute({ targetDir: dir });
@@ -59,10 +61,25 @@ export const analyzeInstructionQualityHandler: ToolHandler = async (
             diagnostics: output.diagnostics.map((d) => ({
                 filePath: d.filePath,
                 line: d.line,
+                ...(d.column !== undefined ? { column: d.column } : {}),
+                ...(d.endLine !== undefined ? { endLine: d.endLine } : {}),
+                ...(d.endColumn !== undefined
+                    ? { endColumn: d.endColumn }
+                    : {}),
                 severity: d.severity,
                 message: d.message,
                 ruleId: d.ruleId,
             })),
+            ...(output.result.effectiveDocuments !== undefined
+                ? {
+                      effectiveDocuments: output.result.effectiveDocuments.map(
+                          (doc) => ({
+                              effectiveRoot: doc.effectiveRoot,
+                              resolvedImports: [...doc.resolvedImports],
+                          }),
+                      ),
+                  }
+                : {}),
         });
     } catch (error) {
         return errorResponse(

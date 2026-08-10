@@ -1,0 +1,63 @@
+# GitHub only auto-closes issues for merges into the default branch (main).
+# Epic slice work targets beta; this workflow honors Closes/Fixes keywords on beta merges.
+name: Close issues on beta merge
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [beta]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  close-linked-issues:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close issues referenced by Closes/Fixes keywords
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const body = context.payload.pull_request.body || "";
+            const title = context.payload.pull_request.title || "";
+            const text = `${title}\n${body}`;
+            const re =
+              /(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s*#(\d+)/gi;
+            const numbers = new Set();
+            for (const match of text.matchAll(re)) {
+              numbers.add(Number(match[1]));
+            }
+            if (numbers.size === 0) {
+              core.info("No Closes/Fixes issue references found");
+              return;
+            }
+            const prUrl = context.payload.pull_request.html_url;
+            const prNumber = context.payload.pull_request.number;
+            for (const issue_number of numbers) {
+              const issue = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number,
+              });
+              if (issue.data.state === "closed") {
+                core.info(`#${issue_number} already closed`);
+                continue;
+              }
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number,
+                body: `Closed by #${prNumber} merged into \`beta\`.\n\n${prUrl}`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number,
+                state: "closed",
+                state_reason: "completed",
+              });
+              core.info(`Closed #${issue_number}`);
+            }

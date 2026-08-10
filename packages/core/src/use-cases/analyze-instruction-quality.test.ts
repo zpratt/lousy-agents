@@ -1,17 +1,23 @@
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import Chance from "chance";
 import type { Root } from "mdast";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
     DEFAULT_STRUCTURAL_HEADING_PATTERNS,
     type DiscoveredInstructionFile,
 } from "../entities/instruction-quality.js";
+import { createClaudeInstructionImportExpander } from "../gateways/claude-instruction-import-expander.js";
 import type { InstructionFileDiscoveryGateway } from "../gateways/instruction-file-discovery-gateway.js";
-import type {
-    MarkdownAstGateway,
-    MarkdownStructure,
+import {
+    createMarkdownAstGateway,
+    type MarkdownAstGateway,
+    type MarkdownStructure,
 } from "../gateways/markdown-ast-gateway.js";
 import {
     AnalyzeInstructionQualityUseCase,
+    type ClaudeInstructionImportExpander,
     type FeedbackLoopCommandsGateway,
 } from "./analyze-instruction-quality.js";
 
@@ -1773,6 +1779,643 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                     headingPatterns: duplicatePatterns,
                 }),
             ).resolves.toBeDefined();
+        });
+    });
+
+    describe("Claude effective instruction imports (A1/A13/A15)", () => {
+        let repoRoot: string;
+
+        beforeEach(async () => {
+            repoRoot = join(
+                tmpdir(),
+                `instruction-quality-expand-${chance.hash({ length: 8 })}`,
+            );
+            await mkdir(repoRoot, { recursive: true });
+        });
+
+        afterEach(async () => {
+            await rm(repoRoot, { recursive: true, force: true });
+        });
+
+        function createRealUseCase(
+            files: DiscoveredInstructionFile[],
+            expander: ClaudeInstructionImportExpander = createClaudeInstructionImportExpander(),
+        ): AnalyzeInstructionQualityUseCase {
+            return new AnalyzeInstructionQualityUseCase(
+                createMockDiscoveryGateway(files),
+                createMarkdownAstGateway(),
+                createMockCommandsGateway([]),
+                expander,
+            );
+        }
+
+        function compliantAgentsBody(): string {
+            return [
+                "# Agents",
+                "",
+                ...DEFAULT_STRUCTURAL_HEADING_PATTERNS.flatMap((heading) => [
+                    `## ${heading}`,
+                    "",
+                    "Guidance.",
+                    "",
+                ]),
+            ].join("\n");
+        }
+
+        describe("A1: Coach-style thin CLAUDE.md wrapper", () => {
+            it("should not emit missing-structural-heading against the wrapper when AGENTS.md supplies the sections", async () => {
+                const claudePath = join(repoRoot, "CLAUDE.md");
+                const agentsPath = join(repoRoot, "AGENTS.md");
+                await writeFile(claudePath, "@./AGENTS.md\n");
+                await writeFile(agentsPath, compliantAgentsBody());
+
+                const files: DiscoveredInstructionFile[] = [
+                    { filePath: claudePath, format: "claude-md" },
+                    { filePath: agentsPath, format: "agents-md" },
+                ];
+                const useCase = createRealUseCase(files);
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                const wrapperMissing = output.diagnostics.filter(
+                    (d) =>
+                        d.ruleId === "instruction/missing-structural-heading" &&
+                        d.filePath === claudePath,
+                );
+                expect(wrapperMissing).toEqual([]);
+            });
+
+            it("should expose effective document provenance for a successful Coach wrapper expansion", async () => {
+                const claudePath = join(repoRoot, "CLAUDE.md");
+                const agentsPath = join(repoRoot, "AGENTS.md");
+                await writeFile(claudePath, "@./AGENTS.md\n");
+                await writeFile(agentsPath, compliantAgentsBody());
+
+                const useCase = createRealUseCase([
+                    { filePath: claudePath, format: "claude-md" },
+                    { filePath: agentsPath, format: "agents-md" },
+                ]);
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                expect(output.result.effectiveDocuments).toEqual([
+                    {
+                        effectiveRoot: claudePath,
+                        resolvedImports: [agentsPath],
+                    },
+                ]);
+            });
+        });
+
+        describe("import expansion failure diagnostics", () => {
+            it("should emit instruction/import-unresolved on the importer token for a missing target", async () => {
+                const claudePath = join(repoRoot, "CLAUDE.md");
+                const content = "intro\n@./missing.md\n";
+                await writeFile(claudePath, content);
+
+                const useCase = createRealUseCase([
+                    { filePath: claudePath, format: "claude-md" },
+                ]);
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                const diag = output.diagnostics.find(
+                    (d) => d.ruleId === "instruction/import-unresolved",
+                );
+                expect(diag).toMatchObject({
+                    filePath: claudePath,
+                    line: 2,
+                    column: 1,
+                    severity: "warning",
+                    target: "instruction",
+                    ruleId: "instruction/import-unresolved",
+                });
+                expect(diag?.message).toContain("missing.md");
+            });
+
+            it("should emit instruction/import-escape on the importer token for a path escape", async () => {
+                const claudePath = join(repoRoot, "CLAUDE.md");
+                await writeFile(claudePath, "@../outside.md\n");
+
+                const useCase = createRealUseCase([
+                    { filePath: claudePath, format: "claude-md" },
+                ]);
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                const diag = output.diagnostics.find(
+                    (d) => d.ruleId === "instruction/import-escape",
+                );
+                expect(diag).toMatchObject({
+                    filePath: claudePath,
+                    line: 1,
+                    column: 1,
+                    severity: "warning",
+                    ruleId: "instruction/import-escape",
+                });
+            });
+
+            it.skipIf(process.platform === "win32")(
+                "should emit instruction/import-symlink on the importer token for a symlink target",
+                async () => {
+                    const { symlink } = await import("node:fs/promises");
+                    await writeFile(join(repoRoot, "real.md"), "secret\n");
+                    await symlink(
+                        join(repoRoot, "real.md"),
+                        join(repoRoot, "link.md"),
+                    );
+                    const claudePath = join(repoRoot, "CLAUDE.md");
+                    await writeFile(claudePath, "@./link.md\n");
+
+                    const useCase = createRealUseCase([
+                        { filePath: claudePath, format: "claude-md" },
+                    ]);
+
+                    const output = await useCase.execute({
+                        targetDir: repoRoot,
+                    });
+
+                    const diag = output.diagnostics.find(
+                        (d) => d.ruleId === "instruction/import-symlink",
+                    );
+                    expect(diag).toMatchObject({
+                        filePath: claudePath,
+                        line: 1,
+                        column: 1,
+                        severity: "warning",
+                        ruleId: "instruction/import-symlink",
+                    });
+                },
+            );
+
+            it("should emit instruction/import-cycle on the importer token that closes the cycle", async () => {
+                const aPath = join(repoRoot, "a.md");
+                const bPath = join(repoRoot, "b.md");
+                await writeFile(aPath, "@./b.md\n");
+                await writeFile(bPath, "@./a.md\n");
+
+                const useCase = createRealUseCase([
+                    { filePath: aPath, format: "claude-md" },
+                ]);
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                const diag = output.diagnostics.find(
+                    (d) => d.ruleId === "instruction/import-cycle",
+                );
+                expect(diag).toMatchObject({
+                    filePath: bPath,
+                    line: 1,
+                    column: 1,
+                    severity: "warning",
+                    ruleId: "instruction/import-cycle",
+                });
+            });
+
+            it("should emit instruction/import-depth-exceeded when nested imports exceed the depth limit", async () => {
+                await writeFile(join(repoRoot, "d1.md"), "@./d2.md\n");
+                await writeFile(join(repoRoot, "d2.md"), "@./d3.md\n");
+                await writeFile(join(repoRoot, "d3.md"), "@./d4.md\n");
+                await writeFile(join(repoRoot, "d4.md"), "@./d5.md\n");
+                await writeFile(join(repoRoot, "d5.md"), "leaf\n");
+                const rootPath = join(repoRoot, "root.md");
+                await writeFile(rootPath, "@./d1.md\n");
+
+                const useCase = createRealUseCase([
+                    { filePath: rootPath, format: "claude-md" },
+                ]);
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                const diag = output.diagnostics.find(
+                    (d) => d.ruleId === "instruction/import-depth-exceeded",
+                );
+                expect(diag).toBeDefined();
+                expect(diag?.severity).toBe("warning");
+                expect(diag?.ruleId).toBe("instruction/import-depth-exceeded");
+                expect(diag?.filePath).toBe(join(repoRoot, "d4.md"));
+                expect(diag?.line).toBe(1);
+                expect(diag?.column).toBe(1);
+            });
+
+            it("should emit instruction/import-size-exceeded from expander diagnostics", async () => {
+                const claudePath = join(repoRoot, "CLAUDE.md");
+                await writeFile(claudePath, "no imports\n");
+
+                const expander: ClaudeInstructionImportExpander = {
+                    expandClaudeEntrypoint: async () => ({
+                        content: "no imports\n",
+                        effectiveRoot: claudePath,
+                        resolvedImports: [],
+                        expansionDiagnostics: [
+                            {
+                                ruleId: "instruction/import-size-exceeded",
+                                message:
+                                    "Import expansion size or graph limit exceeded while resolving: ./huge.md",
+                                filePath: claudePath,
+                                line: 1,
+                                column: 1,
+                                endLine: 1,
+                                endColumn: 11,
+                            },
+                        ],
+                    }),
+                };
+                const useCase = createRealUseCase(
+                    [{ filePath: claudePath, format: "claude-md" }],
+                    expander,
+                );
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                const diag = output.diagnostics.find(
+                    (d) => d.ruleId === "instruction/import-size-exceeded",
+                );
+                expect(diag).toMatchObject({
+                    filePath: claudePath,
+                    line: 1,
+                    column: 1,
+                    severity: "warning",
+                    ruleId: "instruction/import-size-exceeded",
+                });
+            });
+
+            it("should attribute nested unresolved import diagnostics to the nested importer path", async () => {
+                const claudePath = join(repoRoot, "CLAUDE.md");
+                const midPath = join(repoRoot, "mid.md");
+                await writeFile(claudePath, "@./mid.md\n");
+                await writeFile(midPath, "mid\n@./gone.md\n");
+
+                const useCase = createRealUseCase([
+                    { filePath: claudePath, format: "claude-md" },
+                ]);
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                const diag = output.diagnostics.find(
+                    (d) => d.ruleId === "instruction/import-unresolved",
+                );
+                expect(diag).toMatchObject({
+                    filePath: midPath,
+                    line: 2,
+                    column: 1,
+                    severity: "warning",
+                });
+            });
+        });
+
+        describe("A15: no supported imports and non-Claude entrypoints", () => {
+            it("should keep missing-heading diagnostics for a thin CLAUDE.md when no expander is injected", async () => {
+                const claudePath = join(repoRoot, "CLAUDE.md");
+                await writeFile(claudePath, "@./AGENTS.md\n");
+                await writeFile(
+                    join(repoRoot, "AGENTS.md"),
+                    compliantAgentsBody(),
+                );
+
+                const files: DiscoveredInstructionFile[] = [
+                    { filePath: claudePath, format: "claude-md" },
+                ];
+                const useCase = new AnalyzeInstructionQualityUseCase(
+                    createMockDiscoveryGateway(files),
+                    createMarkdownAstGateway(),
+                    createMockCommandsGateway([]),
+                );
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                const missing = output.diagnostics.filter(
+                    (d) =>
+                        d.ruleId === "instruction/missing-structural-heading" &&
+                        d.filePath === claudePath,
+                );
+                expect(missing).toHaveLength(
+                    DEFAULT_STRUCTURAL_HEADING_PATTERNS.length,
+                );
+            });
+
+            it("should not expand agents-md files even when an expander is injected", async () => {
+                const agentsPath = join(repoRoot, "AGENTS.md");
+                await writeFile(
+                    agentsPath,
+                    ["# Agents", "", "@./extra.md", ""].join("\n"),
+                );
+                await writeFile(
+                    join(repoRoot, "extra.md"),
+                    [
+                        "## Commands",
+                        "",
+                        ...DEFAULT_STRUCTURAL_HEADING_PATTERNS.filter(
+                            (h) => h !== "Commands",
+                        ).map((h) => `## ${h}\n\n`),
+                    ].join("\n"),
+                );
+
+                const expandSpy = vi.fn();
+                const expander: ClaudeInstructionImportExpander = {
+                    expandClaudeEntrypoint: expandSpy,
+                };
+                const useCase = createRealUseCase(
+                    [{ filePath: agentsPath, format: "agents-md" }],
+                    expander,
+                );
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                expect(expandSpy).not.toHaveBeenCalled();
+                const missing = output.diagnostics.filter(
+                    (d) =>
+                        d.ruleId === "instruction/missing-structural-heading",
+                );
+                expect(missing.length).toBe(
+                    DEFAULT_STRUCTURAL_HEADING_PATTERNS.length,
+                );
+            });
+
+            it("should analyze a Claude entrypoint without imports using its own content only", async () => {
+                const claudePath = join(repoRoot, "CLAUDE.md");
+                await writeFile(
+                    claudePath,
+                    ["# Claude", "", "## Commands", "", "Run tests.", ""].join(
+                        "\n",
+                    ),
+                );
+
+                const useCase = createRealUseCase([
+                    { filePath: claudePath, format: "claude-md" },
+                ]);
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                const missing = output.diagnostics.filter(
+                    (d) =>
+                        d.ruleId === "instruction/missing-structural-heading" &&
+                        d.filePath === claudePath,
+                );
+                const expectedMissing =
+                    DEFAULT_STRUCTURAL_HEADING_PATTERNS.length - 1;
+                expect(missing).toHaveLength(expectedMissing);
+                expect(
+                    missing.some((d) => d.message.includes("'Commands'")),
+                ).toBe(false);
+            });
+        });
+
+        describe("A13: per-entrypoint isolation", () => {
+            it("should not let one Claude entrypoint's import suppress missing headings on another", async () => {
+                const entryA = join(repoRoot, "claude-a.md");
+                const entryB = join(repoRoot, "claude-b.md");
+                const leafA = join(repoRoot, "leaf-a.md");
+                const leafB = join(repoRoot, "leaf-b.md");
+
+                await writeFile(entryA, "@./leaf-a.md\n");
+                await writeFile(entryB, "@./leaf-b.md\n");
+                await writeFile(leafA, compliantAgentsBody());
+                await writeFile(
+                    leafB,
+                    [
+                        "# Leaf B",
+                        "",
+                        "## Commands",
+                        "",
+                        "Only commands.",
+                        "",
+                    ].join("\n"),
+                );
+
+                const useCase = createRealUseCase([
+                    { filePath: entryA, format: "claude-md" },
+                    { filePath: entryB, format: "claude-md" },
+                ]);
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                const missingA = output.diagnostics.filter(
+                    (d) =>
+                        d.ruleId === "instruction/missing-structural-heading" &&
+                        d.filePath === entryA,
+                );
+                const missingB = output.diagnostics.filter(
+                    (d) =>
+                        d.ruleId === "instruction/missing-structural-heading" &&
+                        d.filePath === entryB,
+                );
+
+                expect(missingA).toEqual([]);
+                expect(missingB.length).toBe(
+                    DEFAULT_STRUCTURAL_HEADING_PATTERNS.length - 1,
+                );
+                expect(
+                    missingB.some((d) => d.message.includes("'Commands'")),
+                ).toBe(false);
+            });
+
+            it("should still analyze AGENTS.md as its own entrypoint when also imported", async () => {
+                const claudePath = join(repoRoot, "CLAUDE.md");
+                const agentsPath = join(repoRoot, "AGENTS.md");
+                await writeFile(claudePath, "@./AGENTS.md\n");
+                await writeFile(
+                    agentsPath,
+                    [
+                        "# Agents",
+                        "",
+                        "## Commands",
+                        "",
+                        "Only commands.",
+                        "",
+                    ].join("\n"),
+                );
+
+                const useCase = createRealUseCase([
+                    { filePath: claudePath, format: "claude-md" },
+                    { filePath: agentsPath, format: "agents-md" },
+                ]);
+
+                const output = await useCase.execute({ targetDir: repoRoot });
+
+                const agentsMissing = output.diagnostics.filter(
+                    (d) =>
+                        d.ruleId === "instruction/missing-structural-heading" &&
+                        d.filePath === agentsPath,
+                );
+                expect(agentsMissing.length).toBe(
+                    DEFAULT_STRUCTURAL_HEADING_PATTERNS.length - 1,
+                );
+            });
+        });
+
+        describe("content-sensitive command rules on effective documents", () => {
+            it("should score and diagnose commands from imported leaf content on a Claude-only entrypoint", async () => {
+                const claudePath = join(repoRoot, "CLAUDE.md");
+                const leafPath = join(repoRoot, "leaf.md");
+                const command = "mise run ci";
+                await writeFile(claudePath, "@./leaf.md\n");
+                await writeFile(
+                    leafPath,
+                    [
+                        "# Leaf",
+                        "",
+                        "## Commands",
+                        "",
+                        "```bash",
+                        command,
+                        "```",
+                        "",
+                        "If it fails, fix and re-run.",
+                        "",
+                    ].join("\n"),
+                );
+
+                const files: DiscoveredInstructionFile[] = [
+                    { filePath: claudePath, format: "claude-md" },
+                ];
+                const withoutExpander = new AnalyzeInstructionQualityUseCase(
+                    createMockDiscoveryGateway(files),
+                    createMarkdownAstGateway(),
+                    createMockCommandsGateway([command]),
+                );
+                const withExpander = new AnalyzeInstructionQualityUseCase(
+                    createMockDiscoveryGateway(files),
+                    createMarkdownAstGateway(),
+                    createMockCommandsGateway([command]),
+                    createClaudeInstructionImportExpander(),
+                );
+
+                const baseline = await withoutExpander.execute({
+                    targetDir: repoRoot,
+                });
+                const expanded = await withExpander.execute({
+                    targetDir: repoRoot,
+                });
+
+                expect(baseline.result.overallQualityScore).toBe(0);
+                expect(baseline.result.commandScores[0]?.bestSourceFile).toBe(
+                    "",
+                );
+                expect(expanded.result.overallQualityScore).toBeGreaterThan(0);
+                expect(expanded.result.commandScores[0]?.bestSourceFile).toBe(
+                    claudePath,
+                );
+                expect(expanded.result.commandScores[0]?.executionClarity).toBe(
+                    1,
+                );
+                expect(
+                    expanded.result.commandScores[0]?.structuralContext,
+                ).toBe(1);
+            });
+
+            it("should attribute prose-only command diagnostics to the Claude entrypoint path", async () => {
+                const claudePath = join(repoRoot, "CLAUDE.md");
+                const leafPath = join(repoRoot, "leaf.md");
+                const command = "mise run lint";
+                await writeFile(claudePath, "@./leaf.md\n");
+                await writeFile(
+                    leafPath,
+                    [
+                        "# Leaf",
+                        "",
+                        "## Commands",
+                        "",
+                        `Please run ${command} after changes.`,
+                        "",
+                    ].join("\n"),
+                );
+
+                const useCase = new AnalyzeInstructionQualityUseCase(
+                    createMockDiscoveryGateway([
+                        { filePath: claudePath, format: "claude-md" },
+                    ]),
+                    createMarkdownAstGateway(),
+                    createMockCommandsGateway([command]),
+                    createClaudeInstructionImportExpander(),
+                );
+
+                const output = await useCase.execute({
+                    targetDir: repoRoot,
+                });
+
+                const commandDiags = output.diagnostics.filter(
+                    (d) =>
+                        d.filePath === claudePath &&
+                        (d.ruleId === "instruction/command-not-in-code-block" ||
+                            d.ruleId === "instruction/missing-error-handling"),
+                );
+                expect(commandDiags.length).toBeGreaterThan(0);
+                expect(
+                    commandDiags.every((d) => d.filePath === claudePath),
+                ).toBe(true);
+            });
+        });
+
+        describe("score formula stability", () => {
+            it("should not change overallQualityScore solely because wrapper heading warnings disappear when AGENTS is also discovered", async () => {
+                const claudePath = join(repoRoot, "CLAUDE.md");
+                const agentsPath = join(repoRoot, "AGENTS.md");
+                const command = "mise run test";
+                await writeFile(claudePath, "@./AGENTS.md\n");
+                await writeFile(
+                    agentsPath,
+                    [
+                        "# Agents",
+                        "",
+                        ...DEFAULT_STRUCTURAL_HEADING_PATTERNS.flatMap(
+                            (heading) => [
+                                `## ${heading}`,
+                                "",
+                                "```bash",
+                                command,
+                                "```",
+                                "",
+                                "If it fails, fix and re-run.",
+                                "",
+                            ],
+                        ),
+                    ].join("\n"),
+                );
+
+                const files: DiscoveredInstructionFile[] = [
+                    { filePath: claudePath, format: "claude-md" },
+                    { filePath: agentsPath, format: "agents-md" },
+                ];
+                const withoutExpander = new AnalyzeInstructionQualityUseCase(
+                    createMockDiscoveryGateway(files),
+                    createMarkdownAstGateway(),
+                    createMockCommandsGateway([command]),
+                );
+                const withExpander = new AnalyzeInstructionQualityUseCase(
+                    createMockDiscoveryGateway(files),
+                    createMarkdownAstGateway(),
+                    createMockCommandsGateway([command]),
+                    createClaudeInstructionImportExpander(),
+                );
+
+                const baseline = await withoutExpander.execute({
+                    targetDir: repoRoot,
+                });
+                const expanded = await withExpander.execute({
+                    targetDir: repoRoot,
+                });
+
+                expect(expanded.result.overallQualityScore).toBe(
+                    baseline.result.overallQualityScore,
+                );
+                expect(
+                    baseline.diagnostics.some(
+                        (d) =>
+                            d.ruleId ===
+                                "instruction/missing-structural-heading" &&
+                            d.filePath === claudePath,
+                    ),
+                ).toBe(true);
+                expect(
+                    expanded.diagnostics.some(
+                        (d) =>
+                            d.ruleId ===
+                                "instruction/missing-structural-heading" &&
+                            d.filePath === claudePath,
+                    ),
+                ).toBe(false);
+            });
         });
     });
 });
