@@ -7,6 +7,7 @@ import { z } from "zod";
 import type {
     CommandQualityScores,
     DiscoveredInstructionFile,
+    EffectiveInstructionDocumentProvenance,
     InstructionQualityResult,
     InstructionSuggestion,
     ParsingError,
@@ -115,6 +116,46 @@ export interface FeedbackLoopCommandsGateway {
     getMandatoryCommands(targetDir: string): Promise<string[]>;
 }
 
+/**
+ * A single import-expansion failure attributed to an importer token.
+ * Port DTO — adapters convert expander byte ranges into 1-based line/column.
+ */
+export interface ClaudeImportExpansionDiagnostic {
+    readonly ruleId: string;
+    readonly message: string;
+    /** Absolute path of the physical importer file */
+    readonly filePath: string;
+    readonly line: number;
+    readonly column?: number;
+    readonly endLine?: number;
+    readonly endColumn?: number;
+}
+
+/**
+ * Expanded Claude instruction content for one entrypoint after verified `@` imports.
+ * Port type — concrete expansion lives behind an adapter.
+ */
+export interface EffectiveClaudeInstructionDocument {
+    readonly content: string;
+    /** Absolute path of the expanded Claude entrypoint */
+    readonly effectiveRoot: string;
+    /** Absolute paths of successfully resolved import targets (first-seen order) */
+    readonly resolvedImports: readonly string[];
+    /** Import-resolution failures with importer-token provenance */
+    readonly expansionDiagnostics: readonly ClaudeImportExpansionDiagnostic[];
+}
+
+/**
+ * Port for expanding Claude Code `@path` imports into an ordered effective document.
+ * Only invoked for discovered `claude-md` entrypoints.
+ */
+export interface ClaudeInstructionImportExpander {
+    expandClaudeEntrypoint(input: {
+        readonly repoRoot: string;
+        readonly absoluteFilePath: string;
+    }): Promise<EffectiveClaudeInstructionDocument>;
+}
+
 /** Maximum number of raw heading pattern entries accepted before deduplication. */
 const MAX_RAW_HEADING_PATTERNS = 1000;
 
@@ -172,6 +213,7 @@ export class AnalyzeInstructionQualityUseCase {
         private readonly discoveryGateway: InstructionFileDiscoveryGateway,
         private readonly astGateway: MarkdownAstGateway,
         private readonly commandsGateway: FeedbackLoopCommandsGateway,
+        private readonly claudeImportExpander?: ClaudeInstructionImportExpander,
     ) {}
 
     /**
@@ -324,15 +366,22 @@ export class AnalyzeInstructionQualityUseCase {
             };
         }
 
-        // Analyze each file
+        // Analyze each file (Claude entrypoints use effective import-expanded content)
         const fileStructures = new Map<string, MarkdownStructure>();
         const parsingErrors: ParsingError[] = [];
+        const importDiagnostics: LintDiagnostic[] = [];
+        const effectiveDocuments: EffectiveInstructionDocumentProvenance[] = [];
         for (const file of discoveredFiles) {
             try {
-                const structure = await this.astGateway.parseFile(
-                    file.filePath,
+                const resolved = await this.resolveAnalysisStructure(
+                    file,
+                    parsed.targetDir,
                 );
-                fileStructures.set(file.filePath, structure);
+                fileStructures.set(file.filePath, resolved.structure);
+                importDiagnostics.push(...resolved.importDiagnostics);
+                if (resolved.provenance !== undefined) {
+                    effectiveDocuments.push(resolved.provenance);
+                }
             } catch (error) {
                 const errorMessage =
                     error instanceof Error
@@ -365,6 +414,9 @@ export class AnalyzeInstructionQualityUseCase {
                 target: "instruction",
             });
         }
+
+        // Import-expansion failures (stable ruleIds, importer-token provenance)
+        diagnostics.push(...importDiagnostics);
 
         // Check each successfully parsed file for missing structural headings
         const sortedFilePaths = Array.from(fileStructures.keys()).sort(
@@ -449,16 +501,102 @@ export class AnalyzeInstructionQualityUseCase {
             });
         }
 
+        const result: InstructionQualityResult = {
+            discoveredFiles,
+            commandScores,
+            overallQualityScore,
+            suggestions,
+            parsingErrors,
+            ...(effectiveDocuments.length > 0 ? { effectiveDocuments } : {}),
+        };
+
         return {
-            result: {
-                discoveredFiles,
-                commandScores,
-                overallQualityScore,
-                suggestions,
-                parsingErrors,
-            },
+            result,
             diagnostics,
         };
+    }
+
+    /**
+     * Resolves the Markdown structure used for content-sensitive rules on one
+     * discovered entrypoint. Claude entrypoints expand verified `@` imports when
+     * an expander is injected; all other formats parse the physical file only.
+     */
+    private async resolveAnalysisStructure(
+        file: DiscoveredInstructionFile,
+        targetDir: string,
+    ): Promise<{
+        structure: MarkdownStructure;
+        importDiagnostics: LintDiagnostic[];
+        provenance?: EffectiveInstructionDocumentProvenance;
+    }> {
+        if (
+            file.format === "claude-md" &&
+            this.claudeImportExpander !== undefined
+        ) {
+            const effective =
+                await this.claudeImportExpander.expandClaudeEntrypoint({
+                    repoRoot: targetDir,
+                    absoluteFilePath: file.filePath,
+                });
+            const importDiagnostics = effective.expansionDiagnostics.map(
+                (diagnostic) =>
+                    AnalyzeInstructionQualityUseCase.toImportLintDiagnostic(
+                        diagnostic,
+                    ),
+            );
+            importDiagnostics.sort(
+                AnalyzeInstructionQualityUseCase.compareImportDiagnostics,
+            );
+            return {
+                structure: this.astGateway.parseContent(effective.content),
+                importDiagnostics,
+                provenance: {
+                    effectiveRoot: effective.effectiveRoot,
+                    resolvedImports: effective.resolvedImports,
+                },
+            };
+        }
+
+        return {
+            structure: await this.astGateway.parseFile(file.filePath),
+            importDiagnostics: [],
+        };
+    }
+
+    private static toImportLintDiagnostic(
+        diagnostic: ClaudeImportExpansionDiagnostic,
+    ): LintDiagnostic {
+        return {
+            filePath: diagnostic.filePath,
+            line: diagnostic.line,
+            column: diagnostic.column,
+            endLine: diagnostic.endLine,
+            endColumn: diagnostic.endColumn,
+            severity: "warning",
+            message: diagnostic.message,
+            ruleId: diagnostic.ruleId,
+            target: "instruction",
+        };
+    }
+
+    private static compareImportDiagnostics(
+        a: LintDiagnostic,
+        b: LintDiagnostic,
+    ): number {
+        if (a.filePath !== b.filePath) {
+            return a.filePath < b.filePath ? -1 : 1;
+        }
+        if (a.line !== b.line) {
+            return a.line - b.line;
+        }
+        const aCol = a.column ?? 0;
+        const bCol = b.column ?? 0;
+        if (aCol !== bCol) {
+            return aCol - bCol;
+        }
+        const aRule = a.ruleId ?? "";
+        const bRule = b.ruleId ?? "";
+        return aRule < bRule ? -1 : aRule > bRule ? 1 : 0;
     }
 
     private findBestScore(

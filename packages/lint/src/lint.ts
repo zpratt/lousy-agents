@@ -13,6 +13,7 @@ import type {
 } from "@lousy-agents/core/entities/lint.js";
 import type { LintRulesConfig } from "@lousy-agents/core/entities/lint-rules.js";
 import { createAgentLintGateway } from "@lousy-agents/core/gateways/agent-lint-gateway.js";
+import { createClaudeInstructionImportExpander } from "@lousy-agents/core/gateways/claude-instruction-import-expander.js";
 import { createHookConfigGateway } from "@lousy-agents/core/gateways/hook-config-gateway.js";
 import { createInstructionFileDiscoveryGateway } from "@lousy-agents/core/gateways/instruction-file-discovery-gateway.js";
 import { createMarkdownAstGateway } from "@lousy-agents/core/gateways/markdown-ast-gateway.js";
@@ -219,6 +220,7 @@ async function lintInstructions(
         discoveryGateway,
         astGateway,
         commandsGateway,
+        createClaudeInstructionImportExpander(),
     );
 
     const output = await useCase.execute({ targetDir });

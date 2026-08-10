@@ -68,6 +68,17 @@ export interface ParsingError {
     readonly error: string;
 }
 
+/**
+ * Provenance for one Claude entrypoint after `@` import expansion.
+ * Additive structured metadata for MCP and downstream consumers.
+ */
+export interface EffectiveInstructionDocumentProvenance {
+    /** Absolute path of the Claude entrypoint that was expanded. */
+    readonly effectiveRoot: string;
+    /** Absolute paths of successfully resolved import targets (first-seen order). */
+    readonly resolvedImports: readonly string[];
+}
+
 /** Result of analyzing instruction quality for a repository. */
 export interface InstructionQualityResult {
     readonly discoveredFiles: readonly DiscoveredInstructionFile[];
@@ -75,6 +86,8 @@ export interface InstructionQualityResult {
     readonly overallQualityScore: number;
     readonly suggestions: readonly InstructionSuggestion[];
     readonly parsingErrors: readonly ParsingError[];
+    /** Present when Claude entrypoints were expanded with an import expander. */
+    readonly effectiveDocuments?: readonly EffectiveInstructionDocumentProvenance[];
 }
 
 // ── Lint output ──────────────────────────────────────────────────────
