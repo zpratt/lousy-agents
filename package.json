@@ -45,7 +45,7 @@
         "lint:yaml": "yamllint ."
     },
     "devDependencies": {
-        "@biomejs/biome": "2.5.7",
+        "@biomejs/biome": "2.5.8",
         "@modelcontextprotocol/server-sequential-thinking": "2026.7.4",
         "@rspack/cli": "2.1.8",
         "@rspack/core": "2.1.8",
