@@ -37,7 +37,7 @@
         "remark-parse": "11.0.0",
         "unist-util-visit": "5.1.0",
         "yaml": "2.9.0",
-        "zod": "4.4.3"
+        "zod": "4.5.2"
     },
     "devDependencies": {
         "@octokit/types": "17.0.0",
