@@ -5,7 +5,7 @@
         "ghcr.io/devcontainers/features/node:2.1.0": {
             "version": "24.20.0"
         },
-        "ghcr.io/devcontainers/features/github-cli:1.1.1": {
+        "ghcr.io/devcontainers/features/github-cli:1.1.2": {
             "version": "latest"
         },
         "ghcr.io/devcontainers/features/copilot-cli:1.1.3": {},
