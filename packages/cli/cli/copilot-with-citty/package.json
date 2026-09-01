@@ -21,7 +21,7 @@
     "devDependencies": {
         "@biomejs/biome": "2.5.11",
         "@lousy-agents/mcp": "5.21.2",
-        "@modelcontextprotocol/server-sequential-thinking": "2026.7.4",
+        "@modelcontextprotocol/server-sequential-thinking": "2026.8.31",
         "@types/node": "24.13.3",
         "chance": "1.1.13",
         "tsx": "4.23.13",
