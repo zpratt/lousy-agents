@@ -2,10 +2,17 @@ import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { readBytesWithinRoot, statWithinRoot } from "../src/lib/safe-fs.js";
 import {
     readProjectFileSafe,
     resolveSafePath,
 } from "../src/use-cases/copilot-enhance.js";
+
+const fileIo = { statWithinRoot, readBytesWithinRoot };
+
+function readSafe(repoRoot: string, pathArg: string) {
+    return readProjectFileSafe(repoRoot, pathArg, fileIo);
+}
 
 describe("resolveSafePath", () => {
     const repoRoot = "/home/user/project";
@@ -117,7 +124,7 @@ describe("readProjectFileSafe", () => {
 
     describe("given an empty path", () => {
         it("returns an error", async () => {
-            const result = await readProjectFileSafe(tempDir, "");
+            const result = await readSafe(tempDir, "");
 
             expect(result).toEqual({ error: "Path is required" });
         });
@@ -125,10 +132,7 @@ describe("readProjectFileSafe", () => {
 
     describe("given a path traversal attempt", () => {
         it("returns an error", async () => {
-            const result = await readProjectFileSafe(
-                tempDir,
-                "../../etc/passwd",
-            );
+            const result = await readSafe(tempDir, "../../etc/passwd");
 
             expect(result).toEqual({ error: "Path is outside the repository" });
         });
@@ -136,10 +140,7 @@ describe("readProjectFileSafe", () => {
 
     describe("given a non-existent file", () => {
         it("returns an error", async () => {
-            const result = await readProjectFileSafe(
-                tempDir,
-                "nonexistent.txt",
-            );
+            const result = await readSafe(tempDir, "nonexistent.txt");
 
             expect(result).toEqual({ error: "File not found or unreadable" });
         });
@@ -150,7 +151,7 @@ describe("readProjectFileSafe", () => {
             const content = "hello world";
             await writeFile(join(tempDir, "test.txt"), content);
 
-            const result = await readProjectFileSafe(tempDir, "test.txt");
+            const result = await readSafe(tempDir, "test.txt");
 
             expect(result).toEqual({ content, truncated: false });
         });
@@ -161,7 +162,7 @@ describe("readProjectFileSafe", () => {
             const largeContent = "A".repeat(200_000);
             await writeFile(join(tempDir, "large.txt"), largeContent);
 
-            const result = await readProjectFileSafe(tempDir, "large.txt");
+            const result = await readSafe(tempDir, "large.txt");
 
             expect("content" in result && result.truncated).toBe(true);
             if ("content" in result) {
@@ -180,7 +181,7 @@ describe("readProjectFileSafe", () => {
             const multiByteContent = `${asciiPad}${"€".repeat(100)}`;
             await writeFile(join(tempDir, "multibyte.txt"), multiByteContent);
 
-            const result = await readProjectFileSafe(tempDir, "multibyte.txt");
+            const result = await readSafe(tempDir, "multibyte.txt");
 
             expect("content" in result && result.truncated).toBe(true);
             if ("content" in result) {
@@ -199,7 +200,7 @@ describe("readProjectFileSafe", () => {
             await symlink(outsidePath, join(tempDir, "evil-link"));
 
             try {
-                const result = await readProjectFileSafe(tempDir, "evil-link");
+                const result = await readSafe(tempDir, "evil-link");
 
                 expect(result).toEqual({
                     error: "Path is outside the repository",
@@ -215,7 +216,7 @@ describe("readProjectFileSafe", () => {
             const content = "trailing slash test";
             await writeFile(join(tempDir, "test.txt"), content);
 
-            const result = await readProjectFileSafe(`${tempDir}/`, "test.txt");
+            const result = await readSafe(`${tempDir}/`, "test.txt");
 
             expect(result).toEqual({ content, truncated: false });
         });
@@ -227,7 +228,7 @@ describe("readProjectFileSafe", () => {
             await writeFile(join(tempDir, "test.txt"), content);
             const absolutePath = join(tempDir, "test.txt");
 
-            const result = await readProjectFileSafe(tempDir, absolutePath);
+            const result = await readSafe(tempDir, absolutePath);
 
             expect(result).toEqual({ content, truncated: false });
         });
@@ -246,10 +247,7 @@ describe("readProjectFileSafe", () => {
             await symlink(realDir, symlinkDir);
 
             try {
-                const result = await readProjectFileSafe(
-                    symlinkDir,
-                    "test.txt",
-                );
+                const result = await readSafe(symlinkDir, "test.txt");
 
                 expect(result).toEqual({
                     content: "content via symlink",
