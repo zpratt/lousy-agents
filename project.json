@@ -1,14 +1,6 @@
 {
   "schema_version": "1",
-  "roots": [
-    "packages/core/src",
-    "packages/lint/src",
-    "packages/cli/src",
-    "packages/mcp/src",
-    "packages/action/src",
-    "packages/agent-shell/src",
-    "packages/doctor/src"
-  ],
+  "roots": ["."],
   "layers": [
     {
       "name": "entities",
