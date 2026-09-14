@@ -1,45 +1,45 @@
 {
-  "schema_version": "1",
-  "roots": ["."],
-  "layers": [
-    {
-      "name": "entities",
-      "prefixes": [
-        "packages/core/src/entities",
-        "packages/agent-shell/src/entities",
-        "packages/doctor/src/entities"
-      ]
-    },
-    {
-      "name": "use_cases",
-      "prefixes": [
-        "packages/core/src/use-cases",
-        "packages/agent-shell/src/use-cases",
-        "packages/doctor/src/use-cases"
-      ]
-    },
-    {
-      "name": "adapters",
-      "prefixes": [
-        "packages/core/src/gateways",
-        "packages/core/src/lib",
-        "packages/core/src/formatters",
-        "packages/agent-shell/src/gateways",
-        "packages/agent-shell/src/lib",
-        "packages/doctor/src/gateways",
-        "packages/doctor/src/lib",
-        "packages/doctor/src/formatters",
-        "packages/doctor/src/cli",
-        "packages/cli/src/commands",
-        "packages/cli/src/lib",
-        "packages/mcp/src/tools",
-        "packages/mcp/src/lib"
-      ]
-    }
-  ],
-  "forbidden_imports": [
-    { "from": "entities", "to": "use_cases" },
-    { "from": "entities", "to": "adapters" },
-    { "from": "use_cases", "to": "adapters" }
-  ]
+    "schema_version": "1",
+    "roots": ["."],
+    "layers": [
+        {
+            "name": "entities",
+            "prefixes": [
+                "packages/core/src/entities",
+                "packages/agent-shell/src/entities",
+                "packages/doctor/src/entities"
+            ]
+        },
+        {
+            "name": "use_cases",
+            "prefixes": [
+                "packages/core/src/use-cases",
+                "packages/agent-shell/src/use-cases",
+                "packages/doctor/src/use-cases"
+            ]
+        },
+        {
+            "name": "adapters",
+            "prefixes": [
+                "packages/core/src/gateways",
+                "packages/core/src/lib",
+                "packages/core/src/formatters",
+                "packages/agent-shell/src/gateways",
+                "packages/agent-shell/src/lib",
+                "packages/doctor/src/gateways",
+                "packages/doctor/src/lib",
+                "packages/doctor/src/formatters",
+                "packages/doctor/src/cli",
+                "packages/cli/src/commands",
+                "packages/cli/src/lib",
+                "packages/mcp/src/tools",
+                "packages/mcp/src/lib"
+            ]
+        }
+    ],
+    "forbidden_imports": [
+        { "from": "entities", "to": "use_cases" },
+        { "from": "entities", "to": "adapters" },
+        { "from": "use_cases", "to": "adapters" }
+    ]
 }
