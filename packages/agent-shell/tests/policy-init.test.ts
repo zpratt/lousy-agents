@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { ProjectScanResult } from "../src/gateways/project-scanner.js";
+import {
+    type ProjectScanResult,
+    scanProject,
+} from "../src/gateways/project-scanner.js";
+import { resolveSdkPath } from "../src/gateways/resolve-sdk.js";
+import { readBytesWithinRoot, statWithinRoot } from "../src/lib/safe-fs.js";
 import {
     generateHooksConfig,
     generatePolicy,
@@ -508,6 +513,12 @@ describe("handlePolicyInit", () => {
                         typeof data === "string" ? data : data.toString(),
                     );
                 },
+                scanProject,
+                copilotIo: {
+                    resolveSdkPath,
+                    statWithinRoot,
+                    readBytesWithinRoot,
+                },
             };
             const { writeFile } = await import("node:fs/promises");
             await writeFile(
@@ -544,6 +555,12 @@ describe("handlePolicyInit", () => {
                         typeof data === "string" ? data : data.toString(),
                     );
                 },
+                scanProject,
+                copilotIo: {
+                    resolveSdkPath,
+                    statWithinRoot,
+                    readBytesWithinRoot,
+                },
             };
             const { writeFile } = await import("node:fs/promises");
             await writeFile(
@@ -575,6 +592,12 @@ describe("handlePolicyInit", () => {
                     );
                 },
                 writeStderr: () => {},
+                scanProject,
+                copilotIo: {
+                    resolveSdkPath,
+                    statWithinRoot,
+                    readBytesWithinRoot,
+                },
             };
             const { writeFile } = await import("node:fs/promises");
             await writeFile(
@@ -621,6 +644,12 @@ describe("handlePolicyInit", () => {
                         typeof data === "string" ? data : data.toString(),
                     );
                 },
+                scanProject,
+                copilotIo: {
+                    resolveSdkPath,
+                    statWithinRoot,
+                    readBytesWithinRoot,
+                },
             };
 
             await handlePolicyInit(deps);
@@ -660,6 +689,12 @@ describe("handlePolicyInit", () => {
                     output.push(
                         typeof data === "string" ? data : data.toString(),
                     );
+                },
+                scanProject,
+                copilotIo: {
+                    resolveSdkPath,
+                    statWithinRoot,
+                    readBytesWithinRoot,
                 },
             };
 

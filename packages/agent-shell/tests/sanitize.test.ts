@@ -6,7 +6,7 @@ import {
     sanitizeForStderr,
     sanitizeOutput,
     sanitizePromptValue,
-} from "../src/lib/sanitize.js";
+} from "../src/entities/sanitize.js";
 
 const chance = new Chance();
 
