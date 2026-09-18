@@ -37,7 +37,7 @@
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
-        "@openclaw/fs-safe": "0.11.0",
+        "@openclaw/fs-safe": "0.14.0",
         "zod": "4.5.2"
     },
     "peerDependencies": {
