@@ -56,7 +56,7 @@ runs:
       # v1.5.0
       uses: reviewdog/action-setup@0dd4b8fe6186a79b3e27819169b1b570895086f0
       with:
-        reviewdog_version: 'v0.21.1'
+        reviewdog_version: 'v0.21.2'
 
     - name: Run lousy-agents lint
       shell: bash
