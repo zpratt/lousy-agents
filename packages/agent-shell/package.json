@@ -41,7 +41,7 @@
         "zod": "4.5.2"
     },
     "peerDependencies": {
-        "@github/copilot-sdk": "1.0.14"
+        "@github/copilot-sdk": "1.0.15"
     },
     "peerDependenciesMeta": {
         "@github/copilot-sdk": {
