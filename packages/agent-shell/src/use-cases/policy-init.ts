@@ -1,20 +1,20 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
-    type ProjectScanResult,
-    scanProject,
-} from "../gateways/project-scanner.js";
-import {
     isSafeCommand,
     SHELL_METACHAR_PATTERN,
     sanitizeOutput,
-} from "../lib/sanitize.js";
+} from "../entities/sanitize.js";
+import type { ProjectScanResult } from "../gateways/project-scanner.js";
+import type { CopilotEnhancePort } from "./copilot-enhance.js";
 import { enhanceWithCopilot } from "./copilot-enhance.js";
 
 export interface PolicyInitDeps {
     getRepositoryRoot: () => string;
     writeStdout: (data: string) => void;
     writeStderr: (data: string) => void;
+    scanProject: (dir: string) => Promise<ProjectScanResult>;
+    copilotIo: CopilotEnhancePort;
     model?: string;
 }
 
@@ -261,7 +261,7 @@ export async function handlePolicyInit(deps: PolicyInitDeps): Promise<void> {
 
     deps.writeStdout("Scanning project...\n");
 
-    const scanResult = await scanProject(repoRoot);
+    const scanResult = await deps.scanProject(repoRoot);
 
     deps.writeStdout(
         `Discovered: ${scanResult.scripts.length} npm script(s), ` +
@@ -276,6 +276,7 @@ export async function handlePolicyInit(deps: PolicyInitDeps): Promise<void> {
         scanResult,
         repoRoot,
         deps.writeStderr,
+        deps.copilotIo,
         deps.model,
     );
 

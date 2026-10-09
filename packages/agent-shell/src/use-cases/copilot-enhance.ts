@@ -1,9 +1,7 @@
 import { normalize, relative, resolve } from "node:path";
 import { z } from "zod/v4";
+import { isSafeCommand, sanitizeForStderr } from "../entities/sanitize.js";
 import type { ProjectScanResult } from "../gateways/project-scanner.js";
-import { resolveSdkPath } from "../gateways/resolve-sdk.js";
-import { readBytesWithinRoot, statWithinRoot } from "../lib/safe-fs.js";
-import { isSafeCommand, sanitizeForStderr } from "../lib/sanitize.js";
 import { buildAnalysisPrompt, buildSystemMessage } from "./copilot-prompt.js";
 
 const DEFAULT_MODEL = "claude-sonnet-4-6";
@@ -20,6 +18,22 @@ const AnalysisResponseSchema = z.object({
  * Result of Copilot-enhanced project analysis.
  */
 export type CopilotEnhancedResult = z.infer<typeof AnalysisResponseSchema>;
+
+export interface ProjectFilePort {
+    statWithinRoot: (
+        targetDir: string,
+        relativePath: string,
+    ) => Promise<{ size: number }>;
+    readBytesWithinRoot: (
+        targetDir: string,
+        relativePath: string,
+        maxBytes: number,
+    ) => Promise<Buffer>;
+}
+
+export interface CopilotEnhancePort extends ProjectFilePort {
+    resolveSdkPath: (repoRoot: string, packageName: string) => string | null;
+}
 
 /**
  * Resolves a relative path against a root directory and verifies it
@@ -78,6 +92,7 @@ function findUtf8Boundary(buf: Buffer, maxBytes: number): number {
 export async function readProjectFileSafe(
     repoRoot: string,
     pathArg: string,
+    io: ProjectFilePort,
 ): Promise<{ content: string; truncated: boolean } | { error: string }> {
     if (pathArg.length === 0) {
         return { error: "Path is required" };
@@ -91,12 +106,12 @@ export async function readProjectFileSafe(
     let fileBuffer: Buffer;
     let truncated = false;
     try {
-        const fileStat = await statWithinRoot(repoRoot, relPath);
+        const fileStat = await io.statWithinRoot(repoRoot, relPath);
         truncated = fileStat.size > MAX_FILE_READ_BYTES;
         if (fileStat.size > MAX_PROJECT_FILE_BYTES) {
             return { error: "File not found or unreadable" };
         }
-        fileBuffer = await readBytesWithinRoot(
+        fileBuffer = await io.readBytesWithinRoot(
             repoRoot,
             relPath,
             MAX_PROJECT_FILE_BYTES,
@@ -129,6 +144,7 @@ export async function readProjectFileSafe(
  */
 function createCustomTools(
     repoRoot: string,
+    io: ProjectFilePort,
     defineTool: (
         name: string,
         config: {
@@ -154,7 +170,7 @@ function createCustomTools(
         },
         skipPermission: true,
         handler: (args: Record<string, string>) =>
-            readProjectFileSafe(repoRoot, args.path ?? ""),
+            readProjectFileSafe(repoRoot, args.path ?? "", io),
     });
 
     const validateAllowRule = defineTool("validate_allow_rule", {
@@ -209,18 +225,19 @@ export async function enhanceWithCopilot(
     scanResult: ProjectScanResult,
     repoRoot: string,
     writeStderr: (data: string) => void,
+    io: CopilotEnhancePort,
     model = DEFAULT_MODEL,
 ): Promise<CopilotEnhancedResult | null> {
     let importSucceeded = false;
     try {
-        const sdkPath = resolveSdkPath(repoRoot, "@github/copilot-sdk");
+        const sdkPath = io.resolveSdkPath(repoRoot, "@github/copilot-sdk");
         const { CopilotClient, defineTool, approveAll } = sdkPath
             ? await import(/* webpackIgnore: true */ sdkPath)
             : await import("@github/copilot-sdk");
         importSucceeded = true;
 
         const client = new CopilotClient();
-        const tools = createCustomTools(repoRoot, defineTool);
+        const tools = createCustomTools(repoRoot, io, defineTool);
 
         try {
             await client.start();

@@ -1,5 +1,9 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
 import { dirname, join, resolve } from "node:path";
+import {
+    isPathNotFoundError,
+    isWithinProjectRoot,
+} from "../entities/path-utils.js";
 import type {
     PolicyDecisionEvent,
     ScriptEndEvent,
@@ -9,7 +13,6 @@ import type {
 import { SCHEMA_VERSION } from "../entities/types.js";
 import { detectActor } from "../lib/actor.js";
 import { captureEnv, captureTags } from "../lib/env-capture.js";
-import { isPathNotFoundError, isWithinProjectRoot } from "../lib/path-utils.js";
 import type { ShimResult } from "./shim.js";
 
 export interface TelemetryDeps {

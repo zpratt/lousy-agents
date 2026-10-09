@@ -1,11 +1,14 @@
 import { randomBytes } from "node:crypto";
 import { join, resolve } from "node:path";
+import {
+    isPathNotFoundError,
+    isWithinProjectRoot,
+} from "../entities/path-utils.js";
+import { sanitizeForStderr } from "../entities/sanitize.js";
 import type { HooksConfig } from "../entities/types.js";
 import { HooksConfigSchema, PolicyConfigSchema } from "../entities/types.js";
 import { hasProtoKey } from "../entities/validation.js";
 import type { ProjectScanResult } from "../gateways/project-scanner.js";
-import { isPathNotFoundError, isWithinProjectRoot } from "../lib/path-utils.js";
-import { sanitizeForStderr } from "../lib/sanitize.js";
 import { generatePolicy } from "./policy-init.js";
 
 const HOOKS_SUBPATH = ".github/hooks/agent-shell/hooks.json";

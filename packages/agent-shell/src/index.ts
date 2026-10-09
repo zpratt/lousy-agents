@@ -11,20 +11,27 @@ import {
     writeFile,
 } from "node:fs/promises";
 import { createInterface } from "node:readline";
+import { sanitizeForStderr } from "./entities/sanitize.js";
 import { createGetRepositoryRoot } from "./gateways/git-utils.js";
 import { scanProject } from "./gateways/project-scanner.js";
+import { resolveSdkPath } from "./gateways/resolve-sdk.js";
+import { runLog } from "./gateways/run-log.js";
 import type { ShimResult } from "./gateways/shim.js";
 import { runShim } from "./gateways/shim.js";
 import type { TelemetryDeps } from "./gateways/telemetry.js";
 import {
+    emitPolicyDecisionEvent,
     emitScriptEndEvent,
     emitShimErrorEvent,
+    emitToolUseEvent,
 } from "./gateways/telemetry.js";
 import { resolveMode } from "./lib/mode.js";
-import { readTextWithinRoot } from "./lib/safe-fs.js";
-import { sanitizeForStderr } from "./lib/sanitize.js";
+import {
+    readBytesWithinRoot,
+    readTextWithinRoot,
+    statWithinRoot,
+} from "./lib/safe-fs.js";
 import { handleInit } from "./use-cases/init-command.js";
-import { runLog } from "./use-cases/log-command.js";
 import { handlePolicyCheck } from "./use-cases/policy-check.js";
 import { handlePolicyInit } from "./use-cases/policy-init.js";
 import { handleRecord } from "./use-cases/record.js";
@@ -87,6 +94,7 @@ async function main(): Promise<void> {
                     getRepositoryRoot,
                 },
                 telemetryDeps: createDefaultDeps(),
+                emitPolicyDecisionEvent,
             });
             // Use exitCode + return (not process.exit) so pending stdout writes
             // from writeStdout can drain before the process terminates.
@@ -103,6 +111,12 @@ async function main(): Promise<void> {
                     getRepositoryRoot,
                     writeStdout: (data) => process.stdout.write(data),
                     writeStderr: (data) => process.stderr.write(data),
+                    scanProject: (dir) => scanProject(dir),
+                    copilotIo: {
+                        resolveSdkPath,
+                        statWithinRoot,
+                        readBytesWithinRoot,
+                    },
                     model: mode.model,
                 });
                 process.exitCode = 0;
@@ -126,6 +140,7 @@ async function main(): Promise<void> {
                     env: process.env,
                     telemetryDeps: createDefaultDeps(),
                     getRepositoryRoot,
+                    emitToolUseEvent,
                 });
             } catch (err) {
                 // Log unexpected exceptions but don't change exit code

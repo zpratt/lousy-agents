@@ -55,7 +55,12 @@ mise run lint            # All lint tools in parallel
 mise run typecheck       # Strict tsc --noEmit across all workspace packages
 npm run build            # Production build of publishable packages
 mise run ci              # Full validation: lint -> typecheck -> test -> test-integration -> smoke-test
+mise run coach-check-project  # Coach TypeScript readiness (compiler, Node, policy)
+mise run coach-baseline       # Coach baseline scan with project.json architecture policy
+mise run coach-branch         # Coach vs main with project.json architecture policy
 ```
+
+Coach is advisory: a completed scan exits 0 even with findings, and an empty signal set is not a clean bill of health. `project.json` is read from the analyzed Git revision, so commit it before scanning. Do not add coach to `mise run lint` or `mise run ci`.
 
 If a command fails, read the error, fix the root cause, and re-run the same command until it passes. Do not skip failures or weaken tests to force green.
 
