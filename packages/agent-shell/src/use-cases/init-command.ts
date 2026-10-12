@@ -4,11 +4,11 @@ import {
     isPathNotFoundError,
     isWithinProjectRoot,
 } from "../entities/path-utils.js";
+import type { ProjectScanResult } from "../entities/project-scan.js";
 import { sanitizeForStderr } from "../entities/sanitize.js";
 import type { HooksConfig } from "../entities/types.js";
 import { HooksConfigSchema, PolicyConfigSchema } from "../entities/types.js";
 import { hasProtoKey } from "../entities/validation.js";
-import type { ProjectScanResult } from "../gateways/project-scanner.js";
 import { generatePolicy } from "./policy-init.js";
 
 const HOOKS_SUBPATH = ".github/hooks/agent-shell/hooks.json";

@@ -1,11 +1,11 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { ProjectScanResult } from "../entities/project-scan.js";
 import {
     isSafeCommand,
     SHELL_METACHAR_PATTERN,
     sanitizeOutput,
 } from "../entities/sanitize.js";
-import type { ProjectScanResult } from "../gateways/project-scanner.js";
 import type { CopilotEnhancePort } from "./copilot-enhance.js";
 import { enhanceWithCopilot } from "./copilot-enhance.js";
 

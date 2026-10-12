@@ -1,7 +1,7 @@
 import { normalize, relative, resolve } from "node:path";
 import { z } from "zod/v4";
+import type { ProjectScanResult } from "../entities/project-scan.js";
 import { isSafeCommand, sanitizeForStderr } from "../entities/sanitize.js";
-import type { ProjectScanResult } from "../gateways/project-scanner.js";
 import { buildAnalysisPrompt, buildSystemMessage } from "./copilot-prompt.js";
 
 const DEFAULT_MODEL = "claude-sonnet-4-6";

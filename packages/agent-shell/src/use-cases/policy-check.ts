@@ -1,8 +1,11 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
 import { z } from "zod/v4";
 import { sanitizeForStderr } from "../entities/sanitize.js";
+import type {
+    EmitPolicyDecisionEvent,
+    TelemetryDeps,
+} from "../entities/telemetry-port.js";
 import type { PolicyConfig } from "../entities/types.js";
-import type { TelemetryDeps } from "../gateways/telemetry.js";
 import type { PolicyDeps } from "./policy.js";
 import { evaluatePolicy, loadPolicy } from "./policy.js";
 
@@ -13,16 +16,7 @@ export interface PolicyCheckDeps {
     env: Record<string, string | undefined>;
     policyDeps: PolicyDeps;
     telemetryDeps: TelemetryDeps;
-    emitPolicyDecisionEvent: (
-        options: {
-            command: string;
-            decision: "allow" | "deny";
-            matched_rule: string | null;
-            env: Record<string, string | undefined>;
-            projectRoot: string;
-        },
-        telemetryDeps: TelemetryDeps,
-    ) => Promise<void>;
+    emitPolicyDecisionEvent: EmitPolicyDecisionEvent;
 }
 
 const TERMINAL_TOOLS = new Set(["bash", "zsh", "ash", "sh"]);

@@ -3,10 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-    type ProjectScanResult,
-    scanProject,
-} from "../src/gateways/project-scanner.js";
+import type { ProjectScanResult } from "../src/entities/project-scan.js";
+import { scanProject } from "../src/gateways/project-scanner.js";
 import { resolveSdkPath } from "../src/gateways/resolve-sdk.js";
 import { readBytesWithinRoot, statWithinRoot } from "../src/lib/safe-fs.js";
 import {

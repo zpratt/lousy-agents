@@ -12,13 +12,13 @@ import {
 } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import { sanitizeForStderr } from "./entities/sanitize.js";
+import type { TelemetryDeps } from "./entities/telemetry-port.js";
 import { createGetRepositoryRoot } from "./gateways/git-utils.js";
 import { scanProject } from "./gateways/project-scanner.js";
 import { resolveSdkPath } from "./gateways/resolve-sdk.js";
 import { runLog } from "./gateways/run-log.js";
 import type { ShimResult } from "./gateways/shim.js";
 import { runShim } from "./gateways/shim.js";
-import type { TelemetryDeps } from "./gateways/telemetry.js";
 import {
     emitPolicyDecisionEvent,
     emitScriptEndEvent,
