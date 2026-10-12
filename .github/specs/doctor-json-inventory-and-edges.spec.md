@@ -90,6 +90,23 @@ so that **pipelines consuming today's output keep working after this change**.
 - The system shall validate the complete JSON output against a Zod schema before writing it to stdout.
 - If the assembled output fails schema validation, then the system shall fail the run rather than emit an invalid payload.
 
+### Story 6: Explain why declared intent was not applied (amendment, #1381)
+
+As an **Onboarding Developer**,
+I want **doctor to tell me which intent file it checked and why it rejected it**,
+so that **I can fix a present-but-invalid `.agentic-doctor/intent.json` instead of being told it is missing**.
+
+#### Acceptance Criteria
+
+- When a full evaluation runs on a repository with constructs, the system shall report an intent load status of `loaded`, `absent`, `invalid-json`, `invalid-schema`, `symlink-rejected`, or `read-failed`, together with the absolute checked path.
+- When the intent file is absent, the system shall emit `missing-intent-artifact`.
+- When an intent file exists but is rejected, the system shall emit `invalid-intent-artifact` (medium, defect, governance) instead of `missing-intent-artifact`.
+- When the intent file fails schema validation, the system shall list each failing field path with its validation message.
+- The system shall never include intent file contents in the reported reason or issues.
+- The system shall present the same intent status, checked path, reason, and issues in human output and in the JSON `intent` object.
+- The system shall continue to reject symlinked intent files and to read intent only from the current working directory.
+- The system shall not change exit-code behavior: neither intent finding blocks the run.
+
 ## Design
 
 ### Components Affected
@@ -245,6 +262,14 @@ sequenceDiagram
 - [x] **Verification**: Unit test parses real output against the schema; a second unit test asserts `toJson` throws when a record has a harness outside the known enum; integration tests assert presence of `inventory`/`edges` and unchanged legacy keys on both `--summary` and full JSON output. Full validation run: `npm run lint` (0 errors), `npx vitest run` repo-wide (103 files / 1813 passed, 3 skipped), `npm run build` (all packages), `npm run test:integration` (all passed except one pre-existing Docker-dependent test unrelated to this change — no container runtime available in this sandbox), and the real built CLI run against this repo confirms `inventory`/`edges` populated correctly with `crossHarnessEdges` consistent with `edges.filter(e => e.crossHarness).length`.
 - [x] **Done when**: Output always validates and legacy consumers see no breaking change.
 
+### Task 6: Report intent load status (amendment, #1381)
+
+- [x] **Objective**: Replace the single `{ found: false }` intent result with explicit load states shared by both output formats.
+- [x] **Affected files**: `packages/doctor/src/entities/intent-load.ts`, `packages/doctor/src/gateways/intent-artifact.ts`, `packages/doctor/src/use-cases/criteria.ts`, `packages/doctor/src/use-cases/evaluate-engine.ts`, `packages/doctor/src/formatters/json-formatter.ts`, `packages/doctor/src/formatters/human-renderer.ts`, `packages/doctor/src/cli/index.ts`, `packages/cli/src/commands/doctor.ts`
+- [x] **Requirements**: Classify read errors by fs-safe / errno code (never by message); report JSON parse failures with a fixed reason so parser messages cannot leak contents; map Zod issues to `{ path, message }` (capped at 20, with `omittedIssueCount` when more exist); treat `ENOTDIR` as absent and name hard-link rejections; move `missing-intent-artifact` to a dedicated `intent.artifactAbsent` check method; prompt interactively only when intent is absent; add an additive optional `intent` object to `ReportJsonSchema`; render every field of the same report in human output.
+- [x] **Verification**: Gateway unit tests for each status; engine tests for both intent criteria; formatter tests asserting human text contains every JSON intent value; built-CLI integration tests that run text and JSON on absent, documented-example, this repository's intent, malformed, schema-invalid, symlinked, directory, and nested-directory cases and compare the two formats.
+- [x] **Done when**: A rejected intent file is never reported as missing, and both formats agree on status, checked path, reason, and issues.
+
 ## Out of Scope
 
 - Structured `remediation` fields, evidence-citation wiring, and an ordered `nextSteps` plan on findings (separate increment).
@@ -265,4 +290,5 @@ sequenceDiagram
 ## Cross-Reference
 
 - GitHub Issue: #890 (Feature: Agentic Configuration Doctor)
+- GitHub Issue: #1381 (intent load diagnostics amendment)
 - Source: first increment of a three-part improvement brief for the shipped `doctor --format json --ci`; grounded in the wisdom knowledge base's cross-harness composition model.
