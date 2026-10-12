@@ -128,6 +128,110 @@ describe("evaluate", () => {
             );
             expect(finding).toBeUndefined();
         });
+
+        it("should produce a finding when the intent load status is absent", () => {
+            const findings = evaluate(CRITERIA, {
+                records: [makeRecord({ harness: "claude", path: "CLAUDE.md" })],
+                classification: makeClassification("pure"),
+                intent: null,
+                intentLoadStatus: "absent",
+            });
+
+            const criterionIds = findings.map((f) => f.criterionId);
+            expect(criterionIds).toContain("missing-intent-artifact");
+            expect(criterionIds).not.toContain("invalid-intent-artifact");
+        });
+    });
+
+    describe("when intent and load status disagree", () => {
+        it("should report missing intent when the artifact is null even if the status claims loaded", () => {
+            const findings = evaluate(CRITERIA, {
+                records: [makeRecord({ harness: "claude", path: "CLAUDE.md" })],
+                classification: makeClassification("pure"),
+                intent: null,
+                intentLoadStatus: "loaded",
+            });
+
+            expect(findings.map((f) => f.criterionId)).toContain(
+                "missing-intent-artifact",
+            );
+        });
+    });
+
+    describe("invalid-intent-artifact criterion (intent.artifactRejected)", () => {
+        const rejectedStatuses = [
+            "invalid-json",
+            "invalid-schema",
+            "symlink-rejected",
+            "read-failed",
+        ] as const;
+
+        for (const intentLoadStatus of rejectedStatuses) {
+            it(`should report a rejected file instead of a missing one when status is ${intentLoadStatus}`, () => {
+                // Arrange
+                const records = [
+                    makeRecord({ harness: "claude", path: "CLAUDE.md" }),
+                ];
+
+                // Act
+                const findings = evaluate(CRITERIA, {
+                    records,
+                    classification: makeClassification("pure"),
+                    intent: null,
+                    intentLoadStatus,
+                });
+
+                // Assert
+                const invalid = findings.find(
+                    (f) => f.criterionId === "invalid-intent-artifact",
+                );
+                expect(invalid).toMatchObject({
+                    id: "invalid-intent-artifact:all:intent",
+                    targetId: "all:intent",
+                    severity: "medium",
+                    assumedIntent: true,
+                });
+                expect(
+                    findings.some(
+                        (f) => f.criterionId === "missing-intent-artifact",
+                    ),
+                ).toBe(false);
+            });
+        }
+
+        it("should not produce a finding when the intent file loaded", () => {
+            const findings = evaluate(CRITERIA, {
+                records: [makeRecord({ harness: "claude", path: "CLAUDE.md" })],
+                classification: makeClassification("pure"),
+                intent: {
+                    targetHarnesses: ["claude"],
+                    desiredCapabilities: [],
+                    confirmedAnswers: {},
+                    intentSource: "pre-committed",
+                },
+                intentLoadStatus: "loaded",
+            });
+
+            const intentFindings = findings.filter(
+                (f) => f.targetId === "all:intent",
+            );
+            expect(intentFindings).toEqual([]);
+        });
+
+        it("should not produce a finding when there are no records", () => {
+            const findings = evaluate(CRITERIA, {
+                records: [],
+                classification: makeClassification("none"),
+                intent: null,
+                intentLoadStatus: "invalid-json",
+            });
+
+            expect(
+                findings.some(
+                    (f) => f.criterionId === "invalid-intent-artifact",
+                ),
+            ).toBe(false);
+        });
     });
 
     describe("malformed-claude-import criterion (inventory.edgePresent)", () => {

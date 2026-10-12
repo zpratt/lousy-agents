@@ -23,12 +23,20 @@ export const CRITERIA: readonly Criterion[] = [
         classification: "defect",
         category: "governance",
         description:
-            "No declared intent artifact found at .agentic-doctor/intent.json. Without declared intent, the doctor cannot evaluate capability preconditions.",
-        checkMethod: "inventory.constructPresent",
-        checkArgs: {
-            harness: "claude",
-            constructType: "instruction",
-        },
+            "No declared intent artifact found at .agentic-doctor/intent.json in the directory doctor ran from. All shipped checks still ran, and this finding alone does not fail the command. Doctor does not search parent or home directories, and declared intent does not change the detected archetype.",
+        checkMethod: "intent.artifactAbsent",
+        checkArgs: {},
+    },
+    {
+        id: "invalid-intent-artifact",
+        appliesToHarness: "all",
+        severity: "medium",
+        classification: "defect",
+        category: "governance",
+        description:
+            "An intent artifact exists at .agentic-doctor/intent.json but was rejected, so doctor treated intent as undeclared. The intent status reports the checked path and the reason; fix the file and re-run doctor. This finding alone does not fail the command.",
+        checkMethod: "intent.artifactRejected",
+        checkArgs: {},
     },
     {
         id: "malformed-claude-import",
