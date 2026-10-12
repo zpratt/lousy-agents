@@ -6,6 +6,11 @@ export type { Criterion } from "./entities/criteria-schema.js";
 export type { DeclaredIntentArtifact } from "./entities/declared-intent.js";
 export type { InventoryRecord } from "./entities/edge-types.js";
 export type { Finding } from "./entities/finding.js";
+export type {
+    IntentLoadReport,
+    IntentLoadStatus,
+    IntentSchemaIssue,
+} from "./entities/intent-load.js";
 export {
     hasBlockingFindings,
     renderHuman,

@@ -26,6 +26,30 @@ describe("CRITERIA", () => {
         expect(criterion?.category).toBe("governance");
     });
 
+    it("should include invalid-intent-artifact as a non-blocking medium defect", () => {
+        const criterion = CRITERIA.find(
+            (c) => c.id === "invalid-intent-artifact",
+        );
+        expect(criterion).toBeDefined();
+        expect(criterion?.severity).toBe("medium");
+        expect(criterion?.classification).toBe("defect");
+        expect(criterion?.category).toBe("governance");
+    });
+
+    it("should check missing intent with a dedicated intent check method", () => {
+        const criterion = CRITERIA.find(
+            (c) => c.id === "missing-intent-artifact",
+        );
+        expect(criterion?.checkMethod).toBe("intent.artifactAbsent");
+    });
+
+    it("should not claim missing intent blocks capability checks absent from the catalog", () => {
+        const criterion = CRITERIA.find(
+            (c) => c.id === "missing-intent-artifact",
+        );
+        expect(criterion?.description).not.toMatch(/capability preconditions/);
+    });
+
     it("should have unique ids for all criteria", () => {
         const ids = CRITERIA.map((c) => c.id);
         const unique = new Set(ids);
@@ -39,8 +63,9 @@ describe("CRITERIA", () => {
             "inventory.edgeDirection",
             "inventory.edgeDirectionExists",
             "inventory.archetypeIs",
-            "inventory.constructPresent",
             "intent.capabilityDeclared",
+            "intent.artifactRejected",
+            "intent.artifactAbsent",
         ]);
         for (const criterion of CRITERIA) {
             expect(validMethods.has(criterion.checkMethod)).toBe(true);

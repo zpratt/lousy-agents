@@ -23,8 +23,8 @@ The implementation package is `@lousy-agents/agentic-doctor` (bin: `agentic-doct
 
 1. Scan the current working directory for harness footprints and composition edges.
 2. Classify the repository archetype and compute harness dominance.
-3. Load optional declared intent from `.agentic-doctor/intent.json`.
-4. On an interactive TTY without `--ci`, optionally ask short ambiguity questions when intent is missing. Answers are only acknowledged (`Noted.`); they are **not** written to disk and **do not** change findings for that run. Doctor re-reads `.agentic-doctor/intent.json` afterward in case you created it in another terminal.
+3. Load optional declared intent from `.agentic-doctor/intent.json` in the current working directory, and record whether it loaded or why it was rejected (see [Intent load status](#intent-load-status)).
+4. On an interactive TTY without `--ci`, optionally ask short ambiguity questions when no intent file exists (status `absent`). A present-but-rejected file is reported instead of prompting. Answers are only acknowledged (`Noted.`); they are **not** written to disk and **do not** change findings for that run. Doctor re-reads `.agentic-doctor/intent.json` afterward in case you created it in another terminal.
 5. Evaluate the criteria catalog against inventory, archetype, and intent.
 6. Print a human report or JSON. Exit `1` when any **critical** or **high** finding is classified as a **defect**. When the archetype is `none`, human mode prints that no agentic constructs were found and skips the full findings layout.
 
@@ -139,7 +139,8 @@ Advisories never fail the process on their own. Medium defects (for example miss
 | `cross-harness-drift` | all | high | advisory | drift | Archetype is `accidental-sprawl`: multiple harnesses with no cross-harness references. Does not block CI. |
 | `wrong-direction-copilot-imports-claude` | copilot | medium | advisory | wrong-direction | A Copilot file uses Claude `@path` hard-import syntax toward a Claude file. Copilot does not process `@path` hard-imports. |
 | `wrong-direction-copilot-links-claude` | copilot | medium | advisory | wrong-direction | A Copilot file soft-references a Claude file (markdown link or frontmatter `see:` / `references:` / `requires:`). Copilot CLI does not follow those links. |
-| `missing-intent-artifact` | all | medium | defect | governance | Constructs exist but `.agentic-doctor/intent.json` is missing or invalid. Visible, non-blocking. |
+| `missing-intent-artifact` | all | medium | defect | governance | Constructs exist but no file exists at `.agentic-doctor/intent.json` in the directory doctor ran from. Visible, non-blocking. |
+| `invalid-intent-artifact` | all | medium | defect | governance | Constructs exist and `.agentic-doctor/intent.json` exists but was rejected (invalid JSON, schema mismatch, symlink, or unreadable). The intent status names the reason. Visible, non-blocking. |
 | `missing-hermes-config` | hermes | medium | advisory | missing-required | Hermes is attributed (for example via `SOUL.md`) without `.hermes.md` or `HERMES.md`. |
 | `missing-crush-config` | crush | medium | advisory | missing-required | Crush is attributed (for example via `.crush/`) without `crush.json`. |
 
@@ -180,7 +181,19 @@ Archetype: intentional-hybrid
     copilot: 8
     shared: 1
   Cross-harness edges: 1
+Intent: loaded
+  Checked path: /path/to/repo/.agentic-doctor/intent.json
 ✔ No findings.
+```
+
+When the intent file is present but rejected, the intent section names the reason and, for schema mismatches, each failing field:
+
+```
+Intent: invalid-schema
+  Checked path: /path/to/repo/.agentic-doctor/intent.json
+  Reason: The file does not match the intent schema.
+  Issues:
+    targetHarnesses.1: Invalid option: expected one of "claude"|"copilot"|"codex"|"antigravity"|"hermes"|"crush"|"pi"|"shared"
 ```
 
 When findings exist (header plus severity-ordered lines):
@@ -188,7 +201,7 @@ When findings exist (header plus severity-ordered lines):
 ```
 Findings (2):
   [HIGH][advisory] cross-harness-drift: Multiple AI harnesses are configured but share no cross-harness references. This may indicate accidental configuration sprawl rather than intentional multi-harness setup.
-  [MEDIUM][defect] missing-intent-artifact: No declared intent artifact found at .agentic-doctor/intent.json. Without declared intent, the doctor cannot evaluate capability preconditions. [assumed intent]
+  [MEDIUM][defect] missing-intent-artifact: No declared intent artifact found at .agentic-doctor/intent.json in the directory doctor ran from. All shipped checks still ran, and this finding alone does not fail the command. Doctor does not search parent or home directories, and declared intent does not change the detected archetype. [assumed intent]
 ```
 
 Tags are `[SEVERITY][classification]`. Findings with `assumedIntent: true` append `[assumed intent]`. Optional evidence citations print on the following line when present.
@@ -206,6 +219,7 @@ Tags are `[SEVERITY][classification]`. Findings with `assumedIntent: true` appen
 | `crossHarnessEdges` | number | Count of edges with `crossHarness: true` |
 | `inventory` | array | One entry per construct |
 | `edges` | array | Flattened composition edges |
+| `intent` | object | Intent load status: `{ status, checkedPath, reason?, issues?, omittedIssueCount? }`. Present only on full evaluate (not on `--summary` or when the archetype is `none`). See [Intent load status](#intent-load-status). |
 | `findings` | array | Criteria results (empty array when none). Present only on full evaluate, not on `--summary`. |
 | `snapshotRef` | string? | Present when a local `wisdom/` graph is available |
 
@@ -265,6 +279,11 @@ Example fragment from an `accidental-sprawl` repo (no cross-harness edges, no in
     }
   ],
   "edges": [],
+  "intent": {
+    "status": "absent",
+    "checkedPath": "/path/to/repo/.agentic-doctor/intent.json",
+    "reason": "No file exists at the checked path."
+  },
   "findings": [
     {
       "id": "missing-intent-artifact:all:intent",
@@ -275,7 +294,7 @@ Example fragment from an `accidental-sprawl` repo (no cross-harness edges, no in
       "classification": "defect",
       "intentGated": false,
       "assumedIntent": true,
-      "description": "No declared intent artifact found at .agentic-doctor/intent.json. Without declared intent, the doctor cannot evaluate capability preconditions."
+      "description": "No declared intent artifact found at .agentic-doctor/intent.json in the directory doctor ran from. All shipped checks still ran, and this finding alone does not fail the command. Doctor does not search parent or home directories, and declared intent does not change the detected archetype."
     },
     {
       "id": "cross-harness-drift:all:accidental-sprawl",
@@ -298,7 +317,7 @@ With `--summary`, JSON includes archetype fields plus `inventory` only. It does 
 
 Optional artifact path: `.agentic-doctor/intent.json`.
 
-**What the shipped evaluator does today:** if constructs exist and this file is missing or invalid, `missing-intent-artifact` fires as a **medium defect** (visible in the report, non-blocking for exit code). When the file is present and valid, that finding clears. The engine can run `intent.capabilityDeclared` checks, but **no shipped criterion uses that check method yet**, so `targetHarnesses` and `desiredCapabilities` do not change findings in the current catalog. Treat the file as version-controlled posture for humans, reviewer agents, and future capability gates.
+**What the shipped evaluator does today:** if constructs exist and no file exists at the checked path, `missing-intent-artifact` fires as a **medium defect** (visible in the report, non-blocking for exit code). If a file exists but is rejected, `invalid-intent-artifact` fires instead, with the same severity. When the file is present and valid, neither finding fires. The engine can run `intent.capabilityDeclared` checks, but **no shipped criterion uses that check method yet**, so `targetHarnesses` and `desiredCapabilities` do not change findings in the current catalog. Treat the file as version-controlled posture for humans, reviewer agents, and future capability gates.
 
 Schema fields:
 
@@ -325,6 +344,26 @@ Example:
   "intentSource": "pre-committed"
 }
 ```
+
+### Intent load status
+
+Every full run reports how the intent load went. Human output prints an `Intent:` section; JSON emits the same values in the `intent` object.
+
+| `status` | Meaning | Finding |
+| -------- | ------- | ------- |
+| `loaded` | The file was read and matches the schema. | none |
+| `absent` | No file exists at the checked path (including when `.agentic-doctor` is itself a regular file). | `missing-intent-artifact` |
+| `invalid-json` | The file is not valid JSON. | `invalid-intent-artifact` |
+| `invalid-schema` | The JSON does not match the schema. `issues` lists each field path and the expected value or type, up to 20; `omittedIssueCount` reports any beyond that. | `invalid-intent-artifact` |
+| `symlink-rejected` | The file, or a directory on its path, is a symbolic link. | `invalid-intent-artifact` |
+| `read-failed` | The path is not a regular file, is a hard link, exceeds the 64 KiB limit, or could not be read. `reason` names the cause. | `invalid-intent-artifact` |
+
+Scope rules:
+
+- `checkedPath` is always `<current working directory>/.agentic-doctor/intent.json`. Run doctor from the repository root. A run from a subdirectory checks that subdirectory.
+- Doctor does not search parent directories or your home directory. A home-level intent file has no effect.
+- The intent file must be a regular file. Unlike instruction scanning, which follows in-repository symlinks, intent loading rejects any symlink, even one inside the repository.
+- Diagnostics never include the file's contents.
 
 Commit the artifact when multi-harness posture is deliberate. That raises the floor for the next human or agent session: intent is shared law in git, not tribal knowledge in someone's terminal scrollback.
 

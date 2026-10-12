@@ -96,12 +96,12 @@ export const doctorCommand = defineCommand({
             return;
         }
 
-        const intentResult = await readIntentArtifact(repoPath);
-        let intent = intentResult.found ? intentResult.artifact : null;
+        let intentResult = await readIntentArtifact(repoPath);
 
-        // Interactive elicitation when no intent artifact and running in a TTY
+        // Interactive elicitation only when no intent file exists and running in
+        // a TTY. A present-but-rejected file is reported instead of prompting.
         const isInteractive = !args.ci && process.stdin.isTTY === true;
-        if (intent === null && isInteractive) {
+        if (intentResult.report.status === "absent" && isInteractive) {
             const questions = detectAmbiguities(records, classification);
             for (const q of questions) {
                 logger.info(`\n${q.hint}`);
@@ -114,21 +114,33 @@ export const doctorCommand = defineCommand({
                 }
             }
             // After interactive prompts, re-read in case user pre-created the artifact
-            const retried = await readIntentArtifact(repoPath);
-            if (retried.found) intent = retried.artifact;
+            intentResult = await readIntentArtifact(repoPath);
         }
 
         const findings = evaluate(CRITERIA, {
             records,
             classification,
-            intent,
+            intent: intentResult.found ? intentResult.artifact : null,
+            intentLoadStatus: intentResult.report.status,
         });
 
         if (format === "json") {
-            const report = toJson(summary, findings, records, snapshotRef);
+            const report = toJson(
+                summary,
+                findings,
+                records,
+                snapshotRef,
+                intentResult.report,
+            );
             process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
         } else {
-            renderHuman(summary, findings, logger, snapshotRef);
+            renderHuman(
+                summary,
+                findings,
+                logger,
+                snapshotRef,
+                intentResult.report,
+            );
         }
 
         if (hasBlockingFindings(findings)) {

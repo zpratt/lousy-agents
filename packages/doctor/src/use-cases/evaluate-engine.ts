@@ -7,11 +7,41 @@ import type {
 import type { DeclaredIntentArtifact } from "../entities/declared-intent.js";
 import type { InventoryRecord } from "../entities/edge-types.js";
 import type { Finding } from "../entities/finding.js";
+import {
+    type IntentLoadStatus,
+    isIntentRejected,
+} from "../entities/intent-load.js";
 
 interface EvaluationContext {
     records: InventoryRecord[];
     classification: ArchetypeClassification;
     intent: DeclaredIntentArtifact | null;
+    /** How the intent file load went; omitted means absent when intent is null. */
+    intentLoadStatus?: IntentLoadStatus;
+}
+
+/**
+ * The artifact is authoritative: a parsed intent means loaded, and a null
+ * intent can never be loaded. The status only refines why intent is null.
+ */
+function resolveIntentLoadStatus(ctx: EvaluationContext): IntentLoadStatus {
+    if (ctx.intent !== null) return "loaded";
+    const status = ctx.intentLoadStatus;
+    return status === undefined || status === "loaded" ? "absent" : status;
+}
+
+function makeIntentFinding(criterion: Criterion): Finding {
+    return {
+        id: makeId(criterion.id, "all:intent"),
+        criterionId: criterion.id,
+        targetId: "all:intent",
+        severity: criterion.severity,
+        category: criterion.category,
+        classification: criterion.classification,
+        intentGated: false,
+        assumedIntent: true,
+        description: criterion.description,
+    };
 }
 
 function makeId(criterionId: string, targetId: string): string {
@@ -52,30 +82,24 @@ function checkFileExists(
     return [];
 }
 
-function checkConstructPresent(
+function checkIntentArtifactAbsent(
     criterion: Criterion,
     ctx: EvaluationContext,
 ): Finding[] {
     const hasRecords = ctx.records.length > 0;
-    const hasIntent = ctx.intent !== null;
+    const isAbsent = resolveIntentLoadStatus(ctx) === "absent";
 
-    if (hasRecords && !hasIntent) {
-        return [
-            {
-                id: makeId(criterion.id, "all:intent"),
-                criterionId: criterion.id,
-                targetId: "all:intent",
-                severity: criterion.severity,
-                category: criterion.category,
-                classification: criterion.classification,
-                intentGated: false,
-                assumedIntent: true,
-                description: criterion.description,
-            },
-        ];
-    }
+    return hasRecords && isAbsent ? [makeIntentFinding(criterion)] : [];
+}
 
-    return [];
+function checkIntentArtifactRejected(
+    criterion: Criterion,
+    ctx: EvaluationContext,
+): Finding[] {
+    const hasRecords = ctx.records.length > 0;
+    const isRejected = isIntentRejected(resolveIntentLoadStatus(ctx));
+
+    return hasRecords && isRejected ? [makeIntentFinding(criterion)] : [];
 }
 
 function checkEdgePresent(
@@ -281,8 +305,8 @@ export function evaluate(
                 );
                 break;
             }
-            case "inventory.constructPresent": {
-                findings.push(...checkConstructPresent(criterion, ctx));
+            case "intent.artifactAbsent": {
+                findings.push(...checkIntentArtifactAbsent(criterion, ctx));
                 break;
             }
             case "inventory.edgePresent": {
@@ -321,6 +345,10 @@ export function evaluate(
             }
             case "intent.capabilityDeclared": {
                 findings.push(...checkCapabilityDeclared(criterion, ctx));
+                break;
+            }
+            case "intent.artifactRejected": {
+                findings.push(...checkIntentArtifactRejected(criterion, ctx));
                 break;
             }
             default:

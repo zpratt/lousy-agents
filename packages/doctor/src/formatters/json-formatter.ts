@@ -2,6 +2,10 @@ import { z } from "zod";
 import type { InventoryRecord } from "../entities/edge-types.js";
 import type { Finding } from "../entities/finding.js";
 import {
+    INTENT_LOAD_STATUSES,
+    type IntentLoadReport,
+} from "../entities/intent-load.js";
+import {
     buildHarnessByPath,
     isCrossHarnessTarget,
     resolveEdgeTargets,
@@ -72,6 +76,16 @@ const FindingSchema = z.object({
     snapshotRef: z.string().optional(),
 });
 
+const IntentLoadReportSchema = z.object({
+    status: z.enum(INTENT_LOAD_STATUSES),
+    checkedPath: z.string(),
+    reason: z.string().optional(),
+    issues: z
+        .array(z.object({ path: z.string(), message: z.string() }))
+        .optional(),
+    omittedIssueCount: z.number().int().positive().optional(),
+});
+
 const ReportInventoryItemSchema = z.object({
     id: z.string(),
     path: z.string(),
@@ -101,6 +115,7 @@ export const ReportJsonSchema = z.object({
     crossHarnessEdges: z.number(),
     inventory: z.array(ReportInventoryItemSchema),
     edges: z.array(ReportEdgeSchema),
+    intent: IntentLoadReportSchema.optional(),
     findings: z.array(FindingSchema),
     snapshotRef: z.string().optional(),
 });
@@ -167,6 +182,7 @@ export function toJson(
     findings: Finding[],
     records: InventoryRecord[],
     snapshotRef?: string,
+    intentLoad?: IntentLoadReport,
 ): ReportJson {
     const edges = toReportEdges(records);
 
@@ -178,6 +194,7 @@ export function toJson(
         crossHarnessEdges: edges.filter((edge) => edge.crossHarness).length,
         inventory: toInventoryItems(records),
         edges,
+        ...(intentLoad !== undefined ? { intent: intentLoad } : {}),
         findings,
         ...(snapshotRef !== undefined ? { snapshotRef } : {}),
     };
