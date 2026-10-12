@@ -10,8 +10,9 @@ export type CheckMethod =
     | "inventory.edgeDirection"
     | "inventory.edgeDirectionExists"
     | "inventory.archetypeIs"
-    | "inventory.constructPresent"
-    | "intent.capabilityDeclared";
+    | "intent.capabilityDeclared"
+    | "intent.artifactRejected"
+    | "intent.artifactAbsent";
 
 export interface FileExistsArgs {
     harness: HarnessName;
@@ -24,11 +25,6 @@ export interface EdgePresentArgs {
     edgeType?: "hard-import" | "soft-reference" | "glob-binding";
 }
 
-export interface ConstructPresentArgs {
-    harness: HarnessName;
-    constructType: string;
-}
-
 export interface CapabilityDeclaredArgs {
     capability: string;
 }
@@ -38,7 +34,6 @@ export type ArchetypeIsArgs = Record<string, never>;
 export type CheckMethodArgs =
     | FileExistsArgs
     | EdgePresentArgs
-    | ConstructPresentArgs
     | CapabilityDeclaredArgs
     | ArchetypeIsArgs;
 

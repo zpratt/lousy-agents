@@ -2,6 +2,10 @@ import Chance from "chance";
 import { describe, expect, it } from "vitest";
 import type { Edge, InventoryRecord } from "../entities/edge-types.js";
 import type { Finding } from "../entities/finding.js";
+import {
+    INTENT_LOAD_STATUSES,
+    type IntentLoadReport,
+} from "../entities/intent-load.js";
 import { ReportJsonSchema, toJson } from "./json-formatter.js";
 import type { SummaryOutput } from "./summary-formatter.js";
 
@@ -317,6 +321,87 @@ describe("toJson", () => {
             expect(report.harnessBreakdown).toEqual(summary.harnessBreakdown);
             expect(report.crossHarnessEdges).toBe(summary.crossHarnessEdges);
             expect(report.findings).toEqual(findings);
+        });
+    });
+
+    describe("intent load status", () => {
+        it("should include the intent load report with status, checked path, reason, and issues", () => {
+            // Arrange
+            const intentLoad: IntentLoadReport = {
+                status: "invalid-schema",
+                checkedPath: `/${chance.word()}/.agentic-doctor/intent.json`,
+                reason: chance.sentence(),
+                issues: [{ path: chance.word(), message: chance.sentence() }],
+            };
+
+            // Act
+            const report = toJson(
+                buildSummary(),
+                [],
+                [],
+                undefined,
+                intentLoad,
+            );
+
+            // Assert
+            expect(report.intent).toEqual(intentLoad);
+        });
+
+        it("should accept every status the intent entity defines", () => {
+            for (const status of INTENT_LOAD_STATUSES) {
+                const intentLoad: IntentLoadReport = {
+                    status,
+                    checkedPath: chance.word(),
+                };
+
+                const report = toJson(
+                    buildSummary(),
+                    [],
+                    [],
+                    undefined,
+                    intentLoad,
+                );
+
+                expect(report.intent?.status).toBe(status);
+            }
+        });
+
+        it("should carry the omitted issue count", () => {
+            const intentLoad: IntentLoadReport = {
+                status: "invalid-schema",
+                checkedPath: chance.word(),
+                issues: [{ path: chance.word(), message: chance.sentence() }],
+                omittedIssueCount: chance.integer({ min: 1, max: 50 }),
+            };
+
+            const report = toJson(
+                buildSummary(),
+                [],
+                [],
+                undefined,
+                intentLoad,
+            );
+
+            expect(report.intent?.omittedIssueCount).toBe(
+                intentLoad.omittedIssueCount,
+            );
+        });
+
+        it("should omit the intent field when no intent load was attempted", () => {
+            const report = toJson(buildSummary(), [], []);
+
+            expect(report).not.toHaveProperty("intent");
+        });
+
+        it("should reject an unknown intent status", () => {
+            const intentLoad = {
+                status: chance.word(),
+                checkedPath: chance.word(),
+            } as unknown as IntentLoadReport;
+
+            expect(() =>
+                toJson(buildSummary(), [], [], undefined, intentLoad),
+            ).toThrow();
         });
     });
 
