@@ -18,7 +18,7 @@
     "dependencies": {
         "@fastify/cors": "11.3.1",
         "@fastify/sensible": "6.0.7",
-        "fastify": "5.12.5",
+        "fastify": "5.12.7",
         "kysely": "0.29.6",
         "pino": "10.4.0",
         "postgres": "3.4.9",
@@ -37,6 +37,6 @@
         "testcontainers": "12.2.0",
         "tsx": "4.23.15",
         "typescript": "7.0.2",
-        "vitest": "5.0.3"
+        "vitest": "5.0.4"
     }
 }
