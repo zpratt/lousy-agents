@@ -1,7 +1,8 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
 import Chance from "chance";
 import { describe, expect, it, vi } from "vitest";
-import type { TelemetryDeps } from "../src/gateways/telemetry.js";
+import type { TelemetryDeps } from "../src/entities/telemetry-port.js";
+import { emitToolUseEvent } from "../src/gateways/telemetry.js";
 import type { RecordDeps } from "../src/use-cases/record.js";
 import { handleRecord } from "../src/use-cases/record.js";
 
@@ -42,6 +43,7 @@ function createMockDeps(
         env: { AGENTSHELL_SESSION_ID: chance.guid() },
         telemetryDeps,
         getRepositoryRoot: vi.fn().mockReturnValue("/project"),
+        emitToolUseEvent,
         stderr,
         ...overrides,
     };

@@ -1,8 +1,10 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
 import { z } from "zod/v4";
-import type { TelemetryDeps } from "../gateways/telemetry.js";
-import { emitToolUseEvent } from "../gateways/telemetry.js";
-import { sanitizeForStderr } from "../lib/sanitize.js";
+import { sanitizeForStderr } from "../entities/sanitize.js";
+import type {
+    EmitToolUseEvent,
+    TelemetryDeps,
+} from "../entities/telemetry-port.js";
 
 export interface RecordDeps {
     readStdin: () => Promise<string>;
@@ -10,6 +12,7 @@ export interface RecordDeps {
     env: Record<string, string | undefined>;
     telemetryDeps: TelemetryDeps;
     getRepositoryRoot: () => string;
+    emitToolUseEvent: EmitToolUseEvent;
 }
 
 const TERMINAL_TOOLS = new Set(["bash", "zsh", "ash", "sh"]);
@@ -129,7 +132,7 @@ export async function handleRecord(deps: RecordDeps): Promise<boolean> {
 
     try {
         const repoRoot = deps.getRepositoryRoot();
-        await emitToolUseEvent(
+        await deps.emitToolUseEvent(
             {
                 tool_name: toolName,
                 command,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ProjectScanResult } from "../src/gateways/project-scanner.js";
+import type { ProjectScanResult } from "../src/entities/project-scan.js";
 import {
     buildAnalysisPrompt,
     buildSystemMessage,

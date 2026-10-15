@@ -1,7 +1,8 @@
 // biome-ignore-all lint/style/useNamingConvention: hook contract uses camelCase field names
 import Chance from "chance";
 import { describe, expect, it, vi } from "vitest";
-import type { TelemetryDeps } from "../../src/gateways/telemetry.js";
+import type { TelemetryDeps } from "../../src/entities/telemetry-port.js";
+import { emitPolicyDecisionEvent } from "../../src/gateways/telemetry.js";
 import type { PolicyDeps } from "../../src/use-cases/policy.js";
 import {
     handlePolicyCheck,
@@ -78,6 +79,7 @@ function createDeps(overrides?: Partial<PolicyCheckDeps>): PolicyCheckDeps & {
         env: {},
         policyDeps: createMockPolicyDeps(null),
         telemetryDeps: createMockTelemetryDeps(),
+        emitPolicyDecisionEvent,
         stdout,
         stderr,
         ...overrides,

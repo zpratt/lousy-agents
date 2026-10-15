@@ -1,5 +1,14 @@
 // biome-ignore-all lint/style/useNamingConvention: telemetry schema uses snake_case field names
 import { dirname, join, resolve } from "node:path";
+import {
+    isPathNotFoundError,
+    isWithinProjectRoot,
+} from "../entities/path-utils.js";
+import type {
+    PolicyDecisionEventOptions,
+    TelemetryDeps,
+    ToolUseEventOptions,
+} from "../entities/telemetry-port.js";
 import type {
     PolicyDecisionEvent,
     ScriptEndEvent,
@@ -9,18 +18,7 @@ import type {
 import { SCHEMA_VERSION } from "../entities/types.js";
 import { detectActor } from "../lib/actor.js";
 import { captureEnv, captureTags } from "../lib/env-capture.js";
-import { isPathNotFoundError, isWithinProjectRoot } from "../lib/path-utils.js";
 import type { ShimResult } from "./shim.js";
-
-export interface TelemetryDeps {
-    mkdir: (path: string, options: { recursive: boolean }) => Promise<void>;
-    appendFile: (path: string, data: string) => Promise<void>;
-    realpath: (path: string) => Promise<string>;
-    cwd: () => string;
-    randomUUID: () => string;
-    writeStderr: (msg: string) => void;
-    now: () => string;
-}
 
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const DEFAULT_EVENTS_SUBDIR = ".agent-shell/events";
@@ -208,13 +206,7 @@ export async function emitShimErrorEvent(
 }
 
 export async function emitPolicyDecisionEvent(
-    options: {
-        command: string;
-        decision: "allow" | "deny";
-        matched_rule: string | null;
-        env: Record<string, string | undefined>;
-        projectRoot: string;
-    },
+    options: PolicyDecisionEventOptions,
     deps: TelemetryDeps,
 ): Promise<void> {
     const depsWithProjectRoot: TelemetryDeps = {
@@ -248,12 +240,7 @@ export async function emitPolicyDecisionEvent(
 }
 
 export async function emitToolUseEvent(
-    options: {
-        tool_name: string;
-        command: string;
-        env: Record<string, string | undefined>;
-        projectRoot: string;
-    },
+    options: ToolUseEventOptions,
     deps: TelemetryDeps,
 ): Promise<void> {
     const depsWithProjectRoot: TelemetryDeps = {
