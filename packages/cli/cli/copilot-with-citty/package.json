@@ -20,7 +20,7 @@
     },
     "devDependencies": {
         "@biomejs/biome": "2.5.15",
-        "@lousy-agents/mcp": "5.22.10",
+        "@lousy-agents/mcp": "5.22.11",
         "@modelcontextprotocol/server-sequential-thinking": "2026.8.31",
         "@types/node": "24.19.2",
         "chance": "1.1.13",
