@@ -49,7 +49,7 @@
         "citty": "0.2.2",
         "consola": "3.4.2",
         "yaml": "2.9.1",
-        "zod": "4.5.2"
+        "zod": "4.6.6"
     },
     "devDependencies": {
         "@lousy-agents/core": "*"
