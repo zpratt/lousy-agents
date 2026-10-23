@@ -39,7 +39,7 @@
     "dependencies": {
         "@modelcontextprotocol/sdk": "1.32.2",
         "yaml": "2.9.1",
-        "zod": "4.5.2"
+        "zod": "4.6.6"
     },
     "devDependencies": {
         "@lousy-agents/core": "*"
