@@ -9,6 +9,7 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { readPackageVersion } from "./package-version.js";
 import {
     analyzeActionVersionsHandler,
     analyzeInstructionQualityHandler,
@@ -30,8 +31,17 @@ import {
  */
 const resolvedVersionSchema = z.object({
     action: z.string().describe("Action name (e.g., 'actions/setup-node')"),
-    sha: z.string().describe("Commit SHA for the action version"),
-    versionTag: z.string().describe("Version tag (e.g., 'v4.0.0')"),
+    sha: z
+        .string()
+        .regex(/^[0-9a-f]{40}$/i, "sha must be a full 40-character commit SHA")
+        .describe("Full 40-character commit SHA for the action version"),
+    versionTag: z
+        .string()
+        .regex(
+            /^[A-Za-z0-9][A-Za-z0-9._+/-]*$/,
+            "versionTag must be a single-line version tag",
+        )
+        .describe("Version tag (e.g., 'v4.0.0')"),
 });
 
 /**
@@ -115,7 +125,7 @@ const TOOLS: ToolConfig[] = [
     {
         name: "validate_instruction_coverage",
         description:
-            "Validate that repository instructions (.github/copilot-instructions.md and .github/instructions/*.md) document all mandatory feedback loop scripts and tools. Returns coverage percentage and suggestions for missing documentation.",
+            "Validate that repository instruction files (the same files analyze_instruction_quality discovers: .github/copilot-instructions.md, .github/instructions/**/*.md, .github/agents/*.md, AGENTS.md, AGENTS.override.md, CLAUDE.md, .claude/CLAUDE.md) document all mandatory feedback loop scripts and tools. Returns coverage percentage and suggestions for missing documentation.",
         handler: validateInstructionCoverageHandler,
         inputSchema: targetDirInputSchema,
     },
@@ -195,7 +205,7 @@ function registerTools(server: McpServer): void {
 export function createMcpServer(): McpServer {
     const server = new McpServer({
         name: "lousy-agents",
-        version: "0.1.0",
+        version: readPackageVersion(),
     });
 
     registerTools(server);

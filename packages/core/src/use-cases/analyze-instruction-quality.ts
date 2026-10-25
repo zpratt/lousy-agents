@@ -357,7 +357,7 @@ export class AnalyzeInstructionQualityUseCase {
                     suggestions: [
                         {
                             message:
-                                "No agent instruction files found. Supported formats: .github/copilot-instructions.md, .github/instructions/*.md, .github/agents/*.md, AGENTS.md, CLAUDE.md",
+                                "No agent instruction files found. Supported formats: .github/copilot-instructions.md, .github/instructions/**/*.md, .github/agents/*.md, AGENTS.md, AGENTS.override.md, CLAUDE.md, .claude/CLAUDE.md",
                         },
                     ],
                     parsingErrors: [],
@@ -536,7 +536,7 @@ export class AnalyzeInstructionQualityUseCase {
             const effective =
                 await this.claudeImportExpander.expandClaudeEntrypoint({
                     repoRoot: targetDir,
-                    absoluteFilePath: file.filePath,
+                    absoluteFilePath: file.contentPath ?? file.filePath,
                 });
             const importDiagnostics = effective.expansionDiagnostics.map(
                 (diagnostic) =>
@@ -558,7 +558,9 @@ export class AnalyzeInstructionQualityUseCase {
         }
 
         return {
-            structure: await this.astGateway.parseFile(file.filePath),
+            structure: await this.astGateway.parseFile(
+                file.contentPath ?? file.filePath,
+            ),
             importDiagnostics: [],
         };
     }

@@ -1,13 +1,16 @@
-import { realpath, stat } from "node:fs/promises";
+import { realpath } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 import {
     listDirectoryWithinRoot,
     readTextWithinRoot,
+    resolveRealPathWithinRoot,
 } from "@lousy-agents/core/gateways/file-system-utils.js";
 import { primaryConstructTypeForPath } from "@lousy-agents/core/lib/agentic-location-matchers.js";
+import { normalizeRelativeWithinRoot } from "@lousy-agents/core/lib/instruction-import-expand.js";
 import type {
     ConstructType,
     Edge,
+    EdgeMalformedReason,
     HarnessName,
     InventoryRecord,
 } from "../entities/edge-types.js";
@@ -62,40 +65,104 @@ function determineHarness(repoRelativePath: string): HarnessName | null {
     return matching[0];
 }
 
-function resolveEdge(
-    rawTarget: string,
-    type: "hard-import" | "soft-reference" | "glob-binding",
-    sourceAbsPath: string,
-    repoRoot: string,
-    existingAbsPaths: Set<string>,
-): Edge {
-    const from = relative(repoRoot, sourceAbsPath).replace(/\\/g, "/");
+interface EdgeResolutionContext {
+    readonly repoRoot: string;
+    readonly rootReal: string;
+    readonly existingAbsPaths: Set<string>;
+}
 
-    if (type === "glob-binding") {
-        return {
-            type,
-            direction: { from, to: rawTarget },
-            target: rawTarget,
-            malformed: false,
-        };
+function malformedEdge(
+    type: Edge["type"],
+    from: string,
+    target: string,
+    reason: EdgeMalformedReason,
+): Edge {
+    return {
+        type,
+        direction: { from, to: target },
+        target,
+        malformed: true,
+        reason,
+    };
+}
+
+function wellFormedEdge(
+    type: Edge["type"],
+    from: string,
+    target: string,
+): Edge {
+    return {
+        type,
+        direction: { from, to: target },
+        target,
+        malformed: false,
+    };
+}
+
+const HARD_IMPORT_REASON_BY_STATUS: Partial<
+    Record<string, EdgeMalformedReason>
+> = {
+    home: "home",
+    absolute: "absolute",
+    escape: "path-traversal",
+};
+
+/**
+ * Resolves a Claude `@path` import with the same target rules as core import
+ * expansion: home-directory, absolute, and escaping targets are rejected, and
+ * any regular file inside the repository (not only scannable files) resolves.
+ */
+async function resolveHardImportEdge(
+    rawTarget: string,
+    from: string,
+    ctx: EdgeResolutionContext,
+): Promise<Edge> {
+    const normalized = normalizeRelativeWithinRoot(from, rawTarget);
+    if (!normalized.ok) {
+        return malformedEdge(
+            "hard-import",
+            from,
+            rawTarget,
+            HARD_IMPORT_REASON_BY_STATUS[normalized.status] ?? "missing-target",
+        );
     }
 
-    const sourceDir = dirname(sourceAbsPath);
-    const resolvedAbs = resolve(sourceDir, rawTarget);
-    const absoluteRoot = resolve(repoRoot);
+    const targetAbs = resolve(ctx.repoRoot, normalized.relativePath);
+    const exists =
+        ctx.existingAbsPaths.has(targetAbs) ||
+        (await resolveRealPathWithinRoot(ctx.rootReal, targetAbs))?.kind ===
+            "file";
+
+    return exists
+        ? wellFormedEdge("hard-import", from, normalized.relativePath)
+        : malformedEdge(
+              "hard-import",
+              from,
+              normalized.relativePath,
+              "missing-target",
+          );
+}
+
+function resolveSoftReferenceEdge(
+    rawTarget: string,
+    sourceAbsPath: string,
+    from: string,
+    ctx: EdgeResolutionContext,
+): Edge {
+    const resolvedAbs = resolve(dirname(sourceAbsPath), rawTarget);
+    const absoluteRoot = resolve(ctx.repoRoot);
 
     const isWithinRoot =
         resolvedAbs === absoluteRoot ||
         resolvedAbs.startsWith(`${absoluteRoot}${sep}`);
 
     if (!isWithinRoot) {
-        return {
-            type,
-            direction: { from, to: rawTarget },
-            target: rawTarget,
-            malformed: true,
-            reason: "path-traversal",
-        };
+        return malformedEdge(
+            "soft-reference",
+            from,
+            rawTarget,
+            "path-traversal",
+        );
     }
 
     const relativeTarget = relative(absoluteRoot, resolvedAbs).replace(
@@ -103,50 +170,36 @@ function resolveEdge(
         "/",
     );
 
-    if (!existingAbsPaths.has(resolvedAbs)) {
-        return {
-            type,
-            direction: { from, to: relativeTarget },
-            target: relativeTarget,
-            malformed: true,
-            reason: "missing-target",
-        };
-    }
-
-    return {
-        type,
-        direction: { from, to: relativeTarget },
-        target: relativeTarget,
-        malformed: false,
-    };
+    return ctx.existingAbsPaths.has(resolvedAbs)
+        ? wellFormedEdge("soft-reference", from, relativeTarget)
+        : malformedEdge(
+              "soft-reference",
+              from,
+              relativeTarget,
+              "missing-target",
+          );
 }
 
-/**
- * fs-safe's listing/reading rejects symlinks outright, so a symlinked
- * instruction file or directory (e.g. a repo-root AGENTS.md pointing at a
- * canonical doc) is reported as neither a file nor a directory and silently
- * disappears from the scan. Resolve the target ourselves and only follow it
- * when it stays inside the repo root, mirroring the traversal guard already
- * used for edge targets. Stats the already-resolved real path (rather than
- * re-resolving the symlink) so the within-root check and the type check
- * observe the same target, closing the TOCTOU window between the two.
- */
-async function resolveSymlink(
-    rootReal: string,
-    entryAbs: string,
-): Promise<{ kind: "file" | "directory"; real: string } | null> {
-    try {
-        const real = await realpath(entryAbs);
-        const isWithinRoot =
-            real === rootReal || real.startsWith(`${rootReal}${sep}`);
-        if (!isWithinRoot) return null;
+async function resolveEdge(
+    rawTarget: string,
+    type: Edge["type"],
+    sourceAbsPath: string,
+    ctx: EdgeResolutionContext,
+): Promise<Edge> {
+    const from = relative(ctx.repoRoot, sourceAbsPath).replace(/\\/g, "/");
 
-        const targetStat = await stat(real);
-        if (targetStat.isDirectory()) return { kind: "directory", real };
-        if (targetStat.isFile()) return { kind: "file", real };
-        return null;
-    } catch {
-        return null;
+    switch (type) {
+        case "glob-binding":
+            return wellFormedEdge(type, from, rawTarget);
+        case "hard-import":
+            return resolveHardImportEdge(rawTarget, from, ctx);
+        case "soft-reference":
+            return resolveSoftReferenceEdge(
+                rawTarget,
+                sourceAbsPath,
+                from,
+                ctx,
+            );
     }
 }
 
@@ -167,6 +220,13 @@ interface CollectedFile {
  *    used for InventoryRecord.path/absPath so a file's identity reflects
  *    where it's *referenced from*, not where the symlink target physically
  *    lives.
+ *
+ * fs-safe's listing/reading rejects symlinks outright, so a symlinked
+ * instruction file or directory (e.g. a repo-root AGENTS.md pointing at a
+ * canonical doc) would silently disappear from the scan. Symlinks are
+ * followed with the shared core policy (resolveRealPathWithinRoot), which
+ * core instruction discovery also uses: only targets that stay inside the
+ * repo root are followed.
  */
 async function collectFiles(
     listRoot: string,
@@ -200,7 +260,7 @@ async function collectFiles(
         const isDirectory = entry.isDirectory();
         const isFile = entry.isFile();
         const symlink = entry.isSymbolicLink()
-            ? await resolveSymlink(rootReal, listEntryAbs)
+            ? await resolveRealPathWithinRoot(rootReal, listEntryAbs)
             : null;
 
         if (isDirectory || symlink?.kind === "directory") {
@@ -291,24 +351,27 @@ export async function scanRepository(
         rawRecords.push({ absPath, relPath, harness, content });
     }
 
-    const records: InventoryRecord[] = rawRecords.map(
-        ({ absPath, relPath, harness, content }) => {
-            const edges: Edge[] = [];
+    const edgeContext: EdgeResolutionContext = {
+        repoRoot: absRoot,
+        rootReal,
+        existingAbsPaths,
+    };
 
-            if (content !== null) {
-                const rawEdges = parseRawEdges(content);
-                for (const raw of rawEdges) {
-                    edges.push(
-                        resolveEdge(
-                            raw.rawTarget,
-                            raw.type,
-                            absPath,
-                            absRoot,
-                            existingAbsPaths,
-                        ),
-                    );
-                }
-            }
+    const records: InventoryRecord[] = await Promise.all(
+        rawRecords.map(async ({ absPath, relPath, harness, content }) => {
+            const edges: Edge[] =
+                content === null
+                    ? []
+                    : await Promise.all(
+                          parseRawEdges(content).map((raw) =>
+                              resolveEdge(
+                                  raw.rawTarget,
+                                  raw.type,
+                                  absPath,
+                                  edgeContext,
+                              ),
+                          ),
+                      );
 
             const id =
                 harness === "shared"
@@ -323,7 +386,7 @@ export async function scanRepository(
                 loadMechanism: "convention-loaded" as const,
                 edges,
             };
-        },
+        }),
     );
 
     const referencedPaths = new Set<string>();

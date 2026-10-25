@@ -400,9 +400,11 @@ describe("lintTargetEntries", () => {
             );
             expect(entries.map((e) => e.path).sort()).toEqual(
                 [
+                    ".claude/CLAUDE.md",
                     ".github/copilot-instructions.md",
                     ".github/instructions",
                     "AGENTS.md",
+                    "AGENTS.override.md",
                     "CLAUDE.md",
                 ].sort(),
             );
@@ -497,6 +499,8 @@ describe("instructionDiscoveryEntries", () => {
         expect(formats).toEqual(
             [
                 "agents-md",
+                "agents-md",
+                "claude-md",
                 "claude-md",
                 "copilot-agent",
                 "copilot-instructions",

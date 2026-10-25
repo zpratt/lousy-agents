@@ -2,6 +2,7 @@
  * Shared types and utilities for MCP tool handlers.
  */
 
+import { stat } from "node:fs/promises";
 import type {
     ActionToResolve,
     ResolvedVersion,
@@ -37,6 +38,8 @@ export interface ResolveActionsArgs extends ToolArgs {
  */
 export interface ToolResult {
     content: Array<{ type: "text"; text: string }>;
+    /** Set on tool execution errors, as the MCP specification requires */
+    isError?: boolean;
 }
 
 /**
@@ -66,7 +69,25 @@ export function errorResponse(error: string): ToolResult {
         content: [
             { type: "text", text: JSON.stringify({ success: false, error }) },
         ],
+        isError: true,
     };
+}
+
+/**
+ * Returns an error response when the target path is missing or is not a
+ * directory, or null when it is a directory the tool can operate on.
+ */
+export async function validateTargetDirectory(
+    dir: string,
+): Promise<ToolResult | null> {
+    const dirStat = await stat(dir).catch(() => null);
+    if (dirStat === null) {
+        return errorResponse(`Target directory does not exist: ${dir}`);
+    }
+    if (!dirStat.isDirectory()) {
+        return errorResponse(`Target path is not a directory: ${dir}`);
+    }
+    return null;
 }
 
 /**
