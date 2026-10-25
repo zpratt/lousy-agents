@@ -105,7 +105,7 @@ const ReportEdgeSchema = z.object({
     crossHarness: z.boolean(),
 });
 
-export const ReportJsonSchema = z.object({
+const ArchetypeFieldsSchema = z.object({
     archetype: ArchetypeSchema,
     dominanceScore: z.number(),
     totalRecords: z.number(),
@@ -113,6 +113,9 @@ export const ReportJsonSchema = z.object({
         z.object({ harness: z.string(), count: z.number() }),
     ),
     crossHarnessEdges: z.number(),
+});
+
+export const ReportJsonSchema = ArchetypeFieldsSchema.extend({
     evaluation: z.literal("completed"),
     inventory: z.array(ReportInventoryItemSchema),
     edges: z.array(ReportEdgeSchema),
@@ -129,14 +132,7 @@ export type ReportJson = z.infer<typeof ReportJsonSchema>;
  * `--summary` output: archetype fields and inventory only. `evaluation` is
  * always "skipped" so a consumer can never read it as a clean evaluation.
  */
-export const SummaryReportJsonSchema = z.object({
-    archetype: ArchetypeSchema,
-    dominanceScore: z.number(),
-    totalRecords: z.number(),
-    harnessBreakdown: z.array(
-        z.object({ harness: z.string(), count: z.number() }),
-    ),
-    crossHarnessEdges: z.number(),
+const SummaryReportJsonSchema = ArchetypeFieldsSchema.extend({
     evaluation: z.literal("skipped"),
     inventory: z.array(ReportInventoryItemSchema),
 });
