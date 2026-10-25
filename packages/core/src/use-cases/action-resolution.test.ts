@@ -81,6 +81,20 @@ describe("Action version resolution", () => {
             ]);
         });
 
+        it("should not include run steps, which have no action version to resolve", () => {
+            const candidates: SetupStepCandidate[] = [
+                { action: "actions/setup-node", source: "version-file" },
+                { action: "run:npm", source: "version-file", run: "npm ci" },
+            ];
+
+            const result = buildActionsToResolve(candidates);
+
+            expect(result.map((r) => r.action)).toEqual([
+                "actions/checkout",
+                "actions/setup-node",
+            ]);
+        });
+
         it("should remove duplicate actions from the list", () => {
             // Arrange
             const candidates: SetupStepCandidate[] = [

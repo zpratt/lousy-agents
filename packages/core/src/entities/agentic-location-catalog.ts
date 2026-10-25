@@ -47,6 +47,8 @@ export interface AgenticLocationEntry {
     readonly lintTarget: LintDiscoveryTarget;
     readonly harnessHints?: readonly AgenticHarnessHint[];
     readonly instructionFormat?: InstructionFileFormat;
+    /** Directory-prefix instruction entries: also discover files in subdirectories */
+    readonly includeSubdirectories?: boolean;
     readonly hookPlatform?: "copilot" | "claude";
 }
 
@@ -167,6 +169,7 @@ export const AGENTIC_LOCATION_CATALOG: readonly AgenticLocationEntry[] = [
         lintTarget: "instructions",
         harnessHints: ["copilot"],
         instructionFormat: "copilot-scoped",
+        includeSubdirectories: true,
     },
     {
         id: "instruction-agents-md",
@@ -178,8 +181,26 @@ export const AGENTIC_LOCATION_CATALOG: readonly AgenticLocationEntry[] = [
         instructionFormat: "agents-md",
     },
     {
+        id: "instruction-agents-override-md",
+        path: "AGENTS.override.md",
+        matchKind: "exact",
+        primaryConstruct: "instruction",
+        lintTarget: "instructions",
+        harnessHints: ["codex"],
+        instructionFormat: "agents-md",
+    },
+    {
         id: "instruction-claude-md",
         path: "CLAUDE.md",
+        matchKind: "exact",
+        primaryConstruct: "instruction",
+        lintTarget: "instructions",
+        harnessHints: ["claude"],
+        instructionFormat: "claude-md",
+    },
+    {
+        id: "instruction-claude-dir-md",
+        path: ".claude/CLAUDE.md",
         matchKind: "exact",
         primaryConstruct: "instruction",
         lintTarget: "instructions",

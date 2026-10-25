@@ -13,8 +13,14 @@ export type InstructionFileFormat =
 
 /** A discovered instruction file */
 export interface DiscoveredInstructionFile {
+    /** Path where the harness loads the file (may be a symlink) */
     readonly filePath: string;
     readonly format: InstructionFileFormat;
+    /**
+     * Symlink-free path to read the content from, set only when filePath is
+     * a symlink to another file inside the repository
+     */
+    readonly contentPath?: string;
 }
 
 /** Quality scores for a single command across three dimensions */

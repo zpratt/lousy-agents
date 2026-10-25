@@ -85,6 +85,7 @@ describe("the committed layering policy (project.json)", () => {
                 "packages/doctor/src/gateways",
                 "packages/doctor/src/lib",
                 "packages/mcp/src/lib",
+                "packages/mcp/src/package-version.ts",
                 "packages/mcp/src/tools",
             ],
             formatters: [

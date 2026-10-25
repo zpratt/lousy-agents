@@ -15,7 +15,7 @@ export const DEFAULT_MAX_EDGES = 256;
 export const DEFAULT_MAX_EMITTED_BYTES = 512_000;
 export const DEFAULT_MAX_FILE_BYTES = 1_048_576;
 
-/** Aligns with doctor HARD_IMPORT: line-start `@path` where path includes `/`. */
+/** Line-start `@path` where path includes `/` (shared with doctor via findImportTokens). */
 const HARD_IMPORT_GLOBAL_RE = /^@([^\s@][^\s]*)/gm;
 
 const FENCED_CODE_RE = /^(`{3,}|~{3,})[^\r\n]*\r?\n[\s\S]*?^\1[ \t]*$/gm;
@@ -83,7 +83,7 @@ export interface BuildEffectiveDocumentInput {
     readonly limits?: Partial<ExpansionLimits>;
 }
 
-interface ImportToken {
+export interface ImportToken {
     readonly start: number;
     readonly end: number;
     readonly rawTarget: string;
@@ -155,7 +155,12 @@ function findCodeRegions(content: string): TextRange[] {
     return [...fenced, ...inline];
 }
 
-function findImportTokens(content: string): ImportToken[] {
+/**
+ * Finds the Claude `@path` import tokens in markdown content, ignoring
+ * fenced and inline code. This is the single tokenizer shared by import
+ * expansion and the doctor edge parser.
+ */
+export function findImportTokens(content: string): ImportToken[] {
     const codeRegions = findCodeRegions(content);
     const tokens: ImportToken[] = [];
 
@@ -291,7 +296,12 @@ function classifyPathError(error: unknown): ImportEdgeStatus {
     return "unresolved";
 }
 
-function normalizeRelativeWithinRoot(
+/**
+ * Classifies an import target relative to its importer without touching the
+ * file system: home-directory, absolute, and repository-escaping targets are
+ * rejected; anything else yields a repository-relative POSIX path.
+ */
+export function normalizeRelativeWithinRoot(
     importerRelativePath: string,
     rawTarget: string,
 ):

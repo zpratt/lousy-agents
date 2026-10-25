@@ -22,6 +22,11 @@ import {
 import type { ActionVersionPort } from "./candidate-builder.js";
 import { createActionVersionPort } from "./candidate-builder.js";
 
+/**
+ * Name of the job that Copilot runs to prepare its environment.
+ */
+export const COPILOT_SETUP_JOB_NAME = "copilot-setup-steps";
+
 const DEFAULT_ACTION_VERSIONS: Record<string, string> = {
     "actions/checkout": "v4",
 };
@@ -206,6 +211,113 @@ function appendMissingStepsToJob(
 }
 
 /**
+ * Selects the job that receives missing setup steps: the copilot-setup-steps
+ * job when it exists (Copilot runs only that job), otherwise the first job.
+ */
+function selectSetupJobName(jobs: Record<string, unknown>): string | undefined {
+    return COPILOT_SETUP_JOB_NAME in jobs
+        ? COPILOT_SETUP_JOB_NAME
+        : Object.keys(jobs)[0];
+}
+
+/**
+ * Finds the resolved version for a step whose "uses" still holds the
+ * version placeholder.
+ */
+function findResolvedVersionForPlaceholderStep(
+    step: unknown,
+    resolvedVersions: ResolvedVersion[],
+): ResolvedVersion | undefined {
+    if (!step || typeof step !== "object") {
+        return undefined;
+    }
+    const uses = (step as Record<string, unknown>).uses;
+    if (typeof uses !== "string") {
+        return undefined;
+    }
+    const placeholderSuffix = `@${VERSION_PLACEHOLDER}`;
+    if (!uses.endsWith(placeholderSuffix)) {
+        return undefined;
+    }
+    const action = uses.slice(0, -placeholderSuffix.length);
+    return findResolvedVersion(action, resolvedVersions);
+}
+
+/**
+ * Collects every step array in a parsed workflow.
+ */
+function collectStepArrays(jobs: Record<string, unknown>): unknown[][] {
+    return Object.values(jobs)
+        .map((job) =>
+            job && typeof job === "object"
+                ? (job as Record<string, unknown>).steps
+                : undefined,
+        )
+        .filter((steps): steps is unknown[] => Array.isArray(steps));
+}
+
+/**
+ * Lists the actions in an existing workflow whose steps still hold the version
+ * placeholder and for which a resolved version is available.
+ * @param existingWorkflow The parsed existing workflow
+ * @param resolvedVersions Resolved versions to apply
+ * @returns Action names that would be SHA-pinned by updateWorkflowWithMissingSteps
+ */
+export function findPlaceholderActionsToPin(
+    existingWorkflow: unknown,
+    resolvedVersions: ResolvedVersion[] | undefined,
+): string[] {
+    if (!resolvedVersions || resolvedVersions.length === 0) {
+        return [];
+    }
+    if (!existingWorkflow || typeof existingWorkflow !== "object") {
+        return [];
+    }
+    const jobs = (existingWorkflow as Record<string, unknown>).jobs;
+    if (!jobs || typeof jobs !== "object") {
+        return [];
+    }
+
+    return collectStepArrays(jobs as Record<string, unknown>).flatMap((steps) =>
+        steps
+            .map((step) =>
+                findResolvedVersionForPlaceholderStep(step, resolvedVersions),
+            )
+            .filter((resolved) => resolved !== undefined)
+            .map((resolved) => resolved.action),
+    );
+}
+
+/**
+ * Replaces the version placeholder of existing steps with the resolved
+ * SHA-pinned version, in place.
+ */
+function pinPlaceholderSteps(
+    jobs: Record<string, unknown>,
+    resolvedVersions: ResolvedVersion[] | undefined,
+): void {
+    if (!resolvedVersions || resolvedVersions.length === 0) {
+        return;
+    }
+
+    for (const steps of collectStepArrays(jobs)) {
+        for (const step of steps) {
+            const resolved = findResolvedVersionForPlaceholderStep(
+                step,
+                resolvedVersions,
+            );
+            if (resolved) {
+                (step as Record<string, unknown>).uses = buildUsesValue(
+                    resolved.action,
+                    resolved.sha,
+                    { resolvedVersions },
+                );
+            }
+        }
+    }
+}
+
+/**
  * Gets the checkout version based on resolved versions, placeholders, or gateway.
  * Reduces duplication by centralizing the version resolution logic.
  */
@@ -262,7 +374,7 @@ export async function generateWorkflowContent(
         ...buildStepsFromCandidates(candidates, stepOptions),
     ];
 
-    const job = new NormalJob("copilot-setup-steps", {
+    const job = new NormalJob(COPILOT_SETUP_JOB_NAME, {
         "runs-on": "ubuntu-latest",
         "timeout-minutes": 30,
         permissions: options?.includeIdTokenPermission
@@ -296,7 +408,10 @@ export async function generateWorkflowContent(
 }
 
 /**
- * Updates an existing workflow by appending missing setup steps
+ * Updates an existing workflow by appending missing setup steps to the
+ * copilot-setup-steps job (or the first job when it is absent), and by
+ * SHA-pinning existing steps that still hold the version placeholder when a
+ * resolved version is provided.
  * @param existingWorkflow The parsed existing workflow
  * @param missingCandidates Candidates to add to the workflow
  * @param versionGateway Optional gateway for looking up action versions (defaults to local)
@@ -331,17 +446,11 @@ export async function updateWorkflowWithMissingSteps(
         );
     }
 
-    const jobNames = Object.keys(jobs);
-    if (jobNames.length === 0) {
-        return generateWorkflowContent(
-            missingCandidates,
-            versionGateway,
-            options,
-        );
-    }
-
-    const mainJobName = jobNames[0];
-    const mainJob = jobs[mainJobName] as Record<string, unknown>;
+    const mainJobName = selectSetupJobName(jobs);
+    const mainJob =
+        mainJobName !== undefined
+            ? (jobs[mainJobName] as Record<string, unknown> | undefined)
+            : undefined;
 
     if (!mainJob || !Array.isArray(mainJob.steps)) {
         return generateWorkflowContent(
@@ -355,6 +464,7 @@ export async function updateWorkflowWithMissingSteps(
         usePlaceholders: options?.usePlaceholders,
         resolvedVersions: options?.resolvedVersions,
     };
+    pinPlaceholderSteps(jobs, options?.resolvedVersions);
     appendMissingStepsToJob(
         mainJob.steps as unknown[],
         missingCandidates,

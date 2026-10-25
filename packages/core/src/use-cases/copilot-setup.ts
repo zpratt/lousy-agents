@@ -9,6 +9,8 @@ export { buildCandidatesFromEnvironment } from "./candidate-builder.js";
 
 // Re-export workflow generation functionality
 export {
+    COPILOT_SETUP_JOB_NAME,
+    findPlaceholderActionsToPin,
     type GenerateWorkflowOptions,
     generateWorkflowContent,
     updateWorkflowWithMissingSteps,
