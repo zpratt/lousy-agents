@@ -7,16 +7,13 @@ import { runDoctorCommand } from "./run-doctor-command.js";
 
 const chance = new Chance();
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const sprawlFixture = resolve(
-    __dirname,
-    "..",
-    "..",
-    "tests",
-    "fixtures",
-    "accidental-sprawl",
-);
+function fixture(name: string): string {
+    return resolve(__dirname, "..", "..", "tests", "fixtures", name);
+}
 
-function buildEnvironment(stdinIsTty: boolean) {
+const sprawlFixture = fixture("accidental-sprawl");
+
+function buildEnvironment(stdinIsTty: boolean, cwd = sprawlFixture) {
     const logged: string[] = [];
     let stdout = "";
     const logger = createConsola({
@@ -27,7 +24,7 @@ function buildEnvironment(stdinIsTty: boolean) {
     logger.prompt = prompt as unknown as typeof logger.prompt;
     return {
         environment: {
-            cwd: sprawlFixture,
+            cwd,
             stdinIsTty,
             logger,
             writeStdout: (text: string) => {
@@ -96,30 +93,40 @@ describe("runDoctorCommand", () => {
         });
     });
 
-    describe("when the full evaluation has a blocking defect", () => {
-        it("should return exit code 1 in both formats", async () => {
-            // Arrange
-            const human = buildEnvironment(false);
-            const json = buildEnvironment(false);
+    for (const format of ["human", "json"] as const) {
+        describe(`when a ${format} evaluation finds a critical defect`, () => {
+            it("should return exit code 1", async () => {
+                // Arrange
+                const env = buildEnvironment(
+                    false,
+                    fixture("integration-scenario"),
+                );
 
-            // Act
-            const humanExit = await runDoctorCommand(
-                { format: "human", summary: false, ci: true },
-                human.environment,
-            );
-            const jsonExit = await runDoctorCommand(
-                { format: "json", summary: false, ci: true },
-                json.environment,
-            );
+                // Act
+                const exitCode = await runDoctorCommand(
+                    { format, summary: false, ci: true },
+                    env.environment,
+                );
 
-            // Assert
-            const blocking = JSON.parse(json.stdout()).findings.some(
-                (f: { severity: string; classification: string }) =>
-                    ["critical", "high"].includes(f.severity) &&
-                    f.classification === "defect",
-            );
-            expect(humanExit).toBe(jsonExit);
-            expect(jsonExit).toBe(blocking ? 1 : 0);
+                // Assert
+                expect(exitCode).toBe(1);
+            });
         });
-    });
+
+        describe(`when a ${format} evaluation finds only advisories and medium defects`, () => {
+            it("should return exit code 0", async () => {
+                // Arrange
+                const env = buildEnvironment(false);
+
+                // Act
+                const exitCode = await runDoctorCommand(
+                    { format, summary: false, ci: true },
+                    env.environment,
+                );
+
+                // Assert
+                expect(exitCode).toBe(0);
+            });
+        });
+    }
 });

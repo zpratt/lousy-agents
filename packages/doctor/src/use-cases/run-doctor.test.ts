@@ -129,42 +129,68 @@ describe("runDoctor", () => {
     });
 
     describe("when an intent elicitor is provided", () => {
-        it("should ask the ambiguity questions and re-read intent when intent is absent", async () => {
-            // Arrange
-            const elicitIntent = vi.fn().mockResolvedValue(undefined);
+        describe("when intent is absent and the repository is ambiguous", () => {
             const artifact: DeclaredIntentArtifact = {
                 targetHarnesses: ["claude", "copilot"],
                 desiredCapabilities: [],
                 confirmedAnswers: {},
                 intentSource: "pre-committed",
             };
-            const readIntent = vi
-                .fn()
-                .mockResolvedValueOnce(intentResult("absent"))
-                .mockResolvedValueOnce({
-                    intent: artifact,
-                    report: { status: "loaded", checkedPath: chance.word() },
-                });
-            const ports = buildPorts({
-                scanRepository: vi.fn().mockResolvedValue(sprawlRecords()),
-                readIntent,
-                elicitIntent,
+
+            function buildAmbiguousPorts(elicitIntent = vi.fn()) {
+                const readIntent = vi
+                    .fn()
+                    .mockResolvedValueOnce(intentResult("absent"))
+                    .mockResolvedValueOnce({
+                        intent: artifact,
+                        report: {
+                            status: "loaded",
+                            checkedPath: chance.word(),
+                        },
+                    });
+                return {
+                    readIntent,
+                    elicitIntent,
+                    ports: buildPorts({
+                        scanRepository: vi
+                            .fn()
+                            .mockResolvedValue(sprawlRecords()),
+                        readIntent,
+                        elicitIntent,
+                    }),
+                };
+            }
+
+            it("should ask the ambiguity questions", async () => {
+                // Arrange
+                const { elicitIntent, ports } = buildAmbiguousPorts();
+
+                // Act
+                await runDoctor({ repoPath, summaryOnly: false }, ports);
+
+                // Assert
+                expect(elicitIntent).toHaveBeenCalledWith([
+                    expect.objectContaining({ id: "intended-multi-harness" }),
+                ]);
             });
 
-            // Act
-            const run = await runDoctor(
-                { repoPath, summaryOnly: false },
-                ports,
-            );
+            it("should evaluate an intent file created while the user was answering", async () => {
+                // Arrange
+                const { readIntent, ports } = buildAmbiguousPorts();
 
-            // Assert
-            expect(elicitIntent).toHaveBeenCalledWith([
-                expect.objectContaining({ id: "intended-multi-harness" }),
-            ]);
-            expect(readIntent).toHaveBeenCalledTimes(2);
-            if (run.kind === "evaluated") {
-                expect(run.intentLoad.status).toBe("loaded");
-            }
+                // Act
+                const run = await runDoctor(
+                    { repoPath, summaryOnly: false },
+                    ports,
+                );
+
+                // Assert
+                expect(readIntent).toHaveBeenCalledTimes(2);
+                expect(run).toMatchObject({
+                    kind: "evaluated",
+                    intentLoad: { status: "loaded" },
+                });
+            });
         });
 
         it("should not ask questions when the intent file was rejected", async () => {

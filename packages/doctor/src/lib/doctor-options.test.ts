@@ -46,6 +46,21 @@ describe("parseDoctorOptions", () => {
         });
     });
 
+    describe("when a flag other than --format is invalid", () => {
+        it("should reject the options without blaming the format", () => {
+            const result = parseDoctorOptions({
+                format: "json",
+                summary: chance.word(),
+                ci: false,
+            });
+
+            expect(result).toEqual({
+                success: false,
+                message: "Invalid doctor options.",
+            });
+        });
+    });
+
     describe("when the format is not a string", () => {
         it("should reject it", () => {
             const result = parseDoctorOptions({
