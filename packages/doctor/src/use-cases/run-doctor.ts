@@ -16,12 +16,10 @@ export interface LoadedIntent {
     report: IntentLoadReport;
 }
 
-/** Ports for the doctor run; concrete gateways are wired by the caller. */
 export interface DoctorRunPorts {
     scanRepository(repoPath: string): Promise<InventoryRecord[]>;
     readIntent(repoPath: string): Promise<LoadedIntent>;
     loadSnapshotRef(repoPath: string): Promise<string | undefined>;
-    /** Present only when the caller may interact with the user. */
     elicitIntent?(questions: AmbiguityQuestion[]): Promise<void>;
 }
 
@@ -36,10 +34,6 @@ interface DoctorRunBase {
     snapshotRef?: string;
 }
 
-/**
- * Explicit run outcome. Only `evaluated` carries findings, so no output path
- * can mistake a skipped evaluation for a clean one.
- */
 export type DoctorRun =
     | (DoctorRunBase & { kind: "summary" })
     | (DoctorRunBase & { kind: "no-constructs" })
@@ -64,7 +58,6 @@ async function loadIntent(
         return loaded;
     }
     await ports.elicitIntent(questions);
-    // The user may have created the file in another terminal while answering.
     return ports.readIntent(repoPath);
 }
 

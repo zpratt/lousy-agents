@@ -128,10 +128,6 @@ export type ReportInventoryItem = z.infer<typeof ReportInventoryItemSchema>;
 export type ReportEdge = z.infer<typeof ReportEdgeSchema>;
 export type ReportJson = z.infer<typeof ReportJsonSchema>;
 
-/**
- * `--summary` output: archetype fields and inventory only. `evaluation` is
- * always "skipped" so a consumer can never read it as a clean evaluation.
- */
 const SummaryReportJsonSchema = ArchetypeFieldsSchema.extend({
     evaluation: z.literal("skipped"),
     inventory: z.array(ReportInventoryItemSchema),

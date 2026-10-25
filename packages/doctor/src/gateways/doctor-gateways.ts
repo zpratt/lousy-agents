@@ -5,7 +5,6 @@ import { readIntentArtifact } from "./intent-artifact.js";
 import { scanRepository } from "./scanner.js";
 import { createWisdomClient, WisdomUnavailableError } from "./wisdom-client.js";
 
-/** Concrete filesystem adapters for every non-interactive doctor port. */
 export function createDoctorGateways(
     logger: ConsolaInstance,
 ): Omit<DoctorRunPorts, "elicitIntent"> {

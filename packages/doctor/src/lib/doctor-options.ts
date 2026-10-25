@@ -19,10 +19,6 @@ function describeFormatValue(value: unknown): string {
     return typeof value === "string" ? JSON.stringify(value) : typeof value;
 }
 
-/**
- * Validates raw CLI arguments. An unsupported `--format` is a usage error,
- * never a silent fallback to human output.
- */
 export function parseDoctorOptions(raw: {
     summary: unknown;
     format: unknown;
@@ -43,10 +39,6 @@ export function parseDoctorOptions(raw: {
     };
 }
 
-/**
- * Interactive questions are only ever asked for human output on a TTY
- * without --ci. JSON output never prompts, so stdout stays one JSON value.
- */
 export function shouldElicitIntent(
     options: DoctorOptions,
     stdinIsTty: boolean,

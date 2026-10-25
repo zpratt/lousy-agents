@@ -68,11 +68,6 @@ function presentHuman(run: DoctorRun, output: DoctorOutput): void {
     }
 }
 
-/**
- * Renders a doctor run in the requested format and returns the exit code.
- * Only an evaluated run with a blocking defect exits 1; the format never
- * changes the outcome.
- */
 export function presentDoctorRun(
     run: DoctorRun,
     format: DoctorFormat,

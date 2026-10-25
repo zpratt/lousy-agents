@@ -9,7 +9,6 @@ import {
 import type { AmbiguityQuestion } from "../use-cases/detect-ambiguities.js";
 import { runDoctor } from "../use-cases/run-doctor.js";
 
-/** Exit code for invalid command-line usage, distinct from blocking findings (1). */
 const USAGE_ERROR_EXIT_CODE = 2;
 
 export interface DoctorCommandEnvironment {
@@ -34,10 +33,6 @@ function createConsoleElicitor(logger: ConsolaInstance) {
     };
 }
 
-/**
- * The single doctor pipeline shared by every entry point: validate options,
- * run the use case, present the result, and return the exit code.
- */
 export async function runDoctorCommand(
     rawArgs: { summary: unknown; format: unknown; ci: unknown },
     environment: DoctorCommandEnvironment,

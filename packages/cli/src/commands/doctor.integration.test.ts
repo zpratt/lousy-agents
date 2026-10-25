@@ -38,10 +38,7 @@ interface ExecResult {
     stderr: string;
 }
 
-/**
- * Vitest sets TEST=true, which makes consola silence human output. Drop it so
- * the child process prints what a user's terminal would show.
- */
+// Vitest sets TEST=true, which makes consola silence human output.
 function userEnvironment(): NodeJS.ProcessEnv {
     const { TEST: _testFlag, ...env } = process.env;
     // biome-ignore lint/style/useNamingConvention: env var

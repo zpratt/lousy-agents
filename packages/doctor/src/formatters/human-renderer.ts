@@ -35,10 +35,6 @@ function sortFindings(findings: Finding[]): Finding[] {
     });
 }
 
-/**
- * Prints every field of the intent load report so text output carries the
- * same status, checked path, reason, and issues as the JSON `intent` object.
- */
 function renderIntentLoad(
     intentLoad: IntentLoadReport,
     logger: ConsolaInstance,
@@ -87,10 +83,6 @@ function renderHeader(
     }
 }
 
-/**
- * `--summary` output. Criteria are not evaluated, so this never reports a
- * findings count or "No findings".
- */
 export function renderHumanSummary(
     summary: SummaryOutput,
     logger: ConsolaInstance,
