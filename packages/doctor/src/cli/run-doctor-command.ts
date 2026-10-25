@@ -10,7 +10,7 @@ import type { AmbiguityQuestion } from "../use-cases/detect-ambiguities.js";
 import { runDoctor } from "../use-cases/run-doctor.js";
 
 /** Exit code for invalid command-line usage, distinct from blocking findings (1). */
-export const USAGE_ERROR_EXIT_CODE = 2;
+const USAGE_ERROR_EXIT_CODE = 2;
 
 export interface DoctorCommandEnvironment {
     cwd: string;

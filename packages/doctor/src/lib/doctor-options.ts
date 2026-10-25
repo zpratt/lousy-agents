@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const DOCTOR_FORMATS = ["human", "json"] as const;
+const DOCTOR_FORMATS = ["human", "json"] as const;
 
 const DoctorOptionsSchema = z.object({
     summary: z.boolean(),
