@@ -24,7 +24,7 @@ The implementation package is `@lousy-agents/agentic-doctor` (bin: `agentic-doct
 1. Scan the current working directory for harness footprints and composition edges.
 2. Classify the repository archetype and compute harness dominance.
 3. Load optional declared intent from `.agentic-doctor/intent.json` in the current working directory, and record whether it loaded or why it was rejected (see [Intent load status](#intent-load-status)).
-4. On an interactive TTY without `--ci`, optionally ask short ambiguity questions when no intent file exists (status `absent`). A present-but-rejected file is reported instead of prompting. Answers are only acknowledged (`Noted.`); they are **not** written to disk and **do not** change findings for that run. Doctor re-reads `.agentic-doctor/intent.json` afterward in case you created it in another terminal.
+4. For human output on an interactive TTY without `--ci`, optionally ask short ambiguity questions when no intent file exists (status `absent`). JSON output never prompts, so stdout is always a single JSON document. A present-but-rejected file is reported instead of prompting. Answers are only acknowledged (`Noted.`); they are **not** written to disk and **do not** change findings for that run. Doctor re-reads `.agentic-doctor/intent.json` afterward in case you created it in another terminal.
 5. Evaluate the criteria catalog against inventory, archetype, and intent.
 6. Print a human report or JSON. Exit `1` when any **critical** or **high** finding is classified as a **defect**. When the archetype is `none`, human mode prints that no agentic constructs were found and skips the full findings layout.
 
@@ -35,8 +35,8 @@ This is a tight feedback loop for multi-agent work: inventory what the fleet can
 | Flag | Type | Default | Description |
 | ------ | ------ | --------- | ------------- |
 | `--summary` | boolean | `false` | Show archetype classification only. Skips criteria evaluation. JSON still includes `inventory`. |
-| `--format` | `human` \| `json` | `human` | Output format. Any value other than `json` is treated as `human`. |
-| `--ci` | boolean | `false` | Force non-interactive mode. Skips intent elicitation prompts. |
+| `--format` | `human` \| `json` | `human` | Output format. Any other value is a usage error: doctor prints an error to stderr, writes nothing to stdout, and exits `2`. |
+| `--ci` | boolean | `false` | Force non-interactive mode. Skips intent elicitation prompts. JSON output is always non-interactive. |
 
 ## Usage
 
@@ -217,6 +217,7 @@ Tags are `[SEVERITY][classification]`. Findings with `assumedIntent: true` appen
 | `totalRecords` | number | Length of inventory |
 | `harnessBreakdown` | `{ harness, count }[]` | Sorted by harness name |
 | `crossHarnessEdges` | number | Count of edges with `crossHarness: true` |
+| `evaluation` | `completed` \| `skipped` | `completed` on a full run; `skipped` with `--summary`. Never read an absent `findings` array as a clean result. |
 | `inventory` | array | One entry per construct |
 | `edges` | array | Flattened composition edges |
 | `intent` | object | Intent load status: `{ status, checkedPath, reason?, issues?, omittedIssueCount? }`. Present only on full evaluate (not on `--summary` or when the archetype is `none`). See [Intent load status](#intent-load-status). |
@@ -262,6 +263,7 @@ Example fragment from an `accidental-sprawl` repo (no cross-harness edges, no in
     { "harness": "copilot", "count": 1 }
   ],
   "crossHarnessEdges": 0,
+  "evaluation": "completed",
   "inventory": [
     {
       "id": "copilot:.github/copilot-instructions.md",
@@ -311,7 +313,7 @@ Example fragment from an `accidental-sprawl` repo (no cross-harness edges, no in
 }
 ```
 
-With `--summary`, JSON includes archetype fields plus `inventory` only. It does not emit `edges` or `findings`, and it does not run criteria evaluation.
+With `--summary`, JSON includes archetype fields, `evaluation: "skipped"`, and `inventory` only. It does not emit `edges` or `findings`, and it does not run criteria evaluation. Human output prints `Evaluation skipped (--summary).` instead of a findings section, so a summary never reads as a clean check.
 
 ## Declared intent
 
@@ -383,6 +385,7 @@ Interactive prompts on a TTY do not write this file, and yes/no answers are not 
 | --------- | ---- |
 | `0` | No blocking findings, or `--summary` (no evaluate) |
 | `1` | At least one critical or high **defect** on a full evaluate |
+| `2` | Invalid command-line usage, for example an unsupported `--format` value. Nothing is written to stdout. |
 
 Gating step (fails the job on blocking defects, keeps the report). Redirect does not hide doctor's exit code:
 

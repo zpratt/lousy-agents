@@ -59,12 +59,10 @@ function renderIntentLoad(
     }
 }
 
-export function renderHuman(
+function renderHeader(
     summary: SummaryOutput,
-    findings: Finding[],
     logger: ConsolaInstance,
     snapshotRef?: string,
-    intentLoad?: IntentLoadReport,
 ): void {
     if (snapshotRef) {
         logger.info(`Evidence snapshot: ${snapshotRef}`);
@@ -87,6 +85,31 @@ export function renderHuman(
     if (summary.crossHarnessEdges > 0) {
         logger.info(`  Cross-harness edges: ${summary.crossHarnessEdges}`);
     }
+}
+
+/**
+ * `--summary` output. Criteria are not evaluated, so this never reports a
+ * findings count or "No findings".
+ */
+export function renderHumanSummary(
+    summary: SummaryOutput,
+    logger: ConsolaInstance,
+    snapshotRef?: string,
+): void {
+    renderHeader(summary, logger, snapshotRef);
+    logger.info(
+        "Evaluation skipped (--summary). Run without --summary to check criteria.",
+    );
+}
+
+export function renderHuman(
+    summary: SummaryOutput,
+    findings: Finding[],
+    logger: ConsolaInstance,
+    snapshotRef?: string,
+    intentLoad?: IntentLoadReport,
+): void {
+    renderHeader(summary, logger, snapshotRef);
 
     if (intentLoad !== undefined) {
         renderIntentLoad(intentLoad, logger);

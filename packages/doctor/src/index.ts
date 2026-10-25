@@ -1,3 +1,8 @@
+export {
+    type DoctorCommandEnvironment,
+    runDoctorCommand,
+    USAGE_ERROR_EXIT_CODE,
+} from "./cli/run-doctor-command.js";
 export type {
     Archetype,
     ArchetypeClassification,
@@ -14,12 +19,15 @@ export type {
 export {
     hasBlockingFindings,
     renderHuman,
+    renderHumanSummary,
 } from "./formatters/human-renderer.js";
 export type {
     ReportInventoryItem,
     ReportJson,
+    SummaryReportJson,
 } from "./formatters/json-formatter.js";
 export { toInventoryItems, toJson } from "./formatters/json-formatter.js";
+export { presentDoctorRun } from "./formatters/present-run.js";
 export { formatSummary } from "./formatters/summary-formatter.js";
 export {
     buildDefaultIntent,
@@ -31,7 +39,17 @@ export {
     createWisdomClient,
     WisdomUnavailableError,
 } from "./gateways/wisdom-client.js";
+export {
+    type DoctorFormat,
+    type DoctorOptions,
+    parseDoctorOptions,
+} from "./lib/doctor-options.js";
 export { classifyArchetype } from "./use-cases/classify-archetype.js";
 export { CRITERIA } from "./use-cases/criteria.js";
 export { detectAmbiguities } from "./use-cases/detect-ambiguities.js";
 export { evaluate } from "./use-cases/evaluate-engine.js";
+export {
+    type DoctorRun,
+    type DoctorRunPorts,
+    runDoctor,
+} from "./use-cases/run-doctor.js";

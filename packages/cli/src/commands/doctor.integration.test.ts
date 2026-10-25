@@ -216,6 +216,67 @@ describe("doctor command", () => {
             // Assert
             expect(exitCode).toBe(0);
         });
+
+        it("should say evaluation was skipped instead of claiming no findings", async () => {
+            // Arrange
+            const cwd = fixture("integration-scenario");
+
+            // Act
+            const { stdout } = await runDoctor(["--summary", "--ci"], cwd);
+
+            // Assert
+            expect(stdout).toContain("Evaluation skipped (--summary)");
+            expect(stdout).not.toContain("No findings");
+        });
+
+        it("should mark JSON evaluation as skipped", async () => {
+            // Arrange
+            const cwd = fixture("integration-scenario");
+
+            // Act
+            const { stdout } = await runDoctor(
+                ["--summary", "--format=json", "--ci"],
+                cwd,
+            );
+
+            // Assert
+            const report = JSON.parse(stdout);
+            expect(report.evaluation).toBe("skipped");
+            expect(report).not.toHaveProperty("findings");
+        });
+    });
+
+    describe("when run with a full evaluation in JSON", () => {
+        it("should mark JSON evaluation as completed", async () => {
+            // Arrange
+            const cwd = fixture("integration-scenario");
+
+            // Act
+            const { stdout } = await runDoctor(["--format=json", "--ci"], cwd);
+
+            // Assert
+            expect(JSON.parse(stdout).evaluation).toBe("completed");
+        });
+    });
+
+    describe("when --format is not supported", () => {
+        it("should print an error to stderr, write nothing to stdout, and exit 2", async () => {
+            // Arrange
+            const cwd = fixture("integration-scenario");
+            const unsupportedFormat = "jsno";
+
+            // Act
+            const { exitCode, stdout, stderr } = await runDoctor(
+                [`--format=${unsupportedFormat}`, "--ci"],
+                cwd,
+            );
+
+            // Assert
+            expect(exitCode).toBe(2);
+            expect(stdout).toBe("");
+            expect(stderr).toContain(unsupportedFormat);
+            expect(stderr).toContain("human");
+        });
     });
 
     describe("intent load diagnostics", () => {

@@ -1,19 +1,4 @@
-import { resolve } from "node:path";
-import {
-    CRITERIA,
-    classifyArchetype,
-    createWisdomClient,
-    detectAmbiguities,
-    evaluate,
-    formatSummary,
-    hasBlockingFindings,
-    readIntentArtifact,
-    renderHuman,
-    scanRepository,
-    toInventoryItems,
-    toJson,
-    WisdomUnavailableError,
-} from "@lousy-agents/agentic-doctor";
+import { runDoctorCommand } from "@lousy-agents/agentic-doctor";
 import { defineCommand } from "citty";
 import { createConsola } from "consola";
 
@@ -41,110 +26,11 @@ export const doctorCommand = defineCommand({
         },
     },
     async run({ args }) {
-        const logger = createConsola();
-        const repoPath = resolve(process.cwd());
-        const format = args.format === "json" ? "json" : "human";
-
-        const records = await scanRepository(repoPath);
-        const classification = classifyArchetype(records);
-        const summary = formatSummary(records, classification);
-
-        // Load wisdom graph for snapshotRef (gracefully degrade if unavailable)
-        const wisdomDir = resolve(repoPath, "wisdom");
-        let snapshotRef: string | undefined;
-        try {
-            const wisdomClient = createWisdomClient(wisdomDir);
-            const graph = await wisdomClient.getGraph();
-            snapshotRef = graph.snapshotRef;
-        } catch (err) {
-            if (!(err instanceof WisdomUnavailableError)) throw err;
-            logger.debug(
-                "Wisdom graph unavailable — snapshotRef will be omitted",
-            );
-        }
-
-        if (args.summary) {
-            if (format === "json") {
-                process.stdout.write(
-                    `${JSON.stringify(
-                        {
-                            archetype: summary.archetype,
-                            dominanceScore: summary.dominanceScore,
-                            totalRecords: summary.totalRecords,
-                            harnessBreakdown: summary.harnessBreakdown,
-                            crossHarnessEdges: summary.crossHarnessEdges,
-                            inventory: toInventoryItems(records),
-                        },
-                        null,
-                        2,
-                    )}\n`,
-                );
-            } else {
-                renderHuman(summary, [], logger, snapshotRef);
-            }
-            return;
-        }
-
-        if (classification.archetype === "none") {
-            if (format === "json") {
-                process.stdout.write(
-                    `${JSON.stringify(toJson(summary, [], records, snapshotRef), null, 2)}\n`,
-                );
-            } else {
-                logger.info("No agentic constructs found in the repository.");
-            }
-            return;
-        }
-
-        let intentResult = await readIntentArtifact(repoPath);
-
-        // Interactive elicitation only when no intent file exists and running in
-        // a TTY. A present-but-rejected file is reported instead of prompting.
-        const isInteractive = !args.ci && process.stdin.isTTY === true;
-        if (intentResult.report.status === "absent" && isInteractive) {
-            const questions = detectAmbiguities(records, classification);
-            for (const q of questions) {
-                logger.info(`\n${q.hint}`);
-                const answer = await logger.prompt(q.question, {
-                    type: "confirm",
-                    initial: false,
-                });
-                if (answer) {
-                    logger.info("  Noted.");
-                }
-            }
-            // After interactive prompts, re-read in case user pre-created the artifact
-            intentResult = await readIntentArtifact(repoPath);
-        }
-
-        const findings = evaluate(CRITERIA, {
-            records,
-            classification,
-            intent: intentResult.found ? intentResult.artifact : null,
-            intentLoadStatus: intentResult.report.status,
+        process.exitCode = await runDoctorCommand(args, {
+            cwd: process.cwd(),
+            stdinIsTty: process.stdin.isTTY === true,
+            logger: createConsola(),
+            writeStdout: (text) => process.stdout.write(text),
         });
-
-        if (format === "json") {
-            const report = toJson(
-                summary,
-                findings,
-                records,
-                snapshotRef,
-                intentResult.report,
-            );
-            process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-        } else {
-            renderHuman(
-                summary,
-                findings,
-                logger,
-                snapshotRef,
-                intentResult.report,
-            );
-        }
-
-        if (hasBlockingFindings(findings)) {
-            process.exitCode = 1;
-        }
     },
 });
