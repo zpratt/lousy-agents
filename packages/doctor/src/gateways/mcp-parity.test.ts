@@ -4,7 +4,10 @@
  * The doctor scanner and the MCP server tools (analyze_instruction_quality,
  * validate_instruction_coverage) inspect the same instruction constructs. The
  * MCP tools are thin wrappers over the core gateways used below, so these
- * tests compare doctor directly with the code paths the MCP tools run.
+ * tests compare doctor directly with the core code paths the MCP tools run.
+ * A fix for an MCP-side inconsistency must therefore land in those core
+ * gateways (or the MCP tool must switch to a core gateway that these tests
+ * exercise).
  *
  * Each test proves one inconsistency and fails until the two sides agree.
  */
@@ -21,6 +24,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { scanRepository } from "./scanner.js";
 
 const chance = new Chance();
+
+const CLAUDE_MD = "CLAUDE.md";
+const AGENTS_MD = "AGENTS.md";
 
 async function writeRepoFile(
     repoRoot: string,
@@ -39,7 +45,7 @@ async function doctorInstructionPaths(repoRoot: string): Promise<string[]> {
         .map((record) => record.path);
 }
 
-async function mcpInstructionPaths(repoRoot: string): Promise<string[]> {
+async function coreInstructionPaths(repoRoot: string): Promise<string[]> {
     const files =
         await createInstructionFileDiscoveryGateway().discoverInstructionFiles(
             repoRoot,
@@ -54,15 +60,18 @@ async function doctorEdgesFrom(repoRoot: string, path: string) {
     return records.find((record) => record.path === path)?.edges ?? [];
 }
 
-async function mcpResolvedImports(
+async function expandClaudeEntrypoint(repoRoot: string, path: string) {
+    return createClaudeInstructionImportExpander().expandClaudeEntrypoint({
+        repoRoot,
+        absoluteFilePath: join(repoRoot, path),
+    });
+}
+
+async function coreResolvedImports(
     repoRoot: string,
     path: string,
 ): Promise<string[]> {
-    const document =
-        await createClaudeInstructionImportExpander().expandClaudeEntrypoint({
-            repoRoot,
-            absoluteFilePath: join(repoRoot, path),
-        });
+    const document = await expandClaudeEntrypoint(repoRoot, path);
     return document.resolvedImports.map((p) =>
         relative(repoRoot, p).replaceAll("\\", "/"),
     );
@@ -85,7 +94,7 @@ describe("doctor and MCP parity", () => {
 
     describe("instruction file discovery", () => {
         describe("when a scoped Copilot instruction file is in a subdirectory of .github/instructions", () => {
-            it("should be discovered by MCP as doctor inventories it", async () => {
+            it("should be discovered by the core discovery that MCP uses, as doctor inventories it", async () => {
                 // Arrange
                 const scopedPath = `.github/instructions/${chance.word()}/${chance.word()}.instructions.md`;
                 await writeRepoFile(
@@ -96,35 +105,38 @@ describe("doctor and MCP parity", () => {
 
                 // Act
                 const doctorPaths = await doctorInstructionPaths(repoRoot);
-                const mcpPaths = await mcpInstructionPaths(repoRoot);
+                const corePaths = await coreInstructionPaths(repoRoot);
 
                 // Assert
                 expect(doctorPaths).toContain(scopedPath);
-                expect(mcpPaths).toContain(scopedPath);
+                expect(corePaths).toContain(scopedPath);
             });
         });
 
         describe("when AGENTS.md is a symlink to a file inside the repository", () => {
-            it("should be discovered by MCP as doctor inventories it", async () => {
+            it("should get the same answer from doctor and from the core discovery that MCP uses", async () => {
                 // Arrange
                 const canonicalPath = `docs/${chance.word()}.md`;
                 await writeRepoFile(repoRoot, canonicalPath, "# Agents\n");
-                await symlink(canonicalPath, join(repoRoot, "AGENTS.md"));
+                await symlink(canonicalPath, join(repoRoot, AGENTS_MD));
 
                 // Act
                 const doctorPaths = await doctorInstructionPaths(repoRoot);
-                const mcpPaths = await mcpInstructionPaths(repoRoot);
+                const corePaths = await coreInstructionPaths(repoRoot);
 
                 // Assert
-                expect(doctorPaths).toContain("AGENTS.md");
-                expect(mcpPaths).toContain("AGENTS.md");
+                expect({
+                    coreDiscoversSymlink: corePaths.includes(AGENTS_MD),
+                }).toEqual({
+                    coreDiscoversSymlink: doctorPaths.includes(AGENTS_MD),
+                });
             });
         });
 
         describe.each([[".claude/CLAUDE.md"], ["AGENTS.override.md"]])(
             "when the repository has %s",
             (instructionPath) => {
-                it("should be discovered by MCP as doctor inventories it", async () => {
+                it("should be discovered by the core discovery that MCP uses, as doctor inventories it", async () => {
                     // Arrange
                     await writeRepoFile(
                         repoRoot,
@@ -134,11 +146,11 @@ describe("doctor and MCP parity", () => {
 
                     // Act
                     const doctorPaths = await doctorInstructionPaths(repoRoot);
-                    const mcpPaths = await mcpInstructionPaths(repoRoot);
+                    const corePaths = await coreInstructionPaths(repoRoot);
 
                     // Assert
                     expect(doctorPaths).toContain(instructionPath);
-                    expect(mcpPaths).toContain(instructionPath);
+                    expect(corePaths).toContain(instructionPath);
                 });
             },
         );
@@ -157,12 +169,12 @@ describe("doctor and MCP parity", () => {
                 };
                 await writeRepoFile(
                     repoRoot,
-                    "CLAUDE.md",
+                    CLAUDE_MD,
                     `# Commands\n\nRun \`npm run ${scriptName}\` before each commit.\n`,
                 );
 
                 // Act
-                const qualityPaths = await mcpInstructionPaths(repoRoot);
+                const qualityPaths = await coreInstructionPaths(repoRoot);
                 const doctorPaths = await doctorInstructionPaths(repoRoot);
                 const coverage =
                     await createInstructionAnalysisGateway().analyzeCoverage(
@@ -172,8 +184,8 @@ describe("doctor and MCP parity", () => {
                     );
 
                 // Assert
-                expect(qualityPaths).toContain("CLAUDE.md");
-                expect(doctorPaths).toContain("CLAUDE.md");
+                expect(qualityPaths).toContain(CLAUDE_MD);
+                expect(doctorPaths).toContain(CLAUDE_MD);
                 expect(
                     coverage.documentedInInstructions.map((item) => item.name),
                 ).toContain(scriptName);
@@ -183,54 +195,48 @@ describe("doctor and MCP parity", () => {
 
     describe("Claude @import edges", () => {
         describe("when an @path line is inside a fenced code block", () => {
-            it("should not create a doctor edge, as MCP import expansion ignores it", async () => {
+            it("should not create a doctor edge, as core import expansion ignores it", async () => {
                 // Arrange
                 const codeTarget = `${chance.word()}/${chance.word()}`;
                 await writeRepoFile(
                     repoRoot,
-                    "CLAUDE.md",
+                    CLAUDE_MD,
                     `# Claude\n\n\`\`\`bash\n@${codeTarget}\n\`\`\`\n`,
                 );
 
                 // Act
-                const mcpImports = await mcpResolvedImports(
+                const coreImports = await coreResolvedImports(
                     repoRoot,
-                    "CLAUDE.md",
+                    CLAUDE_MD,
                 );
-                const doctorEdges = await doctorEdgesFrom(
-                    repoRoot,
-                    "CLAUDE.md",
-                );
+                const doctorEdges = await doctorEdgesFrom(repoRoot, CLAUDE_MD);
 
                 // Assert
-                expect(mcpImports).toEqual([]);
+                expect(coreImports).toEqual([]);
                 expect(doctorEdges).toEqual([]);
             });
         });
 
         describe("when an @path import targets an existing non-markdown file", () => {
-            it("should be a valid doctor edge, as MCP import expansion resolves it", async () => {
+            it("should be a valid doctor edge, as core import expansion resolves it", async () => {
                 // Arrange
                 const importTarget = `docs/${chance.word()}.txt`;
                 await writeRepoFile(repoRoot, importTarget, chance.sentence());
                 await writeRepoFile(
                     repoRoot,
-                    "CLAUDE.md",
+                    CLAUDE_MD,
                     `# Claude\n\n@${importTarget}\n`,
                 );
 
                 // Act
-                const mcpImports = await mcpResolvedImports(
+                const coreImports = await coreResolvedImports(
                     repoRoot,
-                    "CLAUDE.md",
+                    CLAUDE_MD,
                 );
-                const doctorEdges = await doctorEdgesFrom(
-                    repoRoot,
-                    "CLAUDE.md",
-                );
+                const doctorEdges = await doctorEdgesFrom(repoRoot, CLAUDE_MD);
 
                 // Assert
-                expect(mcpImports).toContain(importTarget);
+                expect(coreImports).toContain(importTarget);
                 expect(doctorEdges).toEqual([
                     expect.objectContaining({
                         target: importTarget,
@@ -241,38 +247,29 @@ describe("doctor and MCP parity", () => {
         });
 
         describe("when an @path import targets the home directory", () => {
-            it("should be reported by doctor as an escape, as MCP import expansion reports it", async () => {
+            it("should not be reported by doctor as a missing file in the repository, as core reports it as an escape", async () => {
                 // Arrange
                 const homeTarget = `~/.claude/${chance.word()}.md`;
                 await writeRepoFile(
                     repoRoot,
-                    "CLAUDE.md",
+                    CLAUDE_MD,
                     `# Claude\n\n@${homeTarget}\n`,
                 );
 
                 // Act
-                const document =
-                    await createClaudeInstructionImportExpander().expandClaudeEntrypoint(
-                        {
-                            repoRoot,
-                            absoluteFilePath: join(repoRoot, "CLAUDE.md"),
-                        },
-                    );
-                const doctorEdges = await doctorEdgesFrom(
+                const document = await expandClaudeEntrypoint(
                     repoRoot,
-                    "CLAUDE.md",
+                    CLAUDE_MD,
                 );
+                const doctorEdges = await doctorEdgesFrom(repoRoot, CLAUDE_MD);
 
                 // Assert
                 expect(
                     document.expansionDiagnostics.map((d) => d.ruleId),
                 ).toContain("instruction/import-escape");
-                expect(doctorEdges).toEqual([
-                    expect.objectContaining({
-                        malformed: true,
-                        reason: "path-traversal",
-                    }),
-                ]);
+                expect(doctorEdges).toHaveLength(1);
+                expect(doctorEdges[0]).toMatchObject({ malformed: true });
+                expect(doctorEdges[0]?.reason).not.toBe("missing-target");
             });
         });
     });

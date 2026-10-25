@@ -8,11 +8,14 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { PACKAGE_MANAGER_INSTALL_COMMANDS } from "@lousy-agents/core/entities/copilot-setup-config.js";
+import { VERSION_PLACEHOLDER } from "@lousy-agents/core/use-cases/action-resolution.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parse as parseYaml } from "yaml";
+import { z } from "zod";
 import packageJson from "../package.json" with { type: "json" };
 import {
     analyzeInstructionQualityHandler,
@@ -25,49 +28,81 @@ import {
 
 const chance = new Chance();
 
-const VERSION_PLACEHOLDER = "RESOLVE_VERSION";
 const COPILOT_JOB_NAME = "copilot-setup-steps";
+const NPM_INSTALL_COMMAND = PACKAGE_MANAGER_INSTALL_COMMANDS.npm;
 
-interface WorkflowStep {
-    name?: string;
-    uses?: string;
-    run?: string;
-}
+const ToolResponseSchema = z
+    .object({
+        success: z.boolean(),
+        action: z.string().optional(),
+        actionsToResolve: z
+            .array(z.object({ action: z.string() }).passthrough())
+            .optional(),
+        versionFiles: z
+            .array(z.object({ filename: z.string() }).passthrough())
+            .optional(),
+    })
+    .passthrough();
 
-interface ParsedWorkflow {
-    jobs: Record<string, { steps: WorkflowStep[] }>;
-}
+const WorkflowSchema = z.object({
+    jobs: z.record(
+        z.string(),
+        z.object({
+            steps: z.array(
+                z
+                    .object({
+                        uses: z.string().optional(),
+                        run: z.string().optional(),
+                    })
+                    .passthrough(),
+            ),
+        }),
+    ),
+});
+
+type ToolResponse = z.infer<typeof ToolResponseSchema>;
+type ParsedWorkflow = z.infer<typeof WorkflowSchema>;
 
 function parseResult(
     result: Awaited<ReturnType<typeof discoverEnvironmentHandler>>,
-): Record<string, unknown> {
+): ToolResponse {
     const textContent = result.content.find((c) => c.type === "text");
     if (!textContent) {
         throw new Error("No text content in response");
     }
-    return JSON.parse(textContent.text) as Record<string, unknown>;
+    return ToolResponseSchema.parse(JSON.parse(textContent.text));
+}
+
+async function readWorkflow(path: string): Promise<ParsedWorkflow> {
+    return WorkflowSchema.parse(parseYaml(await readFile(path, "utf-8")));
 }
 
 function randomSha(): string {
     return chance.string({ length: 40, pool: "0123456789abcdef" });
 }
 
-async function connectClient(): Promise<Client> {
-    const server = createMcpServer();
-    const [clientTransport, serverTransport] =
-        InMemoryTransport.createLinkedPair();
-    await server.connect(serverTransport);
-    const client = new Client({ name: "adversarial-test", version: "1.0.0" });
-    await client.connect(clientTransport);
-    return client;
-}
-
 describe("MCP Server adversarial review", () => {
     let testDir: string;
     let workflowsDir: string;
     let workflowPath: string;
+    let clients: Client[];
+
+    async function connectClient(): Promise<Client> {
+        const server = createMcpServer();
+        const [clientTransport, serverTransport] =
+            InMemoryTransport.createLinkedPair();
+        await server.connect(serverTransport);
+        const client = new Client({
+            name: "adversarial-test",
+            version: "1.0.0",
+        });
+        await client.connect(clientTransport);
+        clients.push(client);
+        return client;
+    }
 
     beforeEach(async () => {
+        clients = [];
         testDir = join(tmpdir(), `test-mcp-adversarial-${chance.guid()}`);
         workflowsDir = join(testDir, ".github", "workflows");
         workflowPath = join(workflowsDir, "copilot-setup-steps.yml");
@@ -75,6 +110,7 @@ describe("MCP Server adversarial review", () => {
     });
 
     afterEach(async () => {
+        await Promise.all(clients.map((client) => client.close()));
         await rm(testDir, { recursive: true, force: true });
     });
 
@@ -98,14 +134,38 @@ describe("MCP Server adversarial review", () => {
                 await createCopilotSetupWorkflowHandler({ targetDir: testDir });
 
                 // Assert
-                const workflow = parseYaml(
-                    await readFile(workflowPath, "utf-8"),
-                ) as ParsedWorkflow;
+                const workflow = await readWorkflow(workflowPath);
                 const installSteps = workflow.jobs[
                     COPILOT_JOB_NAME
-                ].steps.filter((step) => step.run === "npm ci");
+                ].steps.filter((step) => step.run === NPM_INSTALL_COMMAND);
                 expect(secondResult.action).toBe("no_changes_needed");
                 expect(installSteps).toHaveLength(1);
+            });
+        });
+
+        describe("when the project has a package manager", () => {
+            it("should not ask the agent to resolve a version for a run step", async () => {
+                // Arrange
+                await writeFile(
+                    join(testDir, "package.json"),
+                    JSON.stringify({ name: chance.word() }),
+                );
+                await writeFile(join(testDir, "package-lock.json"), "{}");
+
+                // Act
+                const result = parseResult(
+                    await createCopilotSetupWorkflowHandler({
+                        targetDir: testDir,
+                    }),
+                );
+
+                // Assert
+                const actionNames = (result.actionsToResolve ?? []).map(
+                    ({ action }) => action,
+                );
+                expect(
+                    actionNames.filter((action) => action.startsWith("run:")),
+                ).toEqual([]);
             });
         });
 
@@ -118,10 +178,9 @@ describe("MCP Server adversarial review", () => {
                         targetDir: testDir,
                     }),
                 );
-                const actionsToResolve = firstResult.actionsToResolve as Array<{
-                    action: string;
-                }>;
-                const resolvedVersions = actionsToResolve.map(({ action }) => ({
+                const resolvedVersions = (
+                    firstResult.actionsToResolve ?? []
+                ).map(({ action }) => ({
                     action,
                     sha: randomSha(),
                     versionTag: `v${chance.integer({ min: 1, max: 9 })}.0.0`,
@@ -171,9 +230,7 @@ describe("MCP Server adversarial review", () => {
                 await createCopilotSetupWorkflowHandler({ targetDir: testDir });
 
                 // Assert
-                const workflow = parseYaml(
-                    await readFile(workflowPath, "utf-8"),
-                ) as ParsedWorkflow;
+                const workflow = await readWorkflow(workflowPath);
                 const copilotJobActions = workflow.jobs[COPILOT_JOB_NAME].steps
                     .map((step) => step.uses)
                     .filter(Boolean);
@@ -188,13 +245,15 @@ describe("MCP Server adversarial review", () => {
         });
 
         describe("when resolvedVersions contains a value that is not a commit SHA", () => {
-            it("should reject the value instead of writing it as a pinned version", async () => {
+            it("should reject the tool call instead of writing the value as a pinned version", async () => {
                 // Arrange
-                const branchName = chance.word({ length: 8 });
+                const client = await connectClient();
+                const branchName = `feature/${chance.word()}`;
 
                 // Act
-                const result = parseResult(
-                    await createCopilotSetupWorkflowHandler({
+                const result = await client.callTool({
+                    name: "create_copilot_setup_workflow",
+                    arguments: {
                         targetDir: testDir,
                         resolvedVersions: [
                             {
@@ -203,11 +262,11 @@ describe("MCP Server adversarial review", () => {
                                 versionTag: "v4.0.0",
                             },
                         ],
-                    }),
-                );
+                    },
+                });
 
                 // Assert
-                expect(result.success).toBe(false);
+                expect(result.isError).toBe(true);
             });
         });
     });
@@ -236,12 +295,10 @@ describe("MCP Server adversarial review", () => {
                 );
 
                 // Assert
-                const versionFiles = result.versionFiles as Array<{
-                    filename: string;
-                }>;
-                expect(versionFiles.map((vf) => vf.filename)).toContain(
-                    customVersionFile,
+                const filenames = (result.versionFiles ?? []).map(
+                    (vf) => vf.filename,
                 );
+                expect(filenames).toContain(customVersionFile);
             });
         });
 
