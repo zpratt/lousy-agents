@@ -22,8 +22,10 @@ import {
     createCopilotSetupWorkflowHandler,
     createMcpServer,
     discoverEnvironmentHandler,
+    discoverFeedbackLoopsHandler,
     discoverWorkflowSetupActionsHandler,
     resolveActionVersionsHandler,
+    validateInstructionCoverageHandler,
 } from "./server.js";
 
 const chance = new Chance();
@@ -333,6 +335,49 @@ describe("MCP Server adversarial review", () => {
 
                 // Assert
                 expect(result.success).toBe(false);
+            });
+
+            it.each([
+                ["discover_feedback_loops", discoverFeedbackLoopsHandler],
+                [
+                    "validate_instruction_coverage",
+                    validateInstructionCoverageHandler,
+                ],
+            ])("should return an error from %s", async (_toolName, handler) => {
+                // Arrange
+                const filePath = join(testDir, `${chance.word()}.txt`);
+                await writeFile(filePath, chance.sentence());
+
+                // Act
+                const result = await handler({ targetDir: filePath });
+
+                // Assert
+                expect(result.isError).toBe(true);
+                expect(parseResult(result).error).toBe(
+                    `Target path is not a directory: ${filePath}`,
+                );
+            });
+        });
+
+        describe("when targetDir does not exist", () => {
+            it.each([
+                ["discover_feedback_loops", discoverFeedbackLoopsHandler],
+                [
+                    "validate_instruction_coverage",
+                    validateInstructionCoverageHandler,
+                ],
+            ])("should return an error from %s", async (_toolName, handler) => {
+                // Arrange
+                const missingDir = join(testDir, chance.guid());
+
+                // Act
+                const result = await handler({ targetDir: missingDir });
+
+                // Assert
+                expect(result.isError).toBe(true);
+                expect(parseResult(result).error).toBe(
+                    `Target directory does not exist: ${missingDir}`,
+                );
             });
         });
     });

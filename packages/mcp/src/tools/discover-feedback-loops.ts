@@ -14,6 +14,7 @@ import {
     successResponse,
     type ToolArgs,
     type ToolHandler,
+    validateTargetDirectory,
 } from "./types.js";
 
 /**
@@ -24,6 +25,11 @@ export const discoverFeedbackLoopsHandler: ToolHandler = async (
     args: ToolArgs,
 ) => {
     const dir = args.targetDir || process.cwd();
+
+    const targetDirError = await validateTargetDirectory(dir);
+    if (targetDirError) {
+        return targetDirError;
+    }
 
     try {
         // Create gateways
