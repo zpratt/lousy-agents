@@ -32,6 +32,14 @@ interface DiscoveryRoot {
 }
 
 /**
+ * State of one directory-prefix entry walk.
+ */
+interface DirectoryWalk extends DiscoveryRoot {
+    /** Real directories already walked, so a symlink cycle is listed once */
+    readonly visitedDirs: Set<string>;
+}
+
+/**
  * File system implementation of the instruction file discovery gateway.
  *
  * Symlinks follow the shared core policy (resolveRealPathWithinRoot): a
@@ -72,7 +80,7 @@ export class FileSystemInstructionFileDiscoveryGateway
             }
 
             await this.discoverMdFilesInDir(
-                root,
+                { ...root, visitedDirs: new Set() },
                 entry.path,
                 format,
                 entry.includeSubdirectories === true,
@@ -85,7 +93,7 @@ export class FileSystemInstructionFileDiscoveryGateway
     }
 
     private async discoverMdFilesInDir(
-        root: DiscoveryRoot,
+        root: DirectoryWalk,
         dirRelativePath: string,
         format: InstructionFileFormat,
         includeSubdirectories: boolean,
@@ -96,9 +104,10 @@ export class FileSystemInstructionFileDiscoveryGateway
             root.rootReal,
             join(root.targetDir, ...dirRelativePath.split("/")),
         );
-        if (dir?.kind !== "directory") {
+        if (dir?.kind !== "directory" || root.visitedDirs.has(dir.real)) {
             return;
         }
+        root.visitedDirs.add(dir.real);
 
         let entries: Awaited<ReturnType<typeof listDirectoryWithinRoot>>;
         try {

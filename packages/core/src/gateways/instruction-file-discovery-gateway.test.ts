@@ -171,6 +171,29 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
         });
     });
 
+    describe("when .github/instructions contains symbolic links back to itself", () => {
+        it("should discover each instruction file once", async () => {
+            // Arrange
+            const fileName = `${chance.word()}.instructions.md`;
+            const instructionsDir = join(testDir, ".github", "instructions");
+            await mkdir(instructionsDir, { recursive: true });
+            await writeFile(join(instructionsDir, fileName), "# Scoped\n");
+            await symlink(instructionsDir, join(instructionsDir, "loop-a"));
+            await symlink(instructionsDir, join(instructionsDir, "loop-b"));
+
+            // Act
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            // Assert
+            expect(files).toEqual([
+                {
+                    filePath: join(instructionsDir, fileName),
+                    format: "copilot-scoped",
+                },
+            ]);
+        });
+    });
+
     describe("when an instruction file is a symbolic link to a file outside the repository", () => {
         let outsideDir: string;
 
