@@ -34,7 +34,6 @@ function captureHumanOutput(
 describe("renderHuman", () => {
     describe("when an intent load report is provided", () => {
         it("should print the same status, checked path, reason, and issues that JSON reports", () => {
-            // Arrange
             const intentLoad: IntentLoadReport = {
                 status: "invalid-schema",
                 checkedPath: `/${chance.word()}/.agentic-doctor/intent.json`,
@@ -46,13 +45,11 @@ describe("renderHuman", () => {
             };
             const summary = buildSummary();
 
-            // Act
             const text = captureHumanOutput((logger) =>
                 renderHuman(summary, [], logger, undefined, intentLoad),
             );
             const json = toJson(summary, [], [], undefined, intentLoad);
 
-            // Assert
             expect(text).toContain(`Intent: ${json.intent?.status}`);
             expect(text).toContain(`Checked path: ${json.intent?.checkedPath}`);
             expect(text).toContain(`Reason: ${json.intent?.reason}`);
@@ -62,7 +59,6 @@ describe("renderHuman", () => {
         });
 
         it("should say how many schema issues were not listed, matching JSON", () => {
-            // Arrange
             const intentLoad: IntentLoadReport = {
                 status: "invalid-schema",
                 checkedPath: chance.word(),
@@ -71,30 +67,25 @@ describe("renderHuman", () => {
                 omittedIssueCount: chance.integer({ min: 1, max: 50 }),
             };
 
-            // Act
             const text = captureHumanOutput((logger) =>
                 renderHuman(buildSummary(), [], logger, undefined, intentLoad),
             );
 
-            // Assert
             expect(text).toContain(
                 `...and ${intentLoad.omittedIssueCount} more`,
             );
         });
 
         it("should print the checked path for a loaded intent file", () => {
-            // Arrange
             const intentLoad: IntentLoadReport = {
                 status: "loaded",
                 checkedPath: `/${chance.word()}/.agentic-doctor/intent.json`,
             };
 
-            // Act
             const text = captureHumanOutput((logger) =>
                 renderHuman(buildSummary(), [], logger, undefined, intentLoad),
             );
 
-            // Assert
             expect(text).toContain("Intent: loaded");
             expect(text).toContain(`Checked path: ${intentLoad.checkedPath}`);
             expect(text).not.toContain("Reason:");
