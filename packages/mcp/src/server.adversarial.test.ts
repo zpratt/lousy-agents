@@ -22,8 +22,10 @@ import {
     createCopilotSetupWorkflowHandler,
     createMcpServer,
     discoverEnvironmentHandler,
+    discoverFeedbackLoopsHandler,
     discoverWorkflowSetupActionsHandler,
     resolveActionVersionsHandler,
+    validateInstructionCoverageHandler,
 } from "./server.js";
 
 const chance = new Chance();
@@ -117,7 +119,6 @@ describe("MCP Server adversarial review", () => {
     describe("create_copilot_setup_workflow", () => {
         describe("when the tool is called again on a project with a package manager", () => {
             it("should not append a duplicate install step on each call", async () => {
-                // Arrange
                 await writeFile(
                     join(testDir, "package.json"),
                     JSON.stringify({ name: chance.word() }),
@@ -125,7 +126,6 @@ describe("MCP Server adversarial review", () => {
                 await writeFile(join(testDir, "package-lock.json"), "{}");
                 await createCopilotSetupWorkflowHandler({ targetDir: testDir });
 
-                // Act
                 const secondResult = parseResult(
                     await createCopilotSetupWorkflowHandler({
                         targetDir: testDir,
@@ -133,7 +133,6 @@ describe("MCP Server adversarial review", () => {
                 );
                 await createCopilotSetupWorkflowHandler({ targetDir: testDir });
 
-                // Assert
                 const workflow = await readWorkflow(workflowPath);
                 const installSteps = workflow.jobs[
                     COPILOT_JOB_NAME
@@ -145,21 +144,18 @@ describe("MCP Server adversarial review", () => {
 
         describe("when the project has a package manager", () => {
             it("should not ask the agent to resolve a version for a run step", async () => {
-                // Arrange
                 await writeFile(
                     join(testDir, "package.json"),
                     JSON.stringify({ name: chance.word() }),
                 );
                 await writeFile(join(testDir, "package-lock.json"), "{}");
 
-                // Act
                 const result = parseResult(
                     await createCopilotSetupWorkflowHandler({
                         targetDir: testDir,
                     }),
                 );
 
-                // Assert
                 const actionNames = (result.actionsToResolve ?? []).map(
                     ({ action }) => action,
                 );
@@ -171,7 +167,6 @@ describe("MCP Server adversarial review", () => {
 
         describe("when the tool is called again with resolvedVersions for every action", () => {
             it("should replace the RESOLVE_VERSION placeholders in the existing workflow", async () => {
-                // Arrange
                 await writeFile(join(testDir, ".nvmrc"), "20");
                 const firstResult = parseResult(
                     await createCopilotSetupWorkflowHandler({
@@ -186,13 +181,11 @@ describe("MCP Server adversarial review", () => {
                     versionTag: `v${chance.integer({ min: 1, max: 9 })}.0.0`,
                 }));
 
-                // Act
                 await createCopilotSetupWorkflowHandler({
                     targetDir: testDir,
                     resolvedVersions,
                 });
 
-                // Assert
                 const content = await readFile(workflowPath, "utf-8");
                 expect(content).not.toContain(VERSION_PLACEHOLDER);
                 for (const resolved of resolvedVersions) {
@@ -205,7 +198,6 @@ describe("MCP Server adversarial review", () => {
 
         describe("when the existing workflow has another job before the copilot-setup-steps job", () => {
             it("should add missing steps to the copilot-setup-steps job", async () => {
-                // Arrange
                 const otherJobName = `prepare-${chance.word()}`;
                 await writeFile(join(testDir, ".nvmrc"), "20");
                 await writeFile(
@@ -226,10 +218,8 @@ describe("MCP Server adversarial review", () => {
                     ].join("\n"),
                 );
 
-                // Act
                 await createCopilotSetupWorkflowHandler({ targetDir: testDir });
 
-                // Assert
                 const workflow = await readWorkflow(workflowPath);
                 const copilotJobActions = workflow.jobs[COPILOT_JOB_NAME].steps
                     .map((step) => step.uses)
@@ -246,11 +236,9 @@ describe("MCP Server adversarial review", () => {
 
         describe("when resolvedVersions contains a value that is not a commit SHA", () => {
             it("should reject the tool call instead of writing the value as a pinned version", async () => {
-                // Arrange
                 const client = await connectClient();
                 const branchName = `feature/${chance.word()}`;
 
-                // Act
                 const result = await client.callTool({
                     name: "create_copilot_setup_workflow",
                     arguments: {
@@ -265,7 +253,6 @@ describe("MCP Server adversarial review", () => {
                     },
                 });
 
-                // Assert
                 expect(result.isError).toBe(true);
             });
         });
@@ -274,7 +261,6 @@ describe("MCP Server adversarial review", () => {
     describe("environment detection", () => {
         describe("when the target directory has its own copilotSetup configuration", () => {
             it("should detect version files defined in that configuration", async () => {
-                // Arrange
                 const customVersionFile = `.${chance.word({ length: 10 })}`;
                 await writeFile(
                     join(testDir, "package.json"),
@@ -289,12 +275,10 @@ describe("MCP Server adversarial review", () => {
                 );
                 await writeFile(join(testDir, customVersionFile), "22");
 
-                // Act
                 const result = parseResult(
                     await discoverEnvironmentHandler({ targetDir: testDir }),
                 );
 
-                // Assert
                 const filenames = (result.versionFiles ?? []).map(
                     (vf) => vf.filename,
                 );
@@ -304,35 +288,66 @@ describe("MCP Server adversarial review", () => {
 
         describe("when targetDir is a regular file", () => {
             it("should return an error from discover_workflow_setup_actions", async () => {
-                // Arrange
                 const filePath = join(testDir, `${chance.word()}.txt`);
                 await writeFile(filePath, chance.sentence());
 
-                // Act
                 const result = parseResult(
                     await discoverWorkflowSetupActionsHandler({
                         targetDir: filePath,
                     }),
                 );
 
-                // Assert
                 expect(result.success).toBe(false);
             });
 
             it("should return an error from analyze_instruction_quality", async () => {
-                // Arrange
                 const filePath = join(testDir, `${chance.word()}.txt`);
                 await writeFile(filePath, chance.sentence());
 
-                // Act
                 const result = parseResult(
                     await analyzeInstructionQualityHandler({
                         targetDir: filePath,
                     }),
                 );
 
-                // Assert
                 expect(result.success).toBe(false);
+            });
+
+            it.each([
+                ["discover_feedback_loops", discoverFeedbackLoopsHandler],
+                [
+                    "validate_instruction_coverage",
+                    validateInstructionCoverageHandler,
+                ],
+            ])("should return an error from %s", async (_toolName, handler) => {
+                const filePath = join(testDir, `${chance.word()}.txt`);
+                await writeFile(filePath, chance.sentence());
+
+                const result = await handler({ targetDir: filePath });
+
+                expect(result.isError).toBe(true);
+                expect(parseResult(result).error).toBe(
+                    `Target path is not a directory: ${filePath}`,
+                );
+            });
+        });
+
+        describe("when targetDir does not exist", () => {
+            it.each([
+                ["discover_feedback_loops", discoverFeedbackLoopsHandler],
+                [
+                    "validate_instruction_coverage",
+                    validateInstructionCoverageHandler,
+                ],
+            ])("should return an error from %s", async (_toolName, handler) => {
+                const missingDir = join(testDir, chance.guid());
+
+                const result = await handler({ targetDir: missingDir });
+
+                expect(result.isError).toBe(true);
+                expect(parseResult(result).error).toBe(
+                    `Target directory does not exist: ${missingDir}`,
+                );
             });
         });
     });
@@ -340,17 +355,14 @@ describe("MCP Server adversarial review", () => {
     describe("resolve_action_versions", () => {
         describe("when the actions list contains duplicates", () => {
             it("should return each action only once", async () => {
-                // Arrange
                 const action = `${chance.word()}/${chance.word()}`;
 
-                // Act
                 const result = parseResult(
                     await resolveActionVersionsHandler({
                         actions: [action, action],
                     }),
                 );
 
-                // Assert
                 expect(result.actionsToResolve).toHaveLength(1);
             });
         });
@@ -359,30 +371,24 @@ describe("MCP Server adversarial review", () => {
     describe("MCP protocol", () => {
         describe("when a tool call fails", () => {
             it("should set isError on the tool result", async () => {
-                // Arrange
                 const client = await connectClient();
                 const missingDir = join(testDir, chance.guid());
 
-                // Act
                 const result = await client.callTool({
                     name: "discover_environment",
                     arguments: { targetDir: missingDir },
                 });
 
-                // Assert
                 expect(result.isError).toBe(true);
             });
         });
 
         describe("when a client initializes the server", () => {
             it("should report the package version", async () => {
-                // Arrange
                 const client = await connectClient();
 
-                // Act
                 const serverVersion = client.getServerVersion();
 
-                // Assert
                 expect(serverVersion?.version).toBe(packageJson.version);
             });
         });
