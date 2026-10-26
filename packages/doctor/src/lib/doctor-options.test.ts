@@ -8,14 +8,11 @@ describe("parseDoctorOptions", () => {
     describe("when the format is supported", () => {
         for (const format of ["human", "json"] as const) {
             it(`should accept --format=${format}`, () => {
-                // Arrange
                 const summary = chance.bool();
                 const ci = chance.bool();
 
-                // Act
                 const result = parseDoctorOptions({ format, summary, ci });
 
-                // Assert
                 expect(result).toEqual({
                     success: true,
                     options: { format, summary, ci },
@@ -26,17 +23,14 @@ describe("parseDoctorOptions", () => {
 
     describe("when the format is not supported", () => {
         it("should reject it with a message naming the value and the allowed formats", () => {
-            // Arrange
             const unsupportedFormat = `format-${chance.word()}`;
 
-            // Act
             const result = parseDoctorOptions({
                 format: unsupportedFormat,
                 summary: false,
                 ci: false,
             });
 
-            // Assert
             expect(result.success).toBe(false);
             if (!result.success) {
                 expect(result.message).toContain(unsupportedFormat);

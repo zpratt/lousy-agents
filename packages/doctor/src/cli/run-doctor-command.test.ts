@@ -40,17 +40,14 @@ function buildEnvironment(stdinIsTty: boolean, cwd = sprawlFixture) {
 describe("runDoctorCommand", () => {
     describe("when --format is not supported", () => {
         it("should report a usage error, write nothing to stdout, and exit 2", async () => {
-            // Arrange
             const unsupportedFormat = `jsno-${chance.word()}`;
             const env = buildEnvironment(false);
 
-            // Act
             const exitCode = await runDoctorCommand(
                 { format: unsupportedFormat, summary: false, ci: true },
                 env.environment,
             );
 
-            // Assert
             expect(exitCode).toBe(2);
             expect(env.stdout()).toBe("");
             expect(env.logged.join("\n")).toContain(unsupportedFormat);
@@ -59,16 +56,13 @@ describe("runDoctorCommand", () => {
 
     describe("when JSON is requested from a terminal without --ci", () => {
         it("should not prompt and should write exactly one JSON document", async () => {
-            // Arrange
             const env = buildEnvironment(true);
 
-            // Act
             await runDoctorCommand(
                 { format: "json", summary: false, ci: false },
                 env.environment,
             );
 
-            // Assert
             expect(env.prompt).not.toHaveBeenCalled();
             expect(env.logged).toEqual([]);
             expect(JSON.parse(env.stdout()).archetype).toBe(
@@ -79,16 +73,13 @@ describe("runDoctorCommand", () => {
 
     describe("when human output is requested from a terminal without --ci", () => {
         it("should ask the ambiguity questions", async () => {
-            // Arrange
             const env = buildEnvironment(true);
 
-            // Act
             await runDoctorCommand(
                 { format: "human", summary: false, ci: false },
                 env.environment,
             );
 
-            // Assert
             expect(env.prompt).toHaveBeenCalled();
         });
     });
@@ -96,35 +87,29 @@ describe("runDoctorCommand", () => {
     for (const format of ["human", "json"] as const) {
         describe(`when a ${format} evaluation finds a critical defect`, () => {
             it("should return exit code 1", async () => {
-                // Arrange
                 const env = buildEnvironment(
                     false,
                     fixture("integration-scenario"),
                 );
 
-                // Act
                 const exitCode = await runDoctorCommand(
                     { format, summary: false, ci: true },
                     env.environment,
                 );
 
-                // Assert
                 expect(exitCode).toBe(1);
             });
         });
 
         describe(`when a ${format} evaluation finds only advisories and medium defects`, () => {
             it("should return exit code 0", async () => {
-                // Arrange
                 const env = buildEnvironment(false);
 
-                // Act
                 const exitCode = await runDoctorCommand(
                     { format, summary: false, ci: true },
                     env.environment,
                 );
 
-                // Assert
                 expect(exitCode).toBe(0);
             });
         });

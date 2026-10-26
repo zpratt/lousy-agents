@@ -54,13 +54,10 @@ describe("runDoctor", () => {
 
     describe("when only a summary is requested", () => {
         it("should return a summary without reading intent or evaluating", async () => {
-            // Arrange
             const ports = buildPorts();
 
-            // Act
             const run = await runDoctor({ repoPath, summaryOnly: true }, ports);
 
-            // Assert
             expect(run.kind).toBe("summary");
             expect(run).not.toHaveProperty("findings");
             expect(ports.readIntent).not.toHaveBeenCalled();
@@ -69,18 +66,15 @@ describe("runDoctor", () => {
 
     describe("when no agentic constructs exist", () => {
         it("should return no-constructs without reading intent", async () => {
-            // Arrange
             const ports = buildPorts({
                 scanRepository: vi.fn().mockResolvedValue([]),
             });
 
-            // Act
             const run = await runDoctor(
                 { repoPath, summaryOnly: false },
                 ports,
             );
 
-            // Assert
             expect(run.kind).toBe("no-constructs");
             expect(ports.readIntent).not.toHaveBeenCalled();
         });
@@ -88,19 +82,16 @@ describe("runDoctor", () => {
 
     describe("when constructs exist", () => {
         it("should evaluate findings and carry the intent load report", async () => {
-            // Arrange
             const loaded = intentResult("invalid-json");
             const ports = buildPorts({
                 readIntent: vi.fn().mockResolvedValue(loaded),
             });
 
-            // Act
             const run = await runDoctor(
                 { repoPath, summaryOnly: false },
                 ports,
             );
 
-            // Assert
             expect(run.kind).toBe("evaluated");
             if (run.kind === "evaluated") {
                 expect(run.intentLoad).toEqual(loaded.report);
@@ -111,19 +102,16 @@ describe("runDoctor", () => {
         });
 
         it("should pass the snapshot reference through", async () => {
-            // Arrange
             const snapshotRef = chance.hash();
             const ports = buildPorts({
                 loadSnapshotRef: vi.fn().mockResolvedValue(snapshotRef),
             });
 
-            // Act
             const run = await runDoctor(
                 { repoPath, summaryOnly: false },
                 ports,
             );
 
-            // Assert
             expect(run.snapshotRef).toBe(snapshotRef);
         });
     });
@@ -162,29 +150,23 @@ describe("runDoctor", () => {
             }
 
             it("should ask the ambiguity questions", async () => {
-                // Arrange
                 const { elicitIntent, ports } = buildAmbiguousPorts();
 
-                // Act
                 await runDoctor({ repoPath, summaryOnly: false }, ports);
 
-                // Assert
                 expect(elicitIntent).toHaveBeenCalledWith([
                     expect.objectContaining({ id: "intended-multi-harness" }),
                 ]);
             });
 
             it("should evaluate an intent file created while the user was answering", async () => {
-                // Arrange
                 const { readIntent, ports } = buildAmbiguousPorts();
 
-                // Act
                 const run = await runDoctor(
                     { repoPath, summaryOnly: false },
                     ports,
                 );
 
-                // Assert
                 expect(readIntent).toHaveBeenCalledTimes(2);
                 expect(run).toMatchObject({
                     kind: "evaluated",
@@ -194,7 +176,6 @@ describe("runDoctor", () => {
         });
 
         it("should not ask questions when the intent file was rejected", async () => {
-            // Arrange
             const elicitIntent = vi.fn();
             const ports = buildPorts({
                 scanRepository: vi.fn().mockResolvedValue(sprawlRecords()),
@@ -204,22 +185,17 @@ describe("runDoctor", () => {
                 elicitIntent,
             });
 
-            // Act
             await runDoctor({ repoPath, summaryOnly: false }, ports);
 
-            // Assert
             expect(elicitIntent).not.toHaveBeenCalled();
         });
 
         it("should not ask anything when there are no ambiguity questions", async () => {
-            // Arrange
             const elicitIntent = vi.fn();
             const ports = buildPorts({ elicitIntent });
 
-            // Act
             await runDoctor({ repoPath, summaryOnly: false }, ports);
 
-            // Assert
             expect(elicitIntent).not.toHaveBeenCalled();
         });
     });
