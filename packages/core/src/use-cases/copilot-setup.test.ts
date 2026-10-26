@@ -9,8 +9,11 @@ import type {
     SetupStepCandidate,
 } from "../entities/copilot-setup.js";
 import { createWorkflowGateway } from "../gateways/workflow-gateway.js";
+import { VERSION_PLACEHOLDER } from "./action-resolution.js";
 import {
     buildCandidatesFromEnvironment,
+    COPILOT_SETUP_JOB_NAME,
+    findPlaceholderActionsToPin,
     generateWorkflowContent,
     updateWorkflowWithMissingSteps,
 } from "./copilot-setup.js";
@@ -967,6 +970,80 @@ describe("Workflow Generator", () => {
     });
 
     describe("updateWorkflowWithMissingSteps", () => {
+        it("should append missing steps to the copilot-setup-steps job when it is not the first job", async () => {
+            // Arrange
+            const otherJobName = `prepare-${chance.word()}`;
+            const existingWorkflow = {
+                jobs: {
+                    [otherJobName]: { steps: [{ run: "echo prepare" }] },
+                    [COPILOT_SETUP_JOB_NAME]: {
+                        steps: [{ uses: "actions/checkout@v4" }],
+                    },
+                },
+            };
+            const missingCandidates: SetupStepCandidate[] = [
+                { action: "actions/setup-node", source: "version-file" },
+            ];
+
+            // Act
+            const parsed = parseYaml(
+                await updateWorkflowWithMissingSteps(
+                    existingWorkflow,
+                    missingCandidates,
+                ),
+            );
+
+            // Assert
+            expect(parsed.jobs[otherJobName].steps).toEqual([
+                { run: "echo prepare" },
+            ]);
+            expect(
+                parsed.jobs[COPILOT_SETUP_JOB_NAME].steps.map(
+                    (step: { uses?: string }) => step.uses,
+                ),
+            ).toEqual(["actions/checkout@v4", "actions/setup-node"]);
+        });
+
+        it("should SHA-pin existing steps that hold the version placeholder when a resolved version is given", async () => {
+            // Arrange
+            const sha = chance.string({ length: 40, pool: "0123456789abcdef" });
+            const versionTag = `v${chance.integer({ min: 1, max: 9 })}.0.0`;
+            const existingWorkflow = {
+                jobs: {
+                    [COPILOT_SETUP_JOB_NAME]: {
+                        steps: [
+                            { uses: `actions/checkout@${VERSION_PLACEHOLDER}` },
+                            {
+                                uses: `actions/setup-node@${VERSION_PLACEHOLDER}`,
+                            },
+                        ],
+                    },
+                },
+            };
+            const resolvedVersions = [
+                { action: "actions/checkout", sha, versionTag },
+            ];
+
+            // Act
+            const content = await updateWorkflowWithMissingSteps(
+                existingWorkflow,
+                [],
+                undefined,
+                { usePlaceholders: true, resolvedVersions },
+            );
+
+            // Assert
+            expect(content).toContain(
+                `actions/checkout@${sha} # ${versionTag}`,
+            );
+            expect(content).toContain(
+                `actions/setup-node@${VERSION_PLACEHOLDER}`,
+            );
+            expect(
+                findPlaceholderActionsToPin(existingWorkflow, resolvedVersions),
+            ).toEqual(["actions/checkout"]);
+        });
+
         it("should append missing steps to existing workflow", async () => {
             // Arrange
             const existingWorkflow = {

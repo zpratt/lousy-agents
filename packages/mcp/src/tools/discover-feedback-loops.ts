@@ -29,7 +29,7 @@ export const discoverFeedbackLoopsHandler: ToolHandler = async (
         // Create gateways
         const scriptGateway = createScriptDiscoveryGateway();
         const toolGateway = createToolDiscoveryGateway();
-        const environmentGateway = createEnvironmentGateway();
+        const environmentGateway = createEnvironmentGateway(dir);
 
         // Adapter for package manager gateway
         const packageManagerGateway: PackageManagerGateway = {

@@ -3,7 +3,6 @@
  */
 
 import { createClaudeInstructionImportExpander } from "@lousy-agents/core/gateways/claude-instruction-import-expander.js";
-import { fileExists } from "@lousy-agents/core/gateways/file-system-utils.js";
 import { createInstructionFileDiscoveryGateway } from "@lousy-agents/core/gateways/instruction-file-discovery-gateway.js";
 import { createMarkdownAstGateway } from "@lousy-agents/core/gateways/markdown-ast-gateway.js";
 import { createFeedbackLoopCommandsGateway } from "@lousy-agents/core/gateways/script-discovery-gateway.js";
@@ -13,6 +12,7 @@ import {
     successResponse,
     type ToolArgs,
     type ToolHandler,
+    validateTargetDirectory,
 } from "./types.js";
 
 /**
@@ -24,8 +24,9 @@ export const analyzeInstructionQualityHandler: ToolHandler = async (
 ) => {
     const dir = args.targetDir || process.cwd();
 
-    if (!(await fileExists(dir))) {
-        return errorResponse(`Target directory does not exist: ${dir}`);
+    const targetDirError = await validateTargetDirectory(dir);
+    if (targetDirError) {
+        return targetDirError;
     }
 
     try {

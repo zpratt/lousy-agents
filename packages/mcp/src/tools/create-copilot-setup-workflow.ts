@@ -17,6 +17,7 @@ import {
 } from "@lousy-agents/core/use-cases/action-resolution.js";
 import {
     buildCandidatesFromEnvironment,
+    findPlaceholderActionsToPin,
     generateWorkflowContent,
     updateWorkflowWithMissingSteps,
 } from "@lousy-agents/core/use-cases/copilot-setup.js";
@@ -31,6 +32,7 @@ import {
     errorResponse,
     successResponse,
     type ToolResult,
+    validateTargetDirectory,
 } from "./types.js";
 
 /**
@@ -40,9 +42,9 @@ async function gatherCandidates(
     dir: string,
     workflowsDirExists: boolean,
 ): Promise<SetupStepCandidate[]> {
-    const environmentGateway = createEnvironmentGateway();
+    const environmentGateway = createEnvironmentGateway(dir);
     const workflowGateway = createWorkflowGateway();
-    const copilotSetupConfig = await loadCopilotSetupConfig();
+    const copilotSetupConfig = await loadCopilotSetupConfig(dir);
 
     // Detect environment configuration
     const environment = await environmentGateway.detectEnvironment(dir);
@@ -82,7 +84,12 @@ async function updateExistingWorkflow(
         existingActions,
     );
 
-    if (missingCandidates.length === 0) {
+    const actionsToPin = findPlaceholderActionsToPin(
+        existingWorkflow,
+        args.resolvedVersions,
+    );
+
+    if (missingCandidates.length === 0 && actionsToPin.length === 0) {
         // Build actions to resolve for version resolution metadata
         const actionsToResolve = buildActionsToResolve(
             allCandidates,
@@ -125,7 +132,8 @@ async function updateExistingWorkflow(
         action: "updated",
         workflowPath,
         stepsAdded: missingCandidates.map((c) => c.action),
-        message: `Updated workflow with ${missingCandidates.length} new step(s)`,
+        actionsPinned: actionsToPin,
+        message: `Updated workflow with ${missingCandidates.length} new step(s) and ${actionsToPin.length} SHA-pinned action(s)`,
         workflowTemplate: updatedContent,
         actionsToResolve,
         instructions:
@@ -182,8 +190,9 @@ export const createCopilotSetupWorkflowHandler: CreateWorkflowHandler = async (
     try {
         const dir = args.targetDir || process.cwd();
 
-        if (!(await fileExists(dir))) {
-            return errorResponse(`Target directory does not exist: ${dir}`);
+        const targetDirError = await validateTargetDirectory(dir);
+        if (targetDirError) {
+            return targetDirError;
         }
 
         const workflowGateway = createWorkflowGateway();

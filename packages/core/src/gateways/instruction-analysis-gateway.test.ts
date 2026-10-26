@@ -1,4 +1,5 @@
 import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -326,55 +327,103 @@ npm test
         });
     });
 
-    describe("when .github/copilot-instructions.md is a symlink", () => {
-        it("should return zero coverage instead of throwing", async () => {
-            const outsideTarget = join(testDir, "outside.md");
-            await writeFile(outsideTarget, "# instructions");
+    describe("when .github/copilot-instructions.md is a symlink to a file inside the repository", () => {
+        it("should count scripts documented in the symlink target", async () => {
+            // Arrange
+            const scriptName = chance.word({ length: 10 });
+            const canonicalTarget = join(testDir, "canonical.md");
+            await writeFile(canonicalTarget, `Run npm run ${scriptName}`);
             await symlink(
-                outsideTarget,
+                canonicalTarget,
                 join(testDir, ".github", "copilot-instructions.md"),
             );
-
             const scripts: DiscoveredScript[] = [
                 {
-                    name: "test",
-                    command: "vitest run",
+                    name: scriptName,
+                    command: chance.word(),
                     phase: "test",
                     isMandatory: true,
                 },
             ];
 
+            // Act
             const result = await gateway.analyzeCoverage(testDir, scripts, []);
 
-            expect(result.summary.totalDocumented).toBe(0);
-            expect(result.missingInInstructions).toHaveLength(1);
+            // Assert
+            expect(result.documentedInInstructions.map((s) => s.name)).toEqual([
+                scriptName,
+            ]);
+            expect(result.references[0]?.file).toBe(
+                join(".github", "copilot-instructions.md"),
+            );
         });
     });
 
-    describe("when .github/instructions directory is a symlink", () => {
+    describe("when .github/copilot-instructions.md is a symlink to a file outside the repository", () => {
         it("should return zero coverage instead of throwing", async () => {
+            // Arrange
+            const scriptName = chance.word({ length: 10 });
+            const outsideDir = join(tmpdir(), `outside-${chance.guid()}`);
+            await mkdir(outsideDir, { recursive: true });
+            const outsideTarget = join(outsideDir, "outside.md");
+            await writeFile(outsideTarget, `Run npm run ${scriptName}`);
+            await symlink(
+                outsideTarget,
+                join(testDir, ".github", "copilot-instructions.md"),
+            );
+            const scripts: DiscoveredScript[] = [
+                {
+                    name: scriptName,
+                    command: chance.word(),
+                    phase: "test",
+                    isMandatory: true,
+                },
+            ];
+
+            try {
+                // Act
+                const result = await gateway.analyzeCoverage(
+                    testDir,
+                    scripts,
+                    [],
+                );
+
+                // Assert
+                expect(result.summary.totalDocumented).toBe(0);
+                expect(result.missingInInstructions).toHaveLength(1);
+            } finally {
+                await rm(outsideDir, { recursive: true, force: true });
+            }
+        });
+    });
+
+    describe("when .github/instructions directory is a symlink to a directory inside the repository", () => {
+        it("should count scripts documented in files of the symlink target", async () => {
+            // Arrange
+            const scriptName = chance.word({ length: 10 });
             await rm(instructionsDir, { recursive: true, force: true });
             const realDir = join(testDir, "real-instructions");
             await mkdir(realDir, { recursive: true });
             await writeFile(
                 join(realDir, "test.instructions.md"),
-                "Run npm test",
+                `Run npm run ${scriptName}`,
             );
             await symlink(realDir, join(testDir, ".github", "instructions"));
-
             const scripts: DiscoveredScript[] = [
                 {
-                    name: "test",
-                    command: "vitest run",
+                    name: scriptName,
+                    command: chance.word(),
                     phase: "test",
                     isMandatory: true,
                 },
             ];
 
+            // Act
             const result = await gateway.analyzeCoverage(testDir, scripts, []);
 
-            expect(result.summary.totalDocumented).toBe(0);
-            expect(result.missingInInstructions).toHaveLength(1);
+            // Assert
+            expect(result.summary.totalDocumented).toBe(1);
+            expect(result.missingInInstructions).toEqual([]);
         });
     });
 

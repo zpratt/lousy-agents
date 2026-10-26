@@ -19,7 +19,7 @@ import {
 } from "./types.js";
 
 /**
- * Validates that repository instructions (.github/copilot-instructions.md and .github/instructions/*.md)
+ * Validates that repository instruction files (the catalog shared with analyze_instruction_quality)
  * document all mandatory feedback loop scripts and tools.
  * Returns coverage percentage and suggestions for missing documentation.
  */
@@ -32,7 +32,7 @@ export const validateInstructionCoverageHandler: ToolHandler = async (
         // Create gateways
         const scriptGateway = createScriptDiscoveryGateway();
         const toolGateway = createToolDiscoveryGateway();
-        const environmentGateway = createEnvironmentGateway();
+        const environmentGateway = createEnvironmentGateway(dir);
         const instructionGateway = createInstructionAnalysisGateway();
 
         // Adapter for package manager gateway

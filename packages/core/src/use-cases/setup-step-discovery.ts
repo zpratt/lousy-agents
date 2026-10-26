@@ -41,13 +41,13 @@ export interface WorkflowStepDetails {
 }
 
 /**
- * Iterates over all steps in a workflow that have a "uses" field
+ * Iterates over every step object in every job of a workflow
  * @param workflow The parsed workflow object
- * @param callback Function to call for each step with a "uses" field
+ * @param callback Function to call for each step object
  */
-function forEachWorkflowStep(
+function forEachWorkflowStepObject(
     workflow: unknown,
-    callback: (step: WorkflowStepInfo) => void,
+    callback: (step: Record<string, unknown>) => void,
 ): void {
     if (!workflow || typeof workflow !== "object") {
         return;
@@ -69,25 +69,46 @@ function forEachWorkflowStep(
         }
 
         for (const step of steps) {
-            if (!step || typeof step !== "object") {
-                continue;
-            }
-
-            const stepObj = step as Record<string, unknown>;
-            const uses = stepObj.uses;
-
-            if (typeof uses === "string") {
-                const withConfig = stepObj.with;
-                callback({
-                    uses,
-                    with:
-                        withConfig && typeof withConfig === "object"
-                            ? (withConfig as Record<string, unknown>)
-                            : undefined,
-                });
+            if (step && typeof step === "object") {
+                callback(step as Record<string, unknown>);
             }
         }
     }
+}
+
+/**
+ * Iterates over all steps in a workflow that have a "uses" field
+ * @param workflow The parsed workflow object
+ * @param callback Function to call for each step with a "uses" field
+ */
+function forEachWorkflowStep(
+    workflow: unknown,
+    callback: (step: WorkflowStepInfo) => void,
+): void {
+    forEachWorkflowStepObject(workflow, (stepObj) => {
+        const uses = stepObj.uses;
+
+        if (typeof uses === "string") {
+            const withConfig = stepObj.with;
+            callback({
+                uses,
+                with:
+                    withConfig && typeof withConfig === "object"
+                        ? (withConfig as Record<string, unknown>)
+                        : undefined,
+            });
+        }
+    });
+}
+
+/**
+ * Builds the key under which a run step is recorded in the set of existing
+ * workflow steps. Run steps have no "uses" field, so they are matched by
+ * their command.
+ * @example "npm ci" -> "run-command:npm ci"
+ */
+export function runCommandKey(command: string): string {
+    return `run-command:${command.trim()}`;
 }
 
 /**
@@ -146,13 +167,17 @@ export function extractAllWorkflowSteps(
 /**
  * Extracts existing setup actions from a parsed workflow
  * @param workflow The parsed workflow object
- * @returns Set of action names already present
+ * @returns Set of action names already present, plus a runCommandKey for each run step
  */
 export function getExistingActionsFromWorkflow(workflow: unknown): Set<string> {
     const actions = new Set<string>();
 
-    forEachWorkflowStep(workflow, (step) => {
-        actions.add(parseActionName(step.uses));
+    forEachWorkflowStepObject(workflow, (step) => {
+        if (typeof step.uses === "string") {
+            actions.add(parseActionName(step.uses));
+        } else if (typeof step.run === "string") {
+            actions.add(runCommandKey(step.run));
+        }
     });
 
     return actions;
@@ -168,8 +193,10 @@ export function findMissingCandidates(
     candidates: SetupStepCandidate[],
     existingActions: Set<string>,
 ): SetupStepCandidate[] {
-    return candidates.filter(
-        (candidate) => !existingActions.has(candidate.action),
+    return candidates.filter((candidate) =>
+        candidate.run
+            ? !existingActions.has(runCommandKey(candidate.run))
+            : !existingActions.has(candidate.action),
     );
 }
 

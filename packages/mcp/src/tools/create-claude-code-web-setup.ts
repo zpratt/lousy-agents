@@ -12,7 +12,6 @@ import type { DetectedEnvironment } from "@lousy-agents/core/entities/copilot-se
 import {
     createClaudeFileGateway,
     createEnvironmentGateway,
-    fileExists,
 } from "@lousy-agents/core/gateways/index.js";
 import { loadCopilotSetupConfig } from "@lousy-agents/core/lib/copilot-setup-config.js";
 import {
@@ -26,6 +25,7 @@ import {
     successResponse,
     type ToolArgs,
     type ToolHandler,
+    validateTargetDirectory,
 } from "./types.js";
 
 /**
@@ -37,11 +37,12 @@ export const createClaudeCodeWebSetupHandler: ToolHandler = async (
     try {
         const dir = args.targetDir || process.cwd();
 
-        if (!(await fileExists(dir))) {
-            return errorResponse(`Target directory does not exist: ${dir}`);
+        const targetDirError = await validateTargetDirectory(dir);
+        if (targetDirError) {
+            return targetDirError;
         }
 
-        const environmentGateway = createEnvironmentGateway();
+        const environmentGateway = createEnvironmentGateway(dir);
         const claudeGateway = createClaudeFileGateway();
 
         const environment = await environmentGateway.detectEnvironment(dir);
