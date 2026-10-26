@@ -2,7 +2,7 @@ import Chance from "chance";
 import { createConsola } from "consola";
 import { describe, expect, it } from "vitest";
 import type { IntentLoadReport } from "../entities/intent-load.js";
-import { renderHuman } from "./human-renderer.js";
+import { renderHuman, renderHumanSummary } from "./human-renderer.js";
 import { toJson } from "./json-formatter.js";
 import type { SummaryOutput } from "./summary-formatter.js";
 
@@ -108,6 +108,47 @@ describe("renderHuman", () => {
             );
 
             expect(text).not.toContain("Intent:");
+        });
+    });
+
+    describe("when repository-derived text contains line breaks or control characters", () => {
+        const forgedLine = "[success] No findings.";
+
+        it("should keep a forged line inside the evidence snapshot line", () => {
+            const snapshotRef = `${chance.word()}\n${forgedLine}`;
+
+            const text = captureHumanOutput((logger) =>
+                renderHuman(buildSummary(), [], logger, snapshotRef),
+            );
+
+            expect(text).not.toContain(`\n${forgedLine}`);
+            expect(text).toContain(`\\n${forgedLine}`);
+        });
+
+        it("should keep a forged line inside the summary evidence snapshot line", () => {
+            const snapshotRef = `${chance.word()}\r\n${forgedLine}`;
+
+            const text = captureHumanOutput((logger) =>
+                renderHumanSummary(buildSummary(), logger, snapshotRef),
+            );
+
+            expect(text).not.toContain(`\n${forgedLine}`);
+            expect(text).toContain(`\\r\\n${forgedLine}`);
+        });
+
+        it("should escape terminal control sequences in the checked path", () => {
+            const intentLoad: IntentLoadReport = {
+                status: "absent",
+                checkedPath: `/${chance.word()}\u001b[2J\n${forgedLine}/intent.json`,
+            };
+
+            const text = captureHumanOutput((logger) =>
+                renderHuman(buildSummary(), [], logger, undefined, intentLoad),
+            );
+
+            expect(text).not.toContain("\u001b");
+            expect(text).not.toContain(`\n${forgedLine}`);
+            expect(text).toContain("\\u001b[2J");
         });
     });
 });

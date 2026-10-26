@@ -22,6 +22,34 @@ const CATEGORY_ORDER: FindingCategory[] = [
     "composition-style",
 ];
 
+const NAMED_ESCAPES: Readonly<Record<string, string>> = {
+    "\n": "\\n",
+    "\r": "\\r",
+    "\t": "\\t",
+};
+
+function escapeControlCharacter(character: string): string {
+    return (
+        NAMED_ESCAPES[character] ??
+        `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`
+    );
+}
+
+function isLineBreakOrControlCode(code: number): boolean {
+    const isC0Control = code <= 0x1f;
+    const isDeleteOrC1Control = code >= 0x7f && code <= 0x9f;
+    const isUnicodeLineSeparator = code === 0x2028 || code === 0x2029;
+    return isC0Control || isDeleteOrC1Control || isUnicodeLineSeparator;
+}
+
+function escapeForTerminal(text: string): string {
+    return Array.from(text, (character) =>
+        isLineBreakOrControlCode(character.charCodeAt(0))
+            ? escapeControlCharacter(character)
+            : character,
+    ).join("");
+}
+
 function sortFindings(findings: Finding[]): Finding[] {
     return [...findings].sort((a, b) => {
         const severityDiff =
@@ -40,14 +68,16 @@ function renderIntentLoad(
     logger: ConsolaInstance,
 ): void {
     logger.info(`Intent: ${intentLoad.status}`);
-    logger.info(`  Checked path: ${intentLoad.checkedPath}`);
+    logger.info(`  Checked path: ${escapeForTerminal(intentLoad.checkedPath)}`);
     if (intentLoad.reason !== undefined) {
-        logger.info(`  Reason: ${intentLoad.reason}`);
+        logger.info(`  Reason: ${escapeForTerminal(intentLoad.reason)}`);
     }
     if (intentLoad.issues !== undefined && intentLoad.issues.length > 0) {
         logger.info("  Issues:");
         for (const issue of intentLoad.issues) {
-            logger.info(`    ${issue.path}: ${issue.message}`);
+            logger.info(
+                `    ${escapeForTerminal(issue.path)}: ${escapeForTerminal(issue.message)}`,
+            );
         }
         if (intentLoad.omittedIssueCount !== undefined) {
             logger.info(`    ...and ${intentLoad.omittedIssueCount} more`);
@@ -61,7 +91,7 @@ function renderHeader(
     snapshotRef?: string,
 ): void {
     if (snapshotRef) {
-        logger.info(`Evidence snapshot: ${snapshotRef}`);
+        logger.info(`Evidence snapshot: ${escapeForTerminal(snapshotRef)}`);
     }
 
     logger.info(`Archetype: ${summary.archetype}`);
