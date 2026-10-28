@@ -32,7 +32,7 @@
         "@lousy-agents/mcp": "5.22.18",
         "@modelcontextprotocol/server-sequential-thinking": "2026.8.31",
         "@testcontainers/postgresql": "12.2.1",
-        "@types/node": "24.19.2",
+        "@types/node": "26.6.5",
         "chance": "1.1.13",
         "testcontainers": "12.2.1",
         "tsx": "4.23.15",
