@@ -16,7 +16,7 @@
     },
     "homepage": "https://github.com/zpratt/lousy-agents/tree/main/packages/action#readme",
     "engines": {
-        "node": "v25.9.0"
+        "node": "26.13.0"
     },
     "scripts": {
         "build": "rspack build --config rspack.config.ts",
