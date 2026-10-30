@@ -14,6 +14,7 @@ import {
     successResponse,
     type ToolArgs,
     type ToolHandler,
+    validateTargetDirectory,
 } from "./types.js";
 
 /**
@@ -25,11 +26,16 @@ export const discoverFeedbackLoopsHandler: ToolHandler = async (
 ) => {
     const dir = args.targetDir || process.cwd();
 
+    const targetDirError = await validateTargetDirectory(dir);
+    if (targetDirError) {
+        return targetDirError;
+    }
+
     try {
         // Create gateways
         const scriptGateway = createScriptDiscoveryGateway();
         const toolGateway = createToolDiscoveryGateway();
-        const environmentGateway = createEnvironmentGateway();
+        const environmentGateway = createEnvironmentGateway(dir);
 
         // Adapter for package manager gateway
         const packageManagerGateway: PackageManagerGateway = {

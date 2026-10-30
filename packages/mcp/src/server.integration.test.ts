@@ -203,7 +203,7 @@ jobs:
                 resolvedVersions: [
                     {
                         action: "actions/checkout",
-                        sha: "abc123def456",
+                        sha: "692973e3d937129bcbf40652eb9f2f61becf3332",
                         versionTag: "v4.0.0",
                     },
                 ],

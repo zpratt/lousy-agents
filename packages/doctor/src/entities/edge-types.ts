@@ -39,12 +39,22 @@ export interface EdgeDirection {
     to: string | string[];
 }
 
+/**
+ * Why an edge is malformed. "home" and "absolute" mirror the core import
+ * expansion statuses (both reported by core as instruction/import-escape).
+ */
+export type EdgeMalformedReason =
+    | "missing-target"
+    | "path-traversal"
+    | "home"
+    | "absolute";
+
 export interface Edge {
     type: EdgeType;
     direction: EdgeDirection;
     target: string;
     malformed: boolean;
-    reason?: "missing-target" | "path-traversal";
+    reason?: EdgeMalformedReason;
 }
 
 export interface InventoryRecord {

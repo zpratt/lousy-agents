@@ -4,7 +4,6 @@
  */
 
 import type { SetupStepCandidate } from "@lousy-agents/core/entities/copilot-setup.js";
-import { fileExists } from "@lousy-agents/core/gateways/index.js";
 import { loadCopilotSetupConfig } from "@lousy-agents/core/lib/copilot-setup-config.js";
 import {
     buildActionsToResolve,
@@ -17,6 +16,7 @@ import {
     type ResolveActionsHandler,
     successResponse,
     type ToolResult,
+    validateTargetDirectory,
 } from "./types.js";
 
 /**
@@ -27,7 +27,7 @@ export const resolveActionVersionsHandler: ResolveActionsHandler = async (
 ): Promise<ToolResult> => {
     try {
         if (args.actions && args.actions.length > 0) {
-            const actionsToResolve = args.actions
+            const actionsToResolve = [...new Set(args.actions)]
                 .filter((action) => {
                     if (args.resolvedVersions) {
                         return !args.resolvedVersions.some(
@@ -53,8 +53,9 @@ export const resolveActionVersionsHandler: ResolveActionsHandler = async (
 
         const dir = args.targetDir || process.cwd();
 
-        if (!(await fileExists(dir))) {
-            return errorResponse(`Target directory does not exist: ${dir}`);
+        const targetDirError = await validateTargetDirectory(dir);
+        if (targetDirError) {
+            return targetDirError;
         }
 
         const config = await loadCopilotSetupConfig(dir);

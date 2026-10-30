@@ -51,7 +51,7 @@ export function buildActionToResolve(action: string): ActionToResolve {
 
 /**
  * Builds an array of ActionToResolve entries from setup step candidates.
- * Filters out actions that already have resolved versions.
+ * Filters out run steps and actions that already have resolved versions.
  * @param candidates The setup step candidates
  * @param resolvedVersions Optional array of already-resolved versions
  * @returns Array of actions that need version resolution
@@ -64,8 +64,14 @@ export function buildActionsToResolve(
         resolvedVersions?.map((r) => r.action) ?? [],
     );
 
-    // Include checkout action which is always added to workflows
-    const allActions = ["actions/checkout", ...candidates.map((c) => c.action)];
+    // Include checkout action which is always added to workflows.
+    // Run steps (e.g., install commands) have no action version to resolve.
+    const allActions = [
+        "actions/checkout",
+        ...candidates
+            .filter((candidate) => !candidate.run)
+            .map((candidate) => candidate.action),
+    ];
 
     // Deduplicate and filter out already-resolved actions
     const uniqueActions = [...new Set(allActions)].filter(

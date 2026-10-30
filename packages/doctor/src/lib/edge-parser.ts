@@ -1,6 +1,6 @@
+import { findImportTokens } from "@lousy-agents/core/lib/instruction-import-expand.js";
 import { parse as parseYaml } from "yaml";
 
-const HARD_IMPORT_GLOBAL_RE = /^@([^\s@][^\s]*)/gm;
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/;
 const MARKDOWN_LINK_RE = /\[(?:[^\]]*)\]\(([^)]+)\)/g;
 const SOFT_REF_FRONTMATTER_KEYS = ["see", "references", "requires"] as const;
@@ -75,11 +75,10 @@ export function parseRawEdges(content: string): RawEdge[] {
 
     const body = fm ? contentWithoutFrontmatter(content) : content;
 
-    for (const match of body.matchAll(HARD_IMPORT_GLOBAL_RE)) {
-        const target = match[1];
-        if (target.includes("/")) {
-            edges.push({ type: "hard-import", rawTarget: target });
-        }
+    // Hard imports use the core tokenizer so doctor and import expansion
+    // agree on which `@path` lines are imports (e.g., code is ignored).
+    for (const token of findImportTokens(body)) {
+        edges.push({ type: "hard-import", rawTarget: token.rawTarget });
     }
 
     for (const match of body.matchAll(MARKDOWN_LINK_RE)) {
