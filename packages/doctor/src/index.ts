@@ -1,3 +1,4 @@
+export { runDoctorCommand } from "./cli/run-doctor-command.js";
 export type {
     Archetype,
     ArchetypeClassification,

@@ -38,10 +38,7 @@ interface ExecResult {
     stderr: string;
 }
 
-/**
- * Vitest sets TEST=true, which makes consola silence human output. Drop it so
- * the child process prints what a user's terminal would show.
- */
+// Vitest sets TEST=true, which makes consola silence human output.
 function userEnvironment(): NodeJS.ProcessEnv {
     const { TEST: _testFlag, ...env } = process.env;
     // biome-ignore lint/style/useNamingConvention: env var
@@ -69,13 +66,10 @@ async function runDoctor(args: string[], cwd: string): Promise<ExecResult> {
 describe("doctor command", () => {
     describe("when invoked with --help", () => {
         it("should display usage and exit 0", async () => {
-            // Arrange
             const cwd = process.cwd();
 
-            // Act
             const { exitCode, stdout } = await runDoctor(["--help"], cwd);
 
-            // Assert
             expect(exitCode).toBe(0);
             expect(stdout).toMatch(/doctor/i);
             expect(stdout).toMatch(/--summary/);
@@ -85,16 +79,13 @@ describe("doctor command", () => {
 
     describe("when run with --summary --format json on an empty repo", () => {
         it("should output a valid JSON summary and exit 0", async () => {
-            // Arrange
             const cwd = fixture("empty-repo");
 
-            // Act
             const { exitCode, stdout } = await runDoctor(
                 ["--summary", "--format", "json"],
                 cwd,
             );
 
-            // Assert
             expect(exitCode).toBe(0);
             const report = JSON.parse(stdout) as Record<string, unknown>;
             expect(report).toHaveProperty("archetype", "none");
@@ -103,16 +94,13 @@ describe("doctor command", () => {
         });
 
         it("should include an empty inventory array", async () => {
-            // Arrange
             const cwd = fixture("empty-repo");
 
-            // Act
             const { stdout } = await runDoctor(
                 ["--summary", "--format", "json"],
                 cwd,
             );
 
-            // Assert
             const report = JSON.parse(stdout) as { inventory: unknown[] };
             expect(report.inventory).toEqual([]);
         });
@@ -120,16 +108,13 @@ describe("doctor command", () => {
 
     describe("when run with --format json on an empty repo", () => {
         it("should output valid JSON with no findings and exit 0", async () => {
-            // Arrange
             const cwd = fixture("empty-repo");
 
-            // Act
             const { exitCode, stdout } = await runDoctor(
                 ["--format", "json"],
                 cwd,
             );
 
-            // Assert
             expect(exitCode).toBe(0);
             const report = JSON.parse(stdout) as {
                 archetype: string;
@@ -140,13 +125,10 @@ describe("doctor command", () => {
         });
 
         it("should include empty inventory and edges arrays", async () => {
-            // Arrange
             const cwd = fixture("empty-repo");
 
-            // Act
             const { stdout } = await runDoctor(["--format", "json"], cwd);
 
-            // Assert
             const report = JSON.parse(stdout) as {
                 inventory: unknown[];
                 edges: unknown[];
@@ -158,16 +140,13 @@ describe("doctor command", () => {
 
     describe("when run with --format json on the integration-scenario fixture", () => {
         it("should produce a critical missing-copilot-instructions finding and exit 1", async () => {
-            // Arrange
             const cwd = fixture("integration-scenario");
 
-            // Act
             const { exitCode, stdout } = await runDoctor(
                 ["--format", "json"],
                 cwd,
             );
 
-            // Assert
             expect(exitCode).toBe(1);
             const report = JSON.parse(stdout) as {
                 findings: Array<{ criterionId: string; severity: string }>;
@@ -180,13 +159,10 @@ describe("doctor command", () => {
         });
 
         it("should include a populated inventory array alongside unchanged legacy keys", async () => {
-            // Arrange
             const cwd = fixture("integration-scenario");
 
-            // Act
             const { stdout } = await runDoctor(["--format", "json"], cwd);
 
-            // Assert
             const report = JSON.parse(stdout) as {
                 archetype: string;
                 dominanceScore: number;
@@ -207,14 +183,60 @@ describe("doctor command", () => {
 
     describe("when run with --summary on the integration-scenario fixture", () => {
         it("should exit 0 because --summary skips evaluation", async () => {
-            // Arrange
             const cwd = fixture("integration-scenario");
 
-            // Act
             const { exitCode } = await runDoctor(["--summary"], cwd);
 
-            // Assert
             expect(exitCode).toBe(0);
+        });
+
+        it("should say evaluation was skipped instead of claiming no findings", async () => {
+            const cwd = fixture("integration-scenario");
+
+            const { stdout } = await runDoctor(["--summary", "--ci"], cwd);
+
+            expect(stdout).toContain("Evaluation skipped (--summary)");
+            expect(stdout).not.toContain("No findings");
+        });
+
+        it("should mark JSON evaluation as skipped", async () => {
+            const cwd = fixture("integration-scenario");
+
+            const { stdout } = await runDoctor(
+                ["--summary", "--format=json", "--ci"],
+                cwd,
+            );
+
+            const report = JSON.parse(stdout);
+            expect(report.evaluation).toBe("skipped");
+            expect(report).not.toHaveProperty("findings");
+        });
+    });
+
+    describe("when run with a full evaluation in JSON", () => {
+        it("should mark JSON evaluation as completed", async () => {
+            const cwd = fixture("integration-scenario");
+
+            const { stdout } = await runDoctor(["--format=json", "--ci"], cwd);
+
+            expect(JSON.parse(stdout).evaluation).toBe("completed");
+        });
+    });
+
+    describe("when --format is not supported", () => {
+        it("should print an error to stderr, write nothing to stdout, and exit 2", async () => {
+            const cwd = fixture("integration-scenario");
+            const unsupportedFormat = "jsno";
+
+            const { exitCode, stdout, stderr } = await runDoctor(
+                [`--format=${unsupportedFormat}`, "--ci"],
+                cwd,
+            );
+
+            expect(exitCode).toBe(2);
+            expect(stdout).toBe("");
+            expect(stderr).toContain(unsupportedFormat);
+            expect(stderr).toContain("human");
         });
     });
 
@@ -371,7 +393,6 @@ describe("doctor command", () => {
         for (const testCase of cases) {
             describe(`when ${testCase.name}`, () => {
                 it(`should report intent status ${testCase.expectedStatus} identically in text and JSON`, async () => {
-                    // Arrange
                     await testCase.arrange();
                     const expectedCheckedPath = join(
                         repoRoot,
@@ -379,11 +400,9 @@ describe("doctor command", () => {
                         "intent.json",
                     );
 
-                    // Act
                     const { text, json, report } =
                         await runBothFormats(repoRoot);
 
-                    // Assert
                     expect(report.intent.status).toBe(testCase.expectedStatus);
                     expect(report.intent.checkedPath).toBe(expectedCheckedPath);
                     expect(
@@ -400,7 +419,6 @@ describe("doctor command", () => {
 
         describe("when the intent file is missing required fields", () => {
             it("should name each missing field with its expected type or allowed values in both formats", async () => {
-                // Arrange
                 await writeIntent("{}");
                 const expectedMessages = {
                     targetHarnesses: /expected array/,
@@ -410,10 +428,8 @@ describe("doctor command", () => {
                         /expected one of "interactive"\|"ci-assumed"\|"pre-committed"/,
                 };
 
-                // Act
                 const { text, report } = await runBothFormats(repoRoot);
 
-                // Assert
                 const messageByPath = new Map(
                     (report.intent.issues ?? []).map((i) => [
                         i.path,
@@ -433,7 +449,6 @@ describe("doctor command", () => {
 
         describe("when the intent file declares an unknown harness", () => {
             it("should list the allowed harness values for the failing entry in both formats", async () => {
-                // Arrange
                 await writeIntent(
                     JSON.stringify({
                         ...DocumentedIntentExample,
@@ -441,10 +456,8 @@ describe("doctor command", () => {
                     }),
                 );
 
-                // Act
                 const { text, report } = await runBothFormats(repoRoot);
 
-                // Assert
                 expect(report.intent.status).toBe("invalid-schema");
                 const issue = report.intent.issues?.find(
                     (i) => i.path === "targetHarnesses.1",
@@ -461,16 +474,13 @@ describe("doctor command", () => {
 
         describe("when run from a subdirectory while the intent file is at the repository root", () => {
             it("should report the subdirectory path it actually checked", async () => {
-                // Arrange
                 await writeIntent(JSON.stringify(DocumentedIntentExample));
                 const nestedDir = join(repoRoot, "src");
                 await mkdir(nestedDir);
                 await writeFile(join(nestedDir, "CLAUDE.md"), "# Nested\n");
 
-                // Act
                 const { text, report } = await runBothFormats(nestedDir);
 
-                // Assert
                 expect(report.intent).toMatchObject({
                     status: "absent",
                     checkedPath: join(

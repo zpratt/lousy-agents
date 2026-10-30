@@ -105,7 +105,7 @@ const ReportEdgeSchema = z.object({
     crossHarness: z.boolean(),
 });
 
-export const ReportJsonSchema = z.object({
+const ArchetypeFieldsSchema = z.object({
     archetype: ArchetypeSchema,
     dominanceScore: z.number(),
     totalRecords: z.number(),
@@ -113,6 +113,10 @@ export const ReportJsonSchema = z.object({
         z.object({ harness: z.string(), count: z.number() }),
     ),
     crossHarnessEdges: z.number(),
+});
+
+export const ReportJsonSchema = ArchetypeFieldsSchema.extend({
+    evaluation: z.literal("completed"),
     inventory: z.array(ReportInventoryItemSchema),
     edges: z.array(ReportEdgeSchema),
     intent: IntentLoadReportSchema.optional(),
@@ -123,6 +127,13 @@ export const ReportJsonSchema = z.object({
 export type ReportInventoryItem = z.infer<typeof ReportInventoryItemSchema>;
 export type ReportEdge = z.infer<typeof ReportEdgeSchema>;
 export type ReportJson = z.infer<typeof ReportJsonSchema>;
+
+const SummaryReportJsonSchema = ArchetypeFieldsSchema.extend({
+    evaluation: z.literal("skipped"),
+    inventory: z.array(ReportInventoryItemSchema),
+});
+
+export type SummaryReportJson = z.infer<typeof SummaryReportJsonSchema>;
 
 export function toInventoryItems(
     records: InventoryRecord[],
@@ -192,6 +203,7 @@ export function toJson(
         totalRecords: summary.totalRecords,
         harnessBreakdown: summary.harnessBreakdown,
         crossHarnessEdges: edges.filter((edge) => edge.crossHarness).length,
+        evaluation: "completed",
         inventory: toInventoryItems(records),
         edges,
         ...(intentLoad !== undefined ? { intent: intentLoad } : {}),
@@ -200,4 +212,19 @@ export function toJson(
     };
 
     return ReportJsonSchema.parse(report);
+}
+
+export function toSummaryJson(
+    summary: SummaryOutput,
+    records: InventoryRecord[],
+): SummaryReportJson {
+    return SummaryReportJsonSchema.parse({
+        archetype: summary.archetype,
+        dominanceScore: summary.dominanceScore,
+        totalRecords: summary.totalRecords,
+        harnessBreakdown: summary.harnessBreakdown,
+        crossHarnessEdges: summary.crossHarnessEdges,
+        evaluation: "skipped",
+        inventory: toInventoryItems(records),
+    });
 }

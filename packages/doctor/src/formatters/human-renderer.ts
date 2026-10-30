@@ -22,6 +22,34 @@ const CATEGORY_ORDER: FindingCategory[] = [
     "composition-style",
 ];
 
+const NAMED_ESCAPES: Readonly<Record<string, string>> = {
+    "\n": "\\n",
+    "\r": "\\r",
+    "\t": "\\t",
+};
+
+function escapeControlCharacter(character: string): string {
+    return (
+        NAMED_ESCAPES[character] ??
+        `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`
+    );
+}
+
+function isLineBreakOrControlCode(code: number): boolean {
+    const isC0Control = code <= 0x1f;
+    const isDeleteOrC1Control = code >= 0x7f && code <= 0x9f;
+    const isUnicodeLineSeparator = code === 0x2028 || code === 0x2029;
+    return isC0Control || isDeleteOrC1Control || isUnicodeLineSeparator;
+}
+
+function escapeForTerminal(text: string): string {
+    return Array.from(text, (character) =>
+        isLineBreakOrControlCode(character.charCodeAt(0))
+            ? escapeControlCharacter(character)
+            : character,
+    ).join("");
+}
+
 function sortFindings(findings: Finding[]): Finding[] {
     return [...findings].sort((a, b) => {
         const severityDiff =
@@ -35,23 +63,21 @@ function sortFindings(findings: Finding[]): Finding[] {
     });
 }
 
-/**
- * Prints every field of the intent load report so text output carries the
- * same status, checked path, reason, and issues as the JSON `intent` object.
- */
 function renderIntentLoad(
     intentLoad: IntentLoadReport,
     logger: ConsolaInstance,
 ): void {
     logger.info(`Intent: ${intentLoad.status}`);
-    logger.info(`  Checked path: ${intentLoad.checkedPath}`);
+    logger.info(`  Checked path: ${escapeForTerminal(intentLoad.checkedPath)}`);
     if (intentLoad.reason !== undefined) {
-        logger.info(`  Reason: ${intentLoad.reason}`);
+        logger.info(`  Reason: ${escapeForTerminal(intentLoad.reason)}`);
     }
     if (intentLoad.issues !== undefined && intentLoad.issues.length > 0) {
         logger.info("  Issues:");
         for (const issue of intentLoad.issues) {
-            logger.info(`    ${issue.path}: ${issue.message}`);
+            logger.info(
+                `    ${escapeForTerminal(issue.path)}: ${escapeForTerminal(issue.message)}`,
+            );
         }
         if (intentLoad.omittedIssueCount !== undefined) {
             logger.info(`    ...and ${intentLoad.omittedIssueCount} more`);
@@ -59,15 +85,13 @@ function renderIntentLoad(
     }
 }
 
-export function renderHuman(
+function renderHeader(
     summary: SummaryOutput,
-    findings: Finding[],
     logger: ConsolaInstance,
     snapshotRef?: string,
-    intentLoad?: IntentLoadReport,
 ): void {
     if (snapshotRef) {
-        logger.info(`Evidence snapshot: ${snapshotRef}`);
+        logger.info(`Evidence snapshot: ${escapeForTerminal(snapshotRef)}`);
     }
 
     logger.info(`Archetype: ${summary.archetype}`);
@@ -87,6 +111,27 @@ export function renderHuman(
     if (summary.crossHarnessEdges > 0) {
         logger.info(`  Cross-harness edges: ${summary.crossHarnessEdges}`);
     }
+}
+
+export function renderHumanSummary(
+    summary: SummaryOutput,
+    logger: ConsolaInstance,
+    snapshotRef?: string,
+): void {
+    renderHeader(summary, logger, snapshotRef);
+    logger.info(
+        "Evaluation skipped (--summary). Run without --summary to check criteria.",
+    );
+}
+
+export function renderHuman(
+    summary: SummaryOutput,
+    findings: Finding[],
+    logger: ConsolaInstance,
+    snapshotRef?: string,
+    intentLoad?: IntentLoadReport,
+): void {
+    renderHeader(summary, logger, snapshotRef);
 
     if (intentLoad !== undefined) {
         renderIntentLoad(intentLoad, logger);
