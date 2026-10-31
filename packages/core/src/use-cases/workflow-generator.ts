@@ -21,6 +21,7 @@ import {
 } from "./action-resolution.js";
 import type { ActionVersionPort } from "./candidate-builder.js";
 import { createActionVersionPort } from "./candidate-builder.js";
+import { findPlaceholderStepsToPin } from "./placeholder-pinning.js";
 
 /**
  * Name of the job that Copilot runs to prepare its environment.
@@ -221,74 +222,6 @@ function selectSetupJobName(jobs: Record<string, unknown>): string | undefined {
 }
 
 /**
- * Finds the resolved version for a step whose "uses" still holds the
- * version placeholder.
- */
-function findResolvedVersionForPlaceholderStep(
-    step: unknown,
-    resolvedVersions: ResolvedVersion[],
-): ResolvedVersion | undefined {
-    if (!step || typeof step !== "object") {
-        return undefined;
-    }
-    const uses = (step as Record<string, unknown>).uses;
-    if (typeof uses !== "string") {
-        return undefined;
-    }
-    const placeholderSuffix = `@${VERSION_PLACEHOLDER}`;
-    if (!uses.endsWith(placeholderSuffix)) {
-        return undefined;
-    }
-    const action = uses.slice(0, -placeholderSuffix.length);
-    return findResolvedVersion(action, resolvedVersions);
-}
-
-/**
- * Collects every step array in a parsed workflow.
- */
-function collectStepArrays(jobs: Record<string, unknown>): unknown[][] {
-    return Object.values(jobs)
-        .map((job) =>
-            job && typeof job === "object"
-                ? (job as Record<string, unknown>).steps
-                : undefined,
-        )
-        .filter((steps): steps is unknown[] => Array.isArray(steps));
-}
-
-/**
- * Lists the actions in an existing workflow whose steps still hold the version
- * placeholder and for which a resolved version is available.
- * @param existingWorkflow The parsed existing workflow
- * @param resolvedVersions Resolved versions to apply
- * @returns Action names that would be SHA-pinned by updateWorkflowWithMissingSteps
- */
-export function findPlaceholderActionsToPin(
-    existingWorkflow: unknown,
-    resolvedVersions: ResolvedVersion[] | undefined,
-): string[] {
-    if (!resolvedVersions || resolvedVersions.length === 0) {
-        return [];
-    }
-    if (!existingWorkflow || typeof existingWorkflow !== "object") {
-        return [];
-    }
-    const jobs = (existingWorkflow as Record<string, unknown>).jobs;
-    if (!jobs || typeof jobs !== "object") {
-        return [];
-    }
-
-    return collectStepArrays(jobs as Record<string, unknown>).flatMap((steps) =>
-        steps
-            .map((step) =>
-                findResolvedVersionForPlaceholderStep(step, resolvedVersions),
-            )
-            .filter((resolved) => resolved !== undefined)
-            .map((resolved) => resolved.action),
-    );
-}
-
-/**
  * Replaces the version placeholder of existing steps with the resolved
  * SHA-pinned version, in place.
  */
@@ -296,24 +229,13 @@ function pinPlaceholderSteps(
     jobs: Record<string, unknown>,
     resolvedVersions: ResolvedVersion[] | undefined,
 ): void {
-    if (!resolvedVersions || resolvedVersions.length === 0) {
-        return;
-    }
-
-    for (const steps of collectStepArrays(jobs)) {
-        for (const step of steps) {
-            const resolved = findResolvedVersionForPlaceholderStep(
-                step,
-                resolvedVersions,
-            );
-            if (resolved) {
-                (step as Record<string, unknown>).uses = buildUsesValue(
-                    resolved.action,
-                    resolved.sha,
-                    { resolvedVersions },
-                );
-            }
-        }
+    for (const { step, resolved } of findPlaceholderStepsToPin(
+        jobs,
+        resolvedVersions,
+    )) {
+        step.uses = buildUsesValue(resolved.action, resolved.sha, {
+            resolvedVersions,
+        });
     }
 }
 

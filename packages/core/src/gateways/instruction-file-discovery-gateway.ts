@@ -11,11 +11,11 @@ import type {
 } from "../entities/instruction-quality.js";
 import { instructionDiscoveryEntries } from "../lib/agentic-location-matchers.js";
 import type { InstructionFileDiscoveryGateway } from "../use-cases/analyze-instruction-quality.js";
+import { listDirectoryWithinRoot } from "./file-system-utils.js";
 import {
-    listDirectoryWithinRoot,
     type RealPathWithinRoot,
     resolveRealPathWithinRoot,
-} from "./file-system-utils.js";
+} from "./real-path-within-root.js";
 
 // Re-export port type for consumers
 export type { InstructionFileDiscoveryGateway };
@@ -32,11 +32,11 @@ interface DiscoveryRoot {
 }
 
 /**
- * State of one directory-prefix entry walk.
+ * Settings of one directory-prefix entry walk.
  */
-interface DirectoryWalk extends DiscoveryRoot {
-    /** Real directories already walked, so a symlink cycle is listed once */
-    readonly visitedDirs: Set<string>;
+interface DirectoryWalkOptions {
+    readonly format: InstructionFileFormat;
+    readonly includeSubdirectories: boolean;
 }
 
 /**
@@ -67,95 +67,134 @@ export class FileSystemInstructionFileDiscoveryGateway
             }
 
             if (entry.matchKind === "exact") {
-                const resolved = await resolveRealPathWithinRoot(
-                    rootReal,
-                    join(targetDir, ...entry.path.split("/")),
+                files.push(
+                    ...(await discoverExactFile(root, entry.path, format)),
                 );
-                if (resolved?.kind === "file") {
-                    files.push(
-                        toDiscoveredFile(root, entry.path, resolved, format),
-                    );
-                }
                 continue;
             }
 
-            await this.discoverMdFilesInDir(
-                { ...root, visitedDirs: new Set() },
-                entry.path,
+            const walk = createDirectoryWalk(root, {
                 format,
-                entry.includeSubdirectories === true,
-                files,
-                0,
-            );
+                includeSubdirectories: entry.includeSubdirectories === true,
+            });
+            files.push(...(await walk(entry.path)));
         }
 
         return files;
     }
+}
 
-    private async discoverMdFilesInDir(
-        root: DirectoryWalk,
-        dirRelativePath: string,
-        format: InstructionFileFormat,
-        includeSubdirectories: boolean,
-        files: DiscoveredInstructionFile[],
+/**
+ * Discovers one exact-path instruction file, or nothing when it is missing
+ * or resolves outside the root.
+ */
+async function discoverExactFile(
+    root: DiscoveryRoot,
+    relativePosixPath: string,
+    format: InstructionFileFormat,
+): Promise<DiscoveredInstructionFile[]> {
+    const resolved = await resolveRealPathWithinRoot(
+        root.rootReal,
+        join(root.targetDir, ...relativePosixPath.split("/")),
+    );
+    return resolved?.kind === "file"
+        ? [toDiscoveredFile(root, relativePosixPath, resolved, format)]
+        : [];
+}
+
+/**
+ * Returns true when a directory entry name could escape its directory.
+ */
+function isUnsafeEntryName(name: string): boolean {
+    return name.includes("..") || name.includes("/") || name.includes("\\");
+}
+
+/**
+ * Lists a real directory inside the root, or nothing when it cannot be read.
+ */
+async function listRealDirectory(
+    root: DiscoveryRoot,
+    dirReal: string,
+): Promise<Awaited<ReturnType<typeof listDirectoryWithinRoot>>> {
+    try {
+        return await listDirectoryWithinRoot(
+            root.rootReal,
+            relative(root.rootReal, dirReal),
+        );
+    } catch {
+        return [];
+    }
+}
+
+/**
+ * Creates a walk that collects the .md files of a directory-prefix entry.
+ * The walk owns its set of visited real directories, so a symlink cycle is
+ * listed once.
+ */
+function createDirectoryWalk(
+    root: DiscoveryRoot,
+    options: DirectoryWalkOptions,
+): (dirRelativePath: string) => Promise<DiscoveredInstructionFile[]> {
+    const visitedDirs = new Set<string>();
+
+    const walkEntry = async (
+        dirReal: string,
+        entryRelativePath: string,
+        name: string,
         depth: number,
-    ): Promise<void> {
+    ): Promise<DiscoveredInstructionFile[]> => {
+        const resolved = await resolveRealPathWithinRoot(
+            root.rootReal,
+            join(dirReal, name),
+        );
+        if (resolved?.kind === "file" && name.endsWith(".md")) {
+            return [
+                toDiscoveredFile(
+                    root,
+                    entryRelativePath,
+                    resolved,
+                    options.format,
+                ),
+            ];
+        }
+        const descend =
+            resolved?.kind === "directory" &&
+            options.includeSubdirectories &&
+            depth < MAX_SUBDIRECTORY_DEPTH;
+        return descend ? walkDirectory(entryRelativePath, depth + 1) : [];
+    };
+
+    const walkDirectory = async (
+        dirRelativePath: string,
+        depth: number,
+    ): Promise<DiscoveredInstructionFile[]> => {
         const dir = await resolveRealPathWithinRoot(
             root.rootReal,
             join(root.targetDir, ...dirRelativePath.split("/")),
         );
-        if (dir?.kind !== "directory" || root.visitedDirs.has(dir.real)) {
-            return;
+        if (dir?.kind !== "directory" || visitedDirs.has(dir.real)) {
+            return [];
         }
-        root.visitedDirs.add(dir.real);
+        visitedDirs.add(dir.real);
 
-        let entries: Awaited<ReturnType<typeof listDirectoryWithinRoot>>;
-        try {
-            entries = await listDirectoryWithinRoot(
-                root.rootReal,
-                relative(root.rootReal, dir.real),
-            );
-        } catch {
-            // Skip directory if we can't read it
-            return;
-        }
-
-        for (const entry of entries) {
-            const name = entry.name;
-            if (
-                name.includes("..") ||
-                name.includes("/") ||
-                name.includes("\\")
-            ) {
+        const files: DiscoveredInstructionFile[] = [];
+        for (const entry of await listRealDirectory(root, dir.real)) {
+            if (isUnsafeEntryName(entry.name)) {
                 continue;
             }
-
-            const resolved = await resolveRealPathWithinRoot(
-                root.rootReal,
-                join(dir.real, name),
+            files.push(
+                ...(await walkEntry(
+                    dir.real,
+                    `${dirRelativePath}/${entry.name}`,
+                    entry.name,
+                    depth,
+                )),
             );
-            const entryRelativePath = `${dirRelativePath}/${name}`;
-
-            if (resolved?.kind === "file" && name.endsWith(".md")) {
-                files.push(
-                    toDiscoveredFile(root, entryRelativePath, resolved, format),
-                );
-            } else if (
-                resolved?.kind === "directory" &&
-                includeSubdirectories &&
-                depth < MAX_SUBDIRECTORY_DEPTH
-            ) {
-                await this.discoverMdFilesInDir(
-                    root,
-                    entryRelativePath,
-                    format,
-                    includeSubdirectories,
-                    files,
-                    depth + 1,
-                );
-            }
         }
-    }
+        return files;
+    };
+
+    return (dirRelativePath) => walkDirectory(dirRelativePath, 0);
 }
 
 /**
