@@ -37,11 +37,11 @@
         "typecheck": "tsc --noEmit"
     },
     "dependencies": {
-        "@openclaw/fs-safe": "0.26.13",
+        "@openclaw/fs-safe": "0.27.0",
         "zod": "4.6.6"
     },
     "peerDependencies": {
-        "@github/copilot-sdk": "1.0.26"
+        "@github/copilot-sdk": "1.0.28"
     },
     "peerDependenciesMeta": {
         "@github/copilot-sdk": {

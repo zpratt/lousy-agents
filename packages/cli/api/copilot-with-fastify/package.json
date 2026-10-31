@@ -21,7 +21,7 @@
         "fastify": "5.12.7",
         "kysely": "0.29.7",
         "pino": "10.4.0",
-        "postgres": "3.4.9",
+        "postgres": "4.0.0",
         "zod": "4.6.6"
     },
     "overrides": {
@@ -29,10 +29,10 @@
     },
     "devDependencies": {
         "@biomejs/biome": "2.5.15",
-        "@lousy-agents/mcp": "5.22.17",
+        "@lousy-agents/mcp": "5.22.22",
         "@modelcontextprotocol/server-sequential-thinking": "2026.8.31",
         "@testcontainers/postgresql": "12.2.1",
-        "@types/node": "24.19.2",
+        "@types/node": "26.6.6",
         "chance": "1.1.13",
         "testcontainers": "12.2.1",
         "tsx": "4.23.15",
