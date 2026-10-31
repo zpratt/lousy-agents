@@ -3,8 +3,8 @@ import { dirname, relative, resolve, sep } from "node:path";
 import {
     listDirectoryWithinRoot,
     readTextWithinRoot,
-    resolveRealPathWithinRoot,
 } from "@lousy-agents/core/gateways/file-system-utils.js";
+import { resolveRealPathWithinRoot } from "@lousy-agents/core/gateways/real-path-within-root.js";
 import { primaryConstructTypeForPath } from "@lousy-agents/core/lib/agentic-location-matchers.js";
 import { normalizeRelativeWithinRoot } from "@lousy-agents/core/lib/instruction-import-expand.js";
 import type {
