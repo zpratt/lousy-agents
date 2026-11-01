@@ -1,13 +1,15 @@
-import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { inspectPathWithinRoot } from "../gateways/real-path-within-root.js";
 import {
     buildEffectiveDocument,
     DEFAULT_MAX_EMITTED_BYTES,
     DEFAULT_MAX_IMPORT_DEPTH,
     DEFAULT_MAX_UNIQUE_FILES,
+    type ImportFileSystem,
 } from "./instruction-import-expand.js";
 
 const chance = new Chance();
@@ -152,15 +154,83 @@ describe("buildEffectiveDocument", () => {
         });
     });
 
-    describe("given a symlink import target", () => {
+    describe("given a symlink import target that leaves the repository", () => {
         it.skipIf(process.platform === "win32")(
             "should reject the symlink without reading through it",
             async () => {
-                await writeFile(join(repoRoot, "real.md"), "secret\n");
-                await symlink(
-                    join(repoRoot, "real.md"),
-                    join(repoRoot, "link.md"),
+                const outsideDir = join(
+                    tmpdir(),
+                    `instruction-import-outside-${chance.hash({ length: 8 })}`,
                 );
+                await mkdir(outsideDir, { recursive: true });
+                try {
+                    await writeFile(join(outsideDir, "real.md"), "secret\n");
+                    await symlink(
+                        join(outsideDir, "real.md"),
+                        join(repoRoot, "link.md"),
+                    );
+                    await writeFile(
+                        join(repoRoot, "CLAUDE.md"),
+                        "@./link.md\n",
+                    );
+
+                    const result = await buildEffectiveDocument({
+                        repoRoot,
+                        rootRelativePath: "CLAUDE.md",
+                    });
+
+                    expect(result.content).toBe("@./link.md\n");
+                    expect(result.content).not.toContain("secret");
+                    expect(result.edges[0]?.status).toBe("symlink");
+                    expect(result.expansionDiagnostics[0]?.ruleId).toBe(
+                        "instruction/import-symlink",
+                    );
+                } finally {
+                    await rm(outsideDir, { recursive: true, force: true });
+                }
+            },
+        );
+
+        it.skipIf(process.platform === "win32")(
+            "should reject a directory symlink that leaves the repository",
+            async () => {
+                const outsideDir = join(
+                    tmpdir(),
+                    `instruction-import-outside-${chance.hash({ length: 8 })}`,
+                );
+                await mkdir(outsideDir, { recursive: true });
+                try {
+                    await writeFile(join(outsideDir, "t.md"), "secret\n");
+                    await symlink(outsideDir, join(repoRoot, "linkdir"));
+                    await writeFile(
+                        join(repoRoot, "CLAUDE.md"),
+                        "@./linkdir/t.md\n",
+                    );
+
+                    const result = await buildEffectiveDocument({
+                        repoRoot,
+                        rootRelativePath: "CLAUDE.md",
+                    });
+
+                    expect(result.content).not.toContain("secret");
+                    expect(result.edges[0]?.status).toBe("symlink");
+                } finally {
+                    await rm(outsideDir, { recursive: true, force: true });
+                }
+            },
+        );
+    });
+
+    describe("given a symlink import target inside the repository", () => {
+        it.skipIf(process.platform === "win32")(
+            "should follow a file symlink and splice the target content",
+            async () => {
+                await mkdir(join(repoRoot, "real"));
+                await writeFile(
+                    join(repoRoot, "real", "target.md"),
+                    "TARGET\n",
+                );
+                await symlink("real/target.md", join(repoRoot, "link.md"));
                 await writeFile(join(repoRoot, "CLAUDE.md"), "@./link.md\n");
 
                 const result = await buildEffectiveDocument({
@@ -168,12 +238,243 @@ describe("buildEffectiveDocument", () => {
                     rootRelativePath: "CLAUDE.md",
                 });
 
-                expect(result.content).toBe("@./link.md\n");
-                expect(result.content).not.toContain("secret");
-                expect(result.edges[0]?.status).toBe("symlink");
-                expect(result.expansionDiagnostics[0]?.ruleId).toBe(
-                    "instruction/import-symlink",
+                expect(result.content).toContain("TARGET");
+                expect(result.edges).toEqual([
+                    expect.objectContaining({
+                        status: "resolved",
+                        target: "real/target.md",
+                    }),
+                ]);
+                expect(result.expansionDiagnostics).toEqual([]);
+            },
+        );
+
+        it.skipIf(process.platform === "win32")(
+            "should follow a symlink that is an intermediate directory of the path",
+            async () => {
+                await mkdir(join(repoRoot, "real"));
+                await writeFile(join(repoRoot, "real", "t.md"), "VIA-DIR\n");
+                await symlink("real", join(repoRoot, "linkdir"));
+                await writeFile(
+                    join(repoRoot, "CLAUDE.md"),
+                    "@./linkdir/t.md\n",
                 );
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                });
+
+                expect(result.content).toContain("VIA-DIR");
+                expect(result.edges[0]?.status).toBe("resolved");
+            },
+        );
+
+        it.skipIf(process.platform === "win32")(
+            "should follow a chain of symlinks",
+            async () => {
+                await mkdir(join(repoRoot, "real"));
+                await writeFile(join(repoRoot, "real", "target.md"), "CHAIN\n");
+                await symlink("real/target.md", join(repoRoot, "link2.md"));
+                await symlink("link2.md", join(repoRoot, "link1.md"));
+                await writeFile(join(repoRoot, "CLAUDE.md"), "@./link1.md\n");
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                });
+
+                expect(result.content).toContain("CHAIN");
+                expect(result.edges[0]?.status).toBe("resolved");
+            },
+        );
+
+        it.skipIf(process.platform === "win32")(
+            "should resolve imports inside the target from the target's real directory",
+            async () => {
+                await mkdir(join(repoRoot, "real"));
+                await writeFile(
+                    join(repoRoot, "real", "target.md"),
+                    "TARGET\n@./sub.md\n",
+                );
+                await writeFile(join(repoRoot, "real", "sub.md"), "REAL-SUB\n");
+                await writeFile(join(repoRoot, "sub.md"), "DECOY-SUB\n");
+                await symlink("real/target.md", join(repoRoot, "link.md"));
+                await writeFile(join(repoRoot, "CLAUDE.md"), "@./link.md\n");
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                });
+
+                expect(result.content).toContain("REAL-SUB");
+                expect(result.content).not.toContain("DECOY-SUB");
+            },
+        );
+
+        it.skipIf(process.platform === "win32")(
+            "should count two symlinks to one file as a single unique file",
+            async () => {
+                await mkdir(join(repoRoot, "real"));
+                await writeFile(join(repoRoot, "real", "target.md"), "ONCE\n");
+                await symlink("real/target.md", join(repoRoot, "a-link.md"));
+                await symlink("real/target.md", join(repoRoot, "b-link.md"));
+                await writeFile(
+                    join(repoRoot, "CLAUDE.md"),
+                    "@./a-link.md\n@./b-link.md\n",
+                );
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                    limits: { maxUniqueFiles: 2 },
+                });
+
+                expect(result.edges.map((edge) => edge.status)).toEqual([
+                    "resolved",
+                    "resolved",
+                ]);
+            },
+        );
+
+        it.skipIf(process.platform === "win32")(
+            "should report a cycle when a symlink leads back to an importer in the chain",
+            async () => {
+                await writeFile(join(repoRoot, "a.md"), "A\n@./link.md\n");
+                await symlink("a.md", join(repoRoot, "link.md"));
+                await writeFile(join(repoRoot, "CLAUDE.md"), "@./a.md\n");
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                });
+
+                expect(
+                    result.edges.find((edge) => edge.rawTarget === "./link.md")
+                        ?.status,
+                ).toBe("cycle");
+            },
+        );
+
+        it.skipIf(process.platform === "win32")(
+            "should report a self-referential symlink as unresolved without hanging",
+            async () => {
+                await symlink("loop.md", join(repoRoot, "loop.md"));
+                await writeFile(join(repoRoot, "CLAUDE.md"), "@./loop.md\n");
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                });
+
+                expect(result.edges[0]?.status).toBe("unresolved");
+            },
+        );
+
+        it.skipIf(process.platform === "win32")(
+            "should report size-exceeded when the target is over the per-file limit",
+            async () => {
+                await mkdir(join(repoRoot, "real"));
+                await writeFile(
+                    join(repoRoot, "real", "big.md"),
+                    "x".repeat(64),
+                );
+                await symlink("real/big.md", join(repoRoot, "link.md"));
+                await writeFile(join(repoRoot, "CLAUDE.md"), "@./link.md\n");
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                    limits: { maxFileBytes: 16 },
+                });
+
+                expect(result.edges[0]?.status).toBe("size-exceeded");
+            },
+        );
+    });
+
+    describe("given the import target changes between the check and the read", () => {
+        /**
+         * Runs the real inspection, then lets the test change the file system
+         * before the real reader opens the target. Only the check step is
+         * overridden, so the default reader's identity check is what is tested.
+         */
+        function swapAfterCheck(
+            afterInspect: () => Promise<void>,
+        ): Partial<ImportFileSystem> {
+            return {
+                inspect: async (rootReal, absolutePath) => {
+                    const inspection = await inspectPathWithinRoot(
+                        rootReal,
+                        absolutePath,
+                    );
+                    if (absolutePath.endsWith("target.md")) {
+                        await afterInspect();
+                    }
+                    return inspection;
+                },
+            };
+        }
+
+        it.skipIf(process.platform === "win32")(
+            "should reject the read when a different file replaces the target",
+            async () => {
+                await writeFile(join(repoRoot, "target.md"), "ORIGINAL\n");
+                await writeFile(join(repoRoot, "decoy.md"), "SWAPPED-IN\n");
+                await writeFile(join(repoRoot, "CLAUDE.md"), "@./target.md\n");
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                    fileSystem: swapAfterCheck(() =>
+                        rename(
+                            join(repoRoot, "decoy.md"),
+                            join(repoRoot, "target.md"),
+                        ),
+                    ),
+                });
+
+                expect(result.content).not.toContain("SWAPPED-IN");
+                expect(result.edges[0]?.status).toBe("unresolved");
+                expect(result.expansionDiagnostics[0]?.ruleId).toBe(
+                    "instruction/import-unresolved",
+                );
+            },
+        );
+
+        it.skipIf(process.platform === "win32")(
+            "should reject the read when a symlink to an outside file replaces the target",
+            async () => {
+                const outsideDir = join(
+                    tmpdir(),
+                    `instruction-import-outside-${chance.hash({ length: 8 })}`,
+                );
+                await mkdir(outsideDir, { recursive: true });
+                try {
+                    await writeFile(join(outsideDir, "secret.md"), "SECRET\n");
+                    await writeFile(join(repoRoot, "target.md"), "ORIGINAL\n");
+                    await writeFile(
+                        join(repoRoot, "CLAUDE.md"),
+                        "@./target.md\n",
+                    );
+
+                    const result = await buildEffectiveDocument({
+                        repoRoot,
+                        rootRelativePath: "CLAUDE.md",
+                        fileSystem: swapAfterCheck(async () => {
+                            await rm(join(repoRoot, "target.md"));
+                            await symlink(
+                                join(outsideDir, "secret.md"),
+                                join(repoRoot, "target.md"),
+                            );
+                        }),
+                    });
+
+                    expect(result.content).not.toContain("SECRET");
+                    expect(result.edges[0]?.status).toBe("symlink");
+                } finally {
+                    await rm(outsideDir, { recursive: true, force: true });
+                }
             },
         );
     });

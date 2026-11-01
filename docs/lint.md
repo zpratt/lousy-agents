@@ -48,7 +48,7 @@ Intentional policy differences (not catalog drift):
 
 - **skills-lock.json** — lint-only filter for locked third-party skills
 - **Hook content heuristic** — Copilot hook configs are only discovered when they contain `preToolUse`; a Copilot config without that marker remains undiscovered by lint even though doctor may inventory the containing directory. Claude settings files no longer use a per-event marker: they are discovered whenever they declare a `hooks` object.
-- **Symlinks** — lint skips symlinked targets; doctor follows in-repo symlinks when inventorying
+- **Symlinks** — lint skips symlinked skill, agent and hook targets; instruction files and their `@` imports follow in-repo symlinks, as doctor does when inventorying
 
 ## Configuration
 
@@ -350,7 +350,7 @@ Each feedback loop command is scored on three dimensions (0 or 1 each):
 | `instruction/missing-structural-heading` | `warn` | Instruction file is missing one or more recommended structural heading sections; may emit multiple warnings per file (one per missing section). For Claude entrypoints (`CLAUDE.md`), evaluated against the **effective** document after `@` import expansion |
 | `instruction/import-unresolved` | `warn` | Claude `@` import target could not be resolved, or is not a regular file |
 | `instruction/import-escape` | `warn` | Claude `@` import escapes the repository root, or uses an absolute / `~/` path |
-| `instruction/import-symlink` | `warn` | Claude `@` import path contains a symbolic link (final target or intermediate) |
+| `instruction/import-symlink` | `warn` | Claude `@` import resolves through a symbolic link to a location outside the repository, or its target was replaced by such a link while it was read (symlinks that stay inside the repository are followed) |
 | `instruction/import-cycle` | `warn` | Claude `@` import graph contains a cycle |
 | `instruction/import-depth-exceeded` | `warn` | Claude `@` import exceeds the maximum hop depth |
 | `instruction/import-size-exceeded` | `warn` | Claude `@` import expansion exceeded a size or graph limit (unique files, edges, emitted bytes, or per-file bytes) |
@@ -382,7 +382,9 @@ Import targets resolve **relative to the importing file**, must stay **inside th
 
 - Importer-relative resolution (`@./AGENTS.md` next to the importer)
 - In-repo regular files only
-- **Symlink-hostile**: both intermediate path components and the final target are rejected if they are symbolic links
+- **Symlinks that stay inside the repository are followed**, for the final target and for intermediate directories, as Claude Code does (observed on Claude Code 2.1.316, headless: file symlinks, directory symlinks and chains all load, and a symlink that leaves the repository does not). Symlinks that resolve outside the repository are rejected (`instruction/import-symlink`)
+- **A file is identified by its real path**: two symlinks to one file count once toward the unique-file limit, a symlink that leads back to a file already being expanded is an `instruction/import-cycle`, and `@` imports inside a symlinked file resolve relative to the target's real directory, not the symlink's (also observed on Claude Code 2.1.316)
+- **The target must still be the file that was checked**: the opened file's identity is compared with the real path's identity recorded at check time, so a file swapped between the check and the read is rejected rather than read
 - Absolute paths and `~/` (home-directory) paths are rejected (`instruction/import-escape`)
 
 #### Safety limits (internal defaults)

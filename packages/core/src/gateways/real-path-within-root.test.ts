@@ -1,10 +1,20 @@
 import { execFileSync } from "node:child_process";
-import { mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import {
+    mkdir,
+    realpath,
+    rm,
+    stat,
+    symlink,
+    writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resolveRealPathWithinRoot } from "./real-path-within-root.js";
+import {
+    inspectPathWithinRoot,
+    resolveRealPathWithinRoot,
+} from "./real-path-within-root.js";
 
 const chance = new Chance();
 
@@ -96,4 +106,103 @@ describe("resolveRealPathWithinRoot", () => {
             expect(result).toBeNull();
         });
     });
+});
+
+describe("inspectPathWithinRoot", () => {
+    let workDir: string;
+    let rootReal: string;
+    let outsideReal: string;
+
+    beforeEach(async () => {
+        workDir = join(tmpdir(), `inspect-path-within-root-${chance.guid()}`);
+        await mkdir(join(workDir, "root"), { recursive: true });
+        await mkdir(join(workDir, "outside"), { recursive: true });
+        rootReal = await realpath(join(workDir, "root"));
+        outsideReal = await realpath(join(workDir, "outside"));
+    });
+
+    afterEach(async () => {
+        await rm(workDir, { recursive: true, force: true });
+    });
+
+    it("should report the kind, real path and identity of a regular file inside the root", async () => {
+        const filePath = join(rootReal, `${chance.word()}.md`);
+        await writeFile(filePath, chance.sentence());
+        const expected = await stat(filePath);
+
+        const result = await inspectPathWithinRoot(rootReal, filePath);
+
+        expect(result).toEqual({
+            status: "ok",
+            kind: "file",
+            real: filePath,
+            identity: { dev: expected.dev, ino: expected.ino },
+        });
+    });
+
+    it("should report a directory inside the root", async () => {
+        const dirPath = join(rootReal, chance.word());
+        await mkdir(dirPath);
+
+        const result = await inspectPathWithinRoot(rootReal, dirPath);
+
+        expect(result).toMatchObject({
+            status: "ok",
+            kind: "directory",
+            real: dirPath,
+        });
+    });
+
+    it.skipIf(process.platform === "win32")(
+        "should follow a symlink whose target stays inside the root",
+        async () => {
+            const target = join(rootReal, `${chance.word()}-target.md`);
+            const link = join(rootReal, `${chance.word()}-link.md`);
+            await writeFile(target, chance.sentence());
+            await symlink(target, link);
+
+            const result = await inspectPathWithinRoot(rootReal, link);
+
+            expect(result).toMatchObject({
+                status: "ok",
+                kind: "file",
+                real: target,
+            });
+        },
+    );
+
+    it.skipIf(process.platform === "win32")(
+        "should report outside-root for a symlink whose target leaves the root",
+        async () => {
+            const secret = join(outsideReal, `${chance.word()}.md`);
+            const link = join(rootReal, `${chance.word()}-link.md`);
+            await writeFile(secret, chance.sentence());
+            await symlink(secret, link);
+
+            const result = await inspectPathWithinRoot(rootReal, link);
+
+            expect(result).toEqual({ status: "outside-root" });
+        },
+    );
+
+    it("should report missing for a path that does not exist", async () => {
+        const result = await inspectPathWithinRoot(
+            rootReal,
+            join(rootReal, `${chance.word()}.md`),
+        );
+
+        expect(result).toEqual({ status: "missing" });
+    });
+
+    it.skipIf(process.platform === "win32")(
+        "should report unsupported for a path that is neither a file nor a directory",
+        async () => {
+            const fifo = join(rootReal, `${chance.word()}.fifo`);
+            execFileSync("mkfifo", [fifo]);
+
+            const result = await inspectPathWithinRoot(rootReal, fifo);
+
+            expect(result).toEqual({ status: "unsupported" });
+        },
+    );
 });

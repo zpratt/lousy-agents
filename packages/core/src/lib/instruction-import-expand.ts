@@ -2,12 +2,23 @@
  * Pure Claude `@` import expander that builds an ordered EffectiveDocument.
  */
 
+import { realpath } from "node:fs/promises";
 import { dirname, isAbsolute, join, normalize, sep } from "node:path";
+import { resolvePathWithinRoot } from "../gateways/file-system-utils.js";
 import {
-    readTextWithinRoot,
-    resolvePathWithinRoot,
-    statWithinRoot,
-} from "../gateways/file-system-utils.js";
+    type BoundedReadOutcome,
+    type FileIdentity,
+    readRegularFileNoFollow,
+} from "../gateways/read-regular-file-no-follow.js";
+import {
+    inspectPathWithinRoot,
+    type PathInspection,
+} from "../gateways/real-path-within-root.js";
+import {
+    type LocatedFile,
+    statusForReadFailure,
+    toLocatedFile,
+} from "./import-file-location.js";
 
 export const DEFAULT_MAX_IMPORT_DEPTH = 4;
 export const DEFAULT_MAX_UNIQUE_FILES = 64;
@@ -77,10 +88,33 @@ export interface ExpansionLimits {
     readonly maxFileBytes: number;
 }
 
+/**
+ * The file system operations import expansion depends on. Injectable so the
+ * window between checking a target and reading it can be tested.
+ */
+export interface ImportFileSystem {
+    /** Follows a path to its real location, reporting why it is unusable */
+    inspect(rootReal: string, absolutePath: string): Promise<PathInspection>;
+    /** Reads a real path, which must still be the file identified at check time */
+    read(
+        realPath: string,
+        maxBytes: number,
+        expectedIdentity: FileIdentity,
+    ): Promise<BoundedReadOutcome>;
+}
+
+const nodeImportFileSystem: ImportFileSystem = {
+    inspect: inspectPathWithinRoot,
+    read: (realPath, maxBytes, expectedIdentity) =>
+        readRegularFileNoFollow(realPath, maxBytes, { expectedIdentity }),
+};
+
 export interface BuildEffectiveDocumentInput {
     readonly repoRoot: string;
     readonly rootRelativePath: string;
     readonly limits?: Partial<ExpansionLimits>;
+    /** Overrides any part of the real file system; the rest stays real */
+    readonly fileSystem?: Partial<ImportFileSystem>;
 }
 
 export interface ImportToken {
@@ -348,20 +382,35 @@ function isUnsafeRootPath(rootRelativePath: string): boolean {
     );
 }
 
+type ReadFileResult =
+    | { ok: true; content: string; real: string }
+    | { ok: false; status: ImportEdgeStatus };
+
 /**
  * Owns expansion bookkeeping for a single buildEffectiveDocument call.
  * Mutations stay on the session instance rather than shared parameter bags.
  */
 class ExpansionSession {
     readonly limits: ExpansionLimits;
-    private readonly contentCache = new Map<string, string>();
+    private readonly rootReal: string;
+    private readonly fileSystem: ImportFileSystem;
+    /** File content keyed by real repository-relative path */
+    private readonly contentByReal = new Map<string, string>();
+    /** Real path of every logical path already resolved */
+    private readonly realByLogical = new Map<string, string>();
     private readonly uniqueFiles = new Set<string>();
     private readonly edges: ImportEdge[] = [];
     private readonly diagnostics: ExpansionDiagnostic[] = [];
     private emittedBytes = 0;
 
-    constructor(limits: ExpansionLimits) {
+    constructor(
+        limits: ExpansionLimits,
+        rootReal: string,
+        fileSystem: ImportFileSystem,
+    ) {
         this.limits = limits;
+        this.rootReal = rootReal;
+        this.fileSystem = fileSystem;
     }
 
     get edgeCount(): number {
@@ -446,36 +495,29 @@ class ExpansionSession {
         return { emitted: text.slice(0, room), complete: false };
     }
 
+    /**
+     * Resolves a logical repository-relative path to a real file inside the
+     * repository (following symlinks that stay inside it) and reads it. A
+     * file is identified by its real path everywhere: content, the unique-file
+     * budget, cycle detection and the base for the imports it contains.
+     */
     async readFile(
         repoRoot: string,
         relativePath: string,
-    ): Promise<
-        { ok: true; content: string } | { ok: false; status: ImportEdgeStatus }
-    > {
-        const cached = this.contentCache.get(relativePath);
-        if (cached !== undefined) {
-            return { ok: true, content: cached };
+    ): Promise<ReadFileResult> {
+        const known = this.realByLogical.get(relativePath);
+        const knownContent =
+            known === undefined ? undefined : this.contentByReal.get(known);
+        if (known !== undefined && knownContent !== undefined) {
+            return { ok: true, content: knownContent, real: known };
         }
 
-        try {
-            await resolvePathWithinRoot(repoRoot, relativePath);
-        } catch (error: unknown) {
-            return { ok: false, status: classifyPathError(error) };
+        const located = await this.locate(repoRoot, relativePath);
+        if (!located.ok) {
+            return located;
         }
 
-        try {
-            const stats = await statWithinRoot(repoRoot, relativePath);
-            if (stats.isSymbolicLink) {
-                return { ok: false, status: "symlink" };
-            }
-            if (!stats.isFile) {
-                return { ok: false, status: "not-regular" };
-            }
-        } catch (error: unknown) {
-            return { ok: false, status: classifyPathError(error) };
-        }
-
-        const isNewUnique = !this.uniqueFiles.has(relativePath);
+        const isNewUnique = !this.uniqueFiles.has(located.real);
         if (
             isNewUnique &&
             this.uniqueFiles.size >= this.limits.maxUniqueFiles
@@ -483,20 +525,47 @@ class ExpansionSession {
             return { ok: false, status: "size-exceeded" };
         }
 
+        const cached = this.contentByReal.get(located.real);
+        const content = cached ?? (await this.readLocated(located));
+        if (typeof content !== "string") {
+            return content;
+        }
+
+        this.contentByReal.set(located.real, content);
+        this.uniqueFiles.add(located.real);
+        this.realByLogical.set(relativePath, located.real);
+        return { ok: true, content, real: located.real };
+    }
+
+    private async locate(
+        repoRoot: string,
+        relativePath: string,
+    ): Promise<LocatedFile | { ok: false; status: ImportEdgeStatus }> {
+        let absolutePath: string;
         try {
-            const content = await readTextWithinRoot(
-                repoRoot,
-                relativePath,
-                this.limits.maxFileBytes,
-            );
-            this.contentCache.set(relativePath, content);
-            if (isNewUnique) {
-                this.uniqueFiles.add(relativePath);
-            }
-            return { ok: true, content };
+            absolutePath = await resolvePathWithinRoot(repoRoot, relativePath);
         } catch (error: unknown) {
             return { ok: false, status: classifyPathError(error) };
         }
+
+        const inspection = await this.fileSystem.inspect(
+            this.rootReal,
+            absolutePath,
+        );
+        return toLocatedFile(this.rootReal, inspection);
+    }
+
+    private async readLocated(
+        located: LocatedFile,
+    ): Promise<string | { ok: false; status: ImportEdgeStatus }> {
+        const outcome = await this.fileSystem.read(
+            located.realAbsolute,
+            this.limits.maxFileBytes,
+            located.identity,
+        );
+        return outcome.ok
+            ? outcome.content
+            : { ok: false, status: statusForReadFailure(outcome.reason) };
     }
 }
 
@@ -602,11 +671,6 @@ async function expandToken(
     }
 
     const targetPath = normalized.relativePath;
-    if (stack.includes(targetPath)) {
-        session.recordFailure(importerPath, token, "cycle", targetPath);
-        return { kind: "unexpanded" };
-    }
-
     const readResult = await session.readFile(repoRoot, targetPath);
     if (!readResult.ok) {
         session.recordFailure(
@@ -618,22 +682,31 @@ async function expandToken(
         return { kind: "unexpanded" };
     }
 
+    // From here the target is identified by its real path, so two symlinks to
+    // one file are one node of the import graph and a symlink that leads back
+    // to an importer is a cycle.
+    const targetReal = readResult.real;
+    if (stack.includes(targetReal)) {
+        session.recordFailure(importerPath, token, "cycle", targetReal);
+        return { kind: "unexpanded" };
+    }
+
     if (session.isEmitBudgetExhausted()) {
-        session.recordFailure(importerPath, token, "size-exceeded", targetPath);
+        session.recordFailure(importerPath, token, "size-exceeded", targetReal);
         return { kind: "unexpanded" };
     }
 
     const child = await expandContent(
         session,
         repoRoot,
-        targetPath,
+        targetReal,
         readResult.content,
         nextHop,
-        [...stack, targetPath],
-        [...importChain, targetPath],
+        [...stack, targetReal],
+        [...importChain, targetReal],
     );
 
-    session.recordResolved(importerPath, token, targetPath);
+    session.recordResolved(importerPath, token, targetReal);
     return {
         kind: "expanded",
         content: child.content,
@@ -736,7 +809,17 @@ export async function buildEffectiveDocument(
         );
     }
 
-    const session = new ExpansionSession(limits);
+    const rootReal = await realpath(input.repoRoot).catch(() => null);
+    if (rootReal === null) {
+        throw new Error(
+            `Unable to read root instruction file ${rootRelativePath}: unresolved`,
+        );
+    }
+
+    const session = new ExpansionSession(limits, rootReal, {
+        ...nodeImportFileSystem,
+        ...input.fileSystem,
+    });
     const rootRead = await session.readFile(input.repoRoot, rootRelativePath);
     if (!rootRead.ok) {
         throw new Error(
@@ -747,11 +830,11 @@ export async function buildEffectiveDocument(
     const expanded = await expandContent(
         session,
         input.repoRoot,
-        rootRelativePath,
+        rootRead.real,
         rootRead.content,
         0,
-        [rootRelativePath],
-        [rootRelativePath],
+        [rootRead.real],
+        [rootRead.real],
     );
     const snapshot = session.snapshot();
 
