@@ -17,10 +17,25 @@ jobs:
     name: Release
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Only run on main repository, not forks, and only if CI succeeded
+    # Only run on the main repository, only if CI succeeded, and only for a push
+    # to this repository. The `branches` filter above matches the name of the
+    # branch CI ran on, and a pull request from a fork whose branch is named
+    # `main` has that name too, so the event and the head repository are checked.
+    # merge_group runs are skipped; revisit if ci.yml adopts a merge queue.
     if: >
       github.repository == 'zpratt/lousy-agents' &&
-      github.event.workflow_run.conclusion == 'success'
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    # One release at a time. A release that is already running finishes. Only one
+    # more run can wait behind it, and a newer run replaces the one already
+    # waiting, which loses nothing because a release checks out main's latest
+    # commit. The group is on the job, not the workflow, so a run whose `if:`
+    # skips the job (CI failed, or not a push to this repository) never enters it
+    # and cannot replace a waiting release.
+    concurrency:
+      group: release
+      cancel-in-progress: false
     permissions:
       contents: write # to create GitHub releases
       issues: write # to comment on released issues
