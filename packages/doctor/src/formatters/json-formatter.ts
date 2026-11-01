@@ -1,4 +1,4 @@
-import { compareCodeUnits } from "@lousy-agents/core/lib/code-unit-order.js";
+import { compareCodeUnits } from "@lousy-agents/core/entities/code-unit-order.js";
 import { z } from "zod";
 import type { InventoryRecord } from "../entities/edge-types.js";
 import type { Finding } from "../entities/finding.js";

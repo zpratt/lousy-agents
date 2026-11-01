@@ -63,6 +63,30 @@ describe("LessonContextUseCase", () => {
         });
     });
 
+    describe("given invariant lessons whose slugs differ in case and punctuation", () => {
+        it("orders them by code unit, not by locale, so the injected context is the same on every machine", async () => {
+            const slugs = ["a-one", "_two", "B-three", "-four"];
+            const lessons = slugs.map((slug) =>
+                makeLesson({ slug, title: `Title ${slug}` }),
+            );
+            const useCase = new LessonContextUseCase(makeGateway(lessons));
+
+            const result = await useCase.execute({
+                rootDir: "/repo",
+                hookEventName: "SessionStart",
+            });
+
+            const positions = slugs
+                .map((slug) => ({
+                    slug,
+                    at: result.additionalContext.indexOf(`## Title ${slug}`),
+                }))
+                .sort((a, b) => a.at - b.at)
+                .map((entry) => entry.slug);
+            expect(positions).toEqual(["-four", "B-three", "_two", "a-one"]);
+        });
+    });
+
     describe("given a lesson with no triggers on SessionStart", () => {
         it("includes invariant lessons regardless of empty triggers", async () => {
             const parsed = makeLesson({
