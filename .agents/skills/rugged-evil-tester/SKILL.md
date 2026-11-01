@@ -61,12 +61,9 @@ A test that passes for the wrong reason gives false confidence. If an XSS payloa
 **Pattern — layer-specific assertions (using fetch + MSW):**
 
 ```typescript
-it("EVIL: should reject XSS at the validation layer, not the DB layer", async () => {
+it("EVIL: should reject XSS at the validation layer before any request reaches the service", async () => {
   const xssPayload = '<img src=x onerror=alert(1)>' as unknown as string;
   const createSpy = vi.fn();
-
-  // MSW handler proves the request never reached the downstream service.
-  // If createSpy is called, validation silently passed bad input through.
   server.use(
     http.post("https://api.example.com/comments", async ({ request }) => {
       const body = await request.json();
@@ -75,11 +72,7 @@ it("EVIL: should reject XSS at the validation layer, not the DB layer", async ()
     }),
   );
 
-  // createComment validates input before making any network call.
-  // A ValidationError here means the correct layer caught the bad input.
   await expect(createComment({ body: xssPayload })).rejects.toThrow(ValidationError);
-
-  // The downstream service should never have been reached
   expect(createSpy).not.toHaveBeenCalled();
 });
 ```
@@ -107,15 +100,17 @@ The system should always **fail closed** — meaning it denies access or halts p
    it("EVIL: should reject prototype pollution attempts on config merge", ...);
    ```
 
-3. **Security Story comments:** For every test, document the threat model it addresses in a comment block above the test. Explain *what* attack it simulates, *why* it matters, and *which defensive layer* should catch it.
+3. **Security stories in structure, not comments:** For every test, make the threat model readable from the test structure itself. Name *what* attack it simulates in a `describe` block, and state *which defensive layer* should catch it and the observable consequence in the `it` name and assertions. Do not write threat-model comment blocks.
 
    ```typescript
-   // SECURITY STORY: Prototype pollution via __proto__
-   // Threat: Attacker sends {"__proto__": {"isAdmin": true}} in a PATCH body.
-   // If the app uses naive object spread/merge, this poisons Object.prototype
-   // and every subsequent object inherits isAdmin=true.
-   // Defense: Input validation should strip or reject __proto__, constructor,
-   // and prototype keys before any merge operation.
+   describe("EVIL: prototype pollution via __proto__ in a PATCH body", () => {
+     it("should reject the payload at input validation before any merge", async () => {
+       const payload = JSON.parse('{"__proto__": {"isAdmin": true}}');
+
+       await expect(updateSettings(payload)).rejects.toThrow(ValidationError);
+       expect(({} as { isAdmin?: boolean }).isAdmin).toBeUndefined();
+     });
+   });
    ```
 
 4. **Autonomy:** Work autonomously. Scan the codebase for routes, handlers, validators, middleware, and service boundaries. Infer the threat model from the code structure. Only ask questions if the application's security posture is completely opaque and cannot be inferred.

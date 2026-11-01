@@ -147,7 +147,7 @@ async function doStuff(x) {
 
 ## Testing Standards
 
-TDD is required (see the workflow above). Tests are executable documentation: describe behavior, not implementation. Use Vitest (never Jest), mock HTTP with MSW (never mock `fetch` directly), and generate fixtures with Chance.js. Follow Arrange-Act-Assert, name `describe`/`it` blocks as specifications, extract test data to constants (never duplicate values across arrange/act/assert), and cover happy paths, unhappy paths, and edge cases. Tests must be deterministic and isolated. Never modify a test to pass without fixing the root cause.
+TDD is required (see the workflow above). Tests are executable documentation: describe behavior, not implementation. Use Vitest (never Jest), mock HTTP with MSW (never mock `fetch` directly), and generate fixtures with Chance.js. Follow Arrange-Act-Assert with blank lines between phases (never phase-label comments), document scenarios through nested `describe` blocks and behavioral names instead of comments, name `describe`/`it` blocks as specifications, extract test data to constants (never duplicate values across arrange/act/assert), and cover happy paths, unhappy paths, and edge cases. Tests must be deterministic and isolated. Never modify a test to pass without fixing the root cause.
 
 **Full conventions — including worked examples, the complete rule list, and dependency-injection-for-testing patterns — live in the canonical [`.github/instructions/test.instructions.md`](./instructions/test.instructions.md)**, which Copilot code review auto-applies to changed test files (`packages/**/*.{test,spec}.{ts,tsx}`).
 
