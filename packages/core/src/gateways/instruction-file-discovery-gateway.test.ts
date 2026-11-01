@@ -1,8 +1,9 @@
 import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { InstructionDiscoveryDiagnostic } from "../entities/instruction-quality.js";
 import { instructionDiscoveryEntries } from "../lib/agentic-location-matchers.js";
 import { FileSystemInstructionFileDiscoveryGateway } from "./instruction-file-discovery-gateway.js";
 
@@ -342,6 +343,98 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
             expect(files).toHaveLength(expectedFormats.length);
             const formats = files.map((f) => f.format).sort();
             expect(formats).toEqual([...expectedFormats].sort());
+        });
+    });
+
+    describe("when .github/instructions has more directories than the directory cap", () => {
+        beforeEach(async () => {
+            for (const name of ["s1", "s2", "s3"]) {
+                const directory = join(
+                    testDir,
+                    ".github",
+                    "instructions",
+                    name,
+                );
+                await mkdir(directory, { recursive: true });
+                await writeFile(join(directory, "a.md"), chance.sentence());
+            }
+        });
+
+        it("should keep the files found before the cap and report the limit exactly once", async () => {
+            // Arrange: the entry directory and s1 are listed; s2 and s3 are refused
+            const capped = new FileSystemInstructionFileDiscoveryGateway({
+                maxDirectories: 2,
+            });
+            const diagnostics: InstructionDiscoveryDiagnostic[] = [];
+
+            // Act
+            const files = await capped.discoverInstructionFiles(
+                testDir,
+                (diagnostic) => diagnostics.push(diagnostic),
+            );
+
+            // Assert
+            expect(files.map((f) => relative(testDir, f.filePath))).toEqual([
+                join(".github", "instructions", "s1", "a.md"),
+            ]);
+            expect(diagnostics).toEqual([
+                {
+                    ruleId: "instruction/discovery-limit-reached",
+                    message: expect.stringContaining("2"),
+                },
+            ]);
+        });
+
+        it("should report nothing when the tree has exactly the capped number of directories", async () => {
+            // Arrange: the entry directory and s1, s2, s3
+            const capped = new FileSystemInstructionFileDiscoveryGateway({
+                maxDirectories: 4,
+            });
+            const diagnostics: InstructionDiscoveryDiagnostic[] = [];
+
+            // Act
+            const files = await capped.discoverInstructionFiles(
+                testDir,
+                (diagnostic) => diagnostics.push(diagnostic),
+            );
+
+            // Assert
+            expect(files).toHaveLength(3);
+            expect(diagnostics).toEqual([]);
+        });
+
+        it("should not require a diagnostics callback", async () => {
+            // Arrange
+            const capped = new FileSystemInstructionFileDiscoveryGateway({
+                maxDirectories: 2,
+            });
+
+            // Act
+            const files = await capped.discoverInstructionFiles(testDir);
+
+            // Assert
+            expect(files).toHaveLength(1);
+        });
+    });
+
+    describe("when two instruction subdirectories are aliases of one directory", () => {
+        it("should discover the shared files once, under the first path in name order", async () => {
+            // Arrange
+            const shared = join(testDir, ".github", "shared");
+            await mkdir(shared, { recursive: true });
+            await writeFile(join(shared, "x.md"), chance.sentence());
+            const instructions = join(testDir, ".github", "instructions");
+            await mkdir(instructions, { recursive: true });
+            await symlink(shared, join(instructions, "b-alias"));
+            await symlink(shared, join(instructions, "a-alias"));
+
+            // Act
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            // Assert
+            expect(files.map((f) => relative(testDir, f.filePath))).toEqual([
+                join(".github", "instructions", "a-alias", "x.md"),
+            ]);
         });
     });
 });

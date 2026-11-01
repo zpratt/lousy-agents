@@ -19,6 +19,35 @@ import {
     validateTargetDirectory,
 } from "./types.js";
 
+interface CoverageMessageInput {
+    hasFullCoverage: boolean;
+    coveragePercentage: number;
+    missingCount: number;
+    discoveryStoppedEarly: boolean;
+}
+
+/**
+ * Summarizes the coverage. When discovery stopped early the result says so:
+ * a mandatory item reported as undocumented may be documented in a file that
+ * was not checked, and a fully documented result covers only the files found.
+ */
+function coverageMessage({
+    hasFullCoverage,
+    coveragePercentage,
+    missingCount,
+    discoveryStoppedEarly,
+}: CoverageMessageInput): string {
+    if (hasFullCoverage) {
+        return discoveryStoppedEarly
+            ? "✅ All mandatory feedback loops are documented in the instruction files found, but discovery stopped early, so other instruction files were not checked"
+            : "✅ All mandatory feedback loops are documented";
+    }
+    const measured = `${coveragePercentage.toFixed(1)}% coverage - ${missingCount} mandatory items not documented`;
+    return discoveryStoppedEarly
+        ? `⚠️  ${measured} in the instruction files found; discovery stopped early, so they may be documented in files that were not checked`
+        : `⚠️  ${measured}`;
+}
+
 /**
  * Validates that repository instruction files (the catalog shared with analyze_instruction_quality)
  * document all mandatory feedback loop scripts and tools.
@@ -115,9 +144,16 @@ export const validateInstructionCoverageHandler: ToolHandler = async (
             missing,
             documented,
             suggestions,
-            message: hasFullCoverage
-                ? "✅ All mandatory feedback loops are documented"
-                : `⚠️  ${coverage.summary.coveragePercentage.toFixed(1)}% coverage - ${missing.length} mandatory items not documented`,
+            diagnostics: coverage.diagnostics.map((d) => ({
+                ruleId: d.ruleId,
+                message: d.message,
+            })),
+            message: coverageMessage({
+                hasFullCoverage,
+                coveragePercentage: coverage.summary.coveragePercentage,
+                missingCount: missing.length,
+                discoveryStoppedEarly: coverage.diagnostics.length > 0,
+            }),
         });
     } catch (error) {
         return errorResponse(

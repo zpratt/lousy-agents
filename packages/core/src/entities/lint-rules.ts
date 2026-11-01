@@ -71,6 +71,7 @@ export const DEFAULT_LINT_RULES: LintRulesConfig = {
         "instruction/import-cycle": "warn",
         "instruction/import-depth-exceeded": "warn",
         "instruction/import-size-exceeded": "warn",
+        "instruction/discovery-limit-reached": "warn",
     },
     skills: {
         "skill/invalid-frontmatter": "error",
@@ -84,3 +85,18 @@ export const DEFAULT_LINT_RULES: LintRulesConfig = {
         "skill/missing-argument-hint": "warn",
     },
 };
+
+const RUN_LEVEL_RULE_IDS: ReadonlySet<string> = new Set([
+    "instruction/discovery-limit-reached",
+]);
+
+/**
+ * Whether a rule's diagnostics describe the whole run rather than a place in
+ * one file, so a reporter that filters by changed file or line (reviewdog's
+ * diff filter) would drop them. Reporters surface these some other way. A
+ * predicate rather than the set itself, so a caller cannot change which rules
+ * count.
+ */
+export function isRunLevelRuleId(ruleId: string | undefined): boolean {
+    return ruleId !== undefined && RUN_LEVEL_RULE_IDS.has(ruleId);
+}

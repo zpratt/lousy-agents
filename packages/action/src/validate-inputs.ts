@@ -6,6 +6,9 @@
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z } from "zod";
+import { validateRunnerTempPath } from "./runner-temp-path.js";
+
+export { validateRunnerTempPath };
 
 /** Allowed values for the reviewdog reporter input */
 const VALID_REPORTERS = [
@@ -39,6 +42,10 @@ export interface ActionInputs {
     readonly reporter: Reporter;
     readonly filterMode: FilterMode;
     readonly level: Level;
+    /** File the run-level workflow commands are written to, inside RUNNER_TEMP */
+    readonly annotationsFile?: string;
+    /** The job summary file the run-level warnings are appended to */
+    readonly stepSummaryFile?: string;
 }
 
 const ReporterSchema = z.enum(VALID_REPORTERS);
@@ -148,6 +155,24 @@ export function validateLevel(level: string): Level {
 }
 
 /**
+ * The job summary path is provided by the runner. A path we cannot vouch for is
+ * skipped rather than failing the run, since the annotations still reach the log.
+ */
+function readStepSummaryFile(
+    env: Record<string, string | undefined>,
+): string | undefined {
+    try {
+        return validateRunnerTempPath(
+            env.GITHUB_STEP_SUMMARY,
+            env.RUNNER_TEMP,
+            "GITHUB_STEP_SUMMARY",
+        );
+    } catch {
+        return undefined;
+    }
+}
+
+/**
  * Reads and validates all action inputs from environment variables.
  */
 export async function readActionInputs(
@@ -163,6 +188,12 @@ export async function readActionInputs(
     const hooks = env.INPUT_HOOKS?.toLowerCase() === "true";
     const instructions = env.INPUT_INSTRUCTIONS?.toLowerCase() === "true";
 
+    const annotationsFile = validateRunnerTempPath(
+        env.LOUSY_AGENTS_ANNOTATIONS_FILE,
+        env.RUNNER_TEMP,
+        "LOUSY_AGENTS_ANNOTATIONS_FILE",
+    );
+
     return {
         directory,
         skills,
@@ -172,5 +203,7 @@ export async function readActionInputs(
         reporter,
         filterMode,
         level,
+        annotationsFile,
+        stepSummaryFile: readStepSummaryFile(env),
     };
 }

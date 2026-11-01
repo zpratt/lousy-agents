@@ -38,7 +38,10 @@ export type {
     RuleConfigMap,
     RuleSeverityConfig,
 } from "@lousy-agents/core/entities/lint-rules.js";
-export { DEFAULT_LINT_RULES } from "@lousy-agents/core/entities/lint-rules.js";
+export {
+    DEFAULT_LINT_RULES,
+    isRunLevelRuleId,
+} from "@lousy-agents/core/entities/lint-rules.js";
 export type {
     LintFormatType,
     LintFormatter,

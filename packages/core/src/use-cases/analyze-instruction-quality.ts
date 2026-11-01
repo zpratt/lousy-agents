@@ -8,6 +8,8 @@ import type {
     CommandQualityScores,
     DiscoveredInstructionFile,
     EffectiveInstructionDocumentProvenance,
+    InstructionDiscoveryDiagnostic,
+    InstructionDiscoveryDiagnosticSink,
     InstructionQualityResult,
     InstructionSuggestion,
     ParsingError,
@@ -101,11 +103,35 @@ export interface MarkdownAstGateway {
 }
 
 /**
+ * Turns something discovery reported about itself into a lint diagnostic. It
+ * concerns the whole run, not one file, so it points at the target directory.
+ */
+function toDiscoveryLintDiagnostic(
+    targetDir: string,
+    report: InstructionDiscoveryDiagnostic,
+): LintDiagnostic {
+    return {
+        filePath: targetDir,
+        line: 1,
+        severity: "warning",
+        message: report.message,
+        ruleId: report.ruleId,
+        target: "instruction",
+    };
+}
+
+/**
  * Port for discovering instruction files.
  */
 export interface InstructionFileDiscoveryGateway {
+    /**
+     * Finds the instruction files under targetDir. Conditions that affect the
+     * whole run, such as stopping at a directory limit, are reported to
+     * onDiagnostic instead of failing the discovery.
+     */
     discoverInstructionFiles(
         targetDir: string,
+        onDiagnostic?: InstructionDiscoveryDiagnosticSink,
     ): Promise<DiscoveredInstructionFile[]>;
 }
 
@@ -340,10 +366,15 @@ export class AnalyzeInstructionQualityUseCase {
 
         const proximityWindow = parsed.proximityWindow ?? 3;
 
+        const discoveryReports: InstructionDiscoveryDiagnostic[] = [];
         const discoveredFiles =
             await this.discoveryGateway.discoverInstructionFiles(
                 parsed.targetDir,
+                (report) => discoveryReports.push(report),
             );
+        const discoveryDiagnostics = discoveryReports.map((report) =>
+            toDiscoveryLintDiagnostic(parsed.targetDir, report),
+        );
 
         const mandatoryCommands =
             await this.commandsGateway.getMandatoryCommands(parsed.targetDir);
@@ -362,7 +393,7 @@ export class AnalyzeInstructionQualityUseCase {
                     ],
                     parsingErrors: [],
                 },
-                diagnostics: [],
+                diagnostics: discoveryDiagnostics,
             };
         }
 
@@ -401,7 +432,7 @@ export class AnalyzeInstructionQualityUseCase {
 
         // Score each mandatory command across all files
         const commandScores: CommandQualityScores[] = [];
-        const diagnostics: LintDiagnostic[] = [];
+        const diagnostics: LintDiagnostic[] = [...discoveryDiagnostics];
 
         // Emit diagnostics for parsing errors
         for (const pe of parsingErrors) {

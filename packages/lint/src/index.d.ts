@@ -124,6 +124,8 @@ export interface LintRulesConfig {
 
 /** Default severity levels for all known lint rules. */
 export declare const DEFAULT_LINT_RULES: LintRulesConfig;
+/** Whether a rule's diagnostics describe the whole run, not a place in one file */
+export declare function isRunLevelRuleId(ruleId: string | undefined): boolean;
 
 // ── Lint options and result ──────────────────────────────────────────
 

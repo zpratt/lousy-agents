@@ -6,8 +6,8 @@ import type {
     FeedbackLoopCoverage,
 } from "../entities/feedback-loop.js";
 import type { InstructionAnalysisGateway } from "../gateways/instruction-analysis-gateway.js";
-import type {
-    DiscoverFeedbackLoopsOutput,
+import {
+    type DiscoverFeedbackLoopsOutput,
     DiscoverFeedbackLoopsUseCase,
 } from "./discover-feedback-loops.js";
 import { ValidateInstructionCoverageUseCase } from "./validate-instruction-coverage.js";
@@ -53,6 +53,7 @@ describe("ValidateInstructionCoverageUseCase", () => {
                 missingInInstructions: [],
                 documentedInInstructions: mockScripts,
                 references: [],
+                diagnostics: [],
                 summary: {
                     totalMandatory: 1,
                     totalDocumented: 1,
@@ -120,6 +121,7 @@ describe("ValidateInstructionCoverageUseCase", () => {
                 missingInInstructions: [buildScript, lintTool],
                 documentedInInstructions: [testScript],
                 references: [],
+                diagnostics: [],
                 summary: {
                     totalMandatory: 3,
                     totalDocumented: 1,
@@ -199,6 +201,7 @@ describe("ValidateInstructionCoverageUseCase", () => {
                 ],
                 documentedInInstructions: [],
                 references: [],
+                diagnostics: [],
                 summary: {
                     totalMandatory: 3,
                     totalDocumented: 0,
@@ -267,6 +270,7 @@ describe("ValidateInstructionCoverageUseCase", () => {
                 missingInInstructions: [],
                 documentedInInstructions: mockScripts,
                 references: [],
+                diagnostics: [],
                 summary: {
                     totalMandatory: 1,
                     totalDocumented: 1,
@@ -304,6 +308,90 @@ describe("ValidateInstructionCoverageUseCase", () => {
                 mockScripts,
                 mockTools,
             );
+        });
+    });
+
+    describe("when discovery stopped early", () => {
+        const DiscoveryLimitRuleId = "instruction/discovery-limit-reached";
+        const discoveryLimitMessage = chance.sentence();
+        const mandatoryScript: DiscoveredScript = {
+            name: "test",
+            command: "vitest run",
+            phase: "test",
+            isMandatory: true,
+        };
+
+        function useCaseWith(
+            coverage: FeedbackLoopCoverage,
+        ): ValidateInstructionCoverageUseCase {
+            const discover = new DiscoverFeedbackLoopsUseCase(
+                { discoverScripts: async () => [mandatoryScript] },
+                { discoverTools: async () => [] },
+                { detectPackageManagers: async () => [] },
+            );
+            return new ValidateInstructionCoverageUseCase(discover, {
+                analyzeCoverage: async () => coverage,
+            });
+        }
+
+        function coverageWith(
+            missing: DiscoveredScript[],
+            diagnostics: FeedbackLoopCoverage["diagnostics"],
+        ): FeedbackLoopCoverage {
+            const documented = missing.length === 0 ? [mandatoryScript] : [];
+            return {
+                missingInInstructions: missing,
+                documentedInInstructions: documented,
+                references: [],
+                diagnostics,
+                summary: {
+                    totalMandatory: 1,
+                    totalDocumented: documented.length,
+                    coveragePercentage: documented.length * 100,
+                },
+            };
+        }
+
+        const limitDiagnostics = [
+            { ruleId: DiscoveryLimitRuleId, message: discoveryLimitMessage },
+        ];
+
+        it("should not say every mandatory loop is documented without saying other files were not checked", async () => {
+            const useCase = useCaseWith(coverageWith([], limitDiagnostics));
+
+            const { suggestions } = await useCase.execute({
+                targetDir: chance.word(),
+            });
+
+            expect(suggestions).toEqual([
+                "✅ All mandatory feedback loops are documented in the instruction files found, but discovery stopped early, so other instruction files were not checked",
+            ]);
+        });
+
+        it("should say a missing loop may be documented in a file that was not checked", async () => {
+            const useCase = useCaseWith(
+                coverageWith([mandatoryScript], limitDiagnostics),
+            );
+
+            const { suggestions } = await useCase.execute({
+                targetDir: chance.word(),
+            });
+
+            expect(suggestions[0]).toBe(
+                "⚠️  1 mandatory feedback loop(s) are not documented in the instruction files found; discovery stopped early, so they may be documented in files that were not checked:",
+            );
+        });
+
+        it("should keep the plain wording when nothing stopped discovery", async () => {
+            const useCase = useCaseWith(coverageWith([], []));
+
+            const { suggestions } = await useCase.execute({
+                targetDir: chance.word(),
+            });
+
+            expect(suggestions).toEqual([
+                "✅ All mandatory feedback loops are documented in instructions",
+            ]);
         });
     });
 });

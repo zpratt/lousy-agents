@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
     DEFAULT_LINT_RULES,
+    isRunLevelRuleId,
     type LintRulesConfig,
     type RuleSeverityConfig,
 } from "./lint-rules.js";
@@ -81,6 +82,7 @@ describe("Lint rule registry", () => {
                 "instruction/import-cycle",
                 "instruction/import-depth-exceeded",
                 "instruction/import-size-exceeded",
+                "instruction/discovery-limit-reached",
             ];
 
             // Assert
@@ -90,6 +92,14 @@ describe("Lint rule registry", () => {
             expect(Object.keys(DEFAULT_LINT_RULES.instructions)).toHaveLength(
                 expectedInstructionRules.length,
             );
+        });
+
+        it("should default the discovery-limit rule to warn so it never fails a run by itself", () => {
+            expect(
+                DEFAULT_LINT_RULES.instructions[
+                    "instruction/discovery-limit-reached"
+                ],
+            ).toBe("warn");
         });
 
         it("should contain all known skill rule IDs", () => {
@@ -273,5 +283,31 @@ describe("Lint rule registry", () => {
                 expect(DEFAULT_LINT_RULES.skills).toHaveProperty(ruleId);
             }
         });
+    });
+});
+
+describe("isRunLevelRuleId", () => {
+    it("should accept the discovery-limit rule, whose diagnostics describe the whole run", () => {
+        expect(isRunLevelRuleId("instruction/discovery-limit-reached")).toBe(
+            true,
+        );
+    });
+
+    it("should refuse a rule that reports a place in a file", () => {
+        expect(isRunLevelRuleId("instruction/import-unresolved")).toBe(false);
+    });
+
+    it("should refuse a diagnostic that has no rule", () => {
+        expect(isRunLevelRuleId(undefined)).toBe(false);
+    });
+
+    it("should accept only rules that exist in the registry", () => {
+        const knownRuleIds = Object.values(DEFAULT_LINT_RULES).flatMap(
+            (rules) => Object.keys(rules),
+        );
+
+        expect(knownRuleIds.filter(isRunLevelRuleId)).toEqual([
+            "instruction/discovery-limit-reached",
+        ]);
     });
 });

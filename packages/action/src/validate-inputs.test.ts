@@ -11,6 +11,7 @@ import {
     validateFilterMode,
     validateLevel,
     validateReporter,
+    validateRunnerTempPath,
 } from "./validate-inputs.js";
 
 const chance = new Chance();
@@ -337,5 +338,104 @@ describe("Action input validation", () => {
                 );
             });
         });
+    });
+});
+
+describe("validateRunnerTempPath", () => {
+    const runnerTemp = "/home/runner/work/_temp";
+
+    describe("when the variable is not set", () => {
+        it.each([undefined, ""])("should return undefined for %j", (value) => {
+            const result = validateRunnerTempPath(value, runnerTemp, "VAR");
+
+            expect(result).toBeUndefined();
+        });
+    });
+
+    describe("when the path is absolute and inside RUNNER_TEMP", () => {
+        it("should return the path", () => {
+            const path = `${runnerTemp}/lousy-agents-annotations`;
+
+            const result = validateRunnerTempPath(path, runnerTemp, "VAR");
+
+            expect(result).toBe(path);
+        });
+    });
+
+    describe("when the path is not acceptable", () => {
+        it.each([
+            ["is relative", "lousy-agents-annotations"],
+            ["has a traversal segment", `${runnerTemp}/../etc/passwd`],
+            [
+                "has a traversal segment that returns inside",
+                `${runnerTemp}/a/../b`,
+            ],
+            ["is outside RUNNER_TEMP", "/etc/passwd"],
+            ["is RUNNER_TEMP itself", runnerTemp],
+            ["only shares RUNNER_TEMP as a prefix", `${runnerTemp}-evil/file`],
+            ["contains a NUL byte", `${runnerTemp}/a\0b`],
+        ])("should reject a path that %s", (_label, path) => {
+            expect(() =>
+                validateRunnerTempPath(path, runnerTemp, "THE_VAR"),
+            ).toThrow(/THE_VAR/);
+        });
+    });
+
+    describe("when RUNNER_TEMP is missing or not absolute", () => {
+        it.each([undefined, "", "relative/tmp"])(
+            "should reject a configured path (RUNNER_TEMP=%j)",
+            (temp) => {
+                expect(() =>
+                    validateRunnerTempPath("/tmp/file", temp, "THE_VAR"),
+                ).toThrow(/RUNNER_TEMP/);
+            },
+        );
+    });
+});
+
+describe("readActionInputs annotation targets", () => {
+    const runnerTemp = "/home/runner/work/_temp";
+
+    it("should read the annotations file and the step summary when both are valid", async () => {
+        const inputs = await readActionInputs({
+            INPUT_DIRECTORY: ".",
+            RUNNER_TEMP: runnerTemp,
+            LOUSY_AGENTS_ANNOTATIONS_FILE: `${runnerTemp}/lousy-agents-annotations`,
+            GITHUB_STEP_SUMMARY: `${runnerTemp}/_runner_file_commands/step_summary_x`,
+        });
+
+        expect(inputs.annotationsFile).toBe(
+            `${runnerTemp}/lousy-agents-annotations`,
+        );
+        expect(inputs.stepSummaryFile).toBe(
+            `${runnerTemp}/_runner_file_commands/step_summary_x`,
+        );
+    });
+
+    it("should leave both undefined when neither variable is set", async () => {
+        const inputs = await readActionInputs({ INPUT_DIRECTORY: "." });
+
+        expect(inputs.annotationsFile).toBeUndefined();
+        expect(inputs.stepSummaryFile).toBeUndefined();
+    });
+
+    it("should fail loudly when the annotations file path is outside RUNNER_TEMP", async () => {
+        await expect(
+            readActionInputs({
+                INPUT_DIRECTORY: ".",
+                RUNNER_TEMP: runnerTemp,
+                LOUSY_AGENTS_ANNOTATIONS_FILE: "/etc/passwd",
+            }),
+        ).rejects.toThrow(/LOUSY_AGENTS_ANNOTATIONS_FILE/);
+    });
+
+    it("should skip a step summary path that is not under RUNNER_TEMP instead of failing the run", async () => {
+        const inputs = await readActionInputs({
+            INPUT_DIRECTORY: ".",
+            RUNNER_TEMP: runnerTemp,
+            GITHUB_STEP_SUMMARY: "/somewhere/else/summary.md",
+        });
+
+        expect(inputs.stepSummaryFile).toBeUndefined();
     });
 });

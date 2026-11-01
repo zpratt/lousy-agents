@@ -74,7 +74,10 @@ describe("the committed layering policy (project.json)", () => {
                 "packages/doctor/src/use-cases",
             ],
             adapters: [
+                "packages/action/src/annotations.ts",
+                "packages/action/src/run-level-diagnostics.ts",
                 "packages/action/src/run-lint.ts",
+                "packages/action/src/runner-temp-path.ts",
                 "packages/action/src/validate-inputs.ts",
                 "packages/agent-shell/src/gateways",
                 "packages/agent-shell/src/lib",
@@ -89,6 +92,7 @@ describe("the committed layering policy (project.json)", () => {
                 "packages/mcp/src/tools",
             ],
             formatters: [
+                "packages/action/src/workflow-commands.ts",
                 "packages/core/src/formatters",
                 "packages/doctor/src/formatters",
             ],

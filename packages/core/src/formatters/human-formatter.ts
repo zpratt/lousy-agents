@@ -13,36 +13,41 @@ const SEVERITY_ICONS: Record<LintSeverity, string> = {
 };
 
 /**
+ * An output with no files and no diagnostics has nothing to show. One with
+ * diagnostics but no files (for example a discovery limit that hid every
+ * file) must still be shown.
+ */
+function hasNothingToShow(output: LintOutput): boolean {
+    return output.summary.totalFiles === 0 && output.diagnostics.length === 0;
+}
+
+function okLines(output: LintOutput): string[] {
+    const filesWithDiagnostics = new Set(
+        output.diagnostics.map((d) => d.filePath),
+    );
+    return output.filesAnalyzed
+        .filter((file) => !filesWithDiagnostics.has(file))
+        .map((file) => `✔ ${file}: OK`);
+}
+
+function diagnosticLines(output: LintOutput): string[] {
+    return output.diagnostics.map((d) => {
+        const fieldInfo = d.field ? ` [${d.field}]` : "";
+        return `${SEVERITY_ICONS[d.severity]} ${d.filePath}:${d.line}${fieldInfo}: ${d.message}`;
+    });
+}
+
+/**
  * Formats lint output for human-readable console display.
  */
 export class HumanFormatter implements LintFormatter {
     format(outputs: readonly LintOutput[]): string {
-        const lines: string[] = [];
-
-        for (const output of outputs) {
-            if (output.summary.totalFiles === 0) {
-                continue;
-            }
-
-            const filesWithDiagnostics = new Set<string>();
-            for (const d of output.diagnostics) {
-                filesWithDiagnostics.add(d.filePath);
-            }
-
-            for (const file of output.filesAnalyzed) {
-                if (!filesWithDiagnostics.has(file)) {
-                    lines.push(`✔ ${file}: OK`);
-                }
-            }
-
-            for (const d of output.diagnostics) {
-                const prefix = `${d.filePath}:${d.line}`;
-                const fieldInfo = d.field ? ` [${d.field}]` : "";
-                const icon = SEVERITY_ICONS[d.severity];
-                lines.push(`${icon} ${prefix}${fieldInfo}: ${d.message}`);
-            }
-        }
-
-        return lines.join("\n");
+        return outputs
+            .filter((output) => !hasNothingToShow(output))
+            .flatMap((output) => [
+                ...okLines(output),
+                ...diagnosticLines(output),
+            ])
+            .join("\n");
     }
 }

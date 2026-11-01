@@ -3,6 +3,8 @@
  * These types represent scripts, tools, and their mapping to SDLC phases.
  */
 
+import type { InstructionDiscoveryDiagnostic } from "./instruction-quality.js";
+
 /**
  * SDLC feedback loop phases that scripts and tools support
  */
@@ -83,6 +85,11 @@ export interface FeedbackLoopCoverage {
     documentedInInstructions: Array<DiscoveredScript | DiscoveredTool>;
     /** All instruction references found */
     references: InstructionReference[];
+    /**
+     * Things instruction discovery reported about itself, such as stopping at
+     * its directory limit, so coverage was measured on fewer files than exist
+     */
+    diagnostics: InstructionDiscoveryDiagnostic[];
     /** Summary statistics */
     summary: {
         totalMandatory: number;
