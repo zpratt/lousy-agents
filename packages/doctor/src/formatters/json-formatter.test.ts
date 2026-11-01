@@ -6,7 +6,12 @@ import {
     INTENT_LOAD_STATUSES,
     type IntentLoadReport,
 } from "../entities/intent-load.js";
-import { ReportJsonSchema, toJson, toSummaryJson } from "./json-formatter.js";
+import {
+    ReportJsonSchema,
+    toInventoryItems,
+    toJson,
+    toSummaryJson,
+} from "./json-formatter.js";
 import type { SummaryOutput } from "./summary-formatter.js";
 
 const chance = new Chance();
@@ -534,5 +539,24 @@ describe("toSummaryJson", () => {
         ]);
         expect(report).not.toHaveProperty("edges");
         expect(report).not.toHaveProperty("findings");
+    });
+});
+
+describe("toInventoryItems", () => {
+    describe("when record paths differ in case and punctuation", () => {
+        it("should order the inventory by code unit so it is the same on every machine: '-' < uppercase < '_' < lowercase", () => {
+            const records = ["a.md", "_x.md", "B.md", "-y.md"].map((path) =>
+                buildRecord({ path, id: `claude:${path}` }),
+            );
+
+            const items = toInventoryItems(records);
+
+            expect(items.map((item) => item.path)).toEqual([
+                "-y.md",
+                "B.md",
+                "_x.md",
+                "a.md",
+            ]);
+        });
     });
 });

@@ -54,47 +54,38 @@ describe("walkRepository", () => {
 
     describe("when walking from the repository root", () => {
         it("should report repository-relative paths without a leading slash", async () => {
-            // Arrange
             await write("AGENTS.md");
             await write("packages/a/CLAUDE.md");
 
-            // Act
             const found = await paths({
                 startRelativePath: "",
                 includeFile: isMarkdown,
             });
 
-            // Assert
             expect(found).toEqual(["AGENTS.md", "packages/a/CLAUDE.md"]);
         });
 
         it("should return only files accepted by includeFile", async () => {
-            // Arrange
             await write("keep.md");
             await write("skip.txt");
 
-            // Act
             const found = await paths({
                 startRelativePath: "",
                 includeFile: isMarkdown,
             });
 
-            // Assert
             expect(found).toEqual(["keep.md"]);
         });
 
         it("should report both the logical path and the real path of a file", async () => {
-            // Arrange
             await write("real/target.md");
             await symlink("real/target.md", join(root, "link.md"));
 
-            // Act
             const result = await walkRepository(root, {
                 startRelativePath: "",
                 includeFile: isMarkdown,
             });
 
-            // Assert
             const linked = result.files.find(
                 (f) => f.relativePath === "link.md",
             );
@@ -104,68 +95,56 @@ describe("walkRepository", () => {
 
     describe("when starting below the root", () => {
         it("should walk only that directory and report paths from the root", async () => {
-            // Arrange
             await write(".github/instructions/a.md");
             await write("elsewhere/b.md");
 
-            // Act
             const found = await paths({
                 startRelativePath: ".github/instructions",
                 includeFile: isMarkdown,
             });
 
-            // Assert
             expect(found).toEqual([".github/instructions/a.md"]);
         });
 
         it("should list only the start directory when subdirectories are not included", async () => {
-            // Arrange
             await write("top.md");
             await write("sub/nested.md");
 
-            // Act
             const found = await paths({
                 startRelativePath: "",
                 includeFile: isMarkdown,
                 includeSubdirectories: false,
             });
 
-            // Assert
             expect(found).toEqual(["top.md"]);
         });
     });
 
     describe("when directories are skipped", () => {
         it("should skip node_modules and .git at any depth by default", async () => {
-            // Arrange
             await write("node_modules/pkg/CLAUDE.md");
             await write("a/node_modules/CLAUDE.md");
             await write(".git/CLAUDE.md");
             await write("a/CLAUDE.md");
 
-            // Act
             const found = await paths({
                 startRelativePath: "",
                 includeFile: isMarkdown,
             });
 
-            // Assert
             expect(found).toEqual(["a/CLAUDE.md"]);
         });
 
         it("should use the skip list a caller supplies instead of the default", async () => {
-            // Arrange
             await write("dist/a.md");
             await write("node_modules/b.md");
 
-            // Act
             const found = await paths({
                 startRelativePath: "",
                 includeFile: isMarkdown,
                 skipDirectoryNames: ["dist"],
             });
 
-            // Assert
             expect(found).toEqual(["node_modules/b.md"]);
         });
     });
@@ -183,82 +162,67 @@ describe("walkRepository", () => {
         it.each([9, 10])(
             "should list a directory at depth %s below the root",
             async (depth) => {
-                // Arrange
                 const expected = await nested(depth);
 
-                // Act
                 const found = await paths({
                     startRelativePath: "",
                     includeFile: isMarkdown,
                 });
 
-                // Assert
                 expect(found).toEqual([expected]);
             },
         );
 
         it("should not list a directory at depth 11 below the root", async () => {
-            // Arrange
             await nested(11);
 
-            // Act
             const found = await paths({
                 startRelativePath: "",
                 includeFile: isMarkdown,
             });
 
-            // Assert
             expect(found).toEqual([]);
         });
 
         it("should honor a maxDepth the caller supplies", async () => {
-            // Arrange
             await write("a/b/deep.md");
             await write("a/shallow.md");
 
-            // Act
             const found = await paths({
                 startRelativePath: "",
                 includeFile: isMarkdown,
                 maxDepth: 1,
             });
 
-            // Assert
             expect(found).toEqual(["a/shallow.md"]);
         });
     });
 
     describe("symlinks", () => {
         it("should follow a directory symlink whose target stays inside the root", async () => {
-            // Arrange
             await write("real/x.md");
             await symlink("real", join(root, "linkdir"));
 
-            // Act
             const found = await paths({
                 startRelativePath: "",
                 includeFile: isMarkdown,
                 revisit: "refuse-ancestors",
             });
 
-            // Assert
             expect(found).toEqual(["linkdir/x.md", "real/x.md"]);
         });
 
         it("should not follow a symlink that leaves the root", async () => {
-            // Arrange
             await writeFile(join(outside, "secret.md"), "secret");
             await symlink(outside, join(root, "escape"));
             await symlink(join(outside, "secret.md"), join(root, "escape.md"));
             await write("kept.md");
 
-            // Act
             const found = await paths({
                 startRelativePath: "",
                 includeFile: isMarkdown,
             });
 
-            // Assert
             expect(found).toEqual(["kept.md"]);
         });
     });
@@ -267,18 +231,15 @@ describe("walkRepository", () => {
         it.each(["once-per-real-directory", "refuse-ancestors"] as const)(
             "should terminate on a directory that links to itself and list its file once under %s",
             async (revisit) => {
-                // Arrange
                 await write("a/x.md");
                 await symlink(".", join(root, "a", "loop"));
 
-                // Act
                 const found = await paths({
                     startRelativePath: "",
                     includeFile: isMarkdown,
                     revisit,
                 });
 
-                // Assert
                 expect(found).toEqual(["a/x.md"]);
             },
         );
@@ -286,20 +247,17 @@ describe("walkRepository", () => {
         it.each(["once-per-real-directory", "refuse-ancestors"] as const)(
             "should terminate when two directories link to each other under %s",
             async (revisit) => {
-                // Arrange
                 await write("a/x.md");
                 await write("b/y.md");
                 await symlink("../b", join(root, "a", "to-b"));
                 await symlink("../a", join(root, "b", "to-a"));
 
-                // Act
                 const result = await walkRepository(root, {
                     startRelativePath: "",
                     includeFile: isMarkdown,
                     revisit,
                 });
 
-                // Assert
                 expect(result.directoryLimitReached).toBe(false);
                 expect(result.files.map((f) => f.real)).toEqual(
                     expect.arrayContaining([
@@ -319,33 +277,28 @@ describe("walkRepository", () => {
         });
 
         it("should list a real directory once, under the first path in name order, with revisit once-per-real-directory", async () => {
-            // Act
             const found = await paths({
                 startRelativePath: "",
                 includeFile: isMarkdown,
                 revisit: "once-per-real-directory",
             });
 
-            // Assert
             expect(found).toEqual(["a/x.md"]);
         });
 
         it("should keep every path to the directory as a separate location with revisit refuse-ancestors", async () => {
-            // Act
             const found = await paths({
                 startRelativePath: "",
                 includeFile: isMarkdown,
                 revisit: "refuse-ancestors",
             });
 
-            // Assert
             expect(found).toEqual(["a/x.md", "b/x.md", "shared/x.md"]);
         });
     });
 
     describe("determinism", () => {
         it("should report the same winning path whatever order the file system lists entries in", async () => {
-            // Arrange: `linkdir` and `real` are two paths to one directory
             await write("real/x.md");
             await symlink("real", join(root, "linkdir"));
             const listFor =
@@ -359,7 +312,6 @@ describe("walkRepository", () => {
                         : [{ name: "linkdir" }, { name: "real" }];
                 };
 
-            // Act
             const first = await paths({
                 startRelativePath: "",
                 includeFile: isMarkdown,
@@ -373,24 +325,33 @@ describe("walkRepository", () => {
                 listDirectory: listFor(true),
             });
 
-            // Assert
             expect(first).toEqual(["linkdir/x.md"]);
             expect(second).toEqual(first);
         });
 
-        it("should return files in name order", async () => {
-            // Arrange
-            await write("b.md");
-            await write("a.md");
-            await write("c/z.md");
+        it("should order names by code unit, not by locale: '-' < uppercase < '_' < lowercase", async () => {
+            for (const name of ["a.md", "_x.md", "B.md", "-y.md"]) {
+                await write(name);
+            }
 
-            // Act
             const found = await paths({
                 startRelativePath: "",
                 includeFile: isMarkdown,
             });
 
-            // Assert
+            expect(found).toEqual(["-y.md", "B.md", "_x.md", "a.md"]);
+        });
+
+        it("should return files in name order", async () => {
+            await write("b.md");
+            await write("a.md");
+            await write("c/z.md");
+
+            const found = await paths({
+                startRelativePath: "",
+                includeFile: isMarkdown,
+            });
+
             expect(found).toEqual(["a.md", "b.md", "c/z.md"]);
         });
     });
@@ -508,15 +469,13 @@ describe("walkRepository", () => {
             await write("c/c.md");
         });
 
-        it("should list exactly the capped number of directories and refuse the next", async () => {
-            // Act: root, a and b are listed; c is refused
+        it("should list the root, a and b when capped at three directories, and refuse c", async () => {
             const result = await walkRepository(root, {
                 startRelativePath: "",
                 includeFile: isMarkdown,
                 maxDirectories: 3,
             });
 
-            // Assert
             expect(result.files.map((f) => f.relativePath)).toEqual([
                 "a/a.md",
                 "b/b.md",
@@ -525,14 +484,12 @@ describe("walkRepository", () => {
         });
 
         it("should list every directory and report no limit when the tree has exactly the capped number", async () => {
-            // Act
             const result = await walkRepository(root, {
                 startRelativePath: "",
                 includeFile: isMarkdown,
                 maxDirectories: 4,
             });
 
-            // Assert
             expect(result.files.map((f) => f.relativePath)).toEqual([
                 "a/a.md",
                 "b/b.md",
@@ -541,43 +498,35 @@ describe("walkRepository", () => {
             expect(result.directoryLimitReached).toBe(false);
         });
 
-        it("should not count skipped directories or cycle revisits against the cap", async () => {
-            // Arrange
+        it("should count only the root, a, b and c against the cap, not skipped directories or cycle revisits", async () => {
             await write("node_modules/x/y.md");
             await write(".git/z.md");
             await symlink(".", join(root, "a", "loop"));
 
-            // Act: only root, a, b and c count
             const result = await walkRepository(root, {
                 startRelativePath: "",
                 includeFile: isMarkdown,
                 maxDirectories: 4,
             });
 
-            // Assert
             expect(result.directoryLimitReached).toBe(false);
             expect(result.files).toHaveLength(3);
         });
 
         it("should keep the files found before the cap and never throw", async () => {
-            // Act
             const result = await walkRepository(root, {
                 startRelativePath: "",
                 includeFile: isMarkdown,
                 maxDirectories: 1,
             });
 
-            // Assert
             expect(result.files).toEqual([]);
             expect(result.directoryLimitReached).toBe(true);
         });
     });
 
     describe("fan-out through directory aliases", () => {
-        it("should stop at the cap when each level links to the next three times (81 paths)", async () => {
-            // Arrange: d0 -> 3 links to d1 -> 3 links to d2 ... -> d4.
-            // Every path is a different logical location, so refusing only
-            // ancestors does not bound the walk; the cap must.
+        it("should bound a fan-out of aliases with the cap, because refusing ancestors alone does not, when each level links to the next three times (81 paths)", async () => {
             const levels = 5;
             for (let level = 0; level < levels; level += 1) {
                 await write(`d${level}/f.md`);
@@ -591,7 +540,6 @@ describe("walkRepository", () => {
                 }
             }
 
-            // Act
             const result = await walkRepository(root, {
                 startRelativePath: "",
                 includeFile: isMarkdown,
@@ -599,7 +547,6 @@ describe("walkRepository", () => {
                 maxDirectories: 20,
             });
 
-            // Assert
             expect(result.directoryLimitReached).toBe(true);
             expect(result.files).toHaveLength(19);
         });

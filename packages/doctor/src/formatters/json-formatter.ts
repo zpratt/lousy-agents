@@ -1,3 +1,4 @@
+import { compareCodeUnits } from "@lousy-agents/core/lib/code-unit-order.js";
 import { z } from "zod";
 import type { InventoryRecord } from "../entities/edge-types.js";
 import type { Finding } from "../entities/finding.js";
@@ -161,7 +162,9 @@ export function toInventoryItems(
             }),
         )
         .sort(
-            (a, b) => a.path.localeCompare(b.path) || a.id.localeCompare(b.id),
+            (a, b) =>
+                compareCodeUnits(a.path, b.path) ||
+                compareCodeUnits(a.id, b.id),
         );
 }
 
