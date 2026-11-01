@@ -107,6 +107,22 @@ so that **I can fix a present-but-invalid `.agentic-doctor/intent.json` instead 
 - The system shall continue to reject symlinked intent files and to read intent only from the current working directory.
 - The system shall not change exit-code behavior: neither intent finding blocks the run.
 
+### Story 7: Keep the output contract truthful (amendment, #1468)
+
+As a **Platform / Fleet Governance Engineer**,
+I want **doctor's stdout, exit code, and evaluation state to mean the same thing in every mode**,
+so that **automation never parses prompts as JSON, mistakes a skipped evaluation for a clean one, or silently gets text after a typo**.
+
+#### Acceptance Criteria
+
+- If `--format` is not exactly `human` or `json`, then the system shall print a warning to stderr that names the accepted values and escapes the echoed value, render human output without asking intent questions, and exit as it would for human output (an unsupported `--format` is not a usage error).
+- If the shared doctor command is given options that are not an object, or an invalid option other than `--format` (a non-boolean `summary` or `ci`), then it shall log an error that names the problem, write nothing to stdout, and return exit code `2`. The command line cannot produce this, because its parser coerces boolean flags.
+- While the output format is `json`, the system shall not prompt, regardless of `--ci` or whether stdin is a TTY, and shall write only the JSON document to stdout, sending log output of every level (including debug output enabled by `DEBUG`) to stderr.
+- When `--summary` is used, the system shall not report a findings count or "No findings"; human output shall state that evaluation was skipped and JSON shall include `evaluation: "skipped"`.
+- When a full evaluation runs, the JSON report shall include `evaluation: "completed"`.
+- When no agentic constructs are found (archetype `none`), the JSON report shall include `evaluation: "not-applicable"`, because no criteria were evaluated, and shall not report `completed`.
+- The system shall implement option parsing, interactivity, evaluation, and presentation once, shared by the CLI `doctor` command and the standalone doctor bin.
+
 ## Design
 
 ### Components Affected
@@ -270,6 +286,14 @@ sequenceDiagram
 - [x] **Verification**: Gateway unit tests for each status; engine tests for both intent criteria; formatter tests asserting human text contains every JSON intent value; built-CLI integration tests that run text and JSON on absent, documented-example, this repository's intent, malformed, schema-invalid, symlinked, directory, and nested-directory cases and compare the two formats.
 - [x] **Done when**: A rejected intent file is never reported as missing, and both formats agree on status, checked path, reason, and issues.
 
+### Task 7: Share one doctor run pipeline (amendment, #1468)
+
+- [x] **Objective**: Remove the duplicated pipeline whose per-copy inline decisions caused DR-01, DR-02, and DR-07.
+- [x] **Affected files**: `packages/doctor/src/lib/doctor-options.ts`, `packages/doctor/src/use-cases/run-doctor.ts`, `packages/doctor/src/gateways/doctor-gateways.ts`, `packages/doctor/src/formatters/present-run.ts`, `packages/doctor/src/formatters/human-renderer.ts`, `packages/doctor/src/formatters/json-formatter.ts`, `packages/doctor/src/cli/run-doctor-command.ts`, `packages/doctor/src/cli/doctor-args.ts`, `packages/doctor/src/cli/process-environment.ts`, `packages/doctor/src/cli/intent-elicitor.ts`, `packages/doctor/src/lib/terminal-escape.ts`, `packages/doctor/src/cli/agentic-doctor-command.ts`, `packages/doctor/src/cli/index.ts`, `packages/cli/src/commands/doctor.ts`
+- [x] **Requirements**: Validate options with a Zod schema (an unsupported format → warning on stderr and human output; an invalid `summary` or `ci` passed to the shared command → exit code `2`); derive interactivity once (`human && !ci && TTY`); return an explicit run outcome (`summary` | `no-constructs` | `evaluated`) from a use case with injected ports; render each outcome in one presenter that also computes the exit code; add the additive `evaluation` field (`completed` | `skipped` | `not-applicable`).
+- [x] **Verification**: Unit tests for option parsing and the interactivity rule, the run use case with fake ports, the presenter, and the shared command with a fake TTY; built-CLI integration tests for the unsupported-format warning, summary wording, and the `evaluation` field; a manual pseudo-terminal run confirming JSON stdout parses.
+- [x] **Done when**: Both entry points are thin wrappers and every output decision has one implementation.
+
 ## Out of Scope
 
 - Structured `remediation` fields, evidence-citation wiring, and an ordered `nextSteps` plan on findings (separate increment).
@@ -291,4 +315,5 @@ sequenceDiagram
 
 - GitHub Issue: #890 (Feature: Agentic Configuration Doctor)
 - GitHub Issue: #1381 (intent load diagnostics amendment)
+- GitHub Issue: #1468 (truthful output contract amendment)
 - Source: first increment of a three-part improvement brief for the shipped `doctor --format json --ci`; grounded in the wisdom knowledge base's cross-harness composition model.

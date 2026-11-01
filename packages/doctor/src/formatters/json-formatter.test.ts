@@ -6,7 +6,7 @@ import {
     INTENT_LOAD_STATUSES,
     type IntentLoadReport,
 } from "../entities/intent-load.js";
-import { ReportJsonSchema, toJson } from "./json-formatter.js";
+import { ReportJsonSchema, toJson, toSummaryJson } from "./json-formatter.js";
 import type { SummaryOutput } from "./summary-formatter.js";
 
 const chance = new Chance();
@@ -405,6 +405,43 @@ describe("toJson", () => {
         });
     });
 
+    describe("evaluation state", () => {
+        it("should report a full evaluation as completed by default", () => {
+            const report = toJson(buildSummary(), [], []);
+
+            expect(report.evaluation).toBe("completed");
+        });
+
+        it("should pass a not-applicable evaluation state through", () => {
+            const report = toJson(
+                buildSummary(),
+                [],
+                [],
+                undefined,
+                undefined,
+                "not-applicable",
+            );
+
+            expect(report.evaluation).toBe("not-applicable");
+            expect(() => ReportJsonSchema.parse(report)).not.toThrow();
+        });
+
+        it("should reject an evaluation state outside the known set", () => {
+            const unknownState = chance.word();
+
+            expect(() =>
+                toJson(
+                    buildSummary(),
+                    [],
+                    [],
+                    undefined,
+                    undefined,
+                    unknownState as unknown as "completed",
+                ),
+            ).toThrow();
+        });
+    });
+
     describe("schema validation", () => {
         it("should produce output that satisfies the ReportJson schema", () => {
             const record = buildRecord({
@@ -430,5 +467,43 @@ describe("toJson", () => {
 
             expect(() => toJson(summary, [], [invalidRecord])).toThrow();
         });
+    });
+});
+
+describe("toSummaryJson", () => {
+    const archetypeSummary = buildSummary({
+        archetype: "intentional-hybrid",
+        dominanceScore: chance.floating({ min: 0.1, max: 0.9 }),
+        totalRecords: chance.integer({ min: 2, max: 50 }),
+        harnessBreakdown: [
+            { harness: "claude", count: chance.integer({ min: 1, max: 20 }) },
+            { harness: "copilot", count: chance.integer({ min: 1, max: 20 }) },
+        ],
+        crossHarnessEdges: chance.integer({ min: 1, max: 50 }),
+    });
+
+    it("should carry every archetype field from the summary", () => {
+        const report = toSummaryJson(archetypeSummary, []);
+
+        expect(report).toMatchObject({
+            archetype: archetypeSummary.archetype,
+            dominanceScore: archetypeSummary.dominanceScore,
+            totalRecords: archetypeSummary.totalRecords,
+            harnessBreakdown: archetypeSummary.harnessBreakdown,
+            crossHarnessEdges: archetypeSummary.crossHarnessEdges,
+        });
+    });
+
+    it("should mark evaluation as skipped and list the inventory without edges or findings", () => {
+        const record = buildRecord();
+
+        const report = toSummaryJson(archetypeSummary, [record]);
+
+        expect(report.evaluation).toBe("skipped");
+        expect(report.inventory).toEqual([
+            expect.objectContaining({ id: record.id, path: record.path }),
+        ]);
+        expect(report).not.toHaveProperty("edges");
+        expect(report).not.toHaveProperty("findings");
     });
 });

@@ -18,6 +18,11 @@ import { z } from "zod";
 const execFileAsync = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const cliBin = resolve(__dirname, "..", "..", "dist", "index.js");
+const SPRAWL_FIXTURE = "accidental-sprawl";
+const SPRAWL_ARCHETYPE = "accidental-sprawl";
+// biome-ignore lint/style/useNamingConvention: env var
+const DEBUG_ENVIRONMENT: NodeJS.ProcessEnv = { DEBUG: "1" };
+const PROMPT_TIMEOUT_MS = 30000;
 const fixturesDir = resolve(
     __dirname,
     "..",
@@ -38,22 +43,39 @@ interface ExecResult {
     stderr: string;
 }
 
-/**
- * Vitest sets TEST=true, which makes consola silence human output. Drop it so
- * the child process prints what a user's terminal would show.
- */
-function userEnvironment(): NodeJS.ProcessEnv {
-    const { TEST: _testFlag, ...env } = process.env;
+// Vitest sets TEST=true, which makes consola silence human output.
+function userEnvironment(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+    const {
+        TEST: _testFlag,
+        DEBUG: _debugFlag,
+        CONSOLA_LEVEL: _levelFlag,
+        ...env
+    } = process.env;
     // biome-ignore lint/style/useNamingConvention: env var
-    return { ...env, NO_COLOR: "1" };
+    return { ...env, NO_COLOR: "1", ...overrides };
 }
 
-async function runDoctor(args: string[], cwd: string): Promise<ExecResult> {
+interface RunOptions {
+    env?: NodeJS.ProcessEnv;
+    timeoutMs?: number;
+}
+
+async function runDoctor(
+    args: string[],
+    cwd: string,
+    options: RunOptions = {},
+): Promise<ExecResult> {
     try {
         const result = await execFileAsync(
             process.execPath,
             [cliBin, "doctor", ...args],
-            { cwd, env: userEnvironment() },
+            {
+                cwd,
+                env: userEnvironment(options.env),
+                ...(options.timeoutMs !== undefined
+                    ? { timeout: options.timeoutMs }
+                    : {}),
+            },
         );
         return { exitCode: 0, stdout: result.stdout, stderr: result.stderr };
     } catch (err: unknown) {
@@ -69,13 +91,10 @@ async function runDoctor(args: string[], cwd: string): Promise<ExecResult> {
 describe("doctor command", () => {
     describe("when invoked with --help", () => {
         it("should display usage and exit 0", async () => {
-            // Arrange
             const cwd = process.cwd();
 
-            // Act
             const { exitCode, stdout } = await runDoctor(["--help"], cwd);
 
-            // Assert
             expect(exitCode).toBe(0);
             expect(stdout).toMatch(/doctor/i);
             expect(stdout).toMatch(/--summary/);
@@ -85,16 +104,13 @@ describe("doctor command", () => {
 
     describe("when run with --summary --format json on an empty repo", () => {
         it("should output a valid JSON summary and exit 0", async () => {
-            // Arrange
             const cwd = fixture("empty-repo");
 
-            // Act
             const { exitCode, stdout } = await runDoctor(
                 ["--summary", "--format", "json"],
                 cwd,
             );
 
-            // Assert
             expect(exitCode).toBe(0);
             const report = JSON.parse(stdout) as Record<string, unknown>;
             expect(report).toHaveProperty("archetype", "none");
@@ -102,17 +118,25 @@ describe("doctor command", () => {
             expect(report).not.toHaveProperty("findings");
         });
 
-        it("should include an empty inventory array", async () => {
-            // Arrange
+        it("should report the evaluation as skipped, because --summary takes precedence", async () => {
             const cwd = fixture("empty-repo");
 
-            // Act
             const { stdout } = await runDoctor(
                 ["--summary", "--format", "json"],
                 cwd,
             );
 
-            // Assert
+            expect(JSON.parse(stdout).evaluation).toBe("skipped");
+        });
+
+        it("should include an empty inventory array", async () => {
+            const cwd = fixture("empty-repo");
+
+            const { stdout } = await runDoctor(
+                ["--summary", "--format", "json"],
+                cwd,
+            );
+
             const report = JSON.parse(stdout) as { inventory: unknown[] };
             expect(report.inventory).toEqual([]);
         });
@@ -120,16 +144,13 @@ describe("doctor command", () => {
 
     describe("when run with --format json on an empty repo", () => {
         it("should output valid JSON with no findings and exit 0", async () => {
-            // Arrange
             const cwd = fixture("empty-repo");
 
-            // Act
             const { exitCode, stdout } = await runDoctor(
                 ["--format", "json"],
                 cwd,
             );
 
-            // Assert
             expect(exitCode).toBe(0);
             const report = JSON.parse(stdout) as {
                 archetype: string;
@@ -139,14 +160,19 @@ describe("doctor command", () => {
             expect(report.findings).toHaveLength(0);
         });
 
-        it("should include empty inventory and edges arrays", async () => {
-            // Arrange
+        it("should mark JSON evaluation as not-applicable instead of completed", async () => {
             const cwd = fixture("empty-repo");
 
-            // Act
             const { stdout } = await runDoctor(["--format", "json"], cwd);
 
-            // Assert
+            expect(JSON.parse(stdout).evaluation).toBe("not-applicable");
+        });
+
+        it("should include empty inventory and edges arrays", async () => {
+            const cwd = fixture("empty-repo");
+
+            const { stdout } = await runDoctor(["--format", "json"], cwd);
+
             const report = JSON.parse(stdout) as {
                 inventory: unknown[];
                 edges: unknown[];
@@ -158,16 +184,13 @@ describe("doctor command", () => {
 
     describe("when run with --format json on the integration-scenario fixture", () => {
         it("should produce a critical missing-copilot-instructions finding and exit 1", async () => {
-            // Arrange
             const cwd = fixture("integration-scenario");
 
-            // Act
             const { exitCode, stdout } = await runDoctor(
                 ["--format", "json"],
                 cwd,
             );
 
-            // Assert
             expect(exitCode).toBe(1);
             const report = JSON.parse(stdout) as {
                 findings: Array<{ criterionId: string; severity: string }>;
@@ -180,13 +203,10 @@ describe("doctor command", () => {
         });
 
         it("should include a populated inventory array alongside unchanged legacy keys", async () => {
-            // Arrange
             const cwd = fixture("integration-scenario");
 
-            // Act
             const { stdout } = await runDoctor(["--format", "json"], cwd);
 
-            // Assert
             const report = JSON.parse(stdout) as {
                 archetype: string;
                 dominanceScore: number;
@@ -207,14 +227,116 @@ describe("doctor command", () => {
 
     describe("when run with --summary on the integration-scenario fixture", () => {
         it("should exit 0 because --summary skips evaluation", async () => {
-            // Arrange
             const cwd = fixture("integration-scenario");
 
-            // Act
             const { exitCode } = await runDoctor(["--summary"], cwd);
 
-            // Assert
             expect(exitCode).toBe(0);
+        });
+
+        it("should say evaluation was skipped instead of claiming no findings", async () => {
+            const cwd = fixture("integration-scenario");
+
+            const { stdout } = await runDoctor(["--summary", "--ci"], cwd);
+
+            expect(stdout).toContain("Evaluation skipped (--summary)");
+            expect(stdout).not.toContain("No findings");
+        });
+
+        it("should mark JSON evaluation as skipped", async () => {
+            const cwd = fixture("integration-scenario");
+
+            const { stdout } = await runDoctor(
+                ["--summary", "--format=json", "--ci"],
+                cwd,
+            );
+
+            const report = JSON.parse(stdout);
+            expect(report.evaluation).toBe("skipped");
+            expect(report).not.toHaveProperty("findings");
+        });
+    });
+
+    describe("when run with a full evaluation in JSON", () => {
+        it("should mark JSON evaluation as completed", async () => {
+            const cwd = fixture("integration-scenario");
+
+            const { stdout } = await runDoctor(["--format=json", "--ci"], cwd);
+
+            expect(JSON.parse(stdout).evaluation).toBe("completed");
+        });
+    });
+
+    describe("when --format is not supported", () => {
+        it("should warn on stderr naming the accepted values, render human output, and exit 0", async () => {
+            const cwd = fixture(SPRAWL_FIXTURE);
+            const unsupportedFormat = "jsno";
+
+            const { exitCode, stdout, stderr } = await runDoctor(
+                [`--format=${unsupportedFormat}`, "--ci"],
+                cwd,
+            );
+
+            expect(exitCode).toBe(0);
+            expect(stderr).toContain(unsupportedFormat);
+            expect(stderr).toContain("human, json");
+            expect(stdout).toContain("Archetype:");
+            expect(() => JSON.parse(stdout)).toThrow();
+        });
+
+        it("should treat a different casing of json as unsupported", async () => {
+            const cwd = fixture(SPRAWL_FIXTURE);
+
+            const { exitCode, stdout, stderr } = await runDoctor(
+                ["--format=JSON", "--ci"],
+                cwd,
+            );
+
+            expect(exitCode).toBe(0);
+            expect(stderr).toContain("JSON");
+            expect(stdout).toContain("Archetype:");
+        });
+    });
+
+    describe("when debug logging is enabled and JSON is requested", () => {
+        it("should keep stdout a single JSON document and send debug output to stderr", async () => {
+            const cwd = fixture(SPRAWL_FIXTURE);
+
+            const { exitCode, stdout, stderr } = await runDoctor(
+                ["--format=json", "--ci"],
+                cwd,
+                { env: DEBUG_ENVIRONMENT },
+            );
+
+            expect(exitCode).toBe(0);
+            expect(JSON.parse(stdout).archetype).toBe(SPRAWL_ARCHETYPE);
+            expect(stderr).toContain("Wisdom graph unavailable");
+        });
+    });
+
+    describe("when debug logging is enabled and human output is requested", () => {
+        it("should keep the report on stdout", async () => {
+            const cwd = fixture(SPRAWL_FIXTURE);
+
+            const { stdout } = await runDoctor(["--ci"], cwd, {
+                env: DEBUG_ENVIRONMENT,
+            });
+
+            expect(stdout).toContain("Archetype:");
+        });
+    });
+
+    describe("when stdin is not a terminal and --ci is not set", () => {
+        it("should finish without asking an ambiguity question", async () => {
+            const cwd = fixture(SPRAWL_FIXTURE);
+
+            const { exitCode, stdout } = await runDoctor([], cwd, {
+                timeoutMs: PROMPT_TIMEOUT_MS,
+            });
+
+            expect(exitCode).toBe(0);
+            expect(stdout).toContain("Archetype:");
+            expect(stdout).not.toContain("Is this intentional?");
         });
     });
 
@@ -371,7 +493,6 @@ describe("doctor command", () => {
         for (const testCase of cases) {
             describe(`when ${testCase.name}`, () => {
                 it(`should report intent status ${testCase.expectedStatus} identically in text and JSON`, async () => {
-                    // Arrange
                     await testCase.arrange();
                     const expectedCheckedPath = join(
                         repoRoot,
@@ -379,11 +500,9 @@ describe("doctor command", () => {
                         "intent.json",
                     );
 
-                    // Act
                     const { text, json, report } =
                         await runBothFormats(repoRoot);
 
-                    // Assert
                     expect(report.intent.status).toBe(testCase.expectedStatus);
                     expect(report.intent.checkedPath).toBe(expectedCheckedPath);
                     expect(
@@ -400,7 +519,6 @@ describe("doctor command", () => {
 
         describe("when the intent file is missing required fields", () => {
             it("should name each missing field with its expected type or allowed values in both formats", async () => {
-                // Arrange
                 await writeIntent("{}");
                 const expectedMessages = {
                     targetHarnesses: /expected array/,
@@ -410,10 +528,8 @@ describe("doctor command", () => {
                         /expected one of "interactive"\|"ci-assumed"\|"pre-committed"/,
                 };
 
-                // Act
                 const { text, report } = await runBothFormats(repoRoot);
 
-                // Assert
                 const messageByPath = new Map(
                     (report.intent.issues ?? []).map((i) => [
                         i.path,
@@ -433,7 +549,6 @@ describe("doctor command", () => {
 
         describe("when the intent file declares an unknown harness", () => {
             it("should list the allowed harness values for the failing entry in both formats", async () => {
-                // Arrange
                 await writeIntent(
                     JSON.stringify({
                         ...DocumentedIntentExample,
@@ -441,10 +556,8 @@ describe("doctor command", () => {
                     }),
                 );
 
-                // Act
                 const { text, report } = await runBothFormats(repoRoot);
 
-                // Assert
                 expect(report.intent.status).toBe("invalid-schema");
                 const issue = report.intent.issues?.find(
                     (i) => i.path === "targetHarnesses.1",
@@ -461,16 +574,13 @@ describe("doctor command", () => {
 
         describe("when run from a subdirectory while the intent file is at the repository root", () => {
             it("should report the subdirectory path it actually checked", async () => {
-                // Arrange
                 await writeIntent(JSON.stringify(DocumentedIntentExample));
                 const nestedDir = join(repoRoot, "src");
                 await mkdir(nestedDir);
                 await writeFile(join(nestedDir, "CLAUDE.md"), "# Nested\n");
 
-                // Act
                 const { text, report } = await runBothFormats(nestedDir);
 
-                // Assert
                 expect(report.intent).toMatchObject({
                     status: "absent",
                     checkedPath: join(
