@@ -69,8 +69,8 @@ run = [
 ]
 hide = true
 
-[tasks.dependency-cruiser]
-description = "Validate package architecture with dependency-cruiser (standalone fast-feedback)"
+[tasks.architecture]
+description = "Fail on any layer violation coach finds in the committed code (standalone fast-feedback)"
 run = "npm run lint:architecture"
 
 [tasks.check-issue-forms]
@@ -94,7 +94,7 @@ run = [
     'semgrep',
     'check-issue-forms',
     'format-check',
-    'dependency-cruiser',
+    'architecture',
   ] }, # These run in parallel!
 ]
 

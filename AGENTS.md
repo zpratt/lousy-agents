@@ -61,7 +61,7 @@ mise run coach-branch         # This branch vs main with project.json architectu
 mise run coach-top            # Baseline narrowed to the first 10 high-severity findings
 ```
 
-Coach (`github:lousy-agents/coach` 0.10.0) is advisory. Keep it out of `mise run lint` and `mise run ci`. A finished scan exits 0 even when it found signals. An empty signal set is not a clean bill of health. `project.json` is read from the analyzed Git revision, so commit it before scanning. Scans read committed HEAD, not the dirty worktree. Host Node must be 24 or 26. The workspace TypeScript pin is 7.0.2.
+Coach (`github:lousy-agents/coach` 0.10.0) is advisory: the `coach-*` tasks never fail on findings, and the file-local rules (cognitive complexity, nesting depth, branch density, hidden input mutation, TOCTOU) stay out of `mise run lint` and `mise run ci`. One check is a gate. `mise run architecture`, which `mise run lint` runs, fails on any `architecture.layer_violation` in the committed code, on a non-zero coach exit and on a report it cannot read (see `scripts/architecture-gate/`). A finished scan exits 0 even when it found signals. An empty signal set is not a clean bill of health. `project.json` is read from the analyzed Git revision, so commit it before scanning. Scans read committed HEAD, not the dirty worktree. Host Node must be 24 or 26. The workspace TypeScript pin is 7.0.2.
 
 ### Coach tasks
 
