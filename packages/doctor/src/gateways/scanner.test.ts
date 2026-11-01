@@ -15,6 +15,25 @@ function fixture(name: string): string {
     return resolve(fixturesDir, name);
 }
 
+async function withTempRepo(
+    files: Record<string, string>,
+    run: (repoRoot: string) => Promise<void>,
+): Promise<void> {
+    const repoRoot = join(
+        await realpath(tmpdir()),
+        `doctor-scanner-${chance.guid()}`,
+    );
+    try {
+        for (const [relPath, content] of Object.entries(files)) {
+            await mkdir(dirname(join(repoRoot, relPath)), { recursive: true });
+            await writeFile(join(repoRoot, relPath), content);
+        }
+        await run(repoRoot);
+    } finally {
+        await rm(repoRoot, { recursive: true, force: true });
+    }
+}
+
 describe("scanRepository", () => {
     describe("when scanning a pure-claude repository", () => {
         it("should return one convention-loaded instruction record with harness 'claude'", async () => {
@@ -396,6 +415,226 @@ describe("scanRepository", () => {
             } finally {
                 await rm(repoRoot, { recursive: true, force: true });
             }
+        });
+    });
+
+    describe("when scanning inline repositories (inventory characterization)", () => {
+        it("should record a '~/' import as malformed with reason 'home'", async () => {
+            // Arrange
+            const homeTarget = `~/${chance.word()}.md`;
+
+            await withTempRepo(
+                { "CLAUDE.md": `@${homeTarget}\n` },
+                async (repoRoot) => {
+                    // Act
+                    const records = await scanRepository(repoRoot);
+
+                    // Assert
+                    expect(
+                        records.find((r) => r.path === "CLAUDE.md")?.edges,
+                    ).toEqual([
+                        expect.objectContaining({
+                            type: "hard-import",
+                            target: homeTarget,
+                            malformed: true,
+                            reason: "home",
+                        }),
+                    ]);
+                },
+            );
+        });
+
+        it("should record an applyTo glob as a well-formed glob-binding edge", async () => {
+            // Arrange
+            const instructionPath = `.github/instructions/${chance.word()}.instructions.md`;
+            const glob = `${chance.word()}/**/*.ts`;
+
+            await withTempRepo(
+                { [instructionPath]: `---\napplyTo: "${glob}"\n---\nBody\n` },
+                async (repoRoot) => {
+                    // Act
+                    const records = await scanRepository(repoRoot);
+
+                    // Assert
+                    expect(
+                        records.find((r) => r.path === instructionPath)?.edges,
+                    ).toStrictEqual([
+                        {
+                            type: "glob-binding",
+                            direction: { from: instructionPath, to: glob },
+                            target: glob,
+                            malformed: false,
+                        },
+                    ]);
+                },
+            );
+        });
+
+        it("should mark the target of a resolved @import as referenced and leave the importer convention-loaded", async () => {
+            // Arrange
+            const files = {
+                "CLAUDE.md": "@./AGENTS.md\n",
+                "AGENTS.md": "# Agents\n",
+            };
+
+            await withTempRepo(files, async (repoRoot) => {
+                // Act
+                const records = await scanRepository(repoRoot);
+
+                // Assert
+                const claudeMd = records.find((r) => r.path === "CLAUDE.md");
+                const agentsMd = records.find((r) => r.path === "AGENTS.md");
+                expect(claudeMd?.edges).toStrictEqual([
+                    {
+                        type: "hard-import",
+                        direction: { from: "CLAUDE.md", to: "AGENTS.md" },
+                        target: "AGENTS.md",
+                        malformed: false,
+                    },
+                ]);
+                expect(claudeMd?.loadMechanism).toBe("convention-loaded");
+                expect(agentsMd?.loadMechanism).toBe("referenced");
+            });
+        });
+
+        it("should not treat a glob-binding as a reference to the file with the same path", async () => {
+            // Arrange
+            const files = {
+                ".github/instructions/a.instructions.md":
+                    '---\napplyTo: "AGENTS.md"\n---\n',
+                "AGENTS.md": "# Agents\n",
+            };
+
+            await withTempRepo(files, async (repoRoot) => {
+                // Act
+                const records = await scanRepository(repoRoot);
+
+                // Assert
+                expect(
+                    records.find((r) => r.path === "AGENTS.md")?.loadMechanism,
+                ).toBe("convention-loaded");
+            });
+        });
+
+        it("should resolve a markdown link relative to the linking file and mark its target referenced", async () => {
+            // Arrange
+            const linkingPath = ".github/instructions/a.instructions.md";
+            const files = {
+                [linkingPath]: "[guide](../../AGENTS.md)\n",
+                "AGENTS.md": "# Agents\n",
+            };
+
+            await withTempRepo(files, async (repoRoot) => {
+                // Act
+                const records = await scanRepository(repoRoot);
+
+                // Assert
+                expect(
+                    records.find((r) => r.path === linkingPath)?.edges,
+                ).toStrictEqual([
+                    {
+                        type: "soft-reference",
+                        direction: { from: linkingPath, to: "AGENTS.md" },
+                        target: "AGENTS.md",
+                        malformed: false,
+                    },
+                ]);
+                expect(
+                    records.find((r) => r.path === "AGENTS.md")?.loadMechanism,
+                ).toBe("referenced");
+            });
+        });
+
+        it("should not parse edges from a non-markdown file", async () => {
+            // Arrange
+            const hooksPath = ".github/hooks/agent-shell/hooks.json";
+            const files = {
+                [hooksPath]: '{"note": "@./AGENTS.md"}',
+                "AGENTS.md": "# Agents\n",
+            };
+
+            await withTempRepo(files, async (repoRoot) => {
+                // Act
+                const records = await scanRepository(repoRoot);
+
+                // Assert
+                expect(
+                    records.find((r) => r.path === hooksPath)?.edges,
+                ).toEqual([]);
+                expect(
+                    records.find((r) => r.path === "AGENTS.md")?.loadMechanism,
+                ).toBe("convention-loaded");
+            });
+        });
+
+        it("should keep a markdown file that is too large to read but record no edges for it", async () => {
+            // Arrange
+            const oversizedContent = `@./AGENTS.md\n${"x".repeat(1_048_576)}`;
+            const files = {
+                "CLAUDE.md": oversizedContent,
+                "AGENTS.md": "# Agents\n",
+            };
+
+            await withTempRepo(files, async (repoRoot) => {
+                // Act
+                const records = await scanRepository(repoRoot);
+
+                // Assert
+                const claudeMd = records.find((r) => r.path === "CLAUDE.md");
+                expect(claudeMd).toBeDefined();
+                expect(claudeMd?.edges).toEqual([]);
+            });
+        });
+
+        it("should append mcp-server records after every file record, adding transport only when declared", async () => {
+            // Arrange
+            const declared = chance.word();
+            const undeclared = `${chance.word()}x`;
+            const files = {
+                "CLAUDE.md": "# Claude\n",
+                ".mcp.json": JSON.stringify({
+                    mcpServers: {
+                        [declared]: { type: "stdio", command: "npx" },
+                        [undeclared]: { command: "npx" },
+                    },
+                }),
+            };
+
+            await withTempRepo(files, async (repoRoot) => {
+                // Act
+                const records = await scanRepository(repoRoot);
+
+                // Assert
+                const firstMcpIndex = records.findIndex(
+                    (r) => r.constructType === "mcp-server",
+                );
+                const trailing = records.slice(firstMcpIndex);
+                expect(firstMcpIndex).toBeGreaterThan(0);
+                expect(
+                    trailing.every((r) => r.constructType === "mcp-server"),
+                ).toBe(true);
+                expect(trailing).toStrictEqual([
+                    {
+                        id: `mcp-server:.mcp.json#${declared}`,
+                        path: ".mcp.json",
+                        harness: "shared",
+                        constructType: "mcp-server",
+                        loadMechanism: "convention-loaded",
+                        edges: [],
+                        serverName: declared,
+                        transport: "stdio",
+                    },
+                    {
+                        id: `mcp-server:.mcp.json#${undeclared}`,
+                        path: ".mcp.json",
+                        harness: "shared",
+                        constructType: "mcp-server",
+                        loadMechanism: "convention-loaded",
+                        edges: [],
+                        serverName: undeclared,
+                    },
+                ]);
+            });
         });
     });
 });
