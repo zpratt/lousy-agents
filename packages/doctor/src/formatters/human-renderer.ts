@@ -3,6 +3,7 @@ import type { Severity } from "../entities/criteria-schema.js";
 import type { FindingCategory } from "../entities/edge-types.js";
 import type { Finding } from "../entities/finding.js";
 import type { IntentLoadReport } from "../entities/intent-load.js";
+import { escapeForTerminal } from "../lib/terminal-escape.js";
 import type { SummaryOutput } from "./summary-formatter.js";
 
 const SEVERITY_ORDER: Severity[] = [
@@ -35,23 +36,21 @@ function sortFindings(findings: Finding[]): Finding[] {
     });
 }
 
-/**
- * Prints every field of the intent load report so text output carries the
- * same status, checked path, reason, and issues as the JSON `intent` object.
- */
 function renderIntentLoad(
     intentLoad: IntentLoadReport,
     logger: ConsolaInstance,
 ): void {
     logger.info(`Intent: ${intentLoad.status}`);
-    logger.info(`  Checked path: ${intentLoad.checkedPath}`);
+    logger.info(`  Checked path: ${escapeForTerminal(intentLoad.checkedPath)}`);
     if (intentLoad.reason !== undefined) {
-        logger.info(`  Reason: ${intentLoad.reason}`);
+        logger.info(`  Reason: ${escapeForTerminal(intentLoad.reason)}`);
     }
     if (intentLoad.issues !== undefined && intentLoad.issues.length > 0) {
         logger.info("  Issues:");
         for (const issue of intentLoad.issues) {
-            logger.info(`    ${issue.path}: ${issue.message}`);
+            logger.info(
+                `    ${escapeForTerminal(issue.path)}: ${escapeForTerminal(issue.message)}`,
+            );
         }
         if (intentLoad.omittedIssueCount !== undefined) {
             logger.info(`    ...and ${intentLoad.omittedIssueCount} more`);
@@ -59,15 +58,13 @@ function renderIntentLoad(
     }
 }
 
-export function renderHuman(
+function renderHeader(
     summary: SummaryOutput,
-    findings: Finding[],
     logger: ConsolaInstance,
     snapshotRef?: string,
-    intentLoad?: IntentLoadReport,
 ): void {
     if (snapshotRef) {
-        logger.info(`Evidence snapshot: ${snapshotRef}`);
+        logger.info(`Evidence snapshot: ${escapeForTerminal(snapshotRef)}`);
     }
 
     logger.info(`Archetype: ${summary.archetype}`);
@@ -87,6 +84,27 @@ export function renderHuman(
     if (summary.crossHarnessEdges > 0) {
         logger.info(`  Cross-harness edges: ${summary.crossHarnessEdges}`);
     }
+}
+
+export function renderHumanSummary(
+    summary: SummaryOutput,
+    logger: ConsolaInstance,
+    snapshotRef?: string,
+): void {
+    renderHeader(summary, logger, snapshotRef);
+    logger.info(
+        "Evaluation skipped (--summary). Run without --summary to check criteria.",
+    );
+}
+
+export function renderHuman(
+    summary: SummaryOutput,
+    findings: Finding[],
+    logger: ConsolaInstance,
+    snapshotRef?: string,
+    intentLoad?: IntentLoadReport,
+): void {
+    renderHeader(summary, logger, snapshotRef);
 
     if (intentLoad !== undefined) {
         renderIntentLoad(intentLoad, logger);
@@ -108,7 +126,7 @@ export function renderHuman(
         );
         if (finding.evidenceCitation) {
             logger.info(
-                `    Evidence: node ${finding.evidenceCitation.nodeId} (${finding.evidenceCitation.sourceFile})`,
+                `    Evidence: node ${escapeForTerminal(finding.evidenceCitation.nodeId)} (${escapeForTerminal(finding.evidenceCitation.sourceFile)})`,
             );
         }
     }

@@ -24,9 +24,9 @@ The implementation package is `@lousy-agents/agentic-doctor` (bin: `agentic-doct
 1. Scan the current working directory for harness footprints and composition edges.
 2. Classify the repository archetype and compute harness dominance.
 3. Load optional declared intent from `.agentic-doctor/intent.json` in the current working directory, and record whether it loaded or why it was rejected (see [Intent load status](#intent-load-status)).
-4. On an interactive TTY without `--ci`, optionally ask short ambiguity questions when no intent file exists (status `absent`). A present-but-rejected file is reported instead of prompting. Answers are only acknowledged (`Noted.`); they are **not** written to disk and **do not** change findings for that run. Doctor re-reads `.agentic-doctor/intent.json` afterward in case you created it in another terminal.
+4. For human output on an interactive TTY without `--ci`, optionally ask short ambiguity questions when no intent file exists (status `absent`). JSON output never prompts, so stdout is always a single JSON document. A present-but-rejected file is reported instead of prompting. Answers are only acknowledged (`Noted.`); they are **not** written to disk and **do not** change findings for that run. Doctor re-reads `.agentic-doctor/intent.json` afterward in case you created it in another terminal.
 5. Evaluate the criteria catalog against inventory, archetype, and intent.
-6. Print a human report or JSON. Exit `1` when any **critical** or **high** finding is classified as a **defect**. When the archetype is `none`, human mode prints that no agentic constructs were found and skips the full findings layout.
+6. Print a human report or JSON. Exit `1` when any **critical** or **high** finding is classified as a **defect**. When the archetype is `none`, human mode prints that no agentic constructs were found and skips the full findings layout, and the command exits `0`.
 
 This is a tight feedback loop for multi-agent work: inventory what the fleet can see, name the composition pattern, fail CI only on blocking defects.
 
@@ -34,9 +34,9 @@ This is a tight feedback loop for multi-agent work: inventory what the fleet can
 
 | Flag | Type | Default | Description |
 | ------ | ------ | --------- | ------------- |
-| `--summary` | boolean | `false` | Show archetype classification only. Skips criteria evaluation. JSON still includes `inventory`. |
-| `--format` | `human` \| `json` | `human` | Output format. Any value other than `json` is treated as `human`. |
-| `--ci` | boolean | `false` | Force non-interactive mode. Skips intent elicitation prompts. |
+| `--summary` | boolean | `false` | Show archetype classification only. Skips criteria evaluation. JSON still includes `inventory`. `--summary` takes precedence over the no-constructs case: a repository with no agentic constructs still reports `evaluation: "skipped"`, not `not-applicable`. |
+| `--format` | `human` \| `json` | `human` | Output format. Any value other than `json` is treated as `human`. The comparison is exact, so `JSON` is not `json`. An unsupported value also prints a warning to stderr that names the accepted values, so a typo never goes unnoticed; the exit code is unchanged, and doctor does not ask intent questions on that run. |
+| `--ci` | boolean | `false` | Force non-interactive mode. Skips intent elicitation prompts. JSON output is always non-interactive. |
 
 ## Usage
 
@@ -186,6 +186,8 @@ Intent: loaded
 ✔ No findings.
 ```
 
+Human output never lets repository content reshape the report. Text that comes from the repository (the evidence snapshot reference, the intent section's checked path, reason, and issue paths and messages, and the node id and source file of a finding's evidence citation) is escaped before it is printed. Line breaks and tabs appear as `\n`, `\r`, and `\t`. A literal backslash appears as `\\`, so repository text cannot imitate an escape sequence. Every other control character appears as a `\uXXXX` escape: C0 controls, DEL, C1 controls such as the `0x9b` CSI introducer, the Unicode line and paragraph separators U+2028 and U+2029, and invisible format characters such as zero-width characters, bidirectional controls and the byte order mark (Unicode category Cf; characters beyond U+FFFF appear as `\u{XXXXX}`). A hostile file name or intent field therefore cannot forge a report line or send terminal control sequences. JSON output is serialized as JSON and is not escaped this way.
+
 When the intent file is present but rejected, the intent section names the reason and, for schema mismatches, each failing field:
 
 ```
@@ -208,7 +210,7 @@ Tags are `[SEVERITY][classification]`. Findings with `assumedIntent: true` appen
 
 ### JSON
 
-`--format json` emits a Zod-validated report. Existing aggregate keys stay stable; `inventory` and `edges` are additive.
+`--format json` emits a Zod-validated report. Existing aggregate keys stay stable; `inventory` and `edges` are additive. Stdout carries only that report: every log level, including the debug lines that `DEBUG=1` enables, goes to stderr, so `doctor --format json | jq` stays valid.
 
 | Field | Type | Notes |
 | ----- | ---- | ----- |
@@ -217,6 +219,7 @@ Tags are `[SEVERITY][classification]`. Findings with `assumedIntent: true` appen
 | `totalRecords` | number | Length of inventory |
 | `harnessBreakdown` | `{ harness, count }[]` | Sorted by harness name |
 | `crossHarnessEdges` | number | Count of edges with `crossHarness: true` |
+| `evaluation` | `completed` \| `skipped` \| `not-applicable` | `completed` on a full run; `skipped` with `--summary`; `not-applicable` when the archetype is `none`, because there was nothing to evaluate. Only `completed` with an empty `findings` array means the criteria ran and found nothing, so never read an absent or empty `findings` array as a clean result without checking `evaluation`. |
 | `inventory` | array | One entry per construct |
 | `edges` | array | Flattened composition edges |
 | `intent` | object | Intent load status: `{ status, checkedPath, reason?, issues?, omittedIssueCount? }`. Present only on full evaluate (not on `--summary` or when the archetype is `none`). See [Intent load status](#intent-load-status). |
@@ -262,6 +265,7 @@ Example fragment from an `accidental-sprawl` repo (no cross-harness edges, no in
     { "harness": "copilot", "count": 1 }
   ],
   "crossHarnessEdges": 0,
+  "evaluation": "completed",
   "inventory": [
     {
       "id": "copilot:.github/copilot-instructions.md",
@@ -311,7 +315,7 @@ Example fragment from an `accidental-sprawl` repo (no cross-harness edges, no in
 }
 ```
 
-With `--summary`, JSON includes archetype fields plus `inventory` only. It does not emit `edges` or `findings`, and it does not run criteria evaluation.
+With `--summary`, JSON includes archetype fields, `evaluation: "skipped"`, and `inventory` only. It does not emit `edges` or `findings`, and it does not run criteria evaluation. Human output prints `Evaluation skipped (--summary).` instead of a findings section, so a summary never reads as a clean check.
 
 ## Declared intent
 
@@ -376,13 +380,15 @@ Interactive prompts on a TTY do not write this file, and yes/no answers are not 
 - Full evaluate (`doctor` or `doctor --format json`, without `--summary`) sets exit code `1` only when `hasBlockingFindings` is true: at least one finding with `severity` of `critical` or `high` **and** `classification` of `defect`.
 - High **advisories** (for example `cross-harness-drift`) never fail the process on their own.
 - Medium **defects** (for example `missing-intent-artifact`) appear in the report and do not set exit code `1`.
+- A repository with no agentic constructs exits `0`. Its JSON report says `evaluation: "not-applicable"`, so a pipeline can tell "nothing to check" from "checked and clean" (`completed`).
 - `--summary` skips evaluate. Exit code stays `0`. Use it for composition snapshots, not as a merge gate.
 - Prefer writing JSON to a file in the same step that gates, so the step exit code is doctor's exit code (avoid bare pipes that drop status unless `pipefail` is on).
 
 | Exit code | When |
 | --------- | ---- |
-| `0` | No blocking findings, or `--summary` (no evaluate) |
+| `0` | No blocking findings, or `--summary` (no evaluate), or no agentic constructs were found (the archetype is `none`, so nothing was evaluated) |
 | `1` | At least one critical or high **defect** on a full evaluate |
+| `2` | Returned only by the exported `runDoctorCommand` when it is given invalid options, for example a non-boolean `summary` or `ci`. Nothing is written to stdout. The command line never exits `2`: its parser coerces the boolean flags, and an unsupported `--format` value warns and falls back to `human`. |
 
 Gating step (fails the job on blocking defects, keeps the report). Redirect does not hide doctor's exit code:
 
