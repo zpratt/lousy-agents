@@ -11,6 +11,12 @@ export type WalkBoundary = "git-root" | "filesystem-root" | "project" | null;
 export interface HarnessFootprint {
     name: HarnessName;
     status: FootprintStatus;
+    /**
+     * Whether the harness reads AGENTS.md. Some harnesses do so only under a
+     * condition; the footprint's own comment says which. Nothing in doctor
+     * branches on this yet, so it records what each harness does and changes
+     * no finding.
+     */
     readsAgentsMd: boolean;
     walkBoundary: WalkBoundary;
     conventionFiles: readonly string[];
@@ -50,7 +56,12 @@ export const HARNESS_FOOTPRINTS: Readonly<
     claude: {
         name: "claude",
         status: "verified",
-        readsAgentsMd: false,
+        // Claude Code reads AGENTS.md only when no CLAUDE.md,
+        // .claude/CLAUDE.md or CLAUDE.local.md exists in the working directory
+        // or above it, under the default `claude-md-or-agents-md` setting, and
+        // only on Claude Code 2.1.277 or later (Claude Code docs: memory). A
+        // CLAUDE.md can always include it explicitly with `@AGENTS.md`.
+        readsAgentsMd: true,
         walkBoundary: "git-root",
         conventionFiles: ["CLAUDE.md"],
         conventionDirs: [".claude/"],
@@ -72,7 +83,8 @@ export const HARNESS_FOOTPRINTS: Readonly<
     copilot: {
         name: "copilot",
         status: "verified",
-        readsAgentsMd: false,
+        // Copilot reads AGENTS.md (GitHub docs: custom instructions support).
+        readsAgentsMd: true,
         walkBoundary: "project",
         conventionFiles: [".github/copilot-instructions.md"],
         conventionDirs: [".github/instructions/"],

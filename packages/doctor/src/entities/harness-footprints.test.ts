@@ -83,13 +83,17 @@ describe("HARNESS_FOOTPRINTS", () => {
         });
     });
 
-    describe("when harness does not read AGENTS.md as primary convention", () => {
-        it("should set readsAgentsMd: false for claude", () => {
-            expect(HARNESS_FOOTPRINTS.claude.readsAgentsMd).toBe(false);
+    describe("when harness reads AGENTS.md only under a condition", () => {
+        // Corrected from false: Copilot reads AGENTS.md (GitHub docs: custom
+        // instructions support), and Claude Code reads it when no CLAUDE.md,
+        // .claude/CLAUDE.md or CLAUDE.local.md exists at or above the working
+        // directory, on Claude Code 2.1.277 or later (Claude Code docs: memory).
+        it("should set readsAgentsMd: true for copilot, which reads AGENTS.md", () => {
+            expect(HARNESS_FOOTPRINTS.copilot.readsAgentsMd).toBe(true);
         });
 
-        it("should set readsAgentsMd: false for copilot", () => {
-            expect(HARNESS_FOOTPRINTS.copilot.readsAgentsMd).toBe(false);
+        it("should set readsAgentsMd: true for claude, which reads AGENTS.md when there is no CLAUDE file", () => {
+            expect(HARNESS_FOOTPRINTS.claude.readsAgentsMd).toBe(true);
         });
     });
 
@@ -156,10 +160,8 @@ describe("determineHarness", () => {
     ] as const)(
         "should resolve the convention file %s to the %s harness",
         (path, expected) => {
-            // Act
             const harness = determineHarness(path);
 
-            // Assert
             expect(harness).toBe(expected);
         },
     );
@@ -171,42 +173,32 @@ describe("determineHarness", () => {
     ] as const)(
         "should resolve any file under %s to the %s harness",
         (directory, expected) => {
-            // Arrange
             const path = `${directory}${chance.word()}/${chance.word()}.md`;
 
-            // Act
             const harness = determineHarness(path);
 
-            // Assert
             expect(harness).toBe(expected);
         },
     );
 
     it("should normalize backslash separators before matching", () => {
-        // Arrange
         const path = `.claude\\${chance.word()}.json`;
 
-        // Act
         const harness = determineHarness(path);
 
-        // Assert
         expect(harness).toBe("claude");
     });
 
     it("should return null for a path no harness claims", () => {
-        // Arrange
         const path = `src/${chance.word()}.ts`;
 
-        // Act
         const harness = determineHarness(path);
 
-        // Assert
         expect(harness).toBeNull();
     });
 
     describe("when more than one harness claims the path", () => {
         it("should resolve the path to the shared harness", () => {
-            // Arrange
             const contestedPath = `${chance.word()}.md`;
             const overlappingFootprints = {
                 ...HARNESS_FOOTPRINTS,
@@ -220,13 +212,11 @@ describe("determineHarness", () => {
                 },
             };
 
-            // Act
             const harness = determineHarness(
                 contestedPath,
                 overlappingFootprints,
             );
 
-            // Assert
             expect(harness).toBe("shared");
         });
     });
