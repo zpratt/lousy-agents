@@ -1,11 +1,17 @@
+import { externalImportMessage } from "@lousy-agents/core/entities/external-import-message.js";
 import type { ArchetypeClassification } from "../entities/archetype.js";
 import type {
     Criterion,
     EdgePresentArgs,
+    ExternalImportArgs,
     FileExistsArgs,
 } from "../entities/criteria-schema.js";
 import type { DeclaredIntentArtifact } from "../entities/declared-intent.js";
-import type { InventoryRecord } from "../entities/edge-types.js";
+import type {
+    Edge,
+    EdgeMalformedReason,
+    InventoryRecord,
+} from "../entities/edge-types.js";
 import type { Finding } from "../entities/finding.js";
 import {
     type IntentLoadStatus,
@@ -102,6 +108,78 @@ function checkIntentArtifactRejected(
     return hasRecords && isRejected ? [makeIntentFinding(criterion)] : [];
 }
 
+/** Reasons an import resolves outside the working directory rather than being missing. */
+const EXTERNAL_IMPORT_REASONS: readonly EdgeMalformedReason[] = [
+    "home",
+    "absolute",
+    "path-traversal",
+];
+
+/** An edge with no reason counts as a missing target. */
+function hasMalformedReason(
+    edge: Edge,
+    reasons: readonly EdgeMalformedReason[] | undefined,
+): boolean {
+    return (
+        reasons === undefined ||
+        reasons.includes(edge.reason ?? "missing-target")
+    );
+}
+
+function isExternalImport(edge: Edge): boolean {
+    return (
+        edge.type === "hard-import" &&
+        edge.malformed &&
+        edge.reason !== undefined &&
+        EXTERNAL_IMPORT_REASONS.includes(edge.reason)
+    );
+}
+
+function externalImportFinding(
+    criterion: Criterion,
+    harness: string,
+    sourcePath: string,
+    edge: Edge,
+): Finding {
+    const targetId = `${harness}:${sourcePath}:${edge.target}`;
+    return {
+        id: makeId(criterion.id, targetId),
+        criterionId: criterion.id,
+        targetId,
+        severity: criterion.severity,
+        category: criterion.category,
+        classification: criterion.classification,
+        intentGated: false,
+        assumedIntent: false,
+        description: externalImportMessage(
+            edge.target,
+            edge.reason === "home" ? "home" : "outside-working-directory",
+        ),
+    };
+}
+
+/** One finding per import that resolves outside the working directory. */
+function checkExternalImports(
+    criterion: Criterion,
+    args: ExternalImportArgs,
+    ctx: EvaluationContext,
+): Finding[] {
+    return ctx.records
+        .filter((r) => r.harness === args.fromHarness)
+        .flatMap((record) =>
+            record.edges
+                .filter(isExternalImport)
+                .map((edge) =>
+                    externalImportFinding(
+                        criterion,
+                        args.fromHarness,
+                        record.path,
+                        edge,
+                    ),
+                ),
+        );
+}
+
 function checkEdgePresent(
     criterion: Criterion,
     args: EdgePresentArgs,
@@ -115,7 +193,8 @@ function checkEdgePresent(
         r.edges.some(
             (e) =>
                 e.malformed &&
-                (args.edgeType === undefined || e.type === args.edgeType),
+                (args.edgeType === undefined || e.type === args.edgeType) &&
+                hasMalformedReason(e, args.malformedReasons),
         ),
     );
 
@@ -314,6 +393,16 @@ export function evaluate(
                     ...checkEdgePresent(
                         criterion,
                         criterion.checkArgs as EdgePresentArgs,
+                        ctx,
+                    ),
+                );
+                break;
+            }
+            case "inventory.externalImport": {
+                findings.push(
+                    ...checkExternalImports(
+                        criterion,
+                        criterion.checkArgs as ExternalImportArgs,
                         ctx,
                     ),
                 );

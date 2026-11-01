@@ -58,7 +58,11 @@ async function resolveHardImportEdge(
 ): Promise<Edge> {
     // Claude Code resolves a relative import from the importing file's real
     // directory, so the base is the real path, not the symlink's location.
-    const normalized = normalizeRelativeWithinRoot(importerRealPath, rawTarget);
+    const normalized = normalizeRelativeWithinRoot(
+        importerRealPath,
+        rawTarget,
+        [ctx.repoRoot, ctx.rootReal],
+    );
     if (!normalized.ok) {
         return malformedEdge(
             "hard-import",

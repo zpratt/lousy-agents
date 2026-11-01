@@ -139,7 +139,8 @@ Advisories never fail the process on their own. Medium defects (for example miss
 | `missing-copilot-instructions` | copilot | critical | defect | missing-required | `.github/copilot-instructions.md` is missing while Copilot constructs are present (for example `.github/instructions/`). Blocks CI. |
 | `missing-claude-md` | claude | high | defect | missing-required | Neither `CLAUDE.md` nor `.claude/` is present while the Claude harness is attributed. In practice Claude is usually detected only via those paths, so this finding is rare. |
 | `missing-agents-md` | codex | high | defect | missing-required | Neither `AGENTS.md` nor `AGENTS.override.md` is present while Codex is attributed (for example via `.agents/skills/` or `.codex/`). Blocks CI. |
-| `malformed-claude-import` | claude | high | defect | malformed-reference | A Claude `@path` hard-import is malformed (missing target or path traversal). Blocks CI. |
+| `malformed-claude-import` | claude | high | defect | malformed-reference | A Claude `@path` hard-import points to a file inside the repository that does not exist (edge reason `missing-target`). Blocks CI. Imports that resolve outside the working directory are not defects; see `external-claude-import`. |
+| `external-claude-import` | claude | medium | advisory | malformed-reference | A Claude `@path` hard-import resolves outside the working directory: a `~/` path, an absolute path outside the repository, or a `../` path that leaves it (edge reasons `home`, `absolute`, `path-traversal`). One finding per import, naming its path. Claude Code loads such an import only after a one-time approval in an interactive session; in headless, `-p` or CI runs it was not loaded in testing (Claude Code 2.1.316, absolute path outside the working directory). **The `~/` case is docs-based and was not observed in testing.** Visible, never blocks CI. An absolute path *inside* the repository is a valid import and produces no finding. |
 | `cross-harness-drift` | all | high | advisory | drift | Archetype is `accidental-sprawl`: multiple harnesses with no cross-harness references. Does not block CI. |
 | `wrong-direction-copilot-imports-claude` | copilot | medium | advisory | wrong-direction | A Copilot file uses Claude `@path` hard-import syntax toward a Claude file. Copilot does not process `@path` hard-imports. |
 | `wrong-direction-copilot-links-claude` | copilot | medium | advisory | wrong-direction | A Copilot file soft-references a Claude file (markdown link or frontmatter `see:` / `references:` / `requires:`). Copilot CLI does not follow those links. |
@@ -233,7 +234,7 @@ Tags are `[SEVERITY][classification]`. Findings with `assumedIntent: true` appen
 
 **Inventory item fields:** `id`, `path`, `harness`, `constructType`, `loadMechanism` (`referenced` \| `convention-loaded`), optional `serverName` / `transport` for `mcp-server` records.
 
-**Edge fields:** `from`, `to`, `type` (`hard-import` \| `soft-reference` \| `glob-binding`), `malformed`, optional `reason` (`missing-target` \| `path-traversal`), `crossHarness` (boolean; always set).
+**Edge fields:** `from`, `to`, `type` (`hard-import` \| `soft-reference` \| `glob-binding`), `malformed`, optional `reason` (`missing-target`, or `path-traversal`, `home`, `absolute` for an import that resolves outside the working directory), `crossHarness` (boolean; always set).
 
 **Finding fields** (full evaluate only):
 
@@ -383,7 +384,7 @@ Interactive prompts on a TTY do not write this file, and yes/no answers are not 
 ### CI contract
 
 - Full evaluate (`doctor` or `doctor --format json`, without `--summary`) sets exit code `1` only when `hasBlockingFindings` is true: at least one finding with `severity` of `critical` or `high` **and** `classification` of `defect`.
-- High **advisories** (for example `cross-harness-drift`) never fail the process on their own, and neither does the advisory `discovery-limit-reached`.
+- High **advisories** (for example `cross-harness-drift`) never fail the process on their own, and neither do the advisories `discovery-limit-reached` and `external-claude-import`.
 - Medium **defects** (for example `missing-intent-artifact`) appear in the report and do not set exit code `1`.
 - A repository with no agentic constructs exits `0`. Its JSON report says `evaluation: "not-applicable"`, so a pipeline can tell "nothing to check" from "checked and clean" (`completed`).
 - `--summary` skips evaluate. Exit code stays `0`. Use it for composition snapshots, not as a merge gate.

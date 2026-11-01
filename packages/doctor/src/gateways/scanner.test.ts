@@ -878,6 +878,32 @@ describe("scanRepository", () => {
             });
         });
 
+        it("should resolve an absolute import that points inside the repository, as Claude Code loads it", async () => {
+            // Arrange
+            await withTempRepo(
+                { [AGENTS_MD]: AGENTS_CONTENT },
+                async (repoRoot) => {
+                    await writeFile(
+                        join(repoRoot, CLAUDE_MD),
+                        `@${join(repoRoot, AGENTS_MD)}\n`,
+                    );
+
+                    // Act
+                    const records = await scanRepository(repoRoot);
+
+                    // Assert
+                    const claudeMd = records.find((r) => r.path === CLAUDE_MD);
+                    expect(claudeMd?.edges).toEqual([
+                        expect.objectContaining({
+                            type: "hard-import",
+                            target: AGENTS_MD,
+                            malformed: false,
+                        }),
+                    ]);
+                },
+            );
+        });
+
         it("should report no directory limit when the tree is within the cap", async () => {
             // Arrange
             await withTempRepo(

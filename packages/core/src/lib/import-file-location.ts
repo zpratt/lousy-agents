@@ -3,7 +3,7 @@
  * read, or to the import failure it means. Pure: no I/O.
  */
 
-import { relative, sep } from "node:path";
+import { isAbsolute, relative, sep } from "node:path";
 import type {
     BoundedReadFailure,
     FileIdentity,
@@ -28,6 +28,25 @@ export interface LocatedFile {
 
 function toPosix(pathValue: string): string {
     return pathValue.split(sep).join("/");
+}
+
+/**
+ * The repository-relative path of an absolute target that lies strictly
+ * inside one of the roots, or the "absolute" failure when it does not.
+ */
+export function relativeToAnyRoot(
+    absoluteTarget: string,
+    repoRoots: readonly string[],
+): { ok: true; relativePath: string } | { ok: false; status: "absolute" } {
+    for (const root of repoRoots) {
+        const inside = relative(root, absoluteTarget);
+        const isInside =
+            inside !== "" && inside !== ".." && !inside.startsWith(`..${sep}`);
+        if (isInside && !isAbsolute(inside)) {
+            return { ok: true, relativePath: toPosix(inside) };
+        }
+    }
+    return { ok: false, status: "absolute" };
 }
 
 /**

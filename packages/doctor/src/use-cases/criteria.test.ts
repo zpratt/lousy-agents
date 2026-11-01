@@ -60,6 +60,7 @@ describe("CRITERIA", () => {
         const validMethods = new Set([
             "inventory.fileExists",
             "inventory.edgePresent",
+            "inventory.externalImport",
             "inventory.edgeDirection",
             "inventory.edgeDirectionExists",
             "inventory.archetypeIs",
