@@ -15,6 +15,10 @@ function fixture(name: string): string {
     return resolve(fixturesDir, name);
 }
 
+const CLAUDE_MD = "CLAUDE.md";
+const AGENTS_MD = "AGENTS.md";
+const AGENTS_CONTENT = "# Agents\n";
+
 async function withTempRepo(
     files: Record<string, string>,
     run: (repoRoot: string) => Promise<void>,
@@ -424,14 +428,14 @@ describe("scanRepository", () => {
             const homeTarget = `~/${chance.word()}.md`;
 
             await withTempRepo(
-                { "CLAUDE.md": `@${homeTarget}\n` },
+                { [CLAUDE_MD]: `@${homeTarget}\n` },
                 async (repoRoot) => {
                     // Act
                     const records = await scanRepository(repoRoot);
 
                     // Assert
                     expect(
-                        records.find((r) => r.path === "CLAUDE.md")?.edges,
+                        records.find((r) => r.path === CLAUDE_MD)?.edges,
                     ).toEqual([
                         expect.objectContaining({
                             type: "hard-import",
@@ -473,8 +477,8 @@ describe("scanRepository", () => {
         it("should mark the target of a resolved @import as referenced and leave the importer convention-loaded", async () => {
             // Arrange
             const files = {
-                "CLAUDE.md": "@./AGENTS.md\n",
-                "AGENTS.md": "# Agents\n",
+                [CLAUDE_MD]: `@./${AGENTS_MD}\n`,
+                [AGENTS_MD]: AGENTS_CONTENT,
             };
 
             await withTempRepo(files, async (repoRoot) => {
@@ -482,13 +486,13 @@ describe("scanRepository", () => {
                 const records = await scanRepository(repoRoot);
 
                 // Assert
-                const claudeMd = records.find((r) => r.path === "CLAUDE.md");
-                const agentsMd = records.find((r) => r.path === "AGENTS.md");
+                const claudeMd = records.find((r) => r.path === CLAUDE_MD);
+                const agentsMd = records.find((r) => r.path === AGENTS_MD);
                 expect(claudeMd?.edges).toStrictEqual([
                     {
                         type: "hard-import",
-                        direction: { from: "CLAUDE.md", to: "AGENTS.md" },
-                        target: "AGENTS.md",
+                        direction: { from: CLAUDE_MD, to: AGENTS_MD },
+                        target: AGENTS_MD,
                         malformed: false,
                     },
                 ]);
@@ -500,9 +504,8 @@ describe("scanRepository", () => {
         it("should not treat a glob-binding as a reference to the file with the same path", async () => {
             // Arrange
             const files = {
-                ".github/instructions/a.instructions.md":
-                    '---\napplyTo: "AGENTS.md"\n---\n',
-                "AGENTS.md": "# Agents\n",
+                ".github/instructions/a.instructions.md": `---\napplyTo: "${AGENTS_MD}"\n---\n`,
+                [AGENTS_MD]: AGENTS_CONTENT,
             };
 
             await withTempRepo(files, async (repoRoot) => {
@@ -511,7 +514,7 @@ describe("scanRepository", () => {
 
                 // Assert
                 expect(
-                    records.find((r) => r.path === "AGENTS.md")?.loadMechanism,
+                    records.find((r) => r.path === AGENTS_MD)?.loadMechanism,
                 ).toBe("convention-loaded");
             });
         });
@@ -520,8 +523,8 @@ describe("scanRepository", () => {
             // Arrange
             const linkingPath = ".github/instructions/a.instructions.md";
             const files = {
-                [linkingPath]: "[guide](../../AGENTS.md)\n",
-                "AGENTS.md": "# Agents\n",
+                [linkingPath]: `[guide](../../${AGENTS_MD})\n`,
+                [AGENTS_MD]: AGENTS_CONTENT,
             };
 
             await withTempRepo(files, async (repoRoot) => {
@@ -534,13 +537,13 @@ describe("scanRepository", () => {
                 ).toStrictEqual([
                     {
                         type: "soft-reference",
-                        direction: { from: linkingPath, to: "AGENTS.md" },
-                        target: "AGENTS.md",
+                        direction: { from: linkingPath, to: AGENTS_MD },
+                        target: AGENTS_MD,
                         malformed: false,
                     },
                 ]);
                 expect(
-                    records.find((r) => r.path === "AGENTS.md")?.loadMechanism,
+                    records.find((r) => r.path === AGENTS_MD)?.loadMechanism,
                 ).toBe("referenced");
             });
         });
@@ -549,8 +552,8 @@ describe("scanRepository", () => {
             // Arrange
             const hooksPath = ".github/hooks/agent-shell/hooks.json";
             const files = {
-                [hooksPath]: '{"note": "@./AGENTS.md"}',
-                "AGENTS.md": "# Agents\n",
+                [hooksPath]: `{"note": "@./${AGENTS_MD}"}`,
+                [AGENTS_MD]: AGENTS_CONTENT,
             };
 
             await withTempRepo(files, async (repoRoot) => {
@@ -562,17 +565,17 @@ describe("scanRepository", () => {
                     records.find((r) => r.path === hooksPath)?.edges,
                 ).toEqual([]);
                 expect(
-                    records.find((r) => r.path === "AGENTS.md")?.loadMechanism,
+                    records.find((r) => r.path === AGENTS_MD)?.loadMechanism,
                 ).toBe("convention-loaded");
             });
         });
 
         it("should keep a markdown file that is too large to read but record no edges for it", async () => {
             // Arrange
-            const oversizedContent = `@./AGENTS.md\n${"x".repeat(1_048_576)}`;
+            const oversizedContent = `@./${AGENTS_MD}\n${"x".repeat(1_048_576)}`;
             const files = {
-                "CLAUDE.md": oversizedContent,
-                "AGENTS.md": "# Agents\n",
+                [CLAUDE_MD]: oversizedContent,
+                [AGENTS_MD]: AGENTS_CONTENT,
             };
 
             await withTempRepo(files, async (repoRoot) => {
@@ -580,7 +583,7 @@ describe("scanRepository", () => {
                 const records = await scanRepository(repoRoot);
 
                 // Assert
-                const claudeMd = records.find((r) => r.path === "CLAUDE.md");
+                const claudeMd = records.find((r) => r.path === CLAUDE_MD);
                 expect(claudeMd).toBeDefined();
                 expect(claudeMd?.edges).toEqual([]);
             });
@@ -591,7 +594,7 @@ describe("scanRepository", () => {
             const declared = chance.word();
             const undeclared = `${chance.word()}x`;
             const files = {
-                "CLAUDE.md": "# Claude\n",
+                [CLAUDE_MD]: "# Claude\n",
                 ".mcp.json": JSON.stringify({
                     mcpServers: {
                         [declared]: { type: "stdio", command: "npx" },
