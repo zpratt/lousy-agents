@@ -125,7 +125,7 @@ const TOOLS: ToolConfig[] = [
     {
         name: "validate_instruction_coverage",
         description:
-            "Validate that repository instruction files (the same files analyze_instruction_quality discovers: .github/copilot-instructions.md, .github/instructions/**/*.md, .github/agents/*.md, AGENTS.md, AGENTS.override.md, CLAUDE.md, .claude/CLAUDE.md) document all mandatory feedback loop scripts and tools. Returns coverage percentage and suggestions for missing documentation.",
+            "Validate that repository instruction files (the same files analyze_instruction_quality discovers: .github/copilot-instructions.md, .github/instructions/**/*.instructions.md, .github/agents/*.md, AGENTS.md, AGENTS.override.md, CLAUDE.md, .claude/CLAUDE.md) document all mandatory feedback loop scripts and tools. Returns coverage percentage and suggestions for missing documentation.",
         handler: validateInstructionCoverageHandler,
         inputSchema: targetDirInputSchema,
     },

@@ -52,7 +52,12 @@ export function matchesLocationEntry(
     if (entry.matchKind === "exact") {
         return normalized === entry.path;
     }
-    return normalized === entry.path || normalized.startsWith(`${entry.path}/`);
+    return (
+        normalized === entry.path ||
+        (normalized.startsWith(`${entry.path}/`) &&
+            (entry.fileSuffix === undefined ||
+                normalized.endsWith(entry.fileSuffix)))
+    );
 }
 
 export function entriesMatchingPath(

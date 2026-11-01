@@ -183,10 +183,8 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
             await symlink(instructionsDir, join(instructionsDir, "loop-a"));
             await symlink(instructionsDir, join(instructionsDir, "loop-b"));
 
-            // Act
             const files = await gateway.discoverInstructionFiles(testDir);
 
-            // Assert
             expect(files).toEqual([
                 {
                     filePath: join(instructionsDir, fileName),
@@ -213,22 +211,18 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
             ["AGENTS.md"],
             ["CLAUDE.md"],
         ])("should not discover %s", async (instructionPath) => {
-            // Arrange
             const outsideFile = join(outsideDir, "external.md");
             await writeFile(outsideFile, "# External\n");
             const linkPath = join(testDir, ...instructionPath.split("/"));
             await mkdir(dirname(linkPath), { recursive: true });
             await symlink(outsideFile, linkPath);
 
-            // Act
             const files = await gateway.discoverInstructionFiles(testDir);
 
-            // Assert
             expect(files).toEqual([]);
         });
 
         it("should not discover files in a symlinked .github/instructions directory", async () => {
-            // Arrange
             await writeFile(join(outsideDir, "test.md"), "# Test\n");
             await mkdir(join(testDir, ".github"), { recursive: true });
             await symlink(outsideDir, join(testDir, ".github", "instructions"));
@@ -243,17 +237,14 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
 
     describe("when a scoped instruction file is in a subdirectory of .github/instructions", () => {
         it("should discover it with copilot-scoped format", async () => {
-            // Arrange
             const subdir = chance.word();
             const fileName = `${chance.word()}.instructions.md`;
             const scopedDir = join(testDir, ".github", "instructions", subdir);
             await mkdir(scopedDir, { recursive: true });
             await writeFile(join(scopedDir, fileName), "# Scoped\n");
 
-            // Act
             const files = await gateway.discoverInstructionFiles(testDir);
 
-            // Assert
             expect(files).toEqual([
                 {
                     filePath: join(scopedDir, fileName),
@@ -268,15 +259,12 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
         ["AGENTS.override.md", "agents-md"],
     ])("when %s exists", (instructionPath, expectedFormat) => {
         it(`should discover it with ${expectedFormat} format`, async () => {
-            // Arrange
             const filePath = join(testDir, ...instructionPath.split("/"));
             await mkdir(dirname(filePath), { recursive: true });
             await writeFile(filePath, `# ${chance.word()}\n`);
 
-            // Act
             const files = await gateway.discoverInstructionFiles(testDir);
 
-            // Assert
             expect(files).toEqual([{ filePath, format: expectedFormat }]);
         });
     });
@@ -331,7 +319,10 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
                     const dirPath = join(testDir, relativePath);
                     await mkdir(dirPath, { recursive: true });
                     await writeFile(
-                        join(dirPath, `entry-${index}.md`),
+                        join(
+                            dirPath,
+                            `entry-${index}${entry.fileSuffix ?? ".md"}`,
+                        ),
                         `# ${format}\n`,
                     );
                 }
@@ -348,6 +339,9 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
     });
 
     describe("when .github/instructions has more directories than the directory cap", () => {
+        const EntryDirectoryAndFirstSubdirectory = 2;
+        const EntryDirectoryAndAllSubdirectories = 4;
+
         beforeEach(async () => {
             for (const name of ["s1", "s2", "s3"]) {
                 const directory = join(
@@ -357,26 +351,26 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
                     name,
                 );
                 await mkdir(directory, { recursive: true });
-                await writeFile(join(directory, "a.md"), chance.sentence());
+                await writeFile(
+                    join(directory, "a.instructions.md"),
+                    chance.sentence(),
+                );
             }
         });
 
         it("should keep the files found before the cap and report the limit exactly once", async () => {
-            // Arrange: the entry directory and s1 are listed; s2 and s3 are refused
             const capped = new FileSystemInstructionFileDiscoveryGateway({
-                maxDirectories: 2,
+                maxDirectories: EntryDirectoryAndFirstSubdirectory,
             });
             const diagnostics: InstructionDiscoveryDiagnostic[] = [];
 
-            // Act
             const files = await capped.discoverInstructionFiles(
                 testDir,
                 (diagnostic) => diagnostics.push(diagnostic),
             );
 
-            // Assert
             expect(files.map((f) => relative(testDir, f.filePath))).toEqual([
-                join(".github", "instructions", "s1", "a.md"),
+                join(".github", "instructions", "s1", "a.instructions.md"),
             ]);
             expect(diagnostics).toEqual([
                 {
@@ -387,54 +381,81 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
         });
 
         it("should report nothing when the tree has exactly the capped number of directories", async () => {
-            // Arrange: the entry directory and s1, s2, s3
             const capped = new FileSystemInstructionFileDiscoveryGateway({
-                maxDirectories: 4,
+                maxDirectories: EntryDirectoryAndAllSubdirectories,
             });
             const diagnostics: InstructionDiscoveryDiagnostic[] = [];
 
-            // Act
             const files = await capped.discoverInstructionFiles(
                 testDir,
                 (diagnostic) => diagnostics.push(diagnostic),
             );
 
-            // Assert
             expect(files).toHaveLength(3);
             expect(diagnostics).toEqual([]);
         });
 
         it("should not require a diagnostics callback", async () => {
-            // Arrange
             const capped = new FileSystemInstructionFileDiscoveryGateway({
                 maxDirectories: 2,
             });
 
-            // Act
             const files = await capped.discoverInstructionFiles(testDir);
 
-            // Assert
             expect(files).toHaveLength(1);
         });
     });
 
     describe("when two instruction subdirectories are aliases of one directory", () => {
         it("should discover the shared files once, under the first path in name order", async () => {
-            // Arrange
             const shared = join(testDir, ".github", "shared");
             await mkdir(shared, { recursive: true });
-            await writeFile(join(shared, "x.md"), chance.sentence());
+            await writeFile(
+                join(shared, "x.instructions.md"),
+                chance.sentence(),
+            );
             const instructions = join(testDir, ".github", "instructions");
             await mkdir(instructions, { recursive: true });
             await symlink(shared, join(instructions, "b-alias"));
             await symlink(shared, join(instructions, "a-alias"));
 
-            // Act
             const files = await gateway.discoverInstructionFiles(testDir);
 
-            // Assert
             expect(files.map((f) => relative(testDir, f.filePath))).toEqual([
-                join(".github", "instructions", "a-alias", "x.md"),
+                join(".github", "instructions", "a-alias", "x.instructions.md"),
+            ]);
+        });
+    });
+
+    describe("when .github/instructions has markdown files that are not *.instructions.md", () => {
+        it("should discover only the files named *.instructions.md, as Copilot loads them", async () => {
+            const dir = join(testDir, ".github", "instructions");
+            await mkdir(join(dir, "sub"), { recursive: true });
+            const scoped = join(dir, "sub", `${chance.word()}.instructions.md`);
+            await writeFile(scoped, "# Scoped\n");
+            await writeFile(join(dir, "README.md"), "# Not an instruction\n");
+            await writeFile(
+                join(dir, "sub", "notes.md"),
+                "# Not an instruction\n",
+            );
+
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            expect(files).toEqual([
+                { filePath: scoped, format: "copilot-scoped" },
+            ]);
+        });
+
+        it("should still discover any .md file in a directory entry with no suffix requirement", async () => {
+            const dir = join(testDir, ".github", "agents");
+            await mkdir(dir, { recursive: true });
+            const agent = join(dir, `${chance.word()}.md`);
+            await writeFile(agent, "# Agent\n");
+
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            expect(files).toEqual([
+                { filePath: agent, format: "copilot-agent" },
             ]);
         });
     });

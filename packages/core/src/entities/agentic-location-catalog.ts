@@ -49,6 +49,13 @@ export interface AgenticLocationEntry {
     readonly instructionFormat?: InstructionFileFormat;
     /** Directory-prefix instruction entries: also discover files in subdirectories */
     readonly includeSubdirectories?: boolean;
+    /**
+     * Directory-prefix entries: only files whose name ends with this suffix
+     * belong to the entry (for example Copilot reads only `*.instructions.md`
+     * under `.github/instructions`). Case-sensitive. Omit to accept any `.md`
+     * file under the directory.
+     */
+    readonly fileSuffix?: string;
     readonly hookPlatform?: "copilot" | "claude";
 }
 
@@ -170,6 +177,7 @@ export const AGENTIC_LOCATION_CATALOG: readonly AgenticLocationEntry[] = [
         harnessHints: ["copilot"],
         instructionFormat: "copilot-scoped",
         includeSubdirectories: true,
+        fileSuffix: ".instructions.md",
     },
     {
         id: "instruction-agents-md",
