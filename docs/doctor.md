@@ -84,7 +84,7 @@ Doctor attributes each construct to a harness (`claude`, `copilot`, `codex`, `an
 
 | Construct type | Examples |
 | -------------- | -------- |
-| `instruction` | `CLAUDE.md`, `AGENTS.md`, `.github/copilot-instructions.md`, `.github/instructions/*.md` |
+| `instruction` | `CLAUDE.md`, `AGENTS.md`, `.github/copilot-instructions.md`, `.github/instructions/**/*.instructions.md` |
 | `skill` | `.claude/skills/`, `.github/skills/`, `.agents/skills/`, `.pi/skills/` |
 | `agent` | `.github/agents/**/*.md`, `.claude/commands/` |
 | `subagent` | `.claude/agents/**/*.md` |

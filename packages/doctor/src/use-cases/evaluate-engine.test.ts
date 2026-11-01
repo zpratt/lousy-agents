@@ -237,6 +237,7 @@ describe("evaluate", () => {
 
     describe("malformed-claude-import criterion (inventory.edgePresent)", () => {
         it("should produce a high finding when claude records have malformed hard-import edges", () => {
+            const missingTarget = "docs/missing.md";
             const records: InventoryRecord[] = [
                 makeRecord({
                     harness: "claude",
@@ -247,9 +248,9 @@ describe("evaluate", () => {
                             type: "hard-import",
                             direction: {
                                 from: "CLAUDE.md",
-                                to: "../outside.md",
+                                to: missingTarget,
                             },
-                            target: "../outside.md",
+                            target: missingTarget,
                             malformed: true,
                             reason: "missing-target",
                         },
@@ -671,12 +672,10 @@ describe("external-claude-import criterion (inventory.externalImport)", () => {
     ] as const)(
         "should produce one medium advisory finding that names %s and says only what was observed",
         (target, reason, observation) => {
-            // Act
             const findings = externalFindings([
                 claudeRecordWith(importEdge(target, reason)),
             ]);
 
-            // Assert
             expect(findings).toHaveLength(1);
             expect(findings[0]).toMatchObject({
                 severity: "medium",
@@ -693,7 +692,6 @@ describe("external-claude-import criterion (inventory.externalImport)", () => {
     );
 
     it("should produce a separate finding for each external import", () => {
-        // Act
         const findings = externalFindings([
             claudeRecordWith(
                 importEdge("~/a.md", "home"),
@@ -701,7 +699,6 @@ describe("external-claude-import criterion (inventory.externalImport)", () => {
             ),
         ]);
 
-        // Assert
         expect(findings.map((f) => f.id)).toEqual([
             "external-claude-import:claude:CLAUDE.md:~/a.md",
             "external-claude-import:claude:CLAUDE.md:/opt/b.md",
@@ -709,34 +706,28 @@ describe("external-claude-import criterion (inventory.externalImport)", () => {
     });
 
     it("should not report a missing in-repository target as external", () => {
-        // Act
         const findings = externalFindings([
             claudeRecordWith(importEdge("docs/missing.md", "missing-target")),
         ]);
 
-        // Assert
         expect(findings).toEqual([]);
     });
 
     it("should only consider hard-imports, not soft references", () => {
-        // Act
         const findings = externalFindings([
             claudeRecordWith(
                 importEdge("../shared.md", "path-traversal", "soft-reference"),
             ),
         ]);
 
-        // Assert
         expect(findings).toEqual([]);
     });
 
     it("should never block CI", () => {
-        // Act
         const findings = externalFindings([
             claudeRecordWith(importEdge("~/a.md", "home")),
         ]);
 
-        // Assert
         expect(hasBlockingFindings(findings)).toBe(false);
     });
 });

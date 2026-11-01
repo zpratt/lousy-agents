@@ -45,6 +45,11 @@ async function doctorInstructionPaths(repoRoot: string): Promise<string[]> {
         .map((record) => record.path);
 }
 
+async function doctorInventoryPaths(repoRoot: string): Promise<string[]> {
+    const records = await scanRepository(repoRoot);
+    return records.map((record) => record.path);
+}
+
 async function coreInstructionPaths(repoRoot: string): Promise<string[]> {
     const files =
         await createInstructionFileDiscoveryGateway().discoverInstructionFiles(
@@ -95,7 +100,6 @@ describe("doctor and MCP parity", () => {
     describe("instruction file discovery", () => {
         describe("when a scoped Copilot instruction file is in a subdirectory of .github/instructions", () => {
             it("should be discovered by the core discovery that MCP uses, as doctor inventories it", async () => {
-                // Arrange
                 const scopedPath = `.github/instructions/${chance.word()}/${chance.word()}.instructions.md`;
                 await writeRepoFile(
                     repoRoot,
@@ -103,28 +107,45 @@ describe("doctor and MCP parity", () => {
                     "---\napplyTo: 'src/**'\n---\n# Scoped\n",
                 );
 
-                // Act
                 const doctorPaths = await doctorInstructionPaths(repoRoot);
                 const corePaths = await coreInstructionPaths(repoRoot);
 
-                // Assert
                 expect(doctorPaths).toContain(scopedPath);
                 expect(corePaths).toContain(scopedPath);
             });
         });
 
+        describe("when .github/instructions holds a plain markdown file that is not named *.instructions.md", () => {
+            it("should be counted by neither doctor nor the core discovery that MCP uses", async () => {
+                const plainPath = `.github/instructions/${chance.word()}.md`;
+                await writeRepoFile(
+                    repoRoot,
+                    plainPath,
+                    `# ${chance.word()}\n`,
+                );
+
+                const doctorPaths = await doctorInventoryPaths(repoRoot);
+                const corePaths = await coreInstructionPaths(repoRoot);
+
+                expect({
+                    doctorInventoriesIt: doctorPaths.includes(plainPath),
+                    coreDiscoversIt: corePaths.includes(plainPath),
+                }).toEqual({
+                    doctorInventoriesIt: false,
+                    coreDiscoversIt: false,
+                });
+            });
+        });
+
         describe("when AGENTS.md is a symlink to a file inside the repository", () => {
             it("should get the same answer from doctor and from the core discovery that MCP uses", async () => {
-                // Arrange
                 const canonicalPath = `docs/${chance.word()}.md`;
                 await writeRepoFile(repoRoot, canonicalPath, "# Agents\n");
                 await symlink(canonicalPath, join(repoRoot, AGENTS_MD));
 
-                // Act
                 const doctorPaths = await doctorInstructionPaths(repoRoot);
                 const corePaths = await coreInstructionPaths(repoRoot);
 
-                // Assert
                 expect({
                     coreDiscoversSymlink: corePaths.includes(AGENTS_MD),
                 }).toEqual({
@@ -137,18 +158,15 @@ describe("doctor and MCP parity", () => {
             "when the repository has %s",
             (instructionPath) => {
                 it("should be discovered by the core discovery that MCP uses, as doctor inventories it", async () => {
-                    // Arrange
                     await writeRepoFile(
                         repoRoot,
                         instructionPath,
                         `# ${chance.word()}\n`,
                     );
 
-                    // Act
                     const doctorPaths = await doctorInstructionPaths(repoRoot);
                     const corePaths = await coreInstructionPaths(repoRoot);
 
-                    // Assert
                     expect(doctorPaths).toContain(instructionPath);
                     expect(corePaths).toContain(instructionPath);
                 });
@@ -159,7 +177,6 @@ describe("doctor and MCP parity", () => {
     describe("instruction coverage", () => {
         describe("when a mandatory script is documented only in CLAUDE.md", () => {
             it("should count the script as documented, as instruction quality discovery does", async () => {
-                // Arrange
                 const scriptName = `${chance.word({ length: 8 })}-check`;
                 const script: DiscoveredScript = {
                     name: scriptName,
@@ -173,7 +190,6 @@ describe("doctor and MCP parity", () => {
                     `# Commands\n\nRun \`npm run ${scriptName}\` before each commit.\n`,
                 );
 
-                // Act
                 const qualityPaths = await coreInstructionPaths(repoRoot);
                 const doctorPaths = await doctorInstructionPaths(repoRoot);
                 const coverage =
@@ -183,7 +199,6 @@ describe("doctor and MCP parity", () => {
                         [],
                     );
 
-                // Assert
                 expect(qualityPaths).toContain(CLAUDE_MD);
                 expect(doctorPaths).toContain(CLAUDE_MD);
                 expect(
@@ -196,7 +211,6 @@ describe("doctor and MCP parity", () => {
     describe("Claude @import edges", () => {
         describe("when an @path line is inside a fenced code block", () => {
             it("should not create a doctor edge, as core import expansion ignores it", async () => {
-                // Arrange
                 const codeTarget = `${chance.word()}/${chance.word()}`;
                 await writeRepoFile(
                     repoRoot,
@@ -204,14 +218,12 @@ describe("doctor and MCP parity", () => {
                     `# Claude\n\n\`\`\`bash\n@${codeTarget}\n\`\`\`\n`,
                 );
 
-                // Act
                 const coreImports = await coreResolvedImports(
                     repoRoot,
                     CLAUDE_MD,
                 );
                 const doctorEdges = await doctorEdgesFrom(repoRoot, CLAUDE_MD);
 
-                // Assert
                 expect(coreImports).toEqual([]);
                 expect(doctorEdges).toEqual([]);
             });
@@ -219,7 +231,6 @@ describe("doctor and MCP parity", () => {
 
         describe("when an @path import targets an existing non-markdown file", () => {
             it("should be a valid doctor edge, as core import expansion resolves it", async () => {
-                // Arrange
                 const importTarget = `docs/${chance.word()}.txt`;
                 await writeRepoFile(repoRoot, importTarget, chance.sentence());
                 await writeRepoFile(
@@ -228,14 +239,12 @@ describe("doctor and MCP parity", () => {
                     `# Claude\n\n@${importTarget}\n`,
                 );
 
-                // Act
                 const coreImports = await coreResolvedImports(
                     repoRoot,
                     CLAUDE_MD,
                 );
                 const doctorEdges = await doctorEdgesFrom(repoRoot, CLAUDE_MD);
 
-                // Assert
                 expect(coreImports).toContain(importTarget);
                 expect(doctorEdges).toEqual([
                     expect.objectContaining({
@@ -248,18 +257,15 @@ describe("doctor and MCP parity", () => {
 
         describe("when CLAUDE.md imports a bare @AGENTS.md", () => {
             it("should be resolved by core import expansion and be a valid doctor edge", async () => {
-                // Arrange
                 await writeRepoFile(repoRoot, AGENTS_MD, chance.sentence());
                 await writeRepoFile(repoRoot, CLAUDE_MD, `@${AGENTS_MD}\n`);
 
-                // Act
                 const coreImports = await coreResolvedImports(
                     repoRoot,
                     CLAUDE_MD,
                 );
                 const doctorEdges = await doctorEdgesFrom(repoRoot, CLAUDE_MD);
 
-                // Assert
                 expect(coreImports).toEqual([AGENTS_MD]);
                 expect(doctorEdges).toEqual([
                     expect.objectContaining({
@@ -272,17 +278,14 @@ describe("doctor and MCP parity", () => {
 
         describe("when CLAUDE.md has a line-start @types/node that resolves to nothing", () => {
             it("should be reported by neither core import expansion nor doctor", async () => {
-                // Arrange
                 await writeRepoFile(repoRoot, CLAUDE_MD, "@types/node\n");
 
-                // Act
                 const document = await expandClaudeEntrypoint(
                     repoRoot,
                     CLAUDE_MD,
                 );
                 const doctorEdges = await doctorEdgesFrom(repoRoot, CLAUDE_MD);
 
-                // Assert
                 expect(document.expansionDiagnostics).toEqual([]);
                 expect(doctorEdges).toEqual([]);
             });
@@ -290,7 +293,6 @@ describe("doctor and MCP parity", () => {
 
         describe("when an @path import targets the home directory", () => {
             it("should not be reported by doctor as a missing file in the repository, as core reports it as an escape", async () => {
-                // Arrange
                 const homeTarget = `~/.claude/${chance.word()}.md`;
                 await writeRepoFile(
                     repoRoot,
@@ -298,14 +300,12 @@ describe("doctor and MCP parity", () => {
                     `# Claude\n\n@${homeTarget}\n`,
                 );
 
-                // Act
                 const document = await expandClaudeEntrypoint(
                     repoRoot,
                     CLAUDE_MD,
                 );
                 const doctorEdges = await doctorEdgesFrom(repoRoot, CLAUDE_MD);
 
-                // Assert
                 expect(
                     document.expansionDiagnostics.map((d) => d.ruleId),
                 ).toContain("instruction/import-escape");
@@ -319,7 +319,6 @@ describe("doctor and MCP parity", () => {
     describe("instruction directory aliases (parity by real file)", () => {
         describe("when two paths under .github/instructions are aliases of one directory", () => {
             it("should resolve doctor's 2 logical records and the core discovery's 1 file to the same 1 real file", async () => {
-                // Arrange
                 await writeRepoFile(
                     repoRoot,
                     ".github/shared-instructions/x.instructions.md",
@@ -335,12 +334,9 @@ describe("doctor and MCP parity", () => {
                     );
                 }
 
-                // Act
                 const doctorPaths = await doctorInstructionPaths(repoRoot);
                 const corePaths = await coreInstructionPaths(repoRoot);
 
-                // Assert: doctor lists each logical location, discovery each
-                // real file once; compared by real file they are the same set
                 const realFiles = async (paths: string[]) => [
                     ...new Set(
                         await Promise.all(
@@ -361,7 +357,6 @@ describe("doctor and MCP parity", () => {
     describe("symlinked entrypoint imports (parity by real file)", () => {
         describe("when CLAUDE.md is a symlink to a file whose relative import exists beside both the link and the target", () => {
             it("should resolve the import from the real target's directory in doctor and in core import expansion", async () => {
-                // Arrange
                 await writeRepoFile(
                     repoRoot,
                     "docs/agents/REAL.md",
@@ -375,14 +370,12 @@ describe("doctor and MCP parity", () => {
                 await writeRepoFile(repoRoot, "guide.md", chance.sentence());
                 await symlink("docs/agents/REAL.md", join(repoRoot, CLAUDE_MD));
 
-                // Act
                 const coreImports = await coreResolvedImports(
                     repoRoot,
                     CLAUDE_MD,
                 );
                 const doctorEdges = await doctorEdgesFrom(repoRoot, CLAUDE_MD);
 
-                // Assert: both name the same real file, docs/agents/guide.md
                 expect(coreImports).toEqual(["docs/agents/guide.md"]);
                 expect(doctorEdges).toEqual([
                     expect.objectContaining({

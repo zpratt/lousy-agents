@@ -67,6 +67,29 @@ export function entriesMatchingPath(
     return catalog.filter((entry) => matchesLocationEntry(path, entry));
 }
 
+/**
+ * True when the path sits under a catalog location that only accepts files
+ * with a given suffix, the path lacks that suffix, and no other entry claims
+ * it. The harness that owns that location does not load such a file (Copilot
+ * loads only `*.instructions.md` from `.github/instructions`), so a consumer
+ * that finds the file by directory prefix alone should leave it out.
+ */
+export function isExcludedBySuffix(
+    path: string,
+    catalog: readonly AgenticLocationEntry[] = AGENTIC_LOCATION_CATALOG,
+): boolean {
+    const normalized = normalizeRepoRelativePath(path);
+    return (
+        entriesMatchingPath(path, catalog).length === 0 &&
+        catalog.some(
+            (entry) =>
+                entry.matchKind === "directory-prefix" &&
+                entry.fileSuffix !== undefined &&
+                normalized.startsWith(`${entry.path}/`),
+        )
+    );
+}
+
 function specificityScore(entry: AgenticLocationEntry): number {
     // Exact matches outrank any prefix; longer prefixes outrank shorter ones.
     const kindBonus = entry.matchKind === "exact" ? 1_000_000 : 0;
