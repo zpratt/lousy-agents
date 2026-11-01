@@ -1,4 +1,4 @@
-import { mkdir, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { link, mkdir, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
@@ -389,6 +389,32 @@ describe("buildEffectiveDocument", () => {
                 });
 
                 expect(result.edges[0]?.status).toBe("size-exceeded");
+            },
+        );
+    });
+
+    describe("given a hard-linked import target", () => {
+        it.skipIf(process.platform === "win32")(
+            "should leave the token unexpanded and say the target is hard-linked",
+            async () => {
+                await writeFile(join(repoRoot, "target.md"), "HARDLINKED\n");
+                await link(
+                    join(repoRoot, "target.md"),
+                    join(repoRoot, "alias.md"),
+                );
+                await writeFile(join(repoRoot, "CLAUDE.md"), "@./target.md\n");
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                });
+
+                expect(result.content).not.toContain("HARDLINKED");
+                expect(result.edges[0]?.status).toBe("hard-linked");
+                expect(result.expansionDiagnostics[0]).toMatchObject({
+                    ruleId: "instruction/import-unresolved",
+                    message: expect.stringContaining("hard link"),
+                });
             },
         );
     });

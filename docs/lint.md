@@ -348,7 +348,7 @@ Each feedback loop command is scored on three dimensions (0 or 1 each):
 | `instruction/command-outside-section` | `warn` | Command is not under a dedicated feedback loop section |
 | `instruction/missing-error-handling` | `warn` | Command has no error handling guidance |
 | `instruction/missing-structural-heading` | `warn` | Instruction file is missing one or more recommended structural heading sections; may emit multiple warnings per file (one per missing section). For Claude entrypoints (`CLAUDE.md`), evaluated against the **effective** document after `@` import expansion |
-| `instruction/import-unresolved` | `warn` | Claude `@` import target could not be resolved, or is not a regular file |
+| `instruction/import-unresolved` | `warn` | Claude `@` import target could not be resolved, is not a regular file, or has more than one hard link (the diagnostic says "hard link"; this only happens locally, for example with pnpm stores or `cp -al` trees) |
 | `instruction/import-escape` | `warn` | Claude `@` import escapes the repository root, or uses an absolute / `~/` path |
 | `instruction/import-symlink` | `warn` | Claude `@` import resolves through a symbolic link to a location outside the repository, or its target was replaced by such a link while it was read (symlinks that stay inside the repository are followed) |
 | `instruction/import-cycle` | `warn` | Claude `@` import graph contains a cycle |
@@ -401,7 +401,7 @@ Limits are fixed internal defaults today (not configurable via CLI flags). They 
 
 Exceeding a size/graph limit emits `instruction/import-size-exceeded`. Exceeding hop depth emits `instruction/import-depth-exceeded`.
 
-Every file read during expansion is bounded and verified, not just size-checked up front. The file is opened without following a symbolic link at the final path component, the open file descriptor must be a regular file with a single hard link and no more than the per-file byte limit, and at most that limit plus one byte is read, so a file that grows after it was measured cannot make a read unbounded. A file that fails these checks is reported as an unresolved import (or `instruction/import-size-exceeded` when too large) and never aborts the analysis. Line and column positions for import diagnostics come from the same bounded read; when an importer can no longer be read safely, its diagnostics fall back to line 1, column 1.
+Every file read during expansion is bounded and verified, not just size-checked up front. The file is opened without following a symbolic link at the final path component, the open file descriptor must be a regular file with a single hard link (a hard-linked target is refused as defense in depth, because a hard link can alias a file outside the repository) and no more than the per-file byte limit, and at most that limit plus one byte is read, so a file that grows after it was measured cannot make a read unbounded. A file that fails these checks is reported as an unresolved import (or `instruction/import-size-exceeded` when too large) and never aborts the analysis. Line and column positions for import diagnostics come from the same bounded read; when an importer can no longer be read safely, its diagnostics fall back to line 1, column 1.
 
 #### Branch-local failures
 

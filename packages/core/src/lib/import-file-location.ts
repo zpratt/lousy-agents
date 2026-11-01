@@ -15,6 +15,7 @@ export type ImportLocationFailure =
     | "symlink"
     | "unresolved"
     | "not-regular"
+    | "hard-linked"
     | "size-exceeded";
 
 export interface LocatedFile {
@@ -64,6 +65,8 @@ export function statusForReadFailure(
             return "size-exceeded";
         case "not-regular":
             return "not-regular";
+        case "hard-linked":
+            return "hard-linked";
         case "identity-mismatch":
         case "unreadable":
             return "unresolved";

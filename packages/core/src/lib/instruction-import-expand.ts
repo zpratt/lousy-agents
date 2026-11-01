@@ -41,6 +41,7 @@ export type ImportEdgeStatus =
     | "depth-exceeded"
     | "size-exceeded"
     | "not-regular"
+    | "hard-linked"
     | "absolute"
     | "home";
 
@@ -259,6 +260,7 @@ function createLiteralSegment(
 const RULE_ID_BY_STATUS = {
     unresolved: "instruction/import-unresolved",
     "not-regular": "instruction/import-unresolved",
+    "hard-linked": "instruction/import-unresolved",
     escape: "instruction/import-escape",
     absolute: "instruction/import-escape",
     home: "instruction/import-escape",
@@ -288,6 +290,8 @@ const FAILURE_MESSAGE_BY_STATUS = {
         `Import expansion size or graph limit exceeded while resolving: ${rawTarget}`,
     "not-regular": (rawTarget: string) =>
         `Import target is not a regular file: ${rawTarget}`,
+    "hard-linked": (rawTarget: string) =>
+        `Import target has more than one hard link and is not read: ${rawTarget}`,
     resolved: () => "",
 } as const satisfies Record<ImportEdgeStatus, (rawTarget: string) => string>;
 
