@@ -1,3 +1,4 @@
+import Chance from "chance";
 import { describe, expect, it } from "vitest";
 import type { SetupStepCandidate } from "../entities/copilot-setup.js";
 import {
@@ -9,6 +10,8 @@ import {
     mergeCandidates,
     parseActionName,
 } from "./setup-step-discovery.js";
+
+const chance = new Chance();
 
 describe("Setup Step Discovery", () => {
     describe("parseActionName", () => {
@@ -113,6 +116,49 @@ describe("Setup Step Discovery", () => {
 
             // Assert
             expect(result).toHaveLength(0);
+        });
+    });
+
+    describe("when a run step candidate is checked against an existing workflow", () => {
+        const installCommand = `npm ci --${chance.word()}`;
+        const runCandidate: SetupStepCandidate = {
+            action: "run:npm",
+            source: "version-file",
+            run: installCommand,
+        };
+
+        it("should not report the run step as missing when the workflow already runs the command", () => {
+            // Arrange
+            const workflow = {
+                jobs: { setup: { steps: [{ run: installCommand }] } },
+            };
+
+            // Act
+            const result = findMissingCandidates(
+                [runCandidate],
+                getExistingActionsFromWorkflow(workflow),
+            );
+
+            // Assert
+            expect(result).toEqual([]);
+        });
+
+        it("should report the run step as missing when the workflow does not run the command", () => {
+            // Arrange
+            const workflow = {
+                jobs: {
+                    setup: { steps: [{ run: `${installCommand} --other` }] },
+                },
+            };
+
+            // Act
+            const result = findMissingCandidates(
+                [runCandidate],
+                getExistingActionsFromWorkflow(workflow),
+            );
+
+            // Assert
+            expect(result).toEqual([runCandidate]);
         });
     });
 

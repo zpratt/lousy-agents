@@ -1,11 +1,15 @@
-import { lstat } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { lstat, mkdir, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import Chance from "chance";
 import { describe, expect, it } from "vitest";
 import { scanRepository } from "./scanner.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = resolve(__dirname, "../../tests/fixtures");
+
+const chance = new Chance();
 
 function fixture(name: string): string {
     return resolve(fixturesDir, name);
@@ -359,6 +363,39 @@ describe("scanRepository", () => {
             );
             expect(skillRecord).toBeDefined();
             expect(skillRecord?.constructType).toBe("skill");
+        });
+    });
+
+    describe("when CLAUDE.md imports an absolute path", () => {
+        it("should record the edge as malformed with reason 'absolute'", async () => {
+            // Arrange
+            const repoRoot = join(
+                await realpath(tmpdir()),
+                `doctor-absolute-import-${chance.guid()}`,
+            );
+            const absoluteTarget = `/${chance.word()}/${chance.word()}.md`;
+            await mkdir(repoRoot, { recursive: true });
+            await writeFile(
+                join(repoRoot, "CLAUDE.md"),
+                `# Claude\n\n@${absoluteTarget}\n`,
+            );
+
+            try {
+                // Act
+                const records = await scanRepository(repoRoot);
+
+                // Assert
+                const claudeMd = records.find((r) => r.path === "CLAUDE.md");
+                expect(claudeMd?.edges).toEqual([
+                    expect.objectContaining({
+                        target: absoluteTarget,
+                        malformed: true,
+                        reason: "absolute",
+                    }),
+                ]);
+            } finally {
+                await rm(repoRoot, { recursive: true, force: true });
+            }
         });
     });
 });

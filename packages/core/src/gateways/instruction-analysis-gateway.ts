@@ -9,23 +9,37 @@ import type {
     FeedbackLoopCoverage,
     InstructionReference,
 } from "../entities/feedback-loop.js";
+import type { InstructionFileDiscoveryGateway } from "../use-cases/analyze-instruction-quality.js";
 import type { InstructionAnalysisGateway } from "../use-cases/validate-instruction-coverage.js";
-import {
-    listDirectoryWithinRoot,
-    pathExistsWithinRoot,
-    readTextWithinRoot,
-} from "./file-system-utils.js";
+import { readTextWithinRoot } from "./file-system-utils.js";
+import { createInstructionFileDiscoveryGateway } from "./instruction-file-discovery-gateway.js";
 
 export type { InstructionAnalysisGateway };
 
 const MAX_INSTRUCTION_FILE_BYTES = 1_048_576;
 
 /**
- * File system implementation of instruction analysis gateway
+ * An instruction file to scan, as paths relative to the target directory.
+ */
+interface InstructionFileToScan {
+    /** Path reported in references (where the harness loads the file) */
+    readonly reportedPath: string;
+    /** Symlink-free path to read the content from */
+    readonly contentPath: string;
+}
+
+/**
+ * File system implementation of instruction analysis gateway.
+ * Scans the same instruction files that instruction quality analysis
+ * discovers (the shared agentic location catalog).
  */
 export class FileSystemInstructionAnalysisGateway
     implements InstructionAnalysisGateway
 {
+    constructor(
+        private readonly discoveryGateway: InstructionFileDiscoveryGateway = createInstructionFileDiscoveryGateway(),
+    ) {}
+
     async analyzeCoverage(
         targetDir: string,
         scripts: DiscoveredScript[],
@@ -39,7 +53,7 @@ export class FileSystemInstructionAnalysisGateway
         for (const file of instructionFiles) {
             const content = await readTextWithinRoot(
                 targetDir,
-                file,
+                file.contentPath,
                 MAX_INSTRUCTION_FILE_BYTES,
             );
             const lines = content.split("\n");
@@ -49,7 +63,7 @@ export class FileSystemInstructionAnalysisGateway
                     script.name,
                     content,
                     lines,
-                    join(targetDir, file),
+                    join(targetDir, file.reportedPath),
                     targetDir,
                 );
                 if (scriptRefs.length > 0) {
@@ -63,7 +77,7 @@ export class FileSystemInstructionAnalysisGateway
                     tool.name,
                     content,
                     lines,
-                    join(targetDir, file),
+                    join(targetDir, file.reportedPath),
                     targetDir,
                 );
                 if (toolRefs.length > 0) {
@@ -103,41 +117,16 @@ export class FileSystemInstructionAnalysisGateway
         };
     }
 
-    private async safePathExists(
+    private async findInstructionFiles(
         targetDir: string,
-        relativePath: string,
-    ): Promise<boolean> {
-        try {
-            return await pathExistsWithinRoot(targetDir, relativePath);
-        } catch {
-            return false;
-        }
-    }
+    ): Promise<InstructionFileToScan[]> {
+        const discovered =
+            await this.discoveryGateway.discoverInstructionFiles(targetDir);
 
-    private async findInstructionFiles(targetDir: string): Promise<string[]> {
-        const files: string[] = [];
-
-        const copilotInstructions = join(".github", "copilot-instructions.md");
-        if (await this.safePathExists(targetDir, copilotInstructions)) {
-            files.push(copilotInstructions);
-        }
-
-        const instructionsDir = join(".github", "instructions");
-        if (await this.safePathExists(targetDir, instructionsDir)) {
-            try {
-                const instructionFiles = await listDirectoryWithinRoot(
-                    targetDir,
-                    instructionsDir,
-                );
-                for (const file of instructionFiles) {
-                    if (file.isFile() && file.name.endsWith(".md")) {
-                        files.push(join(instructionsDir, file.name));
-                    }
-                }
-            } catch {}
-        }
-
-        return files;
+        return discovered.map((file) => ({
+            reportedPath: relative(targetDir, file.filePath),
+            contentPath: relative(targetDir, file.contentPath ?? file.filePath),
+        }));
     }
 
     private findReferencesInContent(

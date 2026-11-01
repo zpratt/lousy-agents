@@ -117,32 +117,119 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
         });
     });
 
-    describe("when .github/copilot-instructions.md is a symbolic link", () => {
-        it("should return an empty array without throwing", async () => {
+    describe("when AGENTS.md is a symbolic link to a file inside the repository", () => {
+        it("should discover it at its harness path and read content from the target", async () => {
             // Arrange
-            const githubDir = join(testDir, ".github");
-            await mkdir(githubDir, { recursive: true });
-            const externalFile = join(testDir, "external.md");
-            await writeFile(externalFile, "# External\n");
+            const canonicalRelPath = join("docs", `${chance.word()}.md`);
+            await mkdir(join(testDir, "docs"), { recursive: true });
+            await writeFile(join(testDir, canonicalRelPath), "# Agents\n");
             await symlink(
-                externalFile,
-                join(githubDir, "copilot-instructions.md"),
+                join(testDir, canonicalRelPath),
+                join(testDir, "AGENTS.md"),
             );
 
             // Act
             const files = await gateway.discoverInstructionFiles(testDir);
 
             // Assert
-            expect(files).toEqual([]);
+            expect(files).toEqual([
+                {
+                    filePath: join(testDir, "AGENTS.md"),
+                    format: "agents-md",
+                    contentPath: join(testDir, canonicalRelPath),
+                },
+            ]);
         });
     });
 
-    describe("when AGENTS.md is a symbolic link", () => {
-        it("should return an empty array without throwing", async () => {
+    describe("when .github/instructions/ is a symbolic link to a directory inside the repository", () => {
+        it("should discover the files in the target directory at their harness paths", async () => {
             // Arrange
-            const externalFile = join(testDir, "external.md");
-            await writeFile(externalFile, "# External\n");
-            await symlink(externalFile, join(testDir, "AGENTS.md"));
+            const fileName = `${chance.word()}.instructions.md`;
+            const realDir = join(testDir, "real-instructions");
+            await mkdir(realDir, { recursive: true });
+            await mkdir(join(testDir, ".github"), { recursive: true });
+            await writeFile(join(realDir, fileName), "# Scoped\n");
+            await symlink(realDir, join(testDir, ".github", "instructions"));
+
+            // Act
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            // Assert
+            expect(files).toEqual([
+                {
+                    filePath: join(
+                        testDir,
+                        ".github",
+                        "instructions",
+                        fileName,
+                    ),
+                    format: "copilot-scoped",
+                    contentPath: join(realDir, fileName),
+                },
+            ]);
+        });
+    });
+
+    describe("when .github/instructions contains symbolic links back to itself", () => {
+        it("should discover each instruction file once", async () => {
+            // Arrange
+            const fileName = `${chance.word()}.instructions.md`;
+            const instructionsDir = join(testDir, ".github", "instructions");
+            await mkdir(instructionsDir, { recursive: true });
+            await writeFile(join(instructionsDir, fileName), "# Scoped\n");
+            await symlink(instructionsDir, join(instructionsDir, "loop-a"));
+            await symlink(instructionsDir, join(instructionsDir, "loop-b"));
+
+            // Act
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            // Assert
+            expect(files).toEqual([
+                {
+                    filePath: join(instructionsDir, fileName),
+                    format: "copilot-scoped",
+                },
+            ]);
+        });
+    });
+
+    describe("when an instruction file is a symbolic link to a file outside the repository", () => {
+        let outsideDir: string;
+
+        beforeEach(async () => {
+            outsideDir = join(tmpdir(), `outside-${chance.guid()}`);
+            await mkdir(outsideDir, { recursive: true });
+        });
+
+        afterEach(async () => {
+            await rm(outsideDir, { recursive: true, force: true });
+        });
+
+        it.each([
+            [".github/copilot-instructions.md"],
+            ["AGENTS.md"],
+            ["CLAUDE.md"],
+        ])("should not discover %s", async (instructionPath) => {
+            // Arrange
+            const outsideFile = join(outsideDir, "external.md");
+            await writeFile(outsideFile, "# External\n");
+            const linkPath = join(testDir, ...instructionPath.split("/"));
+            await mkdir(dirname(linkPath), { recursive: true });
+            await symlink(outsideFile, linkPath);
+
+            // Act
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            // Assert
+            expect(files).toEqual([]);
+        });
+
+        it("should not discover files in a symlinked .github/instructions directory", async () => {
+            // Arrange
+            await writeFile(join(outsideDir, "test.md"), "# Test\n");
+            await mkdir(join(testDir, ".github"), { recursive: true });
+            await symlink(outsideDir, join(testDir, ".github", "instructions"));
 
             // Act
             const files = await gateway.discoverInstructionFiles(testDir);
@@ -152,21 +239,43 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
         });
     });
 
-    describe("when .github/instructions/ is a symbolic link", () => {
-        it("should return an empty array without throwing", async () => {
+    describe("when a scoped instruction file is in a subdirectory of .github/instructions", () => {
+        it("should discover it with copilot-scoped format", async () => {
             // Arrange
-            const githubDir = join(testDir, ".github");
-            await mkdir(githubDir, { recursive: true });
-            const externalDir = join(testDir, "external-instructions");
-            await mkdir(externalDir, { recursive: true });
-            await writeFile(join(externalDir, "test.md"), "# Test\n");
-            await symlink(externalDir, join(githubDir, "instructions"));
+            const subdir = chance.word();
+            const fileName = `${chance.word()}.instructions.md`;
+            const scopedDir = join(testDir, ".github", "instructions", subdir);
+            await mkdir(scopedDir, { recursive: true });
+            await writeFile(join(scopedDir, fileName), "# Scoped\n");
 
             // Act
             const files = await gateway.discoverInstructionFiles(testDir);
 
             // Assert
-            expect(files).toEqual([]);
+            expect(files).toEqual([
+                {
+                    filePath: join(scopedDir, fileName),
+                    format: "copilot-scoped",
+                },
+            ]);
+        });
+    });
+
+    describe.each([
+        [".claude/CLAUDE.md", "claude-md"],
+        ["AGENTS.override.md", "agents-md"],
+    ])("when %s exists", (instructionPath, expectedFormat) => {
+        it(`should discover it with ${expectedFormat} format`, async () => {
+            // Arrange
+            const filePath = join(testDir, ...instructionPath.split("/"));
+            await mkdir(dirname(filePath), { recursive: true });
+            await writeFile(filePath, `# ${chance.word()}\n`);
+
+            // Act
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            // Assert
+            expect(files).toEqual([{ filePath, format: expectedFormat }]);
         });
     });
 

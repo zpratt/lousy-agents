@@ -12,6 +12,7 @@ import {
     successResponse,
     type ToolArgs,
     type ToolHandler,
+    validateTargetDirectory,
 } from "./types.js";
 
 /**
@@ -23,8 +24,9 @@ export const discoverWorkflowSetupActionsHandler: ToolHandler = async (
     try {
         const dir = args.targetDir || process.cwd();
 
-        if (!(await fileExists(dir))) {
-            return errorResponse(`Target directory does not exist: ${dir}`);
+        const targetDirError = await validateTargetDirectory(dir);
+        if (targetDirError) {
+            return targetDirError;
         }
 
         const workflowGateway = createWorkflowGateway();

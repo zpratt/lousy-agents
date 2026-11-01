@@ -41,7 +41,13 @@ export async function fileExists(path: string): Promise<boolean> {
     }
 }
 
-function isPathWithinRoot(rootPath: string, candidatePath: string): boolean {
+/**
+ * Returns true when candidatePath is rootPath or a descendant of it.
+ */
+export function isPathWithinRoot(
+    rootPath: string,
+    candidatePath: string,
+): boolean {
     if (candidatePath === rootPath) {
         return true;
     }

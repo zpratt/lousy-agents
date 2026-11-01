@@ -2,15 +2,13 @@
  * MCP tool handler for discovering environment configuration files.
  */
 
-import {
-    createEnvironmentGateway,
-    fileExists,
-} from "@lousy-agents/core/gateways/index.js";
+import { createEnvironmentGateway } from "@lousy-agents/core/gateways/index.js";
 import {
     errorResponse,
     successResponse,
     type ToolArgs,
     type ToolHandler,
+    validateTargetDirectory,
 } from "./types.js";
 
 /**
@@ -22,11 +20,12 @@ export const discoverEnvironmentHandler: ToolHandler = async (
     try {
         const dir = args.targetDir || process.cwd();
 
-        if (!(await fileExists(dir))) {
-            return errorResponse(`Target directory does not exist: ${dir}`);
+        const targetDirError = await validateTargetDirectory(dir);
+        if (targetDirError) {
+            return targetDirError;
         }
 
-        const environmentGateway = createEnvironmentGateway();
+        const environmentGateway = createEnvironmentGateway(dir);
         const environment = await environmentGateway.detectEnvironment(dir);
 
         return successResponse({

@@ -2,16 +2,14 @@
  * MCP tool handler for reading existing Copilot Setup Steps workflow.
  */
 
-import {
-    createWorkflowGateway,
-    fileExists,
-} from "@lousy-agents/core/gateways/index.js";
+import { createWorkflowGateway } from "@lousy-agents/core/gateways/index.js";
 import { extractAllWorkflowSteps } from "@lousy-agents/core/use-cases/setup-step-discovery.js";
 import {
     errorResponse,
     successResponse,
     type ToolArgs,
     type ToolHandler,
+    validateTargetDirectory,
 } from "./types.js";
 
 /**
@@ -23,8 +21,9 @@ export const readCopilotSetupWorkflowHandler: ToolHandler = async (
     try {
         const dir = args.targetDir || process.cwd();
 
-        if (!(await fileExists(dir))) {
-            return errorResponse(`Target directory does not exist: ${dir}`);
+        const targetDirError = await validateTargetDirectory(dir);
+        if (targetDirError) {
+            return targetDirError;
         }
 
         const workflowGateway = createWorkflowGateway();
