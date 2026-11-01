@@ -1,6 +1,7 @@
 {
     "name": "@lousy-agents/agentic-doctor",
     "version": "0.1.0",
+    "private": true,
     "description": "Agentic configuration doctor: inventory, classify, and evaluate multi-harness agentic configurations",
     "type": "module",
     "repository": {
