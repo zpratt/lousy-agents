@@ -104,7 +104,7 @@ Paths come from the shared agentic location catalog in `@lousy-agents/core` (the
 
 - Doctor follows in-repo symlinks when inventorying instruction files (common when teams symlink `AGENTS.md`).
 - Symlinks that escape the repository root are rejected.
-- Lint skips symlinks by design. That difference is intentional.
+- Lint skips symlinked skill, agent and hook targets by design; that difference is intentional. Instruction files and their `@` imports follow in-repo symlinks in lint too.
 
 ## Archetypes
 
@@ -158,7 +158,7 @@ Doctor and lint share the discovery catalog. They answer different questions:
 | When (typical) | First after parallel agent waves: composition referee before merge | Second: structural quality on the paths both tools share |
 | Output | Archetype, inventory, edges, criteria findings | Rule diagnostics with line numbers |
 | CI role | Composition and missing-required gates | Structural validation gates |
-| Symlinks | Follows in-repo targets | Skips symlinked targets |
+| Symlinks | Follows in-repo targets | Skips symlinked skill, agent and hook targets; follows in-repo symlinks for instruction files and `@` imports |
 | Coverage | Broader inventory (plugins, multi-harness trees, MCP servers as inventory records) | Validates skills, agents, hooks, instructions by default; subagents and MCP are flag-only |
 
 See [lint](lint.md) for validation rules, rollout status, and flag-only targets. Doctor finds the map; lint grades file quality on the paths both tools share.

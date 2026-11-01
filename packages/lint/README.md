@@ -73,7 +73,7 @@ try {
 
 When `targets` is omitted or all flags are `false`, the **default-enabled** targets run: skills, agents, hooks, instructions. `subagents` and `mcpServers` are flag-only — part of a phased rollout (see [Construct coverage](https://github.com/zpratt/lousy-agents/issues/1039)) — and only run when explicitly set to `true`, even if no other flags are set.
 
-Discovery paths come from the canonical agentic location catalog in `@lousy-agents/core`, shared with `doctor`. Doctor may inventory additional constructs lint still does not validate (plugins, multi-harness instruction trees, etc.). Intentional differences: `skills-lock.json` filtering (lint only), hook `PreToolUse` / `preToolUse` content heuristic (lint only, applies only to the two `.claude/settings*.json` / `.github/hooks/agent-shell/hooks.json` exact paths — kept, not relaxed, for this rollout), and symlink policy (lint skips; doctor follows in-repo).
+Discovery paths come from the canonical agentic location catalog in `@lousy-agents/core`, shared with `doctor`. Doctor may inventory additional constructs lint still does not validate (plugins, multi-harness instruction trees, etc.). Intentional differences: `skills-lock.json` filtering (lint only), hook `PreToolUse` / `preToolUse` content heuristic (lint only, applies only to the two `.claude/settings*.json` / `.github/hooks/agent-shell/hooks.json` exact paths — kept, not relaxed, for this rollout), and symlink policy (lint skips symlinked skill, agent and hook targets; doctor follows in-repo, and instruction files and `@` imports follow in-repo symlinks in lint too).
 
 **Throws `LintValidationError`** when `directory` is empty, contains control characters, path traversal sequences, does not exist, or is not a directory.
 

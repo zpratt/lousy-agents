@@ -1919,32 +1919,46 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                 "should emit instruction/import-symlink on the importer token for a symlink target",
                 async () => {
                     const { symlink } = await import("node:fs/promises");
-                    await writeFile(join(repoRoot, "real.md"), "secret\n");
-                    await symlink(
-                        join(repoRoot, "real.md"),
-                        join(repoRoot, "link.md"),
+                    // In-repository symlinks are followed; only a symlink
+                    // that leaves the repository is an import-symlink.
+                    const outsideDir = join(
+                        tmpdir(),
+                        `analyze-instruction-outside-${chance.hash({ length: 8 })}`,
                     );
-                    const claudePath = join(repoRoot, "CLAUDE.md");
-                    await writeFile(claudePath, "@./link.md\n");
+                    await mkdir(outsideDir, { recursive: true });
+                    try {
+                        await writeFile(
+                            join(outsideDir, "real.md"),
+                            "secret\n",
+                        );
+                        await symlink(
+                            join(outsideDir, "real.md"),
+                            join(repoRoot, "link.md"),
+                        );
+                        const claudePath = join(repoRoot, "CLAUDE.md");
+                        await writeFile(claudePath, "@./link.md\n");
 
-                    const useCase = createRealUseCase([
-                        { filePath: claudePath, format: "claude-md" },
-                    ]);
+                        const useCase = createRealUseCase([
+                            { filePath: claudePath, format: "claude-md" },
+                        ]);
 
-                    const output = await useCase.execute({
-                        targetDir: repoRoot,
-                    });
+                        const output = await useCase.execute({
+                            targetDir: repoRoot,
+                        });
 
-                    const diag = output.diagnostics.find(
-                        (d) => d.ruleId === "instruction/import-symlink",
-                    );
-                    expect(diag).toMatchObject({
-                        filePath: claudePath,
-                        line: 1,
-                        column: 1,
-                        severity: "warning",
-                        ruleId: "instruction/import-symlink",
-                    });
+                        const diag = output.diagnostics.find(
+                            (d) => d.ruleId === "instruction/import-symlink",
+                        );
+                        expect(diag).toMatchObject({
+                            filePath: claudePath,
+                            line: 1,
+                            column: 1,
+                            severity: "warning",
+                            ruleId: "instruction/import-symlink",
+                        });
+                    } finally {
+                        await rm(outsideDir, { recursive: true, force: true });
+                    }
                 },
             );
 
