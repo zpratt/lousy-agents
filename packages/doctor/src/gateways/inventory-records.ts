@@ -1,6 +1,9 @@
 import { readTextWithinRoot } from "@lousy-agents/core/gateways/file-system-utils.js";
 import type { FileIdentity } from "@lousy-agents/core/gateways/read-regular-file-no-follow.js";
-import { primaryConstructTypeForPath } from "@lousy-agents/core/lib/agentic-location-matchers.js";
+import {
+    isExcludedBySuffix,
+    primaryConstructTypeForPath,
+} from "@lousy-agents/core/lib/agentic-location-matchers.js";
 import type {
     ConstructType,
     Edge,
@@ -83,6 +86,15 @@ function readOncePerRealFile(read: ReadMarkdownContent): ReadMarkdownContent {
     };
 }
 
+/**
+ * The harness that loads a file, or null when none does. A file under a
+ * harness's directory is not loaded when the catalog says that directory
+ * accepts only files with a suffix the file lacks.
+ */
+function ownerOf(relPath: string): HarnessName | null {
+    return isExcludedBySuffix(relPath) ? null : determineHarness(relPath);
+}
+
 /** Reads files one at a time, keeping only those that belong to a harness. */
 async function readInventorySources(
     files: readonly InventorySourceFile[],
@@ -91,7 +103,7 @@ async function readInventorySources(
     const sources: InventorySource[] = [];
 
     for (const file of files) {
-        const harness = determineHarness(file.relPath);
+        const harness = ownerOf(file.relPath);
         if (harness !== null) {
             sources.push({
                 file,
