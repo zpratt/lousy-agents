@@ -13,9 +13,9 @@ import {
 import { createInterface } from "node:readline";
 import { sanitizeForStderr } from "./entities/sanitize.js";
 import type { TelemetryDeps } from "./entities/telemetry-port.js";
+import { createCopilotSdkLoader } from "./gateways/copilot-sdk-loader.js";
 import { createGetRepositoryRoot } from "./gateways/git-utils.js";
 import { scanProject } from "./gateways/project-scanner.js";
-import { resolveSdkPath } from "./gateways/resolve-sdk.js";
 import { runLog } from "./gateways/run-log.js";
 import type { ShimResult } from "./gateways/shim.js";
 import { runShim } from "./gateways/shim.js";
@@ -113,7 +113,7 @@ async function main(): Promise<void> {
                     writeStderr: (data) => process.stderr.write(data),
                     scanProject: (dir) => scanProject(dir),
                     copilotIo: {
-                        resolveSdkPath,
+                        loadSdk: createCopilotSdkLoader(),
                         statWithinRoot,
                         readBytesWithinRoot,
                     },

@@ -3,12 +3,12 @@
  * dependency (see packages/agent-shell/package.json `peerDependencies` /
  * `peerDependenciesMeta`). The package is intentionally NOT installed —
  * it is loaded dynamically at runtime and its absence is handled
- * gracefully (see enhanceWithCopilot in use-cases/copilot-enhance.ts).
+ * gracefully (see gateways/copilot-sdk-loader.ts).
  *
  * This declaration exists only so the static-literal
  * `import("@github/copilot-sdk")` fallback path typechecks under
  * strict mode without resorting to `as any`. Keep the shape limited to
- * what enhanceWithCopilot actually uses.
+ * what the loader and enhanceWithCopilot actually use.
  */
 declare module "@github/copilot-sdk" {
     interface CopilotSession {

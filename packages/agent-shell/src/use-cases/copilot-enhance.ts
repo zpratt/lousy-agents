@@ -31,8 +31,41 @@ export interface ProjectFilePort {
     ) => Promise<Buffer>;
 }
 
+/** A tool the model may call, as the SDK's `defineTool` builds it. */
+export interface ToolConfig {
+    description: string;
+    parameters: Record<string, unknown>;
+    handler: (args: Record<string, string>) => Promise<unknown>;
+    skipPermission?: boolean;
+}
+
+export type DefineTool = (name: string, config: ToolConfig) => unknown;
+
+export interface CopilotSession {
+    sendAndWait(input: {
+        prompt: string;
+    }): Promise<{ data?: unknown } | undefined>;
+    disconnect(): Promise<void>;
+}
+
+export interface CopilotClientHandle {
+    start(): Promise<void>;
+    stop(): Promise<void>;
+    createSession(options: Record<string, unknown>): Promise<CopilotSession>;
+}
+
+/** The parts of @github/copilot-sdk that the analysis uses. */
+export interface CopilotSdk {
+    createClient: () => CopilotClientHandle;
+    defineTool: DefineTool;
+    approveAll: unknown;
+}
+
+/** Loads the SDK, rejecting when it is not available. */
+export type LoadCopilotSdk = (repoRoot: string) => Promise<CopilotSdk>;
+
 export interface CopilotEnhancePort extends ProjectFilePort {
-    resolveSdkPath: (repoRoot: string, packageName: string) => string | null;
+    loadSdk: LoadCopilotSdk;
 }
 
 /**
@@ -145,15 +178,7 @@ export async function readProjectFileSafe(
 function createCustomTools(
     repoRoot: string,
     io: ProjectFilePort,
-    defineTool: (
-        name: string,
-        config: {
-            description: string;
-            parameters: Record<string, unknown>;
-            handler: (args: Record<string, string>) => Promise<unknown>;
-            skipPermission?: boolean;
-        },
-    ) => unknown,
+    defineTool: DefineTool,
 ): unknown[] {
     const readProjectFile = defineTool("read_project_file", {
         description:
@@ -228,23 +253,20 @@ export async function enhanceWithCopilot(
     io: CopilotEnhancePort,
     model = DEFAULT_MODEL,
 ): Promise<CopilotEnhancedResult | null> {
-    let importSucceeded = false;
+    let sdkLoaded = false;
     try {
-        const sdkPath = io.resolveSdkPath(repoRoot, "@github/copilot-sdk");
-        const { CopilotClient, defineTool, approveAll } = sdkPath
-            ? await import(/* webpackIgnore: true */ sdkPath)
-            : await import("@github/copilot-sdk");
-        importSucceeded = true;
+        const sdk = await io.loadSdk(repoRoot);
+        sdkLoaded = true;
 
-        const client = new CopilotClient();
-        const tools = createCustomTools(repoRoot, io, defineTool);
+        const client = sdk.createClient();
+        const tools = createCustomTools(repoRoot, io, sdk.defineTool);
 
         try {
             await client.start();
             const session = await client.createSession({
                 model,
                 tools,
-                onPermissionRequest: approveAll,
+                onPermissionRequest: sdk.approveAll,
                 systemMessage: {
                     content: buildSystemMessage(),
                 },
@@ -286,7 +308,7 @@ export async function enhanceWithCopilot(
         }
     } catch (err) {
         if (process.env.AGENT_SHELL_COPILOT_DEBUG) {
-            if (importSucceeded) {
+            if (sdkLoaded) {
                 writeStderr(
                     `agent-shell: Copilot analysis failed — ${sanitizeForStderr(err)}\n`,
                 );
