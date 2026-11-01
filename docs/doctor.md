@@ -104,6 +104,7 @@ Paths come from the shared agentic location catalog in `@lousy-agents/core` (the
 
 - Doctor follows in-repo symlinks when inventorying instruction files (common when teams symlink `AGENTS.md`).
 - Symlinks that escape the repository root are rejected.
+- A relative `@import` inside a symlinked file resolves from the **real target's directory**, not the symlink's. For `CLAUDE.md -> docs/agents/REAL.md` containing `@./guide.md`, the import is `docs/agents/guide.md`. This is how Claude Code resolves it (observed on Claude Code 2.1.316), and it is the same rule `lint` uses, through the same core resolver.
 - Lint skips symlinked skill, agent and hook targets by design; that difference is intentional. Instruction files and their `@` imports follow in-repo symlinks in lint too.
 - Doctor walks the repository with the same bounded walk as lint's instruction discovery (`@lousy-agents/core`). It skips `node_modules`, `.git` and `dist`, lists entries in name order, descends while the depth is below 10 (the root is depth 0), and stops listing after 10,000 directories.
 - **Doctor lists every location, lint lists every real file once.** If `.claude/skills` is a symlink to `.agents/skills`, doctor inventories both `claude:.claude/skills/...` and `codex:.agents/skills/...`, because different harnesses load each location. A symlink back to one of its own ancestors is refused, so a cycle terminates. Lint's instruction discovery lists a real directory once, under the first path in name order. When comparing the two tools, compare by real file.

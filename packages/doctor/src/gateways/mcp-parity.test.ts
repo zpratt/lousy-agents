@@ -315,4 +315,47 @@ describe("doctor and MCP parity", () => {
             });
         });
     });
+
+    describe("symlinked entrypoint imports (parity by real file)", () => {
+        describe("when CLAUDE.md is a symlink to a file whose relative import exists beside both the link and the target", () => {
+            it("should resolve the import from the real target's directory in doctor and in core import expansion", async () => {
+                // Arrange
+                await writeRepoFile(
+                    repoRoot,
+                    "docs/agents/REAL.md",
+                    "@./guide.md\n",
+                );
+                await writeRepoFile(
+                    repoRoot,
+                    "docs/agents/guide.md",
+                    chance.sentence(),
+                );
+                await writeRepoFile(repoRoot, "guide.md", chance.sentence());
+                await symlink("docs/agents/REAL.md", join(repoRoot, CLAUDE_MD));
+
+                // Act
+                const coreImports = await coreResolvedImports(
+                    repoRoot,
+                    CLAUDE_MD,
+                );
+                const doctorEdges = await doctorEdgesFrom(repoRoot, CLAUDE_MD);
+
+                // Assert: both name the same real file, docs/agents/guide.md
+                expect(coreImports).toEqual(["docs/agents/guide.md"]);
+                expect(doctorEdges).toEqual([
+                    expect.objectContaining({
+                        target: "docs/agents/guide.md",
+                        malformed: false,
+                    }),
+                ]);
+                const doctorTarget = await realpath(
+                    join(repoRoot, doctorEdges[0].target),
+                );
+                const coreTarget = await realpath(
+                    join(repoRoot, coreImports[0]),
+                );
+                expect(doctorTarget).toBe(coreTarget);
+            });
+        });
+    });
 });
