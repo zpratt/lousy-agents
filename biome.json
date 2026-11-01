@@ -33,6 +33,51 @@
             "recommended": true,
             "style": {
                 "noParameterAssign": "error",
+                "noRestrictedImports": {
+                    "level": "error",
+                    "options": {
+                        "paths": {
+                            "punycode": "Node has deprecated the punycode core module",
+                            "node:punycode": "Node has deprecated the punycode core module",
+                            "sys": "Node has deprecated the sys core module",
+                            "node:sys": "Node has deprecated the sys core module",
+                            "domain": "Node has deprecated the domain core module",
+                            "node:domain": "Node has deprecated the domain core module",
+                            "constants": "Node has deprecated the constants core module",
+                            "node:constants": "Node has deprecated the constants core module",
+                            "_http_agent": "Node has deprecated the _http_agent core module",
+                            "node:_http_agent": "Node has deprecated the _http_agent core module",
+                            "_http_client": "Node has deprecated the _http_client core module",
+                            "node:_http_client": "Node has deprecated the _http_client core module",
+                            "_http_common": "Node has deprecated the _http_common core module",
+                            "node:_http_common": "Node has deprecated the _http_common core module",
+                            "_http_incoming": "Node has deprecated the _http_incoming core module",
+                            "node:_http_incoming": "Node has deprecated the _http_incoming core module",
+                            "_http_outgoing": "Node has deprecated the _http_outgoing core module",
+                            "node:_http_outgoing": "Node has deprecated the _http_outgoing core module",
+                            "_http_server": "Node has deprecated the _http_server core module",
+                            "node:_http_server": "Node has deprecated the _http_server core module",
+                            "_linklist": "Node has deprecated the _linklist core module",
+                            "node:_linklist": "Node has deprecated the _linklist core module",
+                            "_stream_duplex": "Node has deprecated the _stream_duplex core module",
+                            "node:_stream_duplex": "Node has deprecated the _stream_duplex core module",
+                            "_stream_passthrough": "Node has deprecated the _stream_passthrough core module",
+                            "node:_stream_passthrough": "Node has deprecated the _stream_passthrough core module",
+                            "_stream_readable": "Node has deprecated the _stream_readable core module",
+                            "node:_stream_readable": "Node has deprecated the _stream_readable core module",
+                            "_stream_transform": "Node has deprecated the _stream_transform core module",
+                            "node:_stream_transform": "Node has deprecated the _stream_transform core module",
+                            "_stream_wrap": "Node has deprecated the _stream_wrap core module",
+                            "node:_stream_wrap": "Node has deprecated the _stream_wrap core module",
+                            "_stream_writable": "Node has deprecated the _stream_writable core module",
+                            "node:_stream_writable": "Node has deprecated the _stream_writable core module",
+                            "_tls_common": "Node has deprecated the _tls_common core module",
+                            "node:_tls_common": "Node has deprecated the _tls_common core module",
+                            "_tls_wrap": "Node has deprecated the _tls_wrap core module",
+                            "node:_tls_wrap": "Node has deprecated the _tls_wrap core module"
+                        }
+                    }
+                },
                 "noUselessElse": "error",
                 "useConsistentBuiltinInstantiation": "error",
                 "useConsistentCurlyBraces": "error",
@@ -44,10 +89,17 @@
                 "noReExportAll": "error"
             },
             "correctness": {
+                "noUndeclaredDependencies": "error",
                 "noUnusedVariables": "error"
             },
             "suspicious": {
                 "noConsole": "warn",
+                "noImportCycles": {
+                    "level": "error",
+                    "options": {
+                        "ignoreTypes": false
+                    }
+                },
                 "noVar": "error"
             }
         }
@@ -56,5 +108,22 @@
         "formatter": {
             "quoteStyle": "double"
         }
-    }
+    },
+    "overrides": [
+        {
+            "includes": [
+                "**/*.test.ts",
+                "**/*.spec.ts",
+                "**/tests/**",
+                "**/*.config.ts"
+            ],
+            "linter": {
+                "rules": {
+                    "correctness": {
+                        "noUndeclaredDependencies": "off"
+                    }
+                }
+            }
+        }
+    ]
 }
