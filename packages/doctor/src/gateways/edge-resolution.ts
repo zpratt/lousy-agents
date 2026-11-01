@@ -53,9 +53,12 @@ const HARD_IMPORT_REASON_BY_STATUS: Partial<
 async function resolveHardImportEdge(
     rawTarget: string,
     from: string,
+    importerRealPath: string,
     ctx: EdgeResolutionContext,
 ): Promise<Edge> {
-    const normalized = normalizeRelativeWithinRoot(from, rawTarget);
+    // Claude Code resolves a relative import from the importing file's real
+    // directory, so the base is the real path, not the symlink's location.
+    const normalized = normalizeRelativeWithinRoot(importerRealPath, rawTarget);
     if (!normalized.ok) {
         return malformedEdge(
             "hard-import",
@@ -118,10 +121,15 @@ function resolveSoftReferenceEdge(
           );
 }
 
+/**
+ * @param sourceRealRelPath Repository-relative path of the source file's real
+ * (symlink-free) location, the base for its `@` imports
+ */
 export async function resolveEdge(
     rawTarget: string,
     type: Edge["type"],
     sourceAbsPath: string,
+    sourceRealRelPath: string,
     ctx: EdgeResolutionContext,
 ): Promise<Edge> {
     const from = relative(ctx.repoRoot, sourceAbsPath).replace(/\\/g, "/");
@@ -130,7 +138,12 @@ export async function resolveEdge(
         case "glob-binding":
             return wellFormedEdge(type, from, rawTarget);
         case "hard-import":
-            return resolveHardImportEdge(rawTarget, from, ctx);
+            return resolveHardImportEdge(
+                rawTarget,
+                from,
+                sourceRealRelPath,
+                ctx,
+            );
         case "soft-reference":
             return resolveSoftReferenceEdge(
                 rawTarget,

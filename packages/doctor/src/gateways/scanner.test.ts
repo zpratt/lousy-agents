@@ -825,6 +825,59 @@ describe("scanRepository", () => {
             );
         });
 
+        it("should resolve a symlinked file's relative imports from the real target's directory, as Claude Code does", async () => {
+            // Arrange: CLAUDE.md -> docs/agents/REAL.md, which imports ./guide.md
+            const files = {
+                "docs/agents/REAL.md": "@./guide.md\n",
+                "docs/agents/guide.md": "# guide\n",
+                "guide.md": "# decoy next to the symlink\n",
+            };
+            await withTempRepo(files, async (repoRoot) => {
+                await symlink("docs/agents/REAL.md", join(repoRoot, CLAUDE_MD));
+
+                // Act
+                const records = await scanRepository(repoRoot);
+
+                // Assert
+                const claudeMd = records.find((r) => r.path === CLAUDE_MD);
+                expect(claudeMd?.edges).toEqual([
+                    expect.objectContaining({
+                        type: "hard-import",
+                        direction: {
+                            from: CLAUDE_MD,
+                            to: "docs/agents/guide.md",
+                        },
+                        target: "docs/agents/guide.md",
+                        malformed: false,
+                    }),
+                ]);
+            });
+        });
+
+        it("should report an import that exists only next to the symlink as missing, because Claude Code resolves from the real target", async () => {
+            // Arrange
+            const files = {
+                "docs/agents/REAL.md": "@./guide.md\n",
+                "guide.md": "# only next to the symlink\n",
+            };
+            await withTempRepo(files, async (repoRoot) => {
+                await symlink("docs/agents/REAL.md", join(repoRoot, CLAUDE_MD));
+
+                // Act
+                const records = await scanRepository(repoRoot);
+
+                // Assert
+                const claudeMd = records.find((r) => r.path === CLAUDE_MD);
+                expect(claudeMd?.edges).toEqual([
+                    expect.objectContaining({
+                        target: "docs/agents/guide.md",
+                        malformed: true,
+                        reason: "missing-target",
+                    }),
+                ]);
+            });
+        });
+
         it("should report no directory limit when the tree is within the cap", async () => {
             // Arrange
             await withTempRepo(

@@ -110,7 +110,13 @@ async function toInventoryRecord(
     const rawEdges = content === null ? [] : parseRawEdges(content);
     const edges = await Promise.all(
         rawEdges.map((raw) =>
-            resolveEdge(raw.rawTarget, raw.type, file.absPath, ctx),
+            resolveEdge(
+                raw.rawTarget,
+                raw.type,
+                file.absPath,
+                file.readRelPath,
+                ctx,
+            ),
         ),
     );
 
