@@ -1,3 +1,4 @@
+import { compareCodeUnits } from "@lousy-agents/core/lib/code-unit-order.js";
 import type { ArchetypeClassification } from "../entities/archetype.js";
 import type { InventoryRecord } from "../entities/edge-types.js";
 import { countCrossHarnessEdges } from "../lib/cross-harness-edges.js";
@@ -37,7 +38,7 @@ export function formatSummary(
 
     const harnessBreakdown = Array.from(counts.entries())
         .map(([harness, count]) => ({ harness, count }))
-        .sort((a, b) => a.harness.localeCompare(b.harness));
+        .sort((a, b) => compareCodeUnits(a.harness, b.harness));
 
     const crossHarnessEdges = countCrossHarnessEdges(records);
 

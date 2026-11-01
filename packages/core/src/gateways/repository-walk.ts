@@ -12,6 +12,7 @@
 
 import { realpath } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
+import { compareCodeUnits } from "../lib/code-unit-order.js";
 import { listDirectoryWithinRoot } from "./file-system-utils.js";
 import type { FileIdentity } from "./read-regular-file-no-follow.js";
 import { inspectPathWithinRoot } from "./real-path-within-root.js";
@@ -207,7 +208,7 @@ class RepositoryWalk {
         );
         const sorted = entries
             .filter((entry) => !isUnsafeEntryName(entry.name))
-            .sort((a, b) => a.name.localeCompare(b.name));
+            .sort((a, b) => compareCodeUnits(a.name, b.name));
         for (const entry of sorted) {
             await this.walkEntry(
                 directory.real,
