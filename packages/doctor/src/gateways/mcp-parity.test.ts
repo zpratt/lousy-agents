@@ -322,7 +322,7 @@ describe("doctor and MCP parity", () => {
                 // Arrange
                 await writeRepoFile(
                     repoRoot,
-                    ".github/shared-instructions/x.md",
+                    ".github/shared-instructions/x.instructions.md",
                     chance.sentence(),
                 );
                 await mkdir(join(repoRoot, ".github", "instructions"), {

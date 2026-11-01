@@ -247,7 +247,7 @@ mise run lint
 `;
 
             await writeFile(
-                join(instructionsDir, "commands.md"),
+                join(instructionsDir, "commands.instructions.md"),
                 instructionContent,
             );
 
@@ -330,7 +330,6 @@ npm test
 
     describe("when .github/copilot-instructions.md is a symlink to a file inside the repository", () => {
         it("should count scripts documented in the symlink target", async () => {
-            // Arrange
             const scriptName = chance.word({ length: 10 });
             const canonicalTarget = join(testDir, "canonical.md");
             await writeFile(canonicalTarget, `Run npm run ${scriptName}`);
@@ -347,10 +346,8 @@ npm test
                 },
             ];
 
-            // Act
             const result = await gateway.analyzeCoverage(testDir, scripts, []);
 
-            // Assert
             expect(result.documentedInInstructions.map((s) => s.name)).toEqual([
                 scriptName,
             ]);
@@ -362,7 +359,6 @@ npm test
 
     describe("when .github/copilot-instructions.md is a symlink to a file outside the repository", () => {
         it("should return zero coverage instead of throwing", async () => {
-            // Arrange
             const scriptName = chance.word({ length: 10 });
             const outsideDir = join(tmpdir(), `outside-${chance.guid()}`);
             await mkdir(outsideDir, { recursive: true });
@@ -382,14 +378,12 @@ npm test
             ];
 
             try {
-                // Act
                 const result = await gateway.analyzeCoverage(
                     testDir,
                     scripts,
                     [],
                 );
 
-                // Assert
                 expect(result.summary.totalDocumented).toBe(0);
                 expect(result.missingInInstructions).toHaveLength(1);
             } finally {
@@ -400,7 +394,6 @@ npm test
 
     describe("when .github/instructions directory is a symlink to a directory inside the repository", () => {
         it("should count scripts documented in files of the symlink target", async () => {
-            // Arrange
             const scriptName = chance.word({ length: 10 });
             await rm(instructionsDir, { recursive: true, force: true });
             const realDir = join(testDir, "real-instructions");
@@ -419,10 +412,8 @@ npm test
                 },
             ];
 
-            // Act
             const result = await gateway.analyzeCoverage(testDir, scripts, []);
 
-            // Assert
             expect(result.summary.totalDocumented).toBe(1);
             expect(result.missingInInstructions).toEqual([]);
         });

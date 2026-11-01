@@ -83,7 +83,7 @@ export class FileSystemInstructionFileDiscoveryGateway
 
             const walked = await walkRepository(targetDir, {
                 startRelativePath: entry.path,
-                includeFile: isMarkdownFile,
+                includeFile: (name) => name.endsWith(entry.fileSuffix ?? ".md"),
                 includeSubdirectories: entry.includeSubdirectories === true,
                 revisit: "once-per-real-directory",
                 maxDirectories: this.maxDirectories,
@@ -127,10 +127,6 @@ export class FileSystemInstructionFileDiscoveryGateway
 }
 
 const DISCOVERY_LIMIT_RULE_ID = "instruction/discovery-limit-reached";
-
-function isMarkdownFile(name: string): boolean {
-    return name.endsWith(".md");
-}
 
 /**
  * Discovers one exact-path instruction file, or nothing when it is missing

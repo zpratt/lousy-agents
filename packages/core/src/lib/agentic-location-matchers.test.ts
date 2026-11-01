@@ -509,3 +509,60 @@ describe("instructionDiscoveryEntries", () => {
         );
     });
 });
+
+describe("the copilot-scoped instruction entry (per-entry suffix)", () => {
+    const scopedEntry = () => {
+        const entry = AGENTIC_LOCATION_CATALOG.find(
+            (e) => e.id === "instruction-copilot-scoped",
+        );
+        if (entry === undefined) {
+            throw new Error("instruction-copilot-scoped is missing");
+        }
+        return entry;
+    };
+
+    it.each([
+        ".github/instructions/typescript.instructions.md",
+        ".github/instructions/sub/dir/typescript.instructions.md",
+    ])("should match %s", (path) => {
+        // Act / Assert
+        expect(matchesLocationEntry(path, scopedEntry())).toBe(true);
+    });
+
+    it.each([
+        ".github/instructions/README.md",
+        ".github/instructions/sub/notes.md",
+        ".github/instructions/typescript.instructions.mdx",
+        ".github/instructions/INSTRUCTIONS.MD",
+        ".github/instructions/sub/CLAUDE.md",
+    ])(
+        "should not match %s, which does not end in .instructions.md",
+        (path) => {
+            // Act / Assert
+            expect(matchesLocationEntry(path, scopedEntry())).toBe(false);
+        },
+    );
+
+    it("should still match the directory itself", () => {
+        // Act / Assert
+        expect(
+            matchesLocationEntry(".github/instructions", scopedEntry()),
+        ).toBe(true);
+    });
+
+    it("should leave other directory-prefix entries without a suffix requirement", () => {
+        // Arrange
+        const agentsEntry = AGENTIC_LOCATION_CATALOG.find(
+            (e) =>
+                e.matchKind === "directory-prefix" &&
+                e.path === ".github/agents",
+        );
+
+        // Act / Assert
+        expect(agentsEntry?.fileSuffix).toBeUndefined();
+        expect(
+            agentsEntry !== undefined &&
+                matchesLocationEntry(".github/agents/any-name.md", agentsEntry),
+        ).toBe(true);
+    });
+});

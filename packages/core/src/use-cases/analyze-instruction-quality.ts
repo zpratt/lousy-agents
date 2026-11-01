@@ -388,7 +388,7 @@ export class AnalyzeInstructionQualityUseCase {
                     suggestions: [
                         {
                             message:
-                                "No agent instruction files found. Supported formats: .github/copilot-instructions.md, .github/instructions/**/*.md, .github/agents/*.md, AGENTS.md, AGENTS.override.md, CLAUDE.md, .claude/CLAUDE.md",
+                                "No agent instruction files found. Supported formats: .github/copilot-instructions.md, .github/instructions/**/*.instructions.md, .github/agents/*.md, AGENTS.md, AGENTS.override.md, CLAUDE.md, .claude/CLAUDE.md",
                         },
                     ],
                     parsingErrors: [],

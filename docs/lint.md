@@ -24,7 +24,7 @@ Paths come from the shared agentic location catalog in `@lousy-agents/core` (als
 | **Agents** | Yes | `.github/agents/**/*.md` (markdown agent definitions) |
 | **Subagents** | No — flag-only | `.claude/agents/**/*.md` (Claude Code subagent definitions) |
 | **Hooks** | Yes | `.github/hooks/agent-shell/hooks.json` (Copilot); `.claude/settings.json`, `.claude/settings.local.json` (Claude). Copilot files are discovered only when their content includes a `preToolUse` marker; Claude files are discovered whenever they declare a `hooks` object. Symlinks are skipped. |
-| **Instructions** | Yes | `.github/copilot-instructions.md`, `.github/instructions/*.md`, `.github/agents/*.md` (dual-use with agent lint), root `AGENTS.md`, root `CLAUDE.md` |
+| **Instructions** | Yes | `.github/copilot-instructions.md`, `.github/instructions/**/*.instructions.md` (only files whose name ends in `.instructions.md`, as Copilot loads them; a `README.md` there is not an instruction file), `.github/agents/*.md` (dual-use with agent lint), root `AGENTS.md`, root `CLAUDE.md` |
 | **MCP servers** | No — flag-only | `.mcp.json`, `.vscode/mcp.json` |
 
 ### Discovery limits
@@ -334,7 +334,7 @@ Analyzes the structural quality of feedback loop documentation in instruction fi
 | File / Pattern | Agent Platform |
 | ---------------- | ---------------- |
 | `.github/copilot-instructions.md` | GitHub Copilot |
-| `.github/instructions/*.md` | GitHub Copilot (scoped) |
+| `.github/instructions/**/*.instructions.md` | GitHub Copilot (scoped) |
 | `.github/agents/*.md` | GitHub Copilot (custom agents) |
 | `AGENTS.md` | Any AI coding agent (community standard) |
 | `CLAUDE.md` | Claude Code |

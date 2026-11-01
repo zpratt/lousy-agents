@@ -152,7 +152,10 @@ npm run dev
 \`\`\`
 `;
 
-            await writeFile(join(instructionsDir, "dev.md"), instructions);
+            await writeFile(
+                join(instructionsDir, "dev.instructions.md"),
+                instructions,
+            );
 
             // Act - Discover feedback loops
             const scriptGateway = createScriptDiscoveryGateway();

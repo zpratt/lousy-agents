@@ -48,7 +48,10 @@ The MCP server supports dynamic version resolution for GitHub Actions. When crea
 
 ### Resolving Versions
 
-After looking up the latest versions, call the tool with resolved versions:
+After looking up the latest versions, call the tool with resolved versions. Each entry is validated:
+
+- `sha` must be the **full 40-character commit SHA** (hexadecimal). A short SHA, a tag name or a branch name is rejected with `sha must be a full 40-character commit SHA`
+- `versionTag` must be a single-line version tag such as `v4.2.2`; it becomes the comment next to the pinned reference
 
 ```json
 {
@@ -65,6 +68,19 @@ After looking up the latest versions, call the tool with resolved versions:
       "versionTag": "v4.0.4"
     }
   ]
+}
+```
+
+When the workflow already exists, the response lists what this call changed. `stepsAdded` names the setup steps that were added, and `actionsPinned` names the actions whose `RESOLVE_VERSION` placeholder was replaced by a SHA in this call:
+
+```json
+{
+  "success": true,
+  "action": "updated",
+  "workflowPath": ".github/workflows/copilot-setup-steps.yml",
+  "stepsAdded": [],
+  "actionsPinned": ["actions/checkout", "actions/setup-node"],
+  "message": "Updated workflow with 0 new step(s) and 2 SHA-pinned action(s)"
 }
 ```
 
@@ -127,7 +143,7 @@ Each script and tool is mapped to an SDLC phase (test, build, lint, format, secu
 
 ### Validating Instruction Coverage
 
-The `validate_instruction_coverage` tool checks if your repository instructions (`.github/copilot-instructions.md` and `.github/instructions/*.md`) document all mandatory feedback loops.
+The `validate_instruction_coverage` tool checks if your repository instructions document all mandatory feedback loops. It reads the same instruction files that `analyze_instruction_quality` discovers (`.github/copilot-instructions.md`, `.github/instructions/**/*.instructions.md`, `.github/agents/*.md`, `AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md` and `.claude/CLAUDE.md`), so a script documented only in `AGENTS.md` or `CLAUDE.md` counts as documented. Symlinks that stay inside the repository are followed, as in lint.
 
 **Response Format:**
 
