@@ -40,14 +40,22 @@ function verdictForSignals(signals: readonly CoachSignal[]): GateVerdict {
     );
 }
 
-function incompleteRunMessages(run: CoachRun): string[] {
+/** Coach's exit status when `--fail-on-incomplete-coverage` finds a gap. */
+const INCOMPLETE_COVERAGE_EXIT_CODE = 3;
+
+function describeExit(exitCode: number | null): string {
+    if (exitCode === null) {
+        return "coach did not exit normally (it was ended by a signal)";
+    }
+    return exitCode === INCOMPLETE_COVERAGE_EXIT_CODE
+        ? `coach reported incomplete coverage (exit ${exitCode}): its report lists the coverage diagnostics, and \`mise run coach-baseline\` prints them`
+        : `coach failed with exit code ${exitCode}`;
+}
+
+/** Words a run that did not exit 0, with whatever coach said on stderr. */
+export function incompleteRunMessages(run: CoachRun): string[] {
     const detail = run.stderr.trim();
-    return [
-        run.exitCode === null
-            ? "coach did not exit normally (it was ended by a signal)"
-            : `coach failed with exit code ${run.exitCode}`,
-        ...(detail === "" ? [] : [detail]),
-    ];
+    return [describeExit(run.exitCode), ...(detail === "" ? [] : [detail])];
 }
 
 /**
