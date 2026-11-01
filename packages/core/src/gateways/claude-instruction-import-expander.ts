@@ -2,15 +2,34 @@
  * Adapter that expands Claude `@path` imports via the pure expander library.
  */
 
-import { readFile } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import { offsetToSourcePosition } from "../entities/source-position.js";
-import { buildEffectiveDocument } from "../lib/instruction-import-expand.js";
+import {
+    buildEffectiveDocument,
+    DEFAULT_MAX_FILE_BYTES,
+} from "../lib/instruction-import-expand.js";
 import type {
     ClaudeImportExpansionDiagnostic,
     ClaudeInstructionImportExpander,
     EffectiveClaudeInstructionDocument,
 } from "../use-cases/analyze-instruction-quality.js";
+import {
+    type BoundedReadOutcome,
+    readRegularFileNoFollow,
+} from "./read-regular-file-no-follow.js";
+
+/**
+ * Reads an importer file so byte ranges can be mapped to line and column.
+ */
+export type ReadImporterSource = (
+    absolutePath: string,
+    maxBytes: number,
+) => Promise<BoundedReadOutcome>;
+
+export interface ClaudeInstructionImportExpanderOptions {
+    /** Defaults to the bounded no-follow reader */
+    readonly readSource?: ReadImporterSource;
+}
 
 function toRepoRelativePosix(
     repoRoot: string,
@@ -34,6 +53,19 @@ function toAbsolutePath(repoRoot: string, relativePosixPath: string): string {
     return join(repoRoot, ...relativePosixPath.split("/"));
 }
 
+/**
+ * Reads an importer, bounded and without following symlinks. An importer that
+ * can no longer be read safely has no content, so its diagnostics fall back to
+ * line 1, column 1 instead of failing the whole expansion.
+ */
+async function readImporterSource(
+    readSource: ReadImporterSource,
+    absolutePath: string,
+): Promise<readonly [string, string | null]> {
+    const outcome = await readSource(absolutePath, DEFAULT_MAX_FILE_BYTES);
+    return [absolutePath, outcome.ok ? outcome.content : null];
+}
+
 async function mapExpansionDiagnostics(
     repoRoot: string,
     diagnostics: readonly {
@@ -42,43 +74,60 @@ async function mapExpansionDiagnostics(
         readonly filePath: string;
         readonly range?: { readonly start: number; readonly end: number };
     }[],
+    readSource: ReadImporterSource,
 ): Promise<ClaudeImportExpansionDiagnostic[]> {
-    const contentByRelative = new Map<string, string>();
-    const mapped: ClaudeImportExpansionDiagnostic[] = [];
+    const located = diagnostics.map((diagnostic) => ({
+        diagnostic,
+        absolutePath: toAbsolutePath(repoRoot, diagnostic.filePath),
+    }));
+    const importerPaths = new Set(located.map((entry) => entry.absolutePath));
+    const contentByPath = new Map(
+        await Promise.all(
+            [...importerPaths].map((path) =>
+                readImporterSource(readSource, path),
+            ),
+        ),
+    );
 
-    for (const diagnostic of diagnostics) {
-        const absolutePath = toAbsolutePath(repoRoot, diagnostic.filePath);
-        let content = contentByRelative.get(diagnostic.filePath);
-        if (content === undefined) {
-            content = await readFile(absolutePath, "utf8");
-            contentByRelative.set(diagnostic.filePath, content);
-        }
+    return located.map(({ diagnostic, absolutePath }) =>
+        toExpansionDiagnostic(
+            diagnostic,
+            absolutePath,
+            contentByPath.get(absolutePath) ?? null,
+        ),
+    );
+}
 
-        if (diagnostic.range === undefined) {
-            mapped.push({
-                ruleId: diagnostic.ruleId,
-                message: diagnostic.message,
-                filePath: absolutePath,
-                line: 1,
-                column: 1,
-            });
-            continue;
-        }
-
-        const start = offsetToSourcePosition(content, diagnostic.range.start);
-        const end = offsetToSourcePosition(content, diagnostic.range.end);
-        mapped.push({
+function toExpansionDiagnostic(
+    diagnostic: {
+        readonly ruleId: string;
+        readonly message: string;
+        readonly range?: { readonly start: number; readonly end: number };
+    },
+    absolutePath: string,
+    content: string | null,
+): ClaudeImportExpansionDiagnostic {
+    if (diagnostic.range === undefined || content === null) {
+        return {
             ruleId: diagnostic.ruleId,
             message: diagnostic.message,
             filePath: absolutePath,
-            line: start.line,
-            column: start.column,
-            endLine: end.line,
-            endColumn: end.column,
-        });
+            line: 1,
+            column: 1,
+        };
     }
 
-    return mapped;
+    const start = offsetToSourcePosition(content, diagnostic.range.start);
+    const end = offsetToSourcePosition(content, diagnostic.range.end);
+    return {
+        ruleId: diagnostic.ruleId,
+        message: diagnostic.message,
+        filePath: absolutePath,
+        line: start.line,
+        column: start.column,
+        endLine: end.line,
+        endColumn: end.column,
+    };
 }
 
 function collectResolvedImports(
@@ -107,7 +156,11 @@ function collectResolvedImports(
 /**
  * Creates the default Claude instruction import expander used by composition roots.
  */
-export function createClaudeInstructionImportExpander(): ClaudeInstructionImportExpander {
+export function createClaudeInstructionImportExpander(
+    options: ClaudeInstructionImportExpanderOptions = {},
+): ClaudeInstructionImportExpander {
+    const readSource = options.readSource ?? readRegularFileNoFollow;
+
     return {
         async expandClaudeEntrypoint(
             input,
@@ -123,6 +176,7 @@ export function createClaudeInstructionImportExpander(): ClaudeInstructionImport
             const expansionDiagnostics = await mapExpansionDiagnostics(
                 input.repoRoot,
                 document.expansionDiagnostics,
+                readSource,
             );
             return {
                 content: document.content,

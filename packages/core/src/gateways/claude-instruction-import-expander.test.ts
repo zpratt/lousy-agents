@@ -2,8 +2,10 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_MAX_FILE_BYTES } from "../lib/instruction-import-expand.js";
 import { createClaudeInstructionImportExpander } from "./claude-instruction-import-expander.js";
+import type { BoundedReadOutcome } from "./read-regular-file-no-follow.js";
 
 const chance = new Chance();
 
@@ -70,5 +72,82 @@ describe("createClaudeInstructionImportExpander", () => {
                 absoluteFilePath: "/tmp/outside.md",
             }),
         ).rejects.toThrow("outside repository root");
+    });
+
+    describe("when mapping diagnostics to line and column", () => {
+        it("should read the importer through the bounded no-follow reader with the import size cap", async () => {
+            const claudePath = join(repoRoot, "CLAUDE.md");
+            const content = "intro\n@./missing.md\n";
+            await writeFile(claudePath, content);
+            const readSource = vi.fn(
+                async (): Promise<BoundedReadOutcome> => ({
+                    ok: true,
+                    content,
+                }),
+            );
+            const expander = createClaudeInstructionImportExpander({
+                readSource,
+            });
+
+            const result = await expander.expandClaudeEntrypoint({
+                repoRoot,
+                absoluteFilePath: claudePath,
+            });
+
+            expect(readSource).toHaveBeenCalledWith(
+                claudePath,
+                DEFAULT_MAX_FILE_BYTES,
+            );
+            expect(result.expansionDiagnostics[0]).toMatchObject({
+                ruleId: "instruction/import-unresolved",
+                line: 2,
+                column: 1,
+            });
+        });
+
+        it("should fall back to line 1 column 1 instead of throwing when the importer can no longer be read safely", async () => {
+            const claudePath = join(repoRoot, "CLAUDE.md");
+            await writeFile(claudePath, "intro\n@./missing.md\n");
+            const expander = createClaudeInstructionImportExpander({
+                readSource: async () => ({ ok: false, reason: "symlink" }),
+            });
+
+            const result = await expander.expandClaudeEntrypoint({
+                repoRoot,
+                absoluteFilePath: claudePath,
+            });
+
+            expect(result.expansionDiagnostics).toEqual([
+                expect.objectContaining({
+                    ruleId: "instruction/import-unresolved",
+                    filePath: claudePath,
+                    line: 1,
+                    column: 1,
+                }),
+            ]);
+        });
+
+        it("should read each importer once however many diagnostics it has", async () => {
+            const claudePath = join(repoRoot, "CLAUDE.md");
+            const content = "@./a.md\n@./b.md\n";
+            await writeFile(claudePath, content);
+            const readSource = vi.fn(
+                async (): Promise<BoundedReadOutcome> => ({
+                    ok: true,
+                    content,
+                }),
+            );
+            const expander = createClaudeInstructionImportExpander({
+                readSource,
+            });
+
+            const result = await expander.expandClaudeEntrypoint({
+                repoRoot,
+                absoluteFilePath: claudePath,
+            });
+
+            expect(result.expansionDiagnostics).toHaveLength(2);
+            expect(readSource).toHaveBeenCalledTimes(1);
+        });
     });
 });
