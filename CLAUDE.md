@@ -58,7 +58,7 @@ This project uses [mise](https://mise.jdx.dev/) for runtime management.
 
 ### Detected Runtimes
 
-- **node**: .nvmrc (v24.15.0)
+- **node**: .nvmrc (v26.13.0)
 
 ### Package Managers
 
