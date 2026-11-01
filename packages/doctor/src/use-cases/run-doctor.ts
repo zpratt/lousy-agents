@@ -9,6 +9,11 @@ import {
     type AmbiguityQuestion,
     detectAmbiguities,
 } from "./detect-ambiguities.js";
+import {
+    type DiscoveryDepthLimit,
+    type DiscoveryDirectoryLimit,
+    discoveryLimitFindings,
+} from "./discovery-limit-finding.js";
 import { evaluate } from "./evaluate-engine.js";
 
 export interface LoadedIntent {
@@ -16,8 +21,16 @@ export interface LoadedIntent {
     report: IntentLoadReport;
 }
 
+export interface RepositoryScan {
+    records: InventoryRecord[];
+    /** Present when the scan stopped at its directory limit, so records may be missing */
+    directoryLimit?: DiscoveryDirectoryLimit;
+    /** Present when the scan left directories below its depth limit unentered */
+    depthLimit?: DiscoveryDepthLimit;
+}
+
 export interface DoctorRunPorts {
-    scanRepository(repoPath: string): Promise<InventoryRecord[]>;
+    scanRepository(repoPath: string): Promise<RepositoryScan>;
     readIntent(repoPath: string): Promise<LoadedIntent>;
     loadSnapshotRef(repoPath: string): Promise<string | undefined>;
     elicitIntent?(questions: AmbiguityQuestion[]): Promise<void>;
@@ -31,6 +44,11 @@ export interface DoctorRunInput {
 interface DoctorRunBase {
     records: InventoryRecord[];
     classification: ArchetypeClassification;
+    /**
+     * Advisory notes about the scan itself, such as stopping at the directory
+     * limit. They are present on every kind of run and never block a run.
+     */
+    scanWarnings: Finding[];
     snapshotRef?: string;
 }
 
@@ -61,24 +79,40 @@ async function loadIntent(
     return ports.readIntent(repoPath);
 }
 
-export async function runDoctor(
+/**
+ * A step after the scan failed. It keeps the scan warnings, so a caller can
+ * still say that the scan was cut short before it reports the failure, and
+ * the original error as `cause`.
+ */
+export class DoctorRunFailure extends Error {
+    readonly scanWarnings: Finding[];
+
+    constructor(cause: unknown, scanWarnings: Finding[]) {
+        super(cause instanceof Error ? cause.message : String(cause), {
+            cause,
+        });
+        this.name = "DoctorRunFailure";
+        this.scanWarnings = scanWarnings;
+    }
+}
+
+async function completeRun(
     input: DoctorRunInput,
     ports: DoctorRunPorts,
+    base: DoctorRunBase,
 ): Promise<DoctorRun> {
-    const records = await ports.scanRepository(input.repoPath);
-    const classification = classifyArchetype(records);
+    const { records, classification } = base;
     const snapshotRef = await ports.loadSnapshotRef(input.repoPath);
-    const base = {
-        records,
-        classification,
+    const withSnapshot = {
+        ...base,
         ...(snapshotRef !== undefined ? { snapshotRef } : {}),
     };
 
     if (input.summaryOnly) {
-        return { kind: "summary", ...base };
+        return { kind: "summary", ...withSnapshot };
     }
     if (classification.archetype === "none") {
-        return { kind: "no-constructs", ...base };
+        return { kind: "no-constructs", ...withSnapshot };
     }
 
     const loaded = await loadIntent(
@@ -93,5 +127,30 @@ export async function runDoctor(
         intent: loaded.intent,
         intentLoadStatus: loaded.report.status,
     });
-    return { kind: "evaluated", ...base, findings, intentLoad: loaded.report };
+    return {
+        kind: "evaluated",
+        ...withSnapshot,
+        findings,
+        intentLoad: loaded.report,
+    };
+}
+
+export async function runDoctor(
+    input: DoctorRunInput,
+    ports: DoctorRunPorts,
+): Promise<DoctorRun> {
+    const scan = await ports.scanRepository(input.repoPath);
+    const base: DoctorRunBase = {
+        records: scan.records,
+        classification: classifyArchetype(scan.records),
+        scanWarnings: discoveryLimitFindings(
+            scan.directoryLimit,
+            scan.depthLimit,
+        ),
+    };
+    try {
+        return await completeRun(input, ports, base);
+    } catch (error: unknown) {
+        throw new DoctorRunFailure(error, base.scanWarnings);
+    }
 }

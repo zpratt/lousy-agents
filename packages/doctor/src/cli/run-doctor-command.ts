@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import type { ConsolaInstance } from "consola";
+import { warnAboutFindings } from "../formatters/human-renderer.js";
 import { presentDoctorRun } from "../formatters/present-run.js";
 import { createDoctorGateways } from "../gateways/doctor-gateways.js";
 import {
@@ -7,7 +8,13 @@ import {
     parseDoctorOptions,
     shouldElicitIntent,
 } from "../lib/doctor-options.js";
-import { runDoctor } from "../use-cases/run-doctor.js";
+import {
+    type DoctorRun,
+    DoctorRunFailure,
+    type DoctorRunInput,
+    type DoctorRunPorts,
+    runDoctor,
+} from "../use-cases/run-doctor.js";
 import {
     createConsoleConfirm,
     createIntentElicitor,
@@ -24,6 +31,22 @@ export interface DoctorCommandEnvironment {
     confirm?(question: string): Promise<boolean>;
 }
 
+async function runDoctorOrWarn(
+    input: DoctorRunInput,
+    ports: DoctorRunPorts,
+    logger: ConsolaInstance,
+): Promise<DoctorRun> {
+    try {
+        return await runDoctor(input, ports);
+    } catch (error: unknown) {
+        if (error instanceof DoctorRunFailure) {
+            warnAboutFindings(logger, error.scanWarnings);
+            throw error.cause;
+        }
+        throw error;
+    }
+}
+
 /**
  * Runs the shared doctor pipeline and returns the process exit code instead of exiting.
  *
@@ -31,6 +54,9 @@ export interface DoctorCommandEnvironment {
  * options are not an object or `summary` or `ci` is not a boolean. Only a programmatic caller
  * can reach `2`: the `doctor` command line goes through citty, which coerces boolean flags first.
  * An unsupported `format` is not an error; it logs a warning and renders human output.
+ *
+ * If a step after the scan throws, the scan warnings are logged first, so a scan that stopped at
+ * its directory limit is never lost behind the failure, and then the original error is rethrown.
  */
 export async function runDoctorCommand(
     rawArgs: unknown,
@@ -47,7 +73,7 @@ export async function runDoctorCommand(
         logger.warn(warning);
     }
 
-    const run = await runDoctor(
+    const run = await runDoctorOrWarn(
         { repoPath: resolve(environment.cwd), summaryOnly: options.summary },
         {
             ...createDoctorGateways(logger),
@@ -66,6 +92,7 @@ export async function runDoctorCommand(
                   }
                 : {}),
         },
+        logger,
     );
 
     return presentDoctorRun(run, options.format, {

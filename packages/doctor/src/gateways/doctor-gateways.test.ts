@@ -151,6 +151,22 @@ describe("createDoctorGateways", () => {
         });
     });
 
+    describe("scanRepository", () => {
+        describe("when the scan covers the whole repository", () => {
+            it("should return the inventory records and no directory limit", async () => {
+                await writeFile(join(repoPath, "CLAUDE.md"), "# Claude\n");
+                const { gateways } = buildGateways();
+
+                const scan = await gateways.scanRepository(repoPath);
+
+                expect(scan.records.map((record) => record.path)).toEqual([
+                    "CLAUDE.md",
+                ]);
+                expect(scan).not.toHaveProperty("directoryLimit");
+            });
+        });
+    });
+
     describe("readIntent", () => {
         describe("when the repository declares intent", () => {
             it("should return the artifact with a loaded report", async () => {

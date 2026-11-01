@@ -44,10 +44,21 @@ function buildFinding(overrides: Partial<Finding> = {}): Finding {
 
 function present(run: DoctorRun, format: "human" | "json") {
     const humanLines: string[] = [];
+    const warned: string[] = [];
     let stdout = "";
     const logger = createConsola({
         level: 3,
-        reporters: [{ log: (entry) => humanLines.push(entry.args.join(" ")) }],
+        reporters: [
+            {
+                log: (entry) => {
+                    const line = entry.args.join(" ");
+                    humanLines.push(line);
+                    if (entry.type === "warn") {
+                        warned.push(line);
+                    }
+                },
+            },
+        ],
     });
     const exitCode = presentDoctorRun(run, format, {
         logger,
@@ -55,7 +66,7 @@ function present(run: DoctorRun, format: "human" | "json") {
             stdout += text;
         },
     });
-    return { exitCode, text: humanLines.join("\n"), stdout };
+    return { exitCode, text: humanLines.join("\n"), warned, stdout };
 }
 
 describe("presentDoctorRun", () => {
@@ -64,6 +75,7 @@ describe("presentDoctorRun", () => {
             kind: "summary",
             classification: pureClassification,
             records: [record],
+            scanWarnings: [],
         };
 
         it("should say evaluation was skipped instead of claiming no findings", () => {
@@ -92,6 +104,7 @@ describe("presentDoctorRun", () => {
                 kind: "evaluated",
                 classification: pureClassification,
                 records: [record],
+                scanWarnings: [],
                 findings: [],
                 intentLoad: { status: "absent", checkedPath: chance.word() },
             };
@@ -106,6 +119,7 @@ describe("presentDoctorRun", () => {
                 kind: "evaluated",
                 classification: pureClassification,
                 records: [record],
+                scanWarnings: [],
                 findings: [],
                 intentLoad: { status: "loaded", checkedPath: chance.word() },
             };
@@ -121,6 +135,7 @@ describe("presentDoctorRun", () => {
                     kind: "evaluated",
                     classification: pureClassification,
                     records: [record],
+                    scanWarnings: [],
                     findings: [buildFinding({ severity: "high" })],
                     intentLoad: {
                         status: "loaded",
@@ -136,6 +151,7 @@ describe("presentDoctorRun", () => {
                     kind: "evaluated",
                     classification: pureClassification,
                     records: [record],
+                    scanWarnings: [],
                     findings: [
                         buildFinding({
                             severity: "high",
@@ -153,12 +169,179 @@ describe("presentDoctorRun", () => {
         }
     });
 
+    describe("when the scan stopped at its directory limit", () => {
+        const ScanWarningText = `Stopped after ${chance.integer({ min: 1, max: 99_999 })} directories.`;
+        const scanWarning = buildFinding({
+            criterionId: "discovery-limit-reached",
+            targetId: "all:repository",
+            classification: "advisory",
+            description: ScanWarningText,
+        });
+        const intentLoad = { status: "loaded", checkedPath: chance.word() };
+        const noConstructs = {
+            archetype: "none",
+            dominanceScore: 0,
+            ambiguities: [],
+        } as const;
+
+        const summaryRun: DoctorRun = {
+            kind: "summary",
+            classification: pureClassification,
+            records: [record],
+            scanWarnings: [scanWarning],
+        };
+        const noConstructsRun: DoctorRun = {
+            kind: "no-constructs",
+            classification: noConstructs,
+            records: [],
+            scanWarnings: [scanWarning],
+        };
+        const cleanRun: DoctorRun = {
+            kind: "evaluated",
+            classification: pureClassification,
+            records: [record],
+            scanWarnings: [scanWarning],
+            findings: [],
+            intentLoad,
+        };
+        const blockingDefect = buildFinding({
+            severity: "critical",
+            classification: "defect",
+        });
+        const blockedRun: DoctorRun = {
+            kind: "evaluated",
+            classification: pureClassification,
+            records: [record],
+            scanWarnings: [scanWarning],
+            findings: [blockingDefect],
+            intentLoad,
+        };
+
+        describe("in human output", () => {
+            it("should warn after the summary and still exit 0", () => {
+                const { warned, text, exitCode } = present(summaryRun, "human");
+
+                expect(warned).toEqual([ScanWarningText]);
+                expect(text).toContain(SUMMARY_SKIPPED_SENTENCE);
+                expect(exitCode).toBe(0);
+            });
+
+            it("should warn when no agentic constructs exist and still exit 0", () => {
+                const { warned, text, exitCode } = present(
+                    noConstructsRun,
+                    "human",
+                );
+
+                expect(text).toContain("No agentic constructs found");
+                expect(warned).toEqual([ScanWarningText]);
+                expect(exitCode).toBe(0);
+            });
+
+            it("should list the warning among the findings instead of claiming a clean run", () => {
+                const { text, exitCode } = present(cleanRun, "human");
+
+                expect(text).toContain(ScanWarningText);
+                expect(text).not.toContain("No findings.");
+                expect(exitCode).toBe(0);
+            });
+
+            it("should list the warning next to a blocking defect and exit 1", () => {
+                const { text, exitCode } = present(blockedRun, "human");
+
+                expect(text).toContain(ScanWarningText);
+                expect(text).toContain(blockingDefect.description);
+                expect(exitCode).toBe(1);
+            });
+        });
+
+        describe("in JSON output", () => {
+            it("should keep the summary document free of the warning and warn through the logger", () => {
+                const { stdout, warned, exitCode } = present(
+                    summaryRun,
+                    "json",
+                );
+
+                const report = JSON.parse(stdout);
+                expect(report.evaluation).toBe("skipped");
+                expect(report).not.toHaveProperty("findings");
+                expect(stdout).not.toContain(ScanWarningText);
+                expect(warned).toEqual([ScanWarningText]);
+                expect(exitCode).toBe(0);
+            });
+
+            it("should report the warning as the only finding when no agentic constructs exist", () => {
+                const { stdout, warned, exitCode } = present(
+                    noConstructsRun,
+                    "json",
+                );
+
+                const report = JSON.parse(stdout);
+                expect(report.evaluation).toBe("not-applicable");
+                expect(report.findings).toEqual([
+                    expect.objectContaining({ id: scanWarning.id }),
+                ]);
+                expect(warned).toEqual([]);
+                expect(exitCode).toBe(0);
+            });
+
+            it("should report the warning as the only finding of a completed evaluation", () => {
+                const { stdout, warned, exitCode } = present(cleanRun, "json");
+
+                const report = JSON.parse(stdout);
+                expect(report.evaluation).toBe("completed");
+                expect(report.findings).toEqual([
+                    expect.objectContaining({
+                        id: scanWarning.id,
+                        criterionId: "discovery-limit-reached",
+                        targetId: "all:repository",
+                        classification: "advisory",
+                    }),
+                ]);
+                expect(warned).toEqual([]);
+                expect(exitCode).toBe(0);
+            });
+
+            it("should list the warning after the criteria findings and exit 1 for a blocking defect", () => {
+                const { stdout, exitCode } = present(blockedRun, "json");
+
+                const report = JSON.parse(stdout);
+                expect(
+                    report.findings.map((finding: Finding) => finding.id),
+                ).toEqual([blockingDefect.id, scanWarning.id]);
+                expect(exitCode).toBe(1);
+            });
+        });
+
+        describe("when a warning would block if it were a criteria finding", () => {
+            const harshWarning = buildFinding({
+                severity: "critical",
+                classification: "defect",
+            });
+            const harshRun: DoctorRun = {
+                kind: "evaluated",
+                classification: pureClassification,
+                records: [record],
+                scanWarnings: [harshWarning],
+                findings: [],
+                intentLoad,
+            };
+
+            it.each(["human", "json"] as const)(
+                "should still exit 0 in %s output, because scan warnings never block",
+                (format) => {
+                    expect(present(harshRun, format).exitCode).toBe(0);
+                },
+            );
+        });
+    });
+
     describe("when an evidence snapshot reference is available", () => {
         const snapshotRef = chance.hash();
         const evaluatedRun: DoctorRun = {
             kind: "evaluated",
             classification: pureClassification,
             records: [record],
+            scanWarnings: [],
             findings: [],
             intentLoad: { status: "absent", checkedPath: chance.word() },
             snapshotRef,
@@ -167,6 +350,7 @@ describe("presentDoctorRun", () => {
             kind: "summary",
             classification: pureClassification,
             records: [record],
+            scanWarnings: [],
             snapshotRef,
         };
         const noConstructsRun: DoctorRun = {
@@ -177,6 +361,7 @@ describe("presentDoctorRun", () => {
                 ambiguities: [],
             },
             records: [],
+            scanWarnings: [],
             snapshotRef,
         };
 
@@ -217,6 +402,7 @@ describe("presentDoctorRun", () => {
             kind: "evaluated",
             classification: pureClassification,
             records: [record],
+            scanWarnings: [],
             findings: [],
             intentLoad: { status: "absent", checkedPath: chance.word() },
         };
@@ -243,6 +429,7 @@ describe("presentDoctorRun", () => {
                 ambiguities: [],
             },
             records: [],
+            scanWarnings: [],
         };
 
         it("should say so in human output", () => {

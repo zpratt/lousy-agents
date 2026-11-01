@@ -1,10 +1,18 @@
-import { lstat, mkdir, realpath, rm, writeFile } from "node:fs/promises";
+import {
+    lstat,
+    mkdir,
+    realpath,
+    rm,
+    symlink,
+    writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { DEFAULT_MAX_WALK_DEPTH } from "@lousy-agents/core/gateways/repository-walk.js";
 import Chance from "chance";
 import { describe, expect, it } from "vitest";
-import { scanRepository } from "./scanner.js";
+import { scanRepository, scanRepositoryWithReport } from "./scanner.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = resolve(__dirname, "../../tests/fixtures");
@@ -636,6 +644,241 @@ describe("scanRepository", () => {
                         edges: [],
                         serverName: undeclared,
                     },
+                ]);
+            });
+        });
+    });
+
+    describe("when scanning with the shared walk (doctor lists each logical location)", () => {
+        it("should terminate on a directory symlink cycle and inventory the file once", async () => {
+            // Arrange
+            await withTempRepo(
+                { ".claude/CLAUDE.md": "# Claude\n" },
+                async (repoRoot) => {
+                    await symlink(".", join(repoRoot, ".claude", "loop"));
+
+                    // Act
+                    const records = await scanRepository(repoRoot);
+
+                    // Assert
+                    expect(
+                        records.filter((r) => r.path.endsWith("CLAUDE.md")),
+                    ).toHaveLength(1);
+                },
+            );
+        });
+
+        it("should keep both paths to an aliased directory as separate records, one per logical location", async () => {
+            // Arrange: .claude/skills is an alias of .agents/skills
+            const skill =
+                "---\nname: demo\ndescription: demo skill\n---\nbody\n";
+            await withTempRepo(
+                { ".agents/skills/demo/SKILL.md": skill },
+                async (repoRoot) => {
+                    await mkdir(join(repoRoot, ".claude"), {
+                        recursive: true,
+                    });
+                    await symlink(
+                        "../.agents/skills",
+                        join(repoRoot, ".claude", "skills"),
+                    );
+
+                    // Act
+                    const records = await scanRepository(repoRoot);
+
+                    // Assert
+                    expect(records.map((r) => r.id).sort()).toEqual([
+                        "claude:.claude/skills/demo/SKILL.md",
+                        "codex:.agents/skills/demo/SKILL.md",
+                    ]);
+                },
+            );
+        });
+
+        it("should read the content of a real file once however many logical locations reach it", async () => {
+            // Arrange
+            const skill =
+                "---\nname: demo\ndescription: demo skill\n---\nbody\n";
+            const reads: string[] = [];
+            await withTempRepo(
+                { ".agents/skills/demo/SKILL.md": skill },
+                async (repoRoot) => {
+                    await mkdir(join(repoRoot, ".claude"), { recursive: true });
+                    await symlink(
+                        "../.agents/skills",
+                        join(repoRoot, ".claude", "skills"),
+                    );
+
+                    // Act
+                    const records = await scanRepository(repoRoot, {
+                        readContent: async (file) => {
+                            reads.push(file.relPath);
+                            return skill;
+                        },
+                    });
+
+                    // Assert
+                    expect(records).toHaveLength(2);
+                    expect(reads).toHaveLength(1);
+                },
+            );
+        });
+
+        it("should stop at the directory cap on a diamond of aliases and report the limit", async () => {
+            // Arrange: each level links three times to the next (3^4 = 81 paths
+            // below d0). Refusing ancestors does not bound this; the cap must.
+            const levels = 5;
+            const cap = 20;
+            await withTempRepo({}, async (repoRoot) => {
+                for (let level = 0; level < levels; level += 1) {
+                    const directory = join(repoRoot, ".claude", `d${level}`);
+                    await mkdir(directory, { recursive: true });
+                    await writeFile(join(directory, "f.md"), "# f\n");
+                    if (level < levels - 1) {
+                        for (const name of ["l1", "l2", "l3"]) {
+                            await symlink(
+                                `../d${level + 1}`,
+                                join(directory, name),
+                            );
+                        }
+                    }
+                }
+
+                // Act
+                const report = await scanRepositoryWithReport(repoRoot, {
+                    maxDirectories: cap,
+                });
+
+                // Assert
+                expect(report.directoryLimit).toEqual({ maxDirectories: cap });
+                expect(report.records.length).toBeGreaterThan(0);
+                expect(report.records.length).toBeLessThanOrEqual(cap);
+            });
+        });
+
+        describe("depth limit", () => {
+            const chain = (levels: number) =>
+                Array.from({ length: levels }, (_, level) => `d${level}`).join(
+                    "/",
+                );
+
+            it("should report the depth limit when a directory lies below it", async () => {
+                await withTempRepo(
+                    {
+                        "CLAUDE.md": "# claude\n",
+                        [`${chain(DEFAULT_MAX_WALK_DEPTH + 1)}/notes.md`]:
+                            "# notes\n",
+                    },
+                    async (repoRoot) => {
+                        const report = await scanRepositoryWithReport(repoRoot);
+
+                        expect(report.depthLimit).toEqual({
+                            maxDepth: DEFAULT_MAX_WALK_DEPTH,
+                        });
+                        expect(report.directoryLimit).toBeUndefined();
+                    },
+                );
+            });
+
+            it("should report no depth limit when the deepest directory is exactly at it", async () => {
+                await withTempRepo(
+                    {
+                        [`${chain(DEFAULT_MAX_WALK_DEPTH)}/notes.md`]:
+                            "# notes\n",
+                    },
+                    async (repoRoot) => {
+                        const report = await scanRepositoryWithReport(repoRoot);
+
+                        expect(report.depthLimit).toBeUndefined();
+                    },
+                );
+            });
+        });
+
+        it("should not parse edges for a non-markdown path because a markdown path to the same file was read first", async () => {
+            // Arrange: z.json is a symlink to the markdown file a-real.md,
+            // which sorts first and so is read first
+            await withTempRepo(
+                {
+                    ".claude/a-real.md": "@./other.md\n",
+                    ".claude/other.md": "# other\n",
+                },
+                async (repoRoot) => {
+                    await symlink(
+                        "a-real.md",
+                        join(repoRoot, ".claude", "z.json"),
+                    );
+
+                    // Act
+                    const records = await scanRepository(repoRoot);
+
+                    // Assert
+                    const markdown = records.find(
+                        (r) => r.path === ".claude/a-real.md",
+                    );
+                    const json = records.find(
+                        (r) => r.path === ".claude/z.json",
+                    );
+                    expect(markdown?.edges).toHaveLength(1);
+                    expect(json?.edges).toEqual([]);
+                },
+            );
+        });
+
+        it("should report no directory limit when the tree is within the cap", async () => {
+            // Arrange
+            await withTempRepo(
+                { [CLAUDE_MD]: "# Claude\n" },
+                async (repoRoot) => {
+                    // Act
+                    const report = await scanRepositoryWithReport(repoRoot);
+
+                    // Assert
+                    expect(report.directoryLimit).toBeUndefined();
+                    expect(report.records).toHaveLength(1);
+                },
+            );
+        });
+
+        it.each(["dist", "node_modules/pkg"])(
+            "should not treat files under %s as part of the scanned repository",
+            async (directory) => {
+                // Arrange: a link to a file that exists only under a skipped
+                // directory resolves against the scanned files, so it is missing
+                const files = {
+                    [CLAUDE_MD]: `[guide](./${directory}/guide.md)\n`,
+                    [`${directory}/guide.md`]: "# guide\n",
+                };
+                await withTempRepo(files, async (repoRoot) => {
+                    // Act
+                    const records = await scanRepository(repoRoot);
+
+                    // Assert
+                    const claudeMd = records.find((r) => r.path === CLAUDE_MD);
+                    expect(claudeMd?.edges).toEqual([
+                        expect.objectContaining({
+                            malformed: true,
+                            reason: "missing-target",
+                        }),
+                    ]);
+                });
+            },
+        );
+
+        it("should treat a file outside the skipped directories as part of the scanned repository", async () => {
+            // Arrange
+            const files = {
+                [CLAUDE_MD]: "[guide](./docs/guide.md)\n",
+                "docs/guide.md": "# guide\n",
+            };
+            await withTempRepo(files, async (repoRoot) => {
+                // Act
+                const records = await scanRepository(repoRoot);
+
+                // Assert
+                const claudeMd = records.find((r) => r.path === CLAUDE_MD);
+                expect(claudeMd?.edges).toEqual([
+                    expect.objectContaining({ malformed: false }),
                 ]);
             });
         });

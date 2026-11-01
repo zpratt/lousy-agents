@@ -1,13 +1,24 @@
 import { realpath } from "node:fs/promises";
 import { relative, resolve } from "node:path";
-import { listDirectoryWithinRoot } from "@lousy-agents/core/gateways/file-system-utils.js";
-import { resolveRealPathWithinRoot } from "@lousy-agents/core/gateways/real-path-within-root.js";
+import {
+    DEFAULT_MAX_WALK_DEPTH,
+    DEFAULT_MAX_WALK_DIRECTORIES,
+    DEFAULT_SKIPPED_DIRECTORY_NAMES,
+    type WalkedFile,
+    walkRepository,
+} from "@lousy-agents/core/gateways/repository-walk.js";
 import type { InventoryRecord } from "../entities/edge-types.js";
 import { markReferencedRecords } from "../entities/inventory-references.js";
+import type {
+    DiscoveryDepthLimit,
+    DiscoveryDirectoryLimit,
+} from "../use-cases/discovery-limit-finding.js";
 import type { EdgeResolutionContext } from "./edge-resolution.js";
 import {
     buildFileInventoryRecords,
+    type InventorySourceFile,
     mcpServerRecords,
+    type ReadMarkdownContent,
 } from "./inventory-records.js";
 import { enumerateMcpServers } from "./mcp-config.js";
 
@@ -23,6 +34,12 @@ const SCANNABLE_EXTENSIONS = new Set([
 // Extensionless files that are known harness convention artifacts
 const SCANNABLE_EXTENSIONLESS = new Set([".cursorrules"]);
 
+/** Doctor also skips build output, which the shared walk does not. */
+const DOCTOR_SKIPPED_DIRECTORY_NAMES = [
+    ...DEFAULT_SKIPPED_DIRECTORY_NAMES,
+    "dist",
+];
+
 function isScannableFile(name: string): boolean {
     if (SCANNABLE_EXTENSIONLESS.has(name)) return true;
     const dot = name.lastIndexOf(".");
@@ -30,136 +47,95 @@ function isScannableFile(name: string): boolean {
     return SCANNABLE_EXTENSIONS.has(name.slice(dot));
 }
 
-interface CollectedFile {
-    absPath: string;
-    relPath: string;
-    readRoot: string;
-    readRelPath: string;
+export interface ScanOptions {
+    /** Directories listed before the scan stops; defaults to the shared walk's limit */
+    readonly maxDirectories?: number;
+    /** Reads a file's markdown content; defaults to a bounded, no-follow read */
+    readonly readContent?: ReadMarkdownContent;
+}
+
+export interface ScanReport {
+    readonly records: InventoryRecord[];
+    /** Present when the scan stopped at its directory limit, so records may be missing */
+    readonly directoryLimit?: DiscoveryDirectoryLimit;
+    /** Present when the scan left directories below its depth limit unentered, so records may be missing */
+    readonly depthLimit?: DiscoveryDepthLimit;
+}
+
+function toSourceFile(
+    repoRoot: string,
+    rootReal: string,
+    file: WalkedFile,
+): InventorySourceFile {
+    return {
+        absPath: resolve(repoRoot, file.relativePath),
+        relPath: file.relativePath,
+        readRoot: rootReal,
+        readRelPath: relative(rootReal, file.real),
+        identity: file.identity,
+    };
 }
 
 /**
- * Walks the repo tree, tracking two coordinate systems in parallel:
- *  - (listRoot, listRelDir): where fs-safe should actually list/read from.
- *    This starts at topRepoRoot but re-roots to rootReal + a real relative
- *    path once the walk crosses a symlinked directory, since fs-safe cannot
- *    list a path that is itself a symlink.
- *  - logicalPrefix: the repo-root-relative path as it appears in the tree,
- *    used for InventoryRecord.path/absPath so a file's identity reflects
- *    where it's *referenced from*, not where the symlink target physically
- *    lives.
+ * Scans a repository into an inventory using the shared walk.
  *
- * fs-safe's listing/reading rejects symlinks outright, so a symlinked
- * instruction file or directory (e.g. a repo-root AGENTS.md pointing at a
- * canonical doc) would silently disappear from the scan. Symlinks are
- * followed with the shared core policy (resolveRealPathWithinRoot), which
- * core instruction discovery also uses: only targets that stay inside the
- * repo root are followed.
+ * Doctor inventories every logical location a harness can load, so a
+ * directory reached through an alias (for example
+ * `.claude/skills -> ../.agents/skills`) is listed again under each name; only
+ * a symlink back to one of its own ancestors is refused. The directory limit,
+ * which counts every logical listing, is what bounds a fan-out of aliases.
+ * Each real file is read once however many locations reach it.
  */
-async function collectFiles(
-    listRoot: string,
-    listRelDir: string,
-    logicalPrefix: string,
-    topRepoRoot: string,
-    rootReal: string,
-    collected: CollectedFile[],
-    depth = 0,
-): Promise<void> {
-    if (depth > 10) return;
-
-    let entries: Awaited<ReturnType<typeof listDirectoryWithinRoot>>;
-    try {
-        entries = await listDirectoryWithinRoot(listRoot, listRelDir);
-    } catch {
-        return;
-    }
-
-    entries.sort((a, b) => a.name.localeCompare(b.name));
-
-    for (const entry of entries) {
-        const listEntryRel = listRelDir
-            ? `${listRelDir}/${entry.name}`
-            : entry.name;
-        const logicalRel = logicalPrefix
-            ? `${logicalPrefix}/${entry.name}`
-            : entry.name;
-        const listEntryAbs = resolve(listRoot, listEntryRel);
-
-        const isDirectory = entry.isDirectory();
-        const isFile = entry.isFile();
-        const symlink = entry.isSymbolicLink()
-            ? await resolveRealPathWithinRoot(rootReal, listEntryAbs)
-            : null;
-
-        if (isDirectory || symlink?.kind === "directory") {
-            if (
-                entry.name === "node_modules" ||
-                entry.name === ".git" ||
-                entry.name === "dist"
-            ) {
-                continue;
-            }
-            if (symlink?.kind === "directory") {
-                // Re-root the walk at rootReal so the symlinked directory
-                // (and anything beneath it) is listed via its real,
-                // symlink-free path — fs-safe rejects listing a path that
-                // is itself a symlink.
-                await collectFiles(
-                    rootReal,
-                    relative(rootReal, symlink.real),
-                    logicalRel,
-                    topRepoRoot,
-                    rootReal,
-                    collected,
-                    depth + 1,
-                );
-            } else {
-                await collectFiles(
-                    listRoot,
-                    listEntryRel,
-                    logicalRel,
-                    topRepoRoot,
-                    rootReal,
-                    collected,
-                    depth + 1,
-                );
-            }
-        } else if (
-            (isFile || symlink?.kind === "file") &&
-            isScannableFile(entry.name)
-        ) {
-            collected.push({
-                absPath: resolve(topRepoRoot, logicalRel),
-                relPath: logicalRel,
-                readRoot: symlink?.kind === "file" ? rootReal : listRoot,
-                readRelPath:
-                    symlink?.kind === "file"
-                        ? relative(rootReal, symlink.real)
-                        : listEntryRel,
-            });
-        }
-    }
-}
-
-export async function scanRepository(
+export async function scanRepositoryWithReport(
     repoRoot: string,
-): Promise<InventoryRecord[]> {
+    options: ScanOptions = {},
+): Promise<ScanReport> {
     const absRoot = resolve(repoRoot);
     const rootReal = await realpath(absRoot);
+    const maxDirectories =
+        options.maxDirectories ?? DEFAULT_MAX_WALK_DIRECTORIES;
 
-    const allFiles: CollectedFile[] = [];
-    await collectFiles(absRoot, "", "", absRoot, rootReal, allFiles);
+    const walked = await walkRepository(absRoot, {
+        startRelativePath: "",
+        includeFile: isScannableFile,
+        revisit: "refuse-ancestors",
+        skipDirectoryNames: DOCTOR_SKIPPED_DIRECTORY_NAMES,
+        maxDirectories,
+    });
+    const files = walked.files.map((file) =>
+        toSourceFile(absRoot, rootReal, file),
+    );
 
     const edgeContext: EdgeResolutionContext = {
         repoRoot: absRoot,
         rootReal,
-        existingAbsPaths: new Set(allFiles.map((f) => f.absPath)),
+        existingAbsPaths: new Set(files.map((file) => file.absPath)),
     };
 
-    const fileRecords = await buildFileInventoryRecords(allFiles, edgeContext);
+    const fileRecords = await buildFileInventoryRecords(
+        files,
+        edgeContext,
+        options.readContent,
+    );
     const mcpServers = await enumerateMcpServers(absRoot);
 
-    return [
-        ...markReferencedRecords(fileRecords),
-        ...mcpServerRecords(mcpServers),
-    ];
+    return {
+        records: [
+            ...markReferencedRecords(fileRecords),
+            ...mcpServerRecords(mcpServers),
+        ],
+        ...(walked.directoryLimitReached
+            ? { directoryLimit: { maxDirectories } }
+            : {}),
+        ...(walked.depthLimitReached
+            ? { depthLimit: { maxDepth: DEFAULT_MAX_WALK_DEPTH } }
+            : {}),
+    };
+}
+
+export async function scanRepository(
+    repoRoot: string,
+    options?: ScanOptions,
+): Promise<InventoryRecord[]> {
+    return (await scanRepositoryWithReport(repoRoot, options)).records;
 }

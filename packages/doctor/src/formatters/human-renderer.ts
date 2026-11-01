@@ -132,6 +132,20 @@ export function renderHuman(
     }
 }
 
+/**
+ * Writes findings as plain warnings, for output that has no findings section
+ * (a summary, and a run with no constructs). Warnings go to the logger, so in
+ * JSON mode they reach stderr and stdout stays one JSON document.
+ */
+export function warnAboutFindings(
+    logger: { warn(message: string): void },
+    findings: readonly Finding[],
+): void {
+    findings.forEach((finding) => {
+        logger.warn(finding.description);
+    });
+}
+
 export function hasBlockingFindings(findings: Finding[]): boolean {
     return findings.some(
         (f) =>

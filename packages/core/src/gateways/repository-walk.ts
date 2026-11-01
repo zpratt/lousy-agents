@@ -89,6 +89,11 @@ export interface RepositoryWalkResult {
     readonly files: readonly WalkedFile[];
     /** True when the directory cap stopped the walk from listing more */
     readonly directoryLimitReached: boolean;
+    /**
+     * True when a directory was left unentered because it lies below the depth
+     * limit, so files in it or under it, if any, are not in the result
+     */
+    readonly depthLimitReached: boolean;
 }
 
 interface WalkSettings {
@@ -148,6 +153,7 @@ class RepositoryWalk {
     private readonly visitedRealDirectories = new Set<string>();
     private listedDirectories = 0;
     private limitReached = false;
+    private depthLimitReached = false;
 
     constructor(
         private readonly targetDir: string,
@@ -160,6 +166,7 @@ class RepositoryWalk {
         return {
             files: this.files,
             directoryLimitReached: this.limitReached,
+            depthLimitReached: this.depthLimitReached,
         };
     }
 
@@ -237,6 +244,11 @@ class RepositoryWalk {
         }
         if (this.shouldDescend(name, depth)) {
             await this.walkDirectory(entryRelativePath, depth + 1, ancestors);
+        } else if (
+            this.isTooDeep(name, depth) &&
+            !this.isRevisit(entry.real, ancestors)
+        ) {
+            this.depthLimitReached = true;
         }
     }
 
@@ -258,6 +270,14 @@ class RepositoryWalk {
             !this.settings.skipDirectoryNames.has(name)
         );
     }
+
+    private isTooDeep(name: string, depth: number): boolean {
+        return (
+            this.settings.includeSubdirectories &&
+            depth >= this.settings.maxDepth &&
+            !this.settings.skipDirectoryNames.has(name)
+        );
+    }
 }
 
 /**
@@ -276,7 +296,11 @@ export async function walkRepository(
 ): Promise<RepositoryWalkResult> {
     const rootReal = await realpath(resolve(targetDir)).catch(() => null);
     if (rootReal === null) {
-        return { files: [], directoryLimitReached: false };
+        return {
+            files: [],
+            directoryLimitReached: false,
+            depthLimitReached: false,
+        };
     }
     return new RepositoryWalk(
         targetDir,

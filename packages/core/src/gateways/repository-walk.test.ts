@@ -395,6 +395,112 @@ describe("walkRepository", () => {
         });
     });
 
+    describe("depth cap reporting", () => {
+        const chain = (levels: number) =>
+            Array.from({ length: levels }, (_, level) => `d${level}`).join("/");
+
+        it("should report that a directory was left unentered below the depth limit", async () => {
+            await write(`${chain(DEFAULT_MAX_WALK_DEPTH + 2)}/deep.md`);
+
+            const result = await walkRepository(root, {
+                startRelativePath: "",
+                includeFile: isMarkdown,
+            });
+
+            expect(result.depthLimitReached).toBe(true);
+            expect(result.directoryLimitReached).toBe(false);
+        });
+
+        it("should not report it when the deepest directory is exactly at the depth limit", async () => {
+            await write(`${chain(DEFAULT_MAX_WALK_DEPTH)}/edge.md`);
+
+            const result = await walkRepository(root, {
+                startRelativePath: "",
+                includeFile: isMarkdown,
+            });
+
+            expect(result.depthLimitReached).toBe(false);
+            expect(result.files.map((f) => f.relativePath)).toEqual([
+                `${chain(DEFAULT_MAX_WALK_DEPTH)}/edge.md`,
+            ]);
+        });
+
+        it("should report it when only one directory is one level too deep", async () => {
+            await write(`${chain(DEFAULT_MAX_WALK_DEPTH + 1)}/deep.md`);
+
+            const result = await walkRepository(root, {
+                startRelativePath: "",
+                includeFile: isMarkdown,
+            });
+
+            expect(result.depthLimitReached).toBe(true);
+        });
+
+        it("should not report it for a skipped directory below the depth limit", async () => {
+            await write(`${chain(DEFAULT_MAX_WALK_DEPTH)}/node_modules/x.md`);
+
+            const result = await walkRepository(root, {
+                startRelativePath: "",
+                includeFile: isMarkdown,
+            });
+
+            expect(result.depthLimitReached).toBe(false);
+        });
+
+        it("should not report it when the walk does not descend into subdirectories at all", async () => {
+            await write("a/b/c.md");
+
+            const result = await walkRepository(root, {
+                startRelativePath: "",
+                includeFile: isMarkdown,
+                includeSubdirectories: false,
+            });
+
+            expect(result.depthLimitReached).toBe(false);
+        });
+
+        it("should not report it for an alias of a directory that was already listed", async () => {
+            await write(`${chain(DEFAULT_MAX_WALK_DEPTH)}/edge.md`);
+            await symlink(
+                join(root, chain(DEFAULT_MAX_WALK_DEPTH)),
+                join(root, chain(DEFAULT_MAX_WALK_DEPTH), "again"),
+            );
+
+            const result = await walkRepository(root, {
+                startRelativePath: "",
+                includeFile: isMarkdown,
+            });
+
+            expect(result.depthLimitReached).toBe(false);
+        });
+
+        it("should not report it for a depth limit of zero when subdirectories are not walked", async () => {
+            await write("a/b.md");
+
+            const result = await walkRepository(root, {
+                startRelativePath: "",
+                includeFile: isMarkdown,
+                includeSubdirectories: false,
+                maxDepth: 0,
+            });
+
+            expect(result.depthLimitReached).toBe(false);
+        });
+
+        it("should honor a depth limit passed in the options", async () => {
+            await write("a/b/c/d.md");
+
+            const result = await walkRepository(root, {
+                startRelativePath: "",
+                includeFile: isMarkdown,
+                maxDepth: 2,
+            });
+
+            expect(result.depthLimitReached).toBe(true);
+            expect(result.files).toEqual([]);
+        });
+    });
+
     describe("directory cap", () => {
         beforeEach(async () => {
             await write("a/a.md");

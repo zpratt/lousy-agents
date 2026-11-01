@@ -1,4 +1,5 @@
 import { readTextWithinRoot } from "@lousy-agents/core/gateways/file-system-utils.js";
+import type { FileIdentity } from "@lousy-agents/core/gateways/read-regular-file-no-follow.js";
 import { primaryConstructTypeForPath } from "@lousy-agents/core/lib/agentic-location-matchers.js";
 import type {
     ConstructType,
@@ -22,7 +23,14 @@ export interface InventorySourceFile {
     readonly relPath: string;
     readonly readRoot: string;
     readonly readRelPath: string;
+    /** Identity of the real file, so aliases of one file are read once */
+    readonly identity: FileIdentity;
 }
+
+/** Reads a file's markdown content, or null when it has none to read. */
+export type ReadMarkdownContent = (
+    file: InventorySourceFile,
+) => Promise<string | null>;
 
 interface InventorySource {
     readonly file: InventorySourceFile;
@@ -57,9 +65,27 @@ async function readMarkdownContent(
     }
 }
 
+/**
+ * Reads each real file once. Doctor lists every logical location of a file,
+ * so the same real file can be reached through several paths; its records
+ * stay distinct but its content is read a single time per scan.
+ */
+function readOncePerRealFile(read: ReadMarkdownContent): ReadMarkdownContent {
+    const pending = new Map<string, Promise<string | null>>();
+    return (file) => {
+        // Whether a path is markdown is decided per logical path, so a file
+        // reached as both foo.json and bar.md is read for one and not the other.
+        const key = `${file.identity.dev}:${file.identity.ino}:${isMarkdownFile(file.relPath)}`;
+        const started = pending.get(key) ?? read(file);
+        pending.set(key, started);
+        return started;
+    };
+}
+
 /** Reads files one at a time, keeping only those that belong to a harness. */
 async function readInventorySources(
     files: readonly InventorySourceFile[],
+    readContent: ReadMarkdownContent,
 ): Promise<InventorySource[]> {
     const sources: InventorySource[] = [];
 
@@ -69,7 +95,7 @@ async function readInventorySources(
             sources.push({
                 file,
                 harness,
-                content: await readMarkdownContent(file),
+                content: await readContent(file),
             });
         }
     }
@@ -106,8 +132,12 @@ async function toInventoryRecord(
 export async function buildFileInventoryRecords(
     files: readonly InventorySourceFile[],
     ctx: EdgeResolutionContext,
+    readContent: ReadMarkdownContent = readMarkdownContent,
 ): Promise<InventoryRecord[]> {
-    const sources = await readInventorySources(files);
+    const sources = await readInventorySources(
+        files,
+        readOncePerRealFile(readContent),
+    );
     return Promise.all(sources.map((source) => toInventoryRecord(source, ctx)));
 }
 
