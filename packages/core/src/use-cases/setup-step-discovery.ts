@@ -41,64 +41,47 @@ export interface WorkflowStepDetails {
 }
 
 /**
- * Iterates over every step object in every job of a workflow
- * @param workflow The parsed workflow object
- * @param callback Function to call for each step object
+ * Narrows to a truthy, object-typed value (arrays included).
  */
-function forEachWorkflowStepObject(
-    workflow: unknown,
-    callback: (step: Record<string, unknown>) => void,
-): void {
-    if (!workflow || typeof workflow !== "object") {
-        return;
-    }
-
-    const jobs = (workflow as Record<string, unknown>).jobs;
-    if (!jobs || typeof jobs !== "object") {
-        return;
-    }
-
-    for (const job of Object.values(jobs as Record<string, unknown>)) {
-        if (!job || typeof job !== "object") {
-            continue;
-        }
-
-        const steps = (job as Record<string, unknown>).steps;
-        if (!Array.isArray(steps)) {
-            continue;
-        }
-
-        for (const step of steps) {
-            if (step && typeof step === "object") {
-                callback(step as Record<string, unknown>);
-            }
-        }
-    }
+function isObjectLike(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === "object";
 }
 
 /**
- * Iterates over all steps in a workflow that have a "uses" field
+ * Returns every step object in every job of a workflow, in job and step order.
+ * Anything that is not an object (a missing "jobs" map, a job without a
+ * "steps" array, a non-object step) contributes no steps.
  * @param workflow The parsed workflow object
- * @param callback Function to call for each step with a "uses" field
  */
-function forEachWorkflowStep(
-    workflow: unknown,
-    callback: (step: WorkflowStepInfo) => void,
-): void {
-    forEachWorkflowStepObject(workflow, (stepObj) => {
-        const uses = stepObj.uses;
+function workflowStepObjects(workflow: unknown): Record<string, unknown>[] {
+    if (!isObjectLike(workflow) || !isObjectLike(workflow.jobs)) {
+        return [];
+    }
 
-        if (typeof uses === "string") {
-            const withConfig = stepObj.with;
-            callback({
-                uses,
-                with:
-                    withConfig && typeof withConfig === "object"
-                        ? (withConfig as Record<string, unknown>)
-                        : undefined,
-            });
-        }
-    });
+    return Object.values(workflow.jobs)
+        .filter(isObjectLike)
+        .flatMap((job) =>
+            Array.isArray(job.steps) ? job.steps.filter(isObjectLike) : [],
+        );
+}
+
+/**
+ * Reads a step's "with" configuration, ignoring anything that is not an object
+ */
+function toWithConfig(value: unknown): Record<string, unknown> | undefined {
+    return isObjectLike(value) ? value : undefined;
+}
+
+/**
+ * Returns all steps in a workflow that have a "uses" field
+ * @param workflow The parsed workflow object
+ */
+function workflowUsesSteps(workflow: unknown): WorkflowStepInfo[] {
+    return workflowStepObjects(workflow).flatMap((step) =>
+        typeof step.uses === "string"
+            ? [{ uses: step.uses, with: toWithConfig(step.with) }]
+            : [],
+    );
 }
 
 /**
@@ -119,49 +102,25 @@ export function runCommandKey(command: string): string {
 export function extractAllWorkflowSteps(
     workflow: unknown,
 ): WorkflowStepDetails[] {
-    const steps: WorkflowStepDetails[] = [];
+    return workflowStepObjects(workflow).map((step) => ({
+        name: typeof step.name === "string" ? step.name : undefined,
+        uses: typeof step.uses === "string" ? step.uses : undefined,
+        with: toWithConfig(step.with),
+    }));
+}
 
-    if (!workflow || typeof workflow !== "object") {
-        return steps;
+/**
+ * The key a step contributes to the set of existing workflow steps: its action
+ * name when it uses an action, otherwise its run command key.
+ */
+function existingActionKeys(step: Record<string, unknown>): string[] {
+    if (typeof step.uses === "string") {
+        return [parseActionName(step.uses)];
     }
-
-    const jobs = (workflow as Record<string, unknown>).jobs;
-    if (!jobs || typeof jobs !== "object") {
-        return steps;
+    if (typeof step.run === "string") {
+        return [runCommandKey(step.run)];
     }
-
-    for (const job of Object.values(jobs as Record<string, unknown>)) {
-        if (!job || typeof job !== "object") {
-            continue;
-        }
-
-        const jobSteps = (job as Record<string, unknown>).steps;
-        if (!Array.isArray(jobSteps)) {
-            continue;
-        }
-
-        for (const step of jobSteps) {
-            if (!step || typeof step !== "object") {
-                continue;
-            }
-
-            const stepObj = step as Record<string, unknown>;
-            const withConfig = stepObj.with;
-
-            steps.push({
-                name:
-                    typeof stepObj.name === "string" ? stepObj.name : undefined,
-                uses:
-                    typeof stepObj.uses === "string" ? stepObj.uses : undefined,
-                with:
-                    withConfig && typeof withConfig === "object"
-                        ? (withConfig as Record<string, unknown>)
-                        : undefined,
-            });
-        }
-    }
-
-    return steps;
+    return [];
 }
 
 /**
@@ -170,17 +129,7 @@ export function extractAllWorkflowSteps(
  * @returns Set of action names already present, plus a runCommandKey for each run step
  */
 export function getExistingActionsFromWorkflow(workflow: unknown): Set<string> {
-    const actions = new Set<string>();
-
-    forEachWorkflowStepObject(workflow, (step) => {
-        if (typeof step.uses === "string") {
-            actions.add(parseActionName(step.uses));
-        } else if (typeof step.run === "string") {
-            actions.add(runCommandKey(step.run));
-        }
-    });
-
-    return actions;
+    return new Set(workflowStepObjects(workflow).flatMap(existingActionKeys));
 }
 
 /**
@@ -208,19 +157,7 @@ export function findMissingCandidates(
 export function mergeCandidates(
     ...candidateSources: SetupStepCandidate[][]
 ): SetupStepCandidate[] {
-    const result: SetupStepCandidate[] = [];
-    const seen = new Set<string>();
-
-    for (const candidates of candidateSources) {
-        for (const candidate of candidates) {
-            if (!seen.has(candidate.action)) {
-                seen.add(candidate.action);
-                result.push(candidate);
-            }
-        }
-    }
-
-    return result;
+    return deduplicateCandidates(candidateSources.flat());
 }
 
 /**
@@ -254,18 +191,11 @@ export interface ActionReference {
 export function extractActionsFromWorkflow(
     workflow: unknown,
 ): ActionReference[] {
-    const actions: ActionReference[] = [];
-
-    forEachWorkflowStep(workflow, (step) => {
-        const name = parseActionName(step.uses);
+    return workflowUsesSteps(workflow).flatMap((step): ActionReference[] => {
         const version = parseActionVersion(step.uses);
         // Skip actions without versions - these are incomplete references
-        if (version) {
-            actions.push({ name, version });
-        }
+        return version ? [{ name: parseActionName(step.uses), version }] : [];
     });
-
-    return actions;
 }
 
 /**
@@ -278,22 +208,20 @@ export function extractSetupStepsFromWorkflow(
     workflow: unknown,
     patterns: string[],
 ): SetupStepCandidate[] {
-    const candidates: SetupStepCandidate[] = [];
-
-    forEachWorkflowStep(workflow, (step) => {
+    return workflowUsesSteps(workflow).flatMap((step): SetupStepCandidate[] => {
         const action = parseActionName(step.uses);
 
-        if (isSetupAction(action, patterns)) {
-            candidates.push({
-                action,
-                version: parseActionVersion(step.uses),
-                config: step.with,
-                source: "workflow",
-            });
-        }
+        return isSetupAction(action, patterns)
+            ? [
+                  {
+                      action,
+                      version: parseActionVersion(step.uses),
+                      config: step.with,
+                      source: "workflow",
+                  },
+              ]
+            : [];
     });
-
-    return candidates;
 }
 
 /**
