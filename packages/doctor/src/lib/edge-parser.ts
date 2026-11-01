@@ -48,6 +48,11 @@ function isInstructionFilePath(path: string): boolean {
 export interface RawEdge {
     type: "hard-import" | "soft-reference" | "glob-binding";
     rawTarget: string;
+    /**
+     * Set on an `@` token that is not clearly a path (`@types/node`): it is an
+     * edge only if it resolves to a file, and a miss is not reported.
+     */
+    speculative?: true;
 }
 
 function isExternalUrl(href: string): boolean {
@@ -81,6 +86,7 @@ function hardImportEdges(body: string): RawEdge[] {
         (token): RawEdge => ({
             type: "hard-import",
             rawTarget: token.rawTarget,
+            ...(token.looksLikePath ? {} : { speculative: true as const }),
         }),
     );
 }

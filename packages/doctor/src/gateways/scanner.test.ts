@@ -399,7 +399,6 @@ describe("scanRepository", () => {
 
     describe("when CLAUDE.md imports an absolute path", () => {
         it("should record the edge as malformed with reason 'absolute'", async () => {
-            // Arrange
             const repoRoot = join(
                 await realpath(tmpdir()),
                 `doctor-absolute-import-${chance.guid()}`,
@@ -412,10 +411,8 @@ describe("scanRepository", () => {
             );
 
             try {
-                // Act
                 const records = await scanRepository(repoRoot);
 
-                // Assert
                 const claudeMd = records.find((r) => r.path === "CLAUDE.md");
                 expect(claudeMd?.edges).toEqual([
                     expect.objectContaining({
@@ -432,16 +429,13 @@ describe("scanRepository", () => {
 
     describe("when scanning inline repositories (inventory characterization)", () => {
         it("should record a '~/' import as malformed with reason 'home'", async () => {
-            // Arrange
             const homeTarget = `~/${chance.word()}.md`;
 
             await withTempRepo(
                 { [CLAUDE_MD]: `@${homeTarget}\n` },
                 async (repoRoot) => {
-                    // Act
                     const records = await scanRepository(repoRoot);
 
-                    // Assert
                     expect(
                         records.find((r) => r.path === CLAUDE_MD)?.edges,
                     ).toEqual([
@@ -457,17 +451,14 @@ describe("scanRepository", () => {
         });
 
         it("should record an applyTo glob as a well-formed glob-binding edge", async () => {
-            // Arrange
             const instructionPath = `.github/instructions/${chance.word()}.instructions.md`;
             const glob = `${chance.word()}/**/*.ts`;
 
             await withTempRepo(
                 { [instructionPath]: `---\napplyTo: "${glob}"\n---\nBody\n` },
                 async (repoRoot) => {
-                    // Act
                     const records = await scanRepository(repoRoot);
 
-                    // Assert
                     expect(
                         records.find((r) => r.path === instructionPath)?.edges,
                     ).toStrictEqual([
@@ -483,17 +474,14 @@ describe("scanRepository", () => {
         });
 
         it("should mark the target of a resolved @import as referenced and leave the importer convention-loaded", async () => {
-            // Arrange
             const files = {
                 [CLAUDE_MD]: `@./${AGENTS_MD}\n`,
                 [AGENTS_MD]: AGENTS_CONTENT,
             };
 
             await withTempRepo(files, async (repoRoot) => {
-                // Act
                 const records = await scanRepository(repoRoot);
 
-                // Assert
                 const claudeMd = records.find((r) => r.path === CLAUDE_MD);
                 const agentsMd = records.find((r) => r.path === AGENTS_MD);
                 expect(claudeMd?.edges).toStrictEqual([
@@ -510,17 +498,14 @@ describe("scanRepository", () => {
         });
 
         it("should not treat a glob-binding as a reference to the file with the same path", async () => {
-            // Arrange
             const files = {
                 ".github/instructions/a.instructions.md": `---\napplyTo: "${AGENTS_MD}"\n---\n`,
                 [AGENTS_MD]: AGENTS_CONTENT,
             };
 
             await withTempRepo(files, async (repoRoot) => {
-                // Act
                 const records = await scanRepository(repoRoot);
 
-                // Assert
                 expect(
                     records.find((r) => r.path === AGENTS_MD)?.loadMechanism,
                 ).toBe("convention-loaded");
@@ -528,7 +513,6 @@ describe("scanRepository", () => {
         });
 
         it("should resolve a markdown link relative to the linking file and mark its target referenced", async () => {
-            // Arrange
             const linkingPath = ".github/instructions/a.instructions.md";
             const files = {
                 [linkingPath]: `[guide](../../${AGENTS_MD})\n`,
@@ -536,10 +520,8 @@ describe("scanRepository", () => {
             };
 
             await withTempRepo(files, async (repoRoot) => {
-                // Act
                 const records = await scanRepository(repoRoot);
 
-                // Assert
                 expect(
                     records.find((r) => r.path === linkingPath)?.edges,
                 ).toStrictEqual([
@@ -557,7 +539,6 @@ describe("scanRepository", () => {
         });
 
         it("should not parse edges from a non-markdown file", async () => {
-            // Arrange
             const hooksPath = ".github/hooks/agent-shell/hooks.json";
             const files = {
                 [hooksPath]: `{"note": "@./${AGENTS_MD}"}`,
@@ -565,10 +546,8 @@ describe("scanRepository", () => {
             };
 
             await withTempRepo(files, async (repoRoot) => {
-                // Act
                 const records = await scanRepository(repoRoot);
 
-                // Assert
                 expect(
                     records.find((r) => r.path === hooksPath)?.edges,
                 ).toEqual([]);
@@ -579,7 +558,6 @@ describe("scanRepository", () => {
         });
 
         it("should keep a markdown file that is too large to read but record no edges for it", async () => {
-            // Arrange
             const oversizedContent = `@./${AGENTS_MD}\n${"x".repeat(1_048_576)}`;
             const files = {
                 [CLAUDE_MD]: oversizedContent,
@@ -587,10 +565,8 @@ describe("scanRepository", () => {
             };
 
             await withTempRepo(files, async (repoRoot) => {
-                // Act
                 const records = await scanRepository(repoRoot);
 
-                // Assert
                 const claudeMd = records.find((r) => r.path === CLAUDE_MD);
                 expect(claudeMd).toBeDefined();
                 expect(claudeMd?.edges).toEqual([]);
@@ -598,7 +574,6 @@ describe("scanRepository", () => {
         });
 
         it("should append mcp-server records after every file record, adding transport only when declared", async () => {
-            // Arrange
             const declared = chance.word();
             const undeclared = `${chance.word()}x`;
             const files = {
@@ -612,10 +587,8 @@ describe("scanRepository", () => {
             };
 
             await withTempRepo(files, async (repoRoot) => {
-                // Act
                 const records = await scanRepository(repoRoot);
 
-                // Assert
                 const firstMcpIndex = records.findIndex(
                     (r) => r.constructType === "mcp-server",
                 );
@@ -651,16 +624,13 @@ describe("scanRepository", () => {
 
     describe("when scanning with the shared walk (doctor lists each logical location)", () => {
         it("should terminate on a directory symlink cycle and inventory the file once", async () => {
-            // Arrange
             await withTempRepo(
                 { ".claude/CLAUDE.md": "# Claude\n" },
                 async (repoRoot) => {
                     await symlink(".", join(repoRoot, ".claude", "loop"));
 
-                    // Act
                     const records = await scanRepository(repoRoot);
 
-                    // Assert
                     expect(
                         records.filter((r) => r.path.endsWith("CLAUDE.md")),
                     ).toHaveLength(1);
@@ -669,7 +639,6 @@ describe("scanRepository", () => {
         });
 
         it("should keep both paths to an aliased directory as separate records, one per logical location", async () => {
-            // Arrange: .claude/skills is an alias of .agents/skills
             const skill =
                 "---\nname: demo\ndescription: demo skill\n---\nbody\n";
             await withTempRepo(
@@ -683,10 +652,8 @@ describe("scanRepository", () => {
                         join(repoRoot, ".claude", "skills"),
                     );
 
-                    // Act
                     const records = await scanRepository(repoRoot);
 
-                    // Assert
                     expect(records.map((r) => r.id).sort()).toEqual([
                         "claude:.claude/skills/demo/SKILL.md",
                         "codex:.agents/skills/demo/SKILL.md",
@@ -696,7 +663,6 @@ describe("scanRepository", () => {
         });
 
         it("should read the content of a real file once however many logical locations reach it", async () => {
-            // Arrange
             const skill =
                 "---\nname: demo\ndescription: demo skill\n---\nbody\n";
             const reads: string[] = [];
@@ -709,7 +675,6 @@ describe("scanRepository", () => {
                         join(repoRoot, ".claude", "skills"),
                     );
 
-                    // Act
                     const records = await scanRepository(repoRoot, {
                         readContent: async (file) => {
                             reads.push(file.relPath);
@@ -717,16 +682,13 @@ describe("scanRepository", () => {
                         },
                     });
 
-                    // Assert
                     expect(records).toHaveLength(2);
                     expect(reads).toHaveLength(1);
                 },
             );
         });
 
-        it("should stop at the directory cap on a diamond of aliases and report the limit", async () => {
-            // Arrange: each level links three times to the next (3^4 = 81 paths
-            // below d0). Refusing ancestors does not bound this; the cap must.
+        it("should stop at the directory cap on a diamond of aliases, where each level links three times to the next, and report the limit", async () => {
             const levels = 5;
             const cap = 20;
             await withTempRepo({}, async (repoRoot) => {
@@ -744,12 +706,10 @@ describe("scanRepository", () => {
                     }
                 }
 
-                // Act
                 const report = await scanRepositoryWithReport(repoRoot, {
                     maxDirectories: cap,
                 });
 
-                // Assert
                 expect(report.directoryLimit).toEqual({ maxDirectories: cap });
                 expect(report.records.length).toBeGreaterThan(0);
                 expect(report.records.length).toBeLessThanOrEqual(cap);
@@ -795,9 +755,7 @@ describe("scanRepository", () => {
             });
         });
 
-        it("should not parse edges for a non-markdown path because a markdown path to the same file was read first", async () => {
-            // Arrange: z.json is a symlink to the markdown file a-real.md,
-            // which sorts first and so is read first
+        it("should not parse edges for a non-markdown path because a markdown path to the same file sorts first and is read first", async () => {
             await withTempRepo(
                 {
                     ".claude/a-real.md": "@./other.md\n",
@@ -809,10 +767,8 @@ describe("scanRepository", () => {
                         join(repoRoot, ".claude", "z.json"),
                     );
 
-                    // Act
                     const records = await scanRepository(repoRoot);
 
-                    // Assert
                     const markdown = records.find(
                         (r) => r.path === ".claude/a-real.md",
                     );
@@ -826,7 +782,6 @@ describe("scanRepository", () => {
         });
 
         it("should resolve a symlinked file's relative imports from the real target's directory, as Claude Code does", async () => {
-            // Arrange: CLAUDE.md -> docs/agents/REAL.md, which imports ./guide.md
             const files = {
                 "docs/agents/REAL.md": "@./guide.md\n",
                 "docs/agents/guide.md": "# guide\n",
@@ -835,10 +790,8 @@ describe("scanRepository", () => {
             await withTempRepo(files, async (repoRoot) => {
                 await symlink("docs/agents/REAL.md", join(repoRoot, CLAUDE_MD));
 
-                // Act
                 const records = await scanRepository(repoRoot);
 
-                // Assert
                 const claudeMd = records.find((r) => r.path === CLAUDE_MD);
                 expect(claudeMd?.edges).toEqual([
                     expect.objectContaining({
@@ -855,7 +808,6 @@ describe("scanRepository", () => {
         });
 
         it("should report an import that exists only next to the symlink as missing, because Claude Code resolves from the real target", async () => {
-            // Arrange
             const files = {
                 "docs/agents/REAL.md": "@./guide.md\n",
                 "guide.md": "# only next to the symlink\n",
@@ -863,10 +815,8 @@ describe("scanRepository", () => {
             await withTempRepo(files, async (repoRoot) => {
                 await symlink("docs/agents/REAL.md", join(repoRoot, CLAUDE_MD));
 
-                // Act
                 const records = await scanRepository(repoRoot);
 
-                // Assert
                 const claudeMd = records.find((r) => r.path === CLAUDE_MD);
                 expect(claudeMd?.edges).toEqual([
                     expect.objectContaining({
@@ -879,7 +829,6 @@ describe("scanRepository", () => {
         });
 
         it("should resolve an absolute import that points inside the repository, as Claude Code loads it", async () => {
-            // Arrange
             await withTempRepo(
                 { [AGENTS_MD]: AGENTS_CONTENT },
                 async (repoRoot) => {
@@ -888,10 +837,8 @@ describe("scanRepository", () => {
                         `@${join(repoRoot, AGENTS_MD)}\n`,
                     );
 
-                    // Act
                     const records = await scanRepository(repoRoot);
 
-                    // Assert
                     const claudeMd = records.find((r) => r.path === CLAUDE_MD);
                     expect(claudeMd?.edges).toEqual([
                         expect.objectContaining({
@@ -904,15 +851,85 @@ describe("scanRepository", () => {
             );
         });
 
+        it("should resolve a bare @AGENTS.md import, which has no slash", async () => {
+            await withTempRepo(
+                { [AGENTS_MD]: AGENTS_CONTENT, [CLAUDE_MD]: `@${AGENTS_MD}\n` },
+                async (repoRoot) => {
+                    const records = await scanRepository(repoRoot);
+
+                    const claudeMd = records.find((r) => r.path === CLAUDE_MD);
+                    expect(claudeMd?.edges).toEqual([
+                        expect.objectContaining({
+                            type: "hard-import",
+                            target: AGENTS_MD,
+                            malformed: false,
+                        }),
+                    ]);
+                },
+            );
+        });
+
+        it.each(["types/node", "no-such-thing"])(
+            "should report no edge for a line-start @%s that does not resolve and does not look like a path",
+            async (target) => {
+                await withTempRepo(
+                    { [CLAUDE_MD]: `@${target}\n` },
+                    async (repoRoot) => {
+                        const records = await scanRepository(repoRoot);
+
+                        expect(
+                            records.find((r) => r.path === CLAUDE_MD)?.edges,
+                        ).toEqual([]);
+                    },
+                );
+            },
+        );
+
+        it("should still report a missing target that looks like a path", async () => {
+            await withTempRepo(
+                { [CLAUDE_MD]: "@missing.md\n" },
+                async (repoRoot) => {
+                    const records = await scanRepository(repoRoot);
+
+                    expect(
+                        records.find((r) => r.path === CLAUDE_MD)?.edges,
+                    ).toEqual([
+                        expect.objectContaining({
+                            malformed: true,
+                            reason: "missing-target",
+                        }),
+                    ]);
+                },
+            );
+        });
+
+        it("should resolve a path with a backslash-escaped space to the file with a space in its name", async () => {
+            await withTempRepo(
+                {
+                    "has space.md": "# spaced\n",
+                    [CLAUDE_MD]: "@./has\\ space.md\n",
+                },
+                async (repoRoot) => {
+                    const records = await scanRepository(repoRoot);
+
+                    expect(
+                        records.find((r) => r.path === CLAUDE_MD)?.edges,
+                    ).toEqual([
+                        expect.objectContaining({
+                            target: "has space.md",
+                            malformed: false,
+                        }),
+                    ]);
+                },
+            );
+        });
+
         it("should report no directory limit when the tree is within the cap", async () => {
-            // Arrange
             await withTempRepo(
                 { [CLAUDE_MD]: "# Claude\n" },
                 async (repoRoot) => {
-                    // Act
                     const report = await scanRepositoryWithReport(repoRoot);
 
-                    // Assert
                     expect(report.directoryLimit).toBeUndefined();
                     expect(report.records).toHaveLength(1);
                 },
@@ -920,19 +937,15 @@ describe("scanRepository", () => {
         });
 
         it.each(["dist", "node_modules/pkg"])(
-            "should not treat files under %s as part of the scanned repository",
+            "should report a link to a file that exists only under %s as missing, because skipped directories are not part of the scanned repository",
             async (directory) => {
-                // Arrange: a link to a file that exists only under a skipped
-                // directory resolves against the scanned files, so it is missing
                 const files = {
                     [CLAUDE_MD]: `[guide](./${directory}/guide.md)\n`,
                     [`${directory}/guide.md`]: "# guide\n",
                 };
                 await withTempRepo(files, async (repoRoot) => {
-                    // Act
                     const records = await scanRepository(repoRoot);
 
-                    // Assert
                     const claudeMd = records.find((r) => r.path === CLAUDE_MD);
                     expect(claudeMd?.edges).toEqual([
                         expect.objectContaining({
@@ -945,16 +958,13 @@ describe("scanRepository", () => {
         );
 
         it("should treat a file outside the skipped directories as part of the scanned repository", async () => {
-            // Arrange
             const files = {
                 [CLAUDE_MD]: "[guide](./docs/guide.md)\n",
                 "docs/guide.md": "# guide\n",
             };
             await withTempRepo(files, async (repoRoot) => {
-                // Act
                 const records = await scanRepository(repoRoot);
 
-                // Assert
                 const claudeMd = records.find((r) => r.path === CLAUDE_MD);
                 expect(claudeMd?.edges).toEqual([
                     expect.objectContaining({ malformed: false }),

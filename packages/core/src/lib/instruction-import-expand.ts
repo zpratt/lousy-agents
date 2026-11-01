@@ -21,18 +21,15 @@ import {
     statusForReadFailure,
     toLocatedFile,
 } from "./import-file-location.js";
+import { findImportTokens, type ImportToken } from "./import-tokens.js";
+
+export { findImportTokens, type ImportToken };
 
 export const DEFAULT_MAX_IMPORT_DEPTH = 4;
 export const DEFAULT_MAX_UNIQUE_FILES = 64;
 export const DEFAULT_MAX_EDGES = 256;
 export const DEFAULT_MAX_EMITTED_BYTES = 512_000;
 export const DEFAULT_MAX_FILE_BYTES = 1_048_576;
-
-/** Line-start `@path` where path includes `/` (shared with doctor via findImportTokens). */
-const HARD_IMPORT_GLOBAL_RE = /^@([^\s@][^\s]*)/gm;
-
-const FENCED_CODE_RE = /^(`{3,}|~{3,})[^\r\n]*\r?\n[\s\S]*?^\1[ \t]*$/gm;
-const INLINE_CODE_RE = /`+[^`\r\n]*`+/g;
 
 export type ImportEdgeStatus =
     | "resolved"
@@ -120,12 +117,6 @@ export interface BuildEffectiveDocumentInput {
     readonly fileSystem?: Partial<ImportFileSystem>;
 }
 
-export interface ImportToken {
-    readonly start: number;
-    readonly end: number;
-    readonly rawTarget: string;
-}
-
 interface ExpandResult {
     readonly content: string;
     readonly segments: readonly EffectiveSegment[];
@@ -154,72 +145,6 @@ function resolveLimits(
 
 function toPosixRelative(pathValue: string): string {
     return pathValue.split(sep).join("/");
-}
-
-function isInsideCodeRegion(
-    index: number,
-    regions: readonly TextRange[],
-): boolean {
-    return regions.some(
-        (region) => index >= region.start && index < region.end,
-    );
-}
-
-function collectRegexRanges(
-    content: string,
-    pattern: RegExp,
-    skipInside?: readonly TextRange[],
-): TextRange[] {
-    const regions: TextRange[] = [];
-    for (const match of content.matchAll(pattern)) {
-        if (match.index === undefined) {
-            continue;
-        }
-        if (skipInside && isInsideCodeRegion(match.index, skipInside)) {
-            continue;
-        }
-        regions.push({
-            start: match.index,
-            end: match.index + match[0].length,
-        });
-    }
-    return regions;
-}
-
-function findCodeRegions(content: string): TextRange[] {
-    const fenced = collectRegexRanges(content, FENCED_CODE_RE);
-    const inline = collectRegexRanges(content, INLINE_CODE_RE, fenced);
-    return [...fenced, ...inline];
-}
-
-/**
- * Finds the Claude `@path` import tokens in markdown content, ignoring
- * fenced and inline code. This is the single tokenizer shared by import
- * expansion and the doctor edge parser.
- */
-export function findImportTokens(content: string): ImportToken[] {
-    const codeRegions = findCodeRegions(content);
-    const tokens: ImportToken[] = [];
-
-    for (const match of content.matchAll(HARD_IMPORT_GLOBAL_RE)) {
-        if (match.index === undefined) {
-            continue;
-        }
-        const rawTarget = match[1];
-        if (!rawTarget?.includes("/")) {
-            continue;
-        }
-        if (isInsideCodeRegion(match.index, codeRegions)) {
-            continue;
-        }
-        tokens.push({
-            start: match.index,
-            end: match.index + match[0].length,
-            rawTarget,
-        });
-    }
-
-    return tokens;
 }
 
 function rebaseSegments(
@@ -691,6 +616,12 @@ async function expandToken(
     const targetPath = normalized.relativePath;
     const readResult = await session.readFile(repoRoot, targetPath);
     if (!readResult.ok) {
+        // `@types/node` or `@no-such-thing` at the start of a line is prose
+        // as often as an import: when it does not resolve to a file and does
+        // not look like a path, leave it alone instead of warning.
+        if (readResult.status === "unresolved" && !token.looksLikePath) {
+            return { kind: "unexpanded" };
+        }
         session.recordFailure(
             importerPath,
             token,

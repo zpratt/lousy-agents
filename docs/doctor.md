@@ -234,7 +234,7 @@ Tags are `[SEVERITY][classification]`. Findings with `assumedIntent: true` appen
 
 **Inventory item fields:** `id`, `path`, `harness`, `constructType`, `loadMechanism` (`referenced` \| `convention-loaded`), optional `serverName` / `transport` for `mcp-server` records.
 
-**Edge fields:** `from`, `to`, `type` (`hard-import` \| `soft-reference` \| `glob-binding`), `malformed`, optional `reason` (`missing-target`, or `path-traversal`, `home`, `absolute` for an import that resolves outside the working directory), `crossHarness` (boolean; always set).
+**Edge fields:** `from`, `to`, `type` (`hard-import` \| `soft-reference` \| `glob-binding`), `malformed`, optional `reason` (`missing-target`, or `path-traversal`, `home`, `absolute` for an import that resolves outside the working directory). A line-start `@` token that resolves to nothing and does not look like a path (for example `@types/node`) produces no edge at all, and a bare `@AGENTS.md` is a normal import; the tokenizer is the same one lint uses, see [lint](lint.md#token-recognition), `crossHarness` (boolean; always set).
 
 **Finding fields** (full evaluate only):
 

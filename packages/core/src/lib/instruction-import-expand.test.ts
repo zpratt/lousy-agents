@@ -659,6 +659,149 @@ describe("buildEffectiveDocument", () => {
         });
     });
 
+    describe("given line-start @tokens that are not clearly paths", () => {
+        it.each(["types/node", "no-such-thing"])(
+            "should leave @%s alone and report nothing when it does not resolve",
+            async (target) => {
+                await writeFile(join(repoRoot, "CLAUDE.md"), `@${target}\n`);
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                });
+
+                expect(result.content).toBe(`@${target}\n`);
+                expect(result.edges).toEqual([]);
+                expect(result.expansionDiagnostics).toEqual([]);
+            },
+        );
+
+        it.each(["missing.md", "./missing", "../missing", "/nowhere/missing"])(
+            "should still report @%s, which looks like a path, when it does not resolve",
+            async (target) => {
+                await writeFile(join(repoRoot, "CLAUDE.md"), `@${target}\n`);
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                });
+
+                expect(result.edges).toHaveLength(1);
+                expect(result.expansionDiagnostics).toHaveLength(1);
+            },
+        );
+
+        it("should expand a bare token that resolves to a file even though it does not look like a path", async () => {
+            await writeFile(join(repoRoot, "README"), "BARE-README\n");
+            await writeFile(join(repoRoot, "CLAUDE.md"), "@README\n");
+
+            const result = await buildEffectiveDocument({
+                repoRoot,
+                rootRelativePath: "CLAUDE.md",
+            });
+
+            expect(result.content).toContain("BARE-README");
+            expect(result.edges[0]?.status).toBe("resolved");
+        });
+    });
+
+    describe("given a bare token that is not a plain miss", () => {
+        it.skipIf(process.platform === "win32")(
+            "should still report a bare token that resolves through a symlink leaving the repository",
+            async () => {
+                const outsideDir = join(
+                    tmpdir(),
+                    `instruction-import-outside-${chance.hash({ length: 8 })}`,
+                );
+                await mkdir(outsideDir, { recursive: true });
+                try {
+                    await writeFile(join(outsideDir, "secret"), "SECRET\n");
+                    await symlink(
+                        join(outsideDir, "secret"),
+                        join(repoRoot, "notes"),
+                    );
+                    await writeFile(join(repoRoot, "CLAUDE.md"), "@notes\n");
+
+                    const result = await buildEffectiveDocument({
+                        repoRoot,
+                        rootRelativePath: "CLAUDE.md",
+                    });
+
+                    expect(result.content).not.toContain("SECRET");
+                    expect(result.edges[0]?.status).toBe("symlink");
+                } finally {
+                    await rm(outsideDir, { recursive: true, force: true });
+                }
+            },
+        );
+    });
+
+    describe("given a bare @AGENTS.md", () => {
+        it("should expand it, as Claude Code does (parity with a ./ path)", async () => {
+            await writeFile(join(repoRoot, "AGENTS.md"), "BARE-AGENTS\n");
+            await writeFile(join(repoRoot, "CLAUDE.md"), "@AGENTS.md\n");
+
+            const result = await buildEffectiveDocument({
+                repoRoot,
+                rootRelativePath: "CLAUDE.md",
+            });
+
+            expect(result.content).toContain("BARE-AGENTS");
+            expect(result.edges).toEqual([
+                expect.objectContaining({
+                    status: "resolved",
+                    target: "AGENTS.md",
+                }),
+            ]);
+        });
+    });
+
+    describe("given a path with a backslash-escaped space", () => {
+        it("should expand the file whose name contains the space", async () => {
+            await writeFile(join(repoRoot, "has space.md"), "WITH-SPACE\n");
+            await writeFile(join(repoRoot, "CLAUDE.md"), "@./has\\ space.md\n");
+
+            const result = await buildEffectiveDocument({
+                repoRoot,
+                rootRelativePath: "CLAUDE.md",
+            });
+
+            expect(result.content).toContain("WITH-SPACE");
+        });
+
+        it("should cut an unescaped space and read only the part before it", async () => {
+            await writeFile(join(repoRoot, "has space.md"), "WITH-SPACE\n");
+            await writeFile(join(repoRoot, "CLAUDE.md"), "@./has space.md\n");
+
+            const result = await buildEffectiveDocument({
+                repoRoot,
+                rootRelativePath: "CLAUDE.md",
+            });
+
+            expect(result.content).not.toContain("WITH-SPACE");
+            expect(result.edges[0]?.rawTarget).toBe("./has");
+        });
+    });
+
+    describe("given quoted paths", () => {
+        it.each(['@"./q.md"', "@'./q.md'"])(
+            "should not treat %s as an import",
+            async (line) => {
+                await writeFile(join(repoRoot, "q.md"), "QUOTED\n");
+                await writeFile(join(repoRoot, "CLAUDE.md"), `${line}\n`);
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                });
+
+                expect(result.content).not.toContain("QUOTED");
+                expect(result.edges).toEqual([]);
+                expect(result.expansionDiagnostics).toEqual([]);
+            },
+        );
+    });
+
     describe("given one bad import and one good import in the same file", () => {
         it("should expand the valid edge and leave the failed edge unexpanded", async () => {
             await writeFile(
@@ -833,26 +976,22 @@ describe("normalizeRelativeWithinRoot with absolute targets", () => {
     const roots = ["/work/repo", "/private/work/repo"];
 
     it("should return the repository-relative path of an absolute target inside a root", () => {
-        // Act
         const result = normalizeRelativeWithinRoot(
             "CLAUDE.md",
             "/work/repo/docs/guide.md",
             roots,
         );
 
-        // Assert
         expect(result).toEqual({ ok: true, relativePath: "docs/guide.md" });
     });
 
     it("should accept the target under any of the roots, such as a symlinked and a real spelling of one root", () => {
-        // Act
         const result = normalizeRelativeWithinRoot(
             "CLAUDE.md",
             "/private/work/repo/docs/guide.md",
             roots,
         );
 
-        // Assert
         expect(result).toEqual({ ok: true, relativePath: "docs/guide.md" });
     });
 
@@ -862,33 +1001,27 @@ describe("normalizeRelativeWithinRoot with absolute targets", () => {
         ["a sibling that shares the root's prefix", "/work/repo-sibling/x.md"],
         ["the root itself", "/work/repo"],
     ])("should report an absolute target %s as absolute", (_label, target) => {
-        // Act
         const result = normalizeRelativeWithinRoot("CLAUDE.md", target, roots);
 
-        // Assert
         expect(result).toEqual({ ok: false, status: "absolute" });
     });
 
     it("should report any absolute target as absolute when no root is given", () => {
-        // Act
         const result = normalizeRelativeWithinRoot(
             "CLAUDE.md",
             "/work/repo/docs/guide.md",
         );
 
-        // Assert
         expect(result).toEqual({ ok: false, status: "absolute" });
     });
 
     it("should still report a home-directory target as home", () => {
-        // Act
         const result = normalizeRelativeWithinRoot(
             "CLAUDE.md",
             "~/guide.md",
             roots,
         );
 
-        // Assert
         expect(result).toEqual({ ok: false, status: "home" });
     });
 });

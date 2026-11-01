@@ -246,6 +246,48 @@ describe("doctor and MCP parity", () => {
             });
         });
 
+        describe("when CLAUDE.md imports a bare @AGENTS.md", () => {
+            it("should be resolved by core import expansion and be a valid doctor edge", async () => {
+                // Arrange
+                await writeRepoFile(repoRoot, AGENTS_MD, chance.sentence());
+                await writeRepoFile(repoRoot, CLAUDE_MD, `@${AGENTS_MD}\n`);
+
+                // Act
+                const coreImports = await coreResolvedImports(
+                    repoRoot,
+                    CLAUDE_MD,
+                );
+                const doctorEdges = await doctorEdgesFrom(repoRoot, CLAUDE_MD);
+
+                // Assert
+                expect(coreImports).toEqual([AGENTS_MD]);
+                expect(doctorEdges).toEqual([
+                    expect.objectContaining({
+                        target: AGENTS_MD,
+                        malformed: false,
+                    }),
+                ]);
+            });
+        });
+
+        describe("when CLAUDE.md has a line-start @types/node that resolves to nothing", () => {
+            it("should be reported by neither core import expansion nor doctor", async () => {
+                // Arrange
+                await writeRepoFile(repoRoot, CLAUDE_MD, "@types/node\n");
+
+                // Act
+                const document = await expandClaudeEntrypoint(
+                    repoRoot,
+                    CLAUDE_MD,
+                );
+                const doctorEdges = await doctorEdgesFrom(repoRoot, CLAUDE_MD);
+
+                // Assert
+                expect(document.expansionDiagnostics).toEqual([]);
+                expect(doctorEdges).toEqual([]);
+            });
+        });
+
         describe("when an @path import targets the home directory", () => {
             it("should not be reported by doctor as a missing file in the repository, as core reports it as an escape", async () => {
                 // Arrange
