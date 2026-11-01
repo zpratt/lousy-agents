@@ -1916,7 +1916,7 @@ describe("AnalyzeInstructionQualityUseCase", () => {
             });
 
             it.skipIf(process.platform === "win32")(
-                "should emit instruction/import-symlink on the importer token for a symlink target",
+                "should emit instruction/import-symlink on the importer token for a symlink target that leaves the repository",
                 async () => {
                     const { symlink } = await import("node:fs/promises");
                     // In-repository symlinks are followed; only a symlink

@@ -54,6 +54,7 @@ const nodeFsPort: NoFollowFsPort = {
 export type BoundedReadFailure =
     | "symlink"
     | "not-regular"
+    | "hard-linked"
     | "too-large"
     | "identity-mismatch"
     | "unreadable";
@@ -154,8 +155,13 @@ async function checkOpenedFile(
     expectedIdentity: FileIdentity | undefined,
 ): Promise<BoundedReadFailure | null> {
     const opened = await handle.stat();
-    if (!opened.isFile() || opened.nlink > 1) {
+    if (!opened.isFile()) {
         return "not-regular";
+    }
+    // Defense in depth: a hard link may alias a file outside the root. This
+    // only fires locally (for example pnpm stores or `cp -al` trees).
+    if (opened.nlink > 1) {
+        return "hard-linked";
     }
     if (
         expectedIdentity !== undefined &&
