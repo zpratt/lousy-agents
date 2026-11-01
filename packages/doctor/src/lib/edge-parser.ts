@@ -50,47 +50,54 @@ export interface RawEdge {
     rawTarget: string;
 }
 
+function isExternalUrl(href: string): boolean {
+    return href.startsWith("http://") || href.startsWith("https://");
+}
+
+/** Frontmatter values are optional; a falsy value declares nothing. */
+function declaredStrings(value: unknown): string[] {
+    return value ? toStringArray(value) : [];
+}
+
+function frontmatterEdges(fm: ParsedFrontmatter): RawEdge[] {
+    const globBindings = declaredStrings(fm.applyTo).map(
+        (glob): RawEdge => ({ type: "glob-binding", rawTarget: glob }),
+    );
+    const softReferences = SOFT_REF_FRONTMATTER_KEYS.flatMap((key) =>
+        declaredStrings(fm[key])
+            .filter(isInstructionFilePath)
+            .map(
+                (ref): RawEdge => ({ type: "soft-reference", rawTarget: ref }),
+            ),
+    );
+
+    return [...globBindings, ...softReferences];
+}
+
+// Hard imports use the core tokenizer so doctor and import expansion
+// agree on which `@path` lines are imports (e.g., code is ignored).
+function hardImportEdges(body: string): RawEdge[] {
+    return findImportTokens(body).map(
+        (token): RawEdge => ({
+            type: "hard-import",
+            rawTarget: token.rawTarget,
+        }),
+    );
+}
+
+function markdownLinkEdges(body: string): RawEdge[] {
+    return Array.from(body.matchAll(MARKDOWN_LINK_RE), (match) => match[1])
+        .filter((href) => !isExternalUrl(href) && isInstructionFilePath(href))
+        .map((href): RawEdge => ({ type: "soft-reference", rawTarget: href }));
+}
+
 export function parseRawEdges(content: string): RawEdge[] {
-    const edges: RawEdge[] = [];
     const fm = parseFrontmatter(content);
-
-    if (fm) {
-        if (fm.applyTo) {
-            for (const glob of toStringArray(fm.applyTo)) {
-                edges.push({ type: "glob-binding", rawTarget: glob });
-            }
-        }
-
-        for (const key of SOFT_REF_FRONTMATTER_KEYS) {
-            const value = fm[key];
-            if (value) {
-                for (const ref of toStringArray(value)) {
-                    if (isInstructionFilePath(ref)) {
-                        edges.push({ type: "soft-reference", rawTarget: ref });
-                    }
-                }
-            }
-        }
-    }
-
     const body = fm ? contentWithoutFrontmatter(content) : content;
 
-    // Hard imports use the core tokenizer so doctor and import expansion
-    // agree on which `@path` lines are imports (e.g., code is ignored).
-    for (const token of findImportTokens(body)) {
-        edges.push({ type: "hard-import", rawTarget: token.rawTarget });
-    }
-
-    for (const match of body.matchAll(MARKDOWN_LINK_RE)) {
-        const href = match[1];
-        if (
-            !href.startsWith("http://") &&
-            !href.startsWith("https://") &&
-            isInstructionFilePath(href)
-        ) {
-            edges.push({ type: "soft-reference", rawTarget: href });
-        }
-    }
-
-    return edges;
+    return [
+        ...(fm ? frontmatterEdges(fm) : []),
+        ...hardImportEdges(body),
+        ...markdownLinkEdges(body),
+    ];
 }
