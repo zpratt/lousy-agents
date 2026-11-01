@@ -61,11 +61,22 @@ const LINT_ERRORS = "packages/lint/src/lint-errors.ts";
 const DOCTOR_INDEX = "packages/doctor/src/index.ts";
 const CLI_COMMAND = "packages/cli/src/commands/use-doctor.ts";
 
+type ImportForm =
+    | "value"
+    | "import-type"
+    | "export-type"
+    | "inline-type-import"
+    | "inline-type-export"
+    | "dynamic-import"
+    | "require";
+
 interface Edge {
     readonly importer: string;
     readonly importee: string;
     /** Import specifier to write instead of the relative path */
     readonly specifier?: string;
+    /** How the import is written; a plain value import when left out */
+    readonly form?: ImportForm;
 }
 
 interface ForbiddenEdge extends Edge {
@@ -168,6 +179,37 @@ const FORBIDDEN: readonly ForbiddenEdge[] = [
         DOCTOR_INDEX,
         "use_cases->package_api",
     ),
+    // lint's entry point is a package API too, and the rest of lint is its own
+    edge(
+        "packages/core/src/entities/imports-lint-api.ts",
+        LINT_INDEX,
+        "entities->lint_api",
+    ),
+    edge(
+        "packages/core/src/use-cases/imports-lint-api.ts",
+        LINT_INDEX,
+        "use_cases->lint_api",
+    ),
+    edge(
+        "packages/core/src/entities/imports-lint-directory.ts",
+        LINT_DIRECTORY,
+        "entities->lint_validate_directory",
+    ),
+    edge(
+        "packages/core/src/entities/imports-lint-errors.ts",
+        LINT_ERRORS,
+        "entities->lint_errors",
+    ),
+    edge(
+        "packages/core/src/use-cases/imports-lint-directory.ts",
+        LINT_DIRECTORY,
+        "use_cases->lint_validate_directory",
+    ),
+    edge(
+        "packages/core/src/use-cases/imports-lint-errors.ts",
+        LINT_ERRORS,
+        "use_cases->lint_errors",
+    ),
     // The same rules hold in agent-shell and doctor, not only in core
     edge(
         "packages/agent-shell/src/entities/imports-gateway.ts",
@@ -202,6 +244,44 @@ const FORBIDDEN: readonly ForbiddenEdge[] = [
     ),
     // only the Action's entry point is a composition root
     edge(ACTION_RUN_LINT, ACTION_INDEX, "adapters->composition_root"),
+    // Imports that are not value imports. Coach reads them through tsc, and
+    // a coach release that stopped counting one would weaken the gate.
+    written(
+        "import-type",
+        "packages/core/src/entities/imports-gateway-as-import-type.ts",
+        CORE_GATEWAY,
+        "entities->adapters",
+    ),
+    written(
+        "export-type",
+        "packages/core/src/entities/imports-gateway-as-export-type.ts",
+        CORE_GATEWAY,
+        "entities->adapters",
+    ),
+    written(
+        "inline-type-import",
+        "packages/core/src/entities/imports-gateway-as-inline-type-import.ts",
+        CORE_GATEWAY,
+        "entities->adapters",
+    ),
+    written(
+        "inline-type-export",
+        "packages/core/src/entities/imports-gateway-as-inline-type-export.ts",
+        CORE_GATEWAY,
+        "entities->adapters",
+    ),
+    written(
+        "dynamic-import",
+        "packages/core/src/entities/imports-gateway-as-dynamic-import.ts",
+        CORE_GATEWAY,
+        "entities->adapters",
+    ),
+    written(
+        "require",
+        "packages/core/src/entities/imports-gateway-as-require.ts",
+        CORE_GATEWAY,
+        "entities->adapters",
+    ),
     // The same layers across packages, reached by package name
     {
         importer: "packages/doctor/src/entities/via-package-name.ts",
@@ -214,6 +294,12 @@ const FORBIDDEN: readonly ForbiddenEdge[] = [
 // Imports the architecture allows; they must never be reported.
 const ALLOWED: readonly Edge[] = [
     { importer: CORE_USE_CASE, importee: CORE_ENTITY },
+    // a type-only import the policy allows is no more a violation than a value one
+    {
+        importer: "packages/core/src/gateways/imports-entity-as-type.ts",
+        importee: CORE_ENTITY,
+        form: "import-type",
+    },
     { importer: CORE_GATEWAY, importee: CORE_USE_CASE },
     { importer: CORE_GATEWAY, importee: CORE_ENTITY },
     { importer: CORE_FORMATTER, importee: CORE_ENTITY },
@@ -240,6 +326,16 @@ function edge(importer: string, importee: string, pair: string): ForbiddenEdge {
     return { importer, importee, pair };
 }
 
+/** A forbidden import that is not written as a plain value import. */
+function written(
+    form: ImportForm,
+    importer: string,
+    importee: string,
+    pair: string,
+): ForbiddenEdge {
+    return { importer, importee, pair, form };
+}
+
 function specifierFor(candidate: Edge): string {
     if (candidate.specifier !== undefined) {
         return candidate.specifier;
@@ -251,16 +347,69 @@ function specifierFor(candidate: Edge): string {
     return relative.startsWith(".") ? relative : `./${relative}`;
 }
 
+interface ImportStatement {
+    readonly lines: readonly string[];
+    /** Expression for the value array, when the import can be used as a value */
+    readonly use?: string;
+}
+
+function statementFor(candidate: Edge, index: number): ImportStatement {
+    const from = `"${specifierFor(candidate)}"`;
+    const imported = `imported${index}`;
+    const typeOfImported = `export type Used${index} = typeof ${imported};`;
+    switch (candidate.form ?? "value") {
+        case "import-type":
+            return {
+                lines: [
+                    `import type { value as ${imported} } from ${from};`,
+                    typeOfImported,
+                ],
+            };
+        case "export-type":
+            return {
+                lines: [
+                    `export type { value as reexported${index} } from ${from};`,
+                ],
+            };
+        case "inline-type-import":
+            return {
+                lines: [
+                    `import { type value as ${imported} } from ${from};`,
+                    typeOfImported,
+                ],
+            };
+        case "inline-type-export":
+            return {
+                lines: [
+                    `export { type value as reexported${index} } from ${from};`,
+                ],
+            };
+        case "dynamic-import":
+            return {
+                lines: [`export const load${index} = () => import(${from});`],
+            };
+        case "require":
+            return {
+                lines: [
+                    "declare const require: (id: string) => unknown;",
+                    `export const required${index} = require(${from});`,
+                ],
+            };
+        default:
+            return {
+                lines: [`import { value as ${imported} } from ${from};`],
+                use: imported,
+            };
+    }
+}
+
 function moduleSource(path: string, imports: readonly Edge[]): string {
     const statements = imports
         .filter((candidate) => candidate.importer === path)
-        .map(
-            (candidate, index) =>
-                `import { value as imported${index} } from "${specifierFor(candidate)}";`,
-        );
-    const uses = statements.map((_, index) => `imported${index}`);
+        .map(statementFor);
+    const uses = statements.flatMap((statement) => statement.use ?? []);
     return [
-        ...statements,
+        ...new Set(statements.flatMap((statement) => statement.lines)),
         `export const value = [${["1", ...uses].join(", ")}];`,
         "",
     ].join("\n");
@@ -593,8 +742,11 @@ describe("the architecture gate, against coach and the committed project.json", 
 
             // Assert
             expect(verdict.passed).toBe(false);
+            const text = verdict.messages.join("\n");
+            expect(text).toContain("coach failed with exit code");
             expect(run.exitCode).toBe(1);
             expect(run.stderr).toContain("architecture gate: FAILED");
+            expect(run.stderr).toContain("coach failed with exit code");
         });
     });
 });

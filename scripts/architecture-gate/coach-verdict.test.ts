@@ -242,7 +242,6 @@ describe("evaluateCoachRun", () => {
         it.each([
             [1, "operational failure"],
             [2, "usage or configuration failure"],
-            [3, "incomplete coverage"],
         ])(
             "should fail on exit code %i (%s), whatever it printed",
             (exitCode, _meaning) => {
@@ -260,6 +259,26 @@ describe("evaluateCoachRun", () => {
                 expect(text).toContain(stderr);
             },
         );
+
+        it("should say that coach reported incomplete coverage on exit 3, and where to look", () => {
+            // Arrange
+            const stderr = `coach: ${chance.sentence({ words: 4 })}`;
+            const run = { exitCode: 3, stdout: report([]), stderr };
+
+            // Act
+            const verdict = evaluateCoachRun(run);
+
+            // Assert
+            expect(verdict.passed).toBe(false);
+            const text = verdict.messages.join("\n");
+            expect(text).toContain(
+                "coach reported incomplete coverage (exit 3)",
+            );
+            expect(text).toContain("coverage diagnostics");
+            expect(text).toContain("mise run coach-baseline");
+            expect(text).toContain(stderr);
+            expect(text).not.toContain("exit code 3");
+        });
 
         it("should fail when coach was killed by a signal", () => {
             // Arrange

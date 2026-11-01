@@ -51,37 +51,37 @@ version = "0.87.0"
 backend = "npm:@devcontainers/cli"
 
 [[tools."github:lousy-agents/coach"]]
-version = "0.10.0"
+version = "0.11.0"
 backend = "github:lousy-agents/coach"
 
 [tools."github:lousy-agents/coach"."platforms.linux-x64"]
-checksum = "sha256:bdecacbb7809724220fdf19511463912d5e9daeb4ef9bdb31bebaae57c9a9598"
-url = "https://github.com/lousy-agents/coach/releases/download/v0.10.0/coach_linux_x86_64.tar.gz"
-url_api = "https://api.github.com/repos/lousy-agents/coach/releases/assets/632536987"
+checksum = "sha256:fa2fa6bef743acda7b7bbb7d2eb827f44f277a281a07abd26ac74ae2804c32f1"
+url = "https://github.com/lousy-agents/coach/releases/download/v0.11.0/coach_linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/lousy-agents/coach/releases/assets/701870440"
 provenance = "github-attestations"
 
 [tools."github:lousy-agents/coach"."platforms.linux-x64-musl"]
-checksum = "sha256:bdecacbb7809724220fdf19511463912d5e9daeb4ef9bdb31bebaae57c9a9598"
-url = "https://github.com/lousy-agents/coach/releases/download/v0.10.0/coach_linux_x86_64.tar.gz"
-url_api = "https://api.github.com/repos/lousy-agents/coach/releases/assets/632536987"
+checksum = "sha256:fa2fa6bef743acda7b7bbb7d2eb827f44f277a281a07abd26ac74ae2804c32f1"
+url = "https://github.com/lousy-agents/coach/releases/download/v0.11.0/coach_linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/lousy-agents/coach/releases/assets/701870440"
 provenance = "github-attestations"
 
 [tools."github:lousy-agents/coach"."platforms.macos-arm64"]
-checksum = "sha256:41a2fef229e9e027681c1a0e49638b3a716c72aec115e22ef42913538ec7cb72"
-url = "https://github.com/lousy-agents/coach/releases/download/v0.10.0/coach_darwin_arm64.tar.gz"
-url_api = "https://api.github.com/repos/lousy-agents/coach/releases/assets/632536994"
+checksum = "sha256:e8a0cddbb571ddce761279ad928815f98ec4ca14b970f8d367077f33f5229bb0"
+url = "https://github.com/lousy-agents/coach/releases/download/v0.11.0/coach_darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/lousy-agents/coach/releases/assets/701870442"
 provenance = "github-attestations"
 
 [tools."github:lousy-agents/coach"."platforms.macos-x64"]
-checksum = "sha256:d5f2d49e5640061490fcd130da0fa12d48c50ebbb0d4703a29aa7f8d49d9cac1"
-url = "https://github.com/lousy-agents/coach/releases/download/v0.10.0/coach_darwin_x86_64.tar.gz"
-url_api = "https://api.github.com/repos/lousy-agents/coach/releases/assets/632536991"
+checksum = "sha256:a8d5f23ece7d9de45e815f08a56decab9b6ca566cd497c2b6d4a8f880b663789"
+url = "https://github.com/lousy-agents/coach/releases/download/v0.11.0/coach_darwin_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/lousy-agents/coach/releases/assets/701870444"
 provenance = "github-attestations"
 
 [tools."github:lousy-agents/coach"."platforms.windows-x64"]
-checksum = "sha256:1ab0415db5fe2d089ec44cdf586d39064db5a39b77b35cc610eceea6d27e387a"
-url = "https://github.com/lousy-agents/coach/releases/download/v0.10.0/coach_windows_x86_64.zip"
-url_api = "https://api.github.com/repos/lousy-agents/coach/releases/assets/632536995"
+checksum = "sha256:a94be0a0b8d7d04f7bf0a9e42ac3d2954220d0a6085b10fffba409fb33494e8b"
+url = "https://github.com/lousy-agents/coach/releases/download/v0.11.0/coach_windows_x86_64.zip"
+url_api = "https://api.github.com/repos/lousy-agents/coach/releases/assets/701870441"
 provenance = "github-attestations"
 
 [[tools.jq]]

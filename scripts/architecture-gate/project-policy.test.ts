@@ -10,8 +10,11 @@ import {
     findUnmappedFiles,
 } from "./layer-coverage.js";
 import { parseLayerPolicy } from "./layer-policy.js";
-import { isProductionSourceFile } from "./production-files.js";
-import { POLICY_PATH } from "./run-gate.js";
+import { POLICY_PATH } from "./policy-path.js";
+import {
+    isProductionSourceFile,
+    isScriptCoachDoesNotRead,
+} from "./production-files.js";
 
 const repositoryRoot = resolve(
     dirname(fileURLToPath(import.meta.url)),
@@ -23,13 +26,17 @@ function committedPolicy() {
     return parseLayerPolicy(JSON.parse(text));
 }
 
-function trackedProductionFiles(): string[] {
+function trackedFiles(): string[] {
     const listing = execFileSync("git", ["ls-files", "-z"], {
         cwd: repositoryRoot,
         encoding: "utf8",
         maxBuffer: 64 * 1024 * 1024,
     });
-    return listing.split("\0").filter(isProductionSourceFile);
+    return listing.split("\0");
+}
+
+function trackedProductionFiles(): string[] {
+    return trackedFiles().filter(isProductionSourceFile);
 }
 
 // Coach says nothing about an import to or from a file that no layer claims,
@@ -142,5 +149,23 @@ describe("the committed layering policy (project.json)", () => {
 
         // Assert
         expect(stale).toEqual([]);
+    });
+});
+
+// Coach 0.11.0 analyzes `.ts` and `.tsx` and nothing else, so a script in
+// another format under src would sit outside every check here while tsc and
+// Biome accept it.
+describe("the tracked files under packages/*/src", () => {
+    it("should include no script that coach does not analyze", () => {
+        // Arrange
+        const unread = trackedFiles()
+            .filter(isScriptCoachDoesNotRead)
+            .map(
+                (path) =>
+                    `${path} is a script that coach 0.11.0 does not analyze: write it as .ts or .tsx`,
+            );
+
+        // Assert
+        expect(unread).toEqual([]);
     });
 });
