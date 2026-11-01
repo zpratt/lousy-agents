@@ -5,18 +5,12 @@ import type {
     HarnessName,
     InventoryRecord,
 } from "../entities/edge-types.js";
-import {
-    HARNESS_FOOTPRINTS,
-    HARNESS_NAMES,
-    matchesPrimaryIndicator,
-} from "../entities/harness-footprints.js";
+import { determineHarness } from "../entities/harness-footprints.js";
 import { parseRawEdges } from "../lib/edge-parser.js";
 import { type EdgeResolutionContext, resolveEdge } from "./edge-resolution.js";
 import type { McpServerRecord } from "./mcp-config.js";
 
 const MAX_FILE_BYTES = 1_048_576;
-
-const ALL_HARNESS_NAMES: readonly HarnessName[] = [...HARNESS_NAMES, "shared"];
 
 /**
  * A file discovered by the repository walk. `readRoot`/`readRelPath` locate
@@ -42,18 +36,6 @@ function isMarkdownFile(name: string): boolean {
 
 function determineConstructType(relPath: string): ConstructType {
     return primaryConstructTypeForPath(relPath) ?? "instruction";
-}
-
-function determineHarness(repoRelativePath: string): HarnessName | null {
-    const matching = ALL_HARNESS_NAMES.filter((harness) =>
-        matchesPrimaryIndicator(
-            repoRelativePath,
-            HARNESS_FOOTPRINTS[harness].primaryIndicators,
-        ),
-    );
-    if (matching.length === 0) return null;
-    if (matching.length >= 2) return "shared";
-    return matching[0];
 }
 
 /**
@@ -119,7 +101,7 @@ async function toInventoryRecord(
 /**
  * Builds one inventory record per harness-owned file, with its edges
  * resolved. Every record starts out convention-loaded; see
- * markReferencedRecords.
+ * markReferencedRecords in the entities layer.
  */
 export async function buildFileInventoryRecords(
     files: readonly InventorySourceFile[],
@@ -127,37 +109,6 @@ export async function buildFileInventoryRecords(
 ): Promise<InventoryRecord[]> {
     const sources = await readInventorySources(files);
     return Promise.all(sources.map((source) => toInventoryRecord(source, ctx)));
-}
-
-/** Paths that some well-formed hard-import or soft-reference edge points to. */
-function referencedPaths(records: readonly InventoryRecord[]): Set<string> {
-    return new Set(
-        records
-            .flatMap((record) => record.edges)
-            .flatMap((edge) =>
-                !edge.malformed &&
-                edge.type !== "glob-binding" &&
-                typeof edge.direction.to === "string"
-                    ? [edge.direction.to]
-                    : [],
-            ),
-    );
-}
-
-/**
- * Returns the records with `loadMechanism: "referenced"` on every record that
- * another record's well-formed edge points to.
- */
-export function markReferencedRecords(
-    records: readonly InventoryRecord[],
-): InventoryRecord[] {
-    const referenced = referencedPaths(records);
-
-    return records.map((record) =>
-        referenced.has(record.path)
-            ? { ...record, loadMechanism: "referenced" }
-            : record,
-    );
 }
 
 export function mcpServerRecords(

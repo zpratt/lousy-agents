@@ -228,3 +228,27 @@ export function matchesPrimaryIndicator(
         return normalized === indicator;
     });
 }
+
+const ALL_HARNESS_NAMES: readonly HarnessName[] = [...HARNESS_NAMES, "shared"];
+
+/**
+ * Resolves which harness owns a repo-relative path from the harnesses'
+ * primary indicators. A path claimed by more than one harness is shared; a
+ * path claimed by none belongs to no harness.
+ */
+export function determineHarness(
+    repoRelativePath: string,
+    footprints: Readonly<
+        Record<HarnessName, HarnessFootprint>
+    > = HARNESS_FOOTPRINTS,
+): HarnessName | null {
+    const matching = ALL_HARNESS_NAMES.filter((harness) =>
+        matchesPrimaryIndicator(
+            repoRelativePath,
+            footprints[harness].primaryIndicators,
+        ),
+    );
+    if (matching.length === 0) return null;
+    if (matching.length >= 2) return "shared";
+    return matching[0];
+}

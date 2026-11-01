@@ -3,10 +3,10 @@ import { relative, resolve } from "node:path";
 import { listDirectoryWithinRoot } from "@lousy-agents/core/gateways/file-system-utils.js";
 import { resolveRealPathWithinRoot } from "@lousy-agents/core/gateways/real-path-within-root.js";
 import type { InventoryRecord } from "../entities/edge-types.js";
+import { markReferencedRecords } from "../entities/inventory-references.js";
 import type { EdgeResolutionContext } from "./edge-resolution.js";
 import {
     buildFileInventoryRecords,
-    markReferencedRecords,
     mcpServerRecords,
 } from "./inventory-records.js";
 import { enumerateMcpServers } from "./mcp-config.js";
