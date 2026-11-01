@@ -3,7 +3,12 @@ import { createConsola } from "consola";
 import { describe, expect, it } from "vitest";
 import type { Finding } from "../entities/finding.js";
 import type { IntentLoadReport } from "../entities/intent-load.js";
-import { renderHuman, renderHumanSummary } from "./human-renderer.js";
+import { discoveryLimitFindings } from "../use-cases/discovery-limit-finding.js";
+import {
+    hasBlockingFindings,
+    renderHuman,
+    renderHumanSummary,
+} from "./human-renderer.js";
 import { toJson } from "./json-formatter.js";
 import type { SummaryOutput } from "./summary-formatter.js";
 
@@ -317,5 +322,17 @@ describe("renderHuman", () => {
                 expect(text).toContain(escapedInjectedText);
             },
         );
+    });
+});
+
+describe("hasBlockingFindings", () => {
+    describe("when the only finding is the discovery-limit finding", () => {
+        it("should not block, so --ci exits 0 when the directory limit is hit", () => {
+            const findings = discoveryLimitFindings({ maxDirectories: 10_000 });
+
+            const blocking = hasBlockingFindings(findings);
+
+            expect(blocking).toBe(false);
+        });
     });
 });

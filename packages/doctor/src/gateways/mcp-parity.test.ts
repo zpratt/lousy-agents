@@ -273,4 +273,46 @@ describe("doctor and MCP parity", () => {
             });
         });
     });
+
+    describe("instruction directory aliases (parity by real file)", () => {
+        describe("when two paths under .github/instructions are aliases of one directory", () => {
+            it("should resolve doctor's 2 logical records and the core discovery's 1 file to the same 1 real file", async () => {
+                // Arrange
+                await writeRepoFile(
+                    repoRoot,
+                    ".github/shared-instructions/x.md",
+                    chance.sentence(),
+                );
+                await mkdir(join(repoRoot, ".github", "instructions"), {
+                    recursive: true,
+                });
+                for (const alias of ["a", "b"]) {
+                    await symlink(
+                        "../shared-instructions",
+                        join(repoRoot, ".github", "instructions", alias),
+                    );
+                }
+
+                // Act
+                const doctorPaths = await doctorInstructionPaths(repoRoot);
+                const corePaths = await coreInstructionPaths(repoRoot);
+
+                // Assert: doctor lists each logical location, discovery each
+                // real file once; compared by real file they are the same set
+                const realFiles = async (paths: string[]) => [
+                    ...new Set(
+                        await Promise.all(
+                            paths.map((path) => realpath(join(repoRoot, path))),
+                        ),
+                    ),
+                ];
+                expect(doctorPaths).toHaveLength(2);
+                expect(corePaths).toHaveLength(1);
+                expect(await realFiles(doctorPaths)).toEqual(
+                    await realFiles(corePaths),
+                );
+                expect(await realFiles(corePaths)).toHaveLength(1);
+            });
+        });
+    });
 });

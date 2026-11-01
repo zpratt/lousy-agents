@@ -176,7 +176,7 @@ The `validate_instruction_coverage` tool checks if your repository instructions 
 }
 ```
 
-`diagnostics` lists what discovery reports about itself, using the same rule IDs as `analyze_instruction_quality`. When discovery stops at its 10,000-directory limit, it holds one `instruction/discovery-limit-reached` entry (`ruleId` and `message`), because the coverage was then measured on only the instruction files found before the limit. It is an empty array otherwise. When it is not empty, `message` says that discovery stopped early: a mandatory item reported as undocumented may be documented in a file that was not checked, and a fully documented result covers only the files found.
+`diagnostics` lists what discovery reports about itself, using the same rule IDs as `analyze_instruction_quality`. When discovery stops at its 10,000-directory limit, or finds directories below its depth limit of 10, it holds one `instruction/discovery-limit-reached` entry (`ruleId` and `message`), because the coverage was then measured on only the instruction files found before the limit. It is an empty array otherwise. When it is not empty, `message` says that discovery stopped early: a mandatory item reported as undocumented may be documented in a file that was not checked, and a fully documented result covers only the files found.
 
 This helps ensure that AI agents have clear, consistent instructions for running feedback loops during development.
 

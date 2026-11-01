@@ -1,8 +1,11 @@
+import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { DEFAULT_MAX_WALK_DEPTH } from "@lousy-agents/core/gateways/repository-walk.js";
 import Chance from "chance";
 import { createConsola } from "consola";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runDoctorCommand } from "./run-doctor-command.js";
 
 const chance = new Chance();
@@ -20,7 +23,6 @@ const sprawlHint =
     "Answer 'yes' if you want multiple harnesses to work together. Answer 'no' if this is legacy configuration.";
 const ACCEPTED_FORMATS_SENTENCE = "Accepted values: human, json.";
 const FALLBACK_SENTENCE = "Falling back to human output.";
-
 interface EnvironmentSettings {
     stdinIsTty: boolean;
     cwd?: string;
@@ -310,6 +312,102 @@ describe("runDoctorCommand", () => {
             );
 
             expect(env.confirm).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("when a step after the scan fails", () => {
+        const failure = new Error(chance.sentence());
+
+        describe("when the scan was cut short by the depth limit", () => {
+            let cutShortRoot: string;
+
+            beforeEach(async () => {
+                cutShortRoot = await mkdtemp(
+                    join(tmpdir(), "doctor-cut-short-"),
+                );
+                await cp(sprawlPath, cutShortRoot, { recursive: true });
+                const tooDeep = join(
+                    cutShortRoot,
+                    ...Array.from(
+                        { length: DEFAULT_MAX_WALK_DEPTH + 2 },
+                        (_, level) => `d${level}`,
+                    ),
+                );
+                await mkdir(tooDeep, { recursive: true });
+                await writeFile(join(tooDeep, "notes.md"), "# notes\n");
+            });
+
+            afterEach(async () => {
+                await rm(cutShortRoot, { recursive: true, force: true });
+            });
+
+            it("should warn that the scan was cut short before it rejects with the original error", async () => {
+                const env = buildEnvironment({
+                    stdinIsTty: true,
+                    cwd: cutShortRoot,
+                });
+                env.confirm.mockRejectedValue(failure);
+
+                await expect(
+                    runDoctorCommand(
+                        { format: "human", summary: false, ci: false },
+                        env.environment,
+                    ),
+                ).rejects.toBe(failure);
+
+                expect(env.warned).toEqual([
+                    `The repository scan did not go more than ${DEFAULT_MAX_WALK_DEPTH} directories deep, so agentic constructs in deeper directories are not in this report.`,
+                ]);
+            });
+
+            it("should have asked the question that failed, so the failure came after the scan", async () => {
+                const env = buildEnvironment({
+                    stdinIsTty: true,
+                    cwd: cutShortRoot,
+                });
+                env.confirm.mockRejectedValue(failure);
+
+                await runDoctorCommand(
+                    { format: "human", summary: false, ci: false },
+                    env.environment,
+                ).catch(() => undefined);
+
+                expect(env.confirm).toHaveBeenCalledTimes(1);
+            });
+        });
+
+        describe("when the scan covered the whole repository", () => {
+            it("should reject with the original error and warn about nothing", async () => {
+                const env = buildEnvironment({ stdinIsTty: true });
+                env.confirm.mockRejectedValue(failure);
+
+                await expect(
+                    runDoctorCommand(
+                        { format: "human", summary: false, ci: false },
+                        env.environment,
+                    ),
+                ).rejects.toBe(failure);
+
+                expect(env.warned).toEqual([]);
+            });
+        });
+    });
+
+    describe("when the scan itself fails", () => {
+        it("should reject with the filesystem error and warn about nothing", async () => {
+            const env = buildEnvironment({
+                stdinIsTty: false,
+                cwd: join(sprawlPath, `missing-${chance.guid()}`),
+            });
+
+            await expect(
+                runDoctorCommand(
+                    { format: "human", summary: false, ci: true },
+                    env.environment,
+                ),
+            ).rejects.toMatchObject({ code: "ENOENT" });
+
+            expect(env.warned).toEqual([]);
         });
     });
 

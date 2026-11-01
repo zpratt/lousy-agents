@@ -3,10 +3,27 @@ import { describe, expect, it, vi } from "vitest";
 import type { DeclaredIntentArtifact } from "../entities/declared-intent.js";
 import type { InventoryRecord } from "../entities/edge-types.js";
 import type { IntentLoadReport } from "../entities/intent-load.js";
-import type { DoctorRunPorts, LoadedIntent } from "./run-doctor.js";
-import { runDoctor } from "./run-doctor.js";
+import type {
+    DiscoveryDepthLimit,
+    DiscoveryDirectoryLimit,
+} from "./discovery-limit-finding.js";
+import type {
+    DoctorRunPorts,
+    LoadedIntent,
+    RepositoryScan,
+} from "./run-doctor.js";
+import { DoctorRunFailure, runDoctor } from "./run-doctor.js";
 
 const chance = new Chance();
+
+const MAX_DIRECTORIES = chance.integer({ min: 1, max: 99_999 });
+const DIRECTORY_LIMIT = { maxDirectories: MAX_DIRECTORIES };
+const limitWarning = expect.objectContaining({
+    criterionId: "discovery-limit-reached",
+    targetId: "all:repository",
+    classification: "advisory",
+    description: expect.stringContaining(`${MAX_DIRECTORIES}`),
+});
 
 function buildRecord(
     overrides: Partial<InventoryRecord> = {},
@@ -33,6 +50,18 @@ function sprawlRecords(): InventoryRecord[] {
     ];
 }
 
+function scanOf(
+    records: InventoryRecord[],
+    directoryLimit?: DiscoveryDirectoryLimit,
+    depthLimit?: DiscoveryDepthLimit,
+): RepositoryScan {
+    return {
+        records,
+        ...(directoryLimit ? { directoryLimit } : {}),
+        ...(depthLimit ? { depthLimit } : {}),
+    };
+}
+
 function intentResult(status: IntentLoadReport["status"]): LoadedIntent {
     return {
         intent: null,
@@ -42,7 +71,7 @@ function intentResult(status: IntentLoadReport["status"]): LoadedIntent {
 
 function buildPorts(overrides: Partial<DoctorRunPorts> = {}): DoctorRunPorts {
     return {
-        scanRepository: vi.fn().mockResolvedValue([buildRecord()]),
+        scanRepository: vi.fn().mockResolvedValue(scanOf([buildRecord()])),
         readIntent: vi.fn().mockResolvedValue(intentResult("absent")),
         loadSnapshotRef: vi.fn().mockResolvedValue(undefined),
         ...overrides,
@@ -67,7 +96,7 @@ describe("runDoctor", () => {
     describe("when a summary is requested and no agentic constructs exist", () => {
         it("should return a summary, because --summary takes precedence", async () => {
             const ports = buildPorts({
-                scanRepository: vi.fn().mockResolvedValue([]),
+                scanRepository: vi.fn().mockResolvedValue(scanOf([])),
             });
 
             const run = await runDoctor({ repoPath, summaryOnly: true }, ports);
@@ -79,7 +108,7 @@ describe("runDoctor", () => {
     describe("when no agentic constructs exist", () => {
         it("should return no-constructs without reading intent", async () => {
             const ports = buildPorts({
-                scanRepository: vi.fn().mockResolvedValue([]),
+                scanRepository: vi.fn().mockResolvedValue(scanOf([])),
             });
 
             const run = await runDoctor(
@@ -128,6 +157,243 @@ describe("runDoctor", () => {
         });
     });
 
+    describe("when the scan stopped at its directory limit", () => {
+        const runShapes = [
+            ["a summary", { summaryOnly: true, records: [buildRecord()] }],
+            [
+                "a run with no agentic constructs",
+                { summaryOnly: false, records: [] },
+            ],
+            [
+                "an evaluated run",
+                { summaryOnly: false, records: [buildRecord()] },
+            ],
+        ] as const;
+
+        it.each(runShapes)(
+            "should carry exactly one discovery-limit warning on %s",
+            async (_name, { summaryOnly, records }) => {
+                const ports = buildPorts({
+                    scanRepository: vi
+                        .fn()
+                        .mockResolvedValue(
+                            scanOf([...records], DIRECTORY_LIMIT),
+                        ),
+                });
+
+                const run = await runDoctor({ repoPath, summaryOnly }, ports);
+
+                expect(run.scanWarnings).toEqual([limitWarning]);
+            },
+        );
+
+        it("should keep the warning out of the evaluated findings", async () => {
+            const ports = buildPorts({
+                scanRepository: vi
+                    .fn()
+                    .mockResolvedValue(
+                        scanOf([buildRecord()], DIRECTORY_LIMIT),
+                    ),
+            });
+
+            const run = await runDoctor(
+                { repoPath, summaryOnly: false },
+                ports,
+            );
+
+            expect(run.kind).toBe("evaluated");
+            if (run.kind === "evaluated") {
+                expect(run.findings.map((f) => f.criterionId)).not.toContain(
+                    "discovery-limit-reached",
+                );
+            }
+        });
+
+        it("should still evaluate the records it found", async () => {
+            const ports = buildPorts({
+                scanRepository: vi
+                    .fn()
+                    .mockResolvedValue(
+                        scanOf([buildRecord()], DIRECTORY_LIMIT),
+                    ),
+                readIntent: vi
+                    .fn()
+                    .mockResolvedValue(intentResult("invalid-json")),
+            });
+
+            const run = await runDoctor(
+                { repoPath, summaryOnly: false },
+                ports,
+            );
+
+            expect(run.kind).toBe("evaluated");
+            if (run.kind === "evaluated") {
+                expect(run.findings.map((f) => f.criterionId)).toContain(
+                    "invalid-intent-artifact",
+                );
+            }
+        });
+    });
+
+    describe("when a step after the scan throws", () => {
+        const failure = new Error(chance.sentence());
+        const failingSteps = [
+            [
+                "loading the snapshot reference",
+                { summaryOnly: true, records: [buildRecord()] },
+                { loadSnapshotRef: vi.fn().mockRejectedValue(failure) },
+            ],
+            [
+                "reading the intent",
+                { summaryOnly: false, records: [buildRecord()] },
+                { readIntent: vi.fn().mockRejectedValue(failure) },
+            ],
+            [
+                "eliciting the intent",
+                { summaryOnly: false, records: sprawlRecords() },
+                { elicitIntent: vi.fn().mockRejectedValue(failure) },
+            ],
+        ] as const;
+
+        it.each(failingSteps)(
+            "should fail with the cause and the scan warnings when %s fails",
+            async (_step, { summaryOnly, records }, failingPort) => {
+                const ports = buildPorts({
+                    scanRepository: vi
+                        .fn()
+                        .mockResolvedValue(
+                            scanOf([...records], DIRECTORY_LIMIT),
+                        ),
+                    ...failingPort,
+                });
+
+                const error = await runDoctor(
+                    { repoPath, summaryOnly },
+                    ports,
+                ).catch((caught: unknown) => caught);
+
+                expect(error).toBeInstanceOf(DoctorRunFailure);
+                expect(error).toMatchObject({
+                    name: "DoctorRunFailure",
+                    cause: failure,
+                    scanWarnings: [limitWarning],
+                    message: failure.message,
+                });
+            },
+        );
+
+        it("should fail with an empty list of scan warnings when the scan covered the whole repository", async () => {
+            const ports = buildPorts({
+                loadSnapshotRef: vi.fn().mockRejectedValue(failure),
+            });
+
+            const error = await runDoctor(
+                { repoPath, summaryOnly: true },
+                ports,
+            ).catch((caught: unknown) => caught);
+
+            expect(error).toBeInstanceOf(DoctorRunFailure);
+            expect(error).toMatchObject({ cause: failure, scanWarnings: [] });
+        });
+
+        it("should describe a cause that is not an Error by its text", async () => {
+            const ports = buildPorts({
+                loadSnapshotRef: vi.fn().mockRejectedValue("plain text"),
+            });
+
+            const error = await runDoctor(
+                { repoPath, summaryOnly: true },
+                ports,
+            ).catch((caught: unknown) => caught);
+
+            expect(error).toMatchObject({
+                cause: "plain text",
+                message: "plain text",
+            });
+        });
+    });
+
+    describe("when the scan itself throws", () => {
+        it("should reject with that error unchanged, because there is nothing to warn about yet", async () => {
+            const failure = new Error(chance.sentence());
+            const ports = buildPorts({
+                scanRepository: vi.fn().mockRejectedValue(failure),
+            });
+
+            await expect(
+                runDoctor({ repoPath, summaryOnly: false }, ports),
+            ).rejects.toBe(failure);
+        });
+    });
+
+    describe("when the scan reached its depth limit", () => {
+        const maxDepth = chance.integer({ min: 1, max: 99 });
+        const runShapes = [
+            ["a summary", { summaryOnly: true, records: [buildRecord()] }],
+            [
+                "a run with no agentic constructs",
+                { summaryOnly: false, records: [] },
+            ],
+            [
+                "an evaluated run",
+                { summaryOnly: false, records: [buildRecord()] },
+            ],
+        ] as const;
+
+        it.each(runShapes)(
+            "should carry exactly one discovery-limit warning that names the depth on %s",
+            async (_name, { summaryOnly, records }) => {
+                const ports = buildPorts({
+                    scanRepository: vi
+                        .fn()
+                        .mockResolvedValue(
+                            scanOf([...records], undefined, { maxDepth }),
+                        ),
+                });
+
+                const run = await runDoctor({ repoPath, summaryOnly }, ports);
+
+                expect(run.scanWarnings).toEqual([
+                    expect.objectContaining({
+                        criterionId: "discovery-limit-reached",
+                        description: expect.stringContaining(
+                            `${maxDepth} directories deep`,
+                        ),
+                    }),
+                ]);
+            },
+        );
+    });
+
+    describe("when the scan covered the whole repository", () => {
+        const runShapes = [
+            ["a summary", { summaryOnly: true, records: [buildRecord()] }],
+            [
+                "a run with no agentic constructs",
+                { summaryOnly: false, records: [] },
+            ],
+            [
+                "an evaluated run",
+                { summaryOnly: false, records: [buildRecord()] },
+            ],
+        ] as const;
+
+        it.each(runShapes)(
+            "should carry no scan warnings on %s",
+            async (_name, { summaryOnly, records }) => {
+                const ports = buildPorts({
+                    scanRepository: vi
+                        .fn()
+                        .mockResolvedValue(scanOf([...records])),
+                });
+
+                const run = await runDoctor({ repoPath, summaryOnly }, ports);
+
+                expect(run.scanWarnings).toEqual([]);
+            },
+        );
+    });
+
     describe("when an intent elicitor is provided", () => {
         describe("when intent is absent and the repository is ambiguous", () => {
             const artifact: DeclaredIntentArtifact = {
@@ -154,7 +420,7 @@ describe("runDoctor", () => {
                     ports: buildPorts({
                         scanRepository: vi
                             .fn()
-                            .mockResolvedValue(sprawlRecords()),
+                            .mockResolvedValue(scanOf(sprawlRecords())),
                         readIntent,
                         elicitIntent,
                     }),
@@ -200,7 +466,9 @@ describe("runDoctor", () => {
             async (status) => {
                 const elicitIntent = vi.fn();
                 const ports = buildPorts({
-                    scanRepository: vi.fn().mockResolvedValue(sprawlRecords()),
+                    scanRepository: vi
+                        .fn()
+                        .mockResolvedValue(scanOf(sprawlRecords())),
                     readIntent: vi.fn().mockResolvedValue(intentResult(status)),
                     elicitIntent,
                 });

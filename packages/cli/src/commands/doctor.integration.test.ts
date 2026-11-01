@@ -593,4 +593,88 @@ describe("doctor command", () => {
             });
         });
     });
+
+    describe("when the repository has more directories than the scan limit", () => {
+        let bulkRoot: string;
+        const DirectoryLimit = 10_000;
+
+        beforeEach(async () => {
+            bulkRoot = await mkdtemp(
+                join(await realpath(tmpdir()), "doctor-limit-"),
+            );
+            await writeFile(join(bulkRoot, "CLAUDE.md"), "# Claude\n");
+            const bulk = join(bulkRoot, "bulk");
+            await mkdir(bulk);
+            const batchSize = 250;
+            for (
+                let start = 0;
+                start < DirectoryLimit + 1;
+                start += batchSize
+            ) {
+                await Promise.all(
+                    Array.from(
+                        {
+                            length: Math.min(
+                                batchSize,
+                                DirectoryLimit + 1 - start,
+                            ),
+                        },
+                        (_, offset) => mkdir(join(bulk, `d${start + offset}`)),
+                    ),
+                );
+            }
+        });
+
+        afterEach(async () => {
+            await rm(bulkRoot, { recursive: true, force: true });
+        });
+
+        it("should report one advisory discovery-limit finding in JSON and still exit 0 with --ci", async () => {
+            const { exitCode, stdout } = await runDoctor(
+                ["--ci", "--format", "json"],
+                bulkRoot,
+            );
+
+            expect(exitCode).toBe(0);
+            const report = JSON.parse(stdout) as {
+                findings: Array<{
+                    criterionId: string;
+                    severity: string;
+                    classification: string;
+                    targetId: string;
+                }>;
+            };
+            const limitFindings = report.findings.filter(
+                (f) => f.criterionId === "discovery-limit-reached",
+            );
+            expect(limitFindings).toEqual([
+                expect.objectContaining({
+                    severity: "medium",
+                    classification: "advisory",
+                    targetId: "all:repository",
+                }),
+            ]);
+        });
+
+        it("should show the finding in human output and still exit 0 with --ci", async () => {
+            const { exitCode, stdout, stderr } = await runDoctor(
+                ["--ci"],
+                bulkRoot,
+            );
+
+            expect(exitCode).toBe(0);
+            expect(`${stdout}${stderr}`).toContain("discovery-limit-reached");
+        });
+
+        it("should warn on stderr and keep --summary --format json machine-readable", async () => {
+            const { exitCode, stdout, stderr } = await runDoctor(
+                ["--ci", "--summary", "--format", "json"],
+                bulkRoot,
+            );
+
+            expect(exitCode).toBe(0);
+            expect(() => JSON.parse(stdout)).not.toThrow();
+            expect(stderr).toContain("directories");
+        });
+    });
 });

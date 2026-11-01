@@ -17,6 +17,7 @@ import {
     resolveRealPathWithinRoot,
 } from "./real-path-within-root.js";
 import {
+    DEFAULT_MAX_WALK_DEPTH,
     DEFAULT_MAX_WALK_DIRECTORIES,
     walkRepository,
 } from "./repository-walk.js";
@@ -64,7 +65,8 @@ export class FileSystemInstructionFileDiscoveryGateway
         }
         const root: DiscoveryRoot = { targetDir, rootReal };
         const files: DiscoveredInstructionFile[] = [];
-        let limitReached = false;
+        let directoryLimitReached = false;
+        let depthLimitReached = false;
 
         for (const entry of instructionDiscoveryEntries()) {
             const format = entry.instructionFormat;
@@ -86,7 +88,9 @@ export class FileSystemInstructionFileDiscoveryGateway
                 revisit: "once-per-real-directory",
                 maxDirectories: this.maxDirectories,
             });
-            limitReached = limitReached || walked.directoryLimitReached;
+            directoryLimitReached =
+                directoryLimitReached || walked.directoryLimitReached;
+            depthLimitReached = depthLimitReached || walked.depthLimitReached;
             files.push(
                 ...walked.files.map((file) =>
                     toDiscoveredFile(
@@ -99,10 +103,22 @@ export class FileSystemInstructionFileDiscoveryGateway
             );
         }
 
-        if (limitReached) {
+        const reasons = [
+            ...(directoryLimitReached
+                ? [
+                      `Instruction file discovery stopped after listing ${this.maxDirectories} directories, so instruction files in the remaining directories were not analyzed.`,
+                  ]
+                : []),
+            ...(depthLimitReached
+                ? [
+                      `Instruction file discovery did not go more than ${DEFAULT_MAX_WALK_DEPTH} directories deep, so instruction files in deeper directories were not analyzed.`,
+                  ]
+                : []),
+        ];
+        if (reasons.length > 0) {
             onDiagnostic?.({
                 ruleId: DISCOVERY_LIMIT_RULE_ID,
-                message: `Instruction file discovery stopped after listing ${this.maxDirectories} directories, so instruction files in the remaining directories were not analyzed.`,
+                message: reasons.join(" "),
             });
         }
 

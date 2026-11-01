@@ -105,6 +105,9 @@ Paths come from the shared agentic location catalog in `@lousy-agents/core` (the
 - Doctor follows in-repo symlinks when inventorying instruction files (common when teams symlink `AGENTS.md`).
 - Symlinks that escape the repository root are rejected.
 - Lint skips symlinked skill, agent and hook targets by design; that difference is intentional. Instruction files and their `@` imports follow in-repo symlinks in lint too.
+- Doctor walks the repository with the same bounded walk as lint's instruction discovery (`@lousy-agents/core`). It skips `node_modules`, `.git` and `dist`, lists entries in name order, descends while the depth is below 10 (the root is depth 0), and stops listing after 10,000 directories.
+- **Doctor lists every location, lint lists every real file once.** If `.claude/skills` is a symlink to `.agents/skills`, doctor inventories both `claude:.claude/skills/...` and `codex:.agents/skills/...`, because different harnesses load each location. A symlink back to one of its own ancestors is refused, so a cycle terminates. Lint's instruction discovery lists a real directory once, under the first path in name order. When comparing the two tools, compare by real file.
+- When the 10,000-directory limit is reached, or a directory lies below the depth limit of 10 and is not entered, doctor keeps what it found and adds the advisory `discovery-limit-reached` finding (see below), once however many limits were reached; the inventory may be missing constructs in the remaining or deeper directories.
 
 ## Archetypes
 
@@ -139,6 +142,7 @@ Advisories never fail the process on their own. Medium defects (for example miss
 | `cross-harness-drift` | all | high | advisory | drift | Archetype is `accidental-sprawl`: multiple harnesses with no cross-harness references. Does not block CI. |
 | `wrong-direction-copilot-imports-claude` | copilot | medium | advisory | wrong-direction | A Copilot file uses Claude `@path` hard-import syntax toward a Claude file. Copilot does not process `@path` hard-imports. |
 | `wrong-direction-copilot-links-claude` | copilot | medium | advisory | wrong-direction | A Copilot file soft-references a Claude file (markdown link or frontmatter `see:` / `references:` / `requires:`). Copilot CLI does not follow those links. |
+| `discovery-limit-reached` | all | medium | advisory | governance | The scan stopped after listing 10,000 directories, or did not go more than 10 directories deep, so constructs in the remaining or deeper directories are not in the report. Reported once, on target `all:repository`. Visible, never blocks CI. In `--summary --format json` it is written to stderr, because that output has no findings. |
 | `missing-intent-artifact` | all | medium | defect | governance | Constructs exist but no file exists at `.agentic-doctor/intent.json` in the directory doctor ran from. Visible, non-blocking. |
 | `invalid-intent-artifact` | all | medium | defect | governance | Constructs exist and `.agentic-doctor/intent.json` exists but was rejected (invalid JSON, schema mismatch, symlink, or unreadable). The intent status names the reason. Visible, non-blocking. |
 | `missing-hermes-config` | hermes | medium | advisory | missing-required | Hermes is attributed (for example via `SOUL.md`) without `.hermes.md` or `HERMES.md`. |
@@ -236,7 +240,7 @@ Tags are `[SEVERITY][classification]`. Findings with `assumedIntent: true` appen
 | ----- | ---- | ----- |
 | `id` | string | Stable id, usually `criterionId:targetId` |
 | `criterionId` | string | Matches the criteria table |
-| `targetId` | string | What was graded: `all:intent`, `all:<archetype>` (drift), `harness:all`, or a harness pair |
+| `targetId` | string | What was graded: `all:intent`, `all:<archetype>` (drift), `all:repository` (discovery limit), `harness:all`, or a harness pair |
 | `severity` | `critical` \| `high` \| `medium` \| `low` \| `info` | Ordering key in human output |
 | `category` | string | `missing-required`, `malformed-reference`, `wrong-direction`, `drift`, `governance`, or `composition-style` |
 | `classification` | `defect` \| `advisory` \| `info` | Only `defect` can block CI when severity is critical/high |
@@ -378,7 +382,7 @@ Interactive prompts on a TTY do not write this file, and yes/no answers are not 
 ### CI contract
 
 - Full evaluate (`doctor` or `doctor --format json`, without `--summary`) sets exit code `1` only when `hasBlockingFindings` is true: at least one finding with `severity` of `critical` or `high` **and** `classification` of `defect`.
-- High **advisories** (for example `cross-harness-drift`) never fail the process on their own.
+- High **advisories** (for example `cross-harness-drift`) never fail the process on their own, and neither does the advisory `discovery-limit-reached`.
 - Medium **defects** (for example `missing-intent-artifact`) appear in the report and do not set exit code `1`.
 - A repository with no agentic constructs exits `0`. Its JSON report says `evaluation: "not-applicable"`, so a pipeline can tell "nothing to check" from "checked and clean" (`completed`).
 - `--summary` skips evaluate. Exit code stays `0`. Use it for composition snapshots, not as a merge gate.

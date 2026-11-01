@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import type { ConsolaInstance } from "consola";
 import type { DoctorRunPorts } from "../use-cases/run-doctor.js";
 import { readIntentArtifact } from "./intent-artifact.js";
-import { scanRepository } from "./scanner.js";
+import { scanRepositoryWithReport } from "./scanner.js";
 import {
     createWisdomClient,
     type WisdomClient,
@@ -23,7 +23,7 @@ export function createDoctorGateways(
     dependencies: DoctorGatewayDependencies = DEFAULT_DEPENDENCIES,
 ): Omit<DoctorRunPorts, "elicitIntent"> {
     return {
-        scanRepository,
+        scanRepository: (repoPath) => scanRepositoryWithReport(repoPath),
         async readIntent(repoPath) {
             const result = await readIntentArtifact(repoPath);
             return {

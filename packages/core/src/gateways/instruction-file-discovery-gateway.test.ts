@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { InstructionDiscoveryDiagnostic } from "../entities/instruction-quality.js";
 import { instructionDiscoveryEntries } from "../lib/agentic-location-matchers.js";
 import { FileSystemInstructionFileDiscoveryGateway } from "./instruction-file-discovery-gateway.js";
+import { DEFAULT_MAX_WALK_DEPTH } from "./repository-walk.js";
 
 const chance = new Chance();
 
@@ -434,6 +435,91 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
             // Assert
             expect(files.map((f) => relative(testDir, f.filePath))).toEqual([
                 join(".github", "instructions", "a-alias", "x.md"),
+            ]);
+        });
+    });
+
+    describe("when .github/instructions is nested deeper than the depth limit", () => {
+        const DiscoveryLimitRuleId = "instruction/discovery-limit-reached";
+        const instructionsPath = join(".github", "instructions");
+
+        async function writeNested(levels: number, name: string) {
+            const directory = join(
+                testDir,
+                instructionsPath,
+                ...Array.from({ length: levels }, (_, level) => `l${level}`),
+            );
+            await mkdir(directory, { recursive: true });
+            await writeFile(
+                join(directory, `${name}.instructions.md`),
+                chance.sentence(),
+            );
+        }
+
+        async function discover(discoveryGateway = gateway): Promise<{
+            files: string[];
+            diagnostics: InstructionDiscoveryDiagnostic[];
+        }> {
+            const diagnostics: InstructionDiscoveryDiagnostic[] = [];
+            const files = await discoveryGateway.discoverInstructionFiles(
+                testDir,
+                (diagnostic) => diagnostics.push(diagnostic),
+            );
+            return {
+                files: files.map((f) => relative(testDir, f.filePath)),
+                diagnostics,
+            };
+        }
+
+        it("should keep the files it reached and report the depth limit exactly once", async () => {
+            await writeNested(0, "shallow");
+            await writeNested(DEFAULT_MAX_WALK_DEPTH + 1, "too-deep");
+
+            const { files, diagnostics } = await discover();
+
+            expect(files).toEqual([
+                join(instructionsPath, "shallow.instructions.md"),
+            ]);
+            expect(diagnostics).toEqual([
+                {
+                    ruleId: DiscoveryLimitRuleId,
+                    message: expect.stringContaining(
+                        `${DEFAULT_MAX_WALK_DEPTH} directories deep`,
+                    ),
+                },
+            ]);
+        });
+
+        it("should report nothing for a tree whose deepest directory is exactly at the limit", async () => {
+            await writeNested(DEFAULT_MAX_WALK_DEPTH, "edge");
+
+            const { files, diagnostics } = await discover();
+
+            expect(files).toHaveLength(1);
+            expect(diagnostics).toEqual([]);
+        });
+
+        it("should report the directory limit and the depth limit together in one diagnostic", async () => {
+            await writeNested(DEFAULT_MAX_WALK_DEPTH + 1, "chain");
+            for (const name of ["z1", "z2"]) {
+                const directory = join(testDir, instructionsPath, name);
+                await mkdir(directory, { recursive: true });
+                await writeFile(
+                    join(directory, "x.instructions.md"),
+                    chance.sentence(),
+                );
+            }
+            const capped = new FileSystemInstructionFileDiscoveryGateway({
+                maxDirectories: DEFAULT_MAX_WALK_DEPTH + 2,
+            });
+
+            const { diagnostics } = await discover(capped);
+
+            expect(diagnostics).toEqual([
+                {
+                    ruleId: DiscoveryLimitRuleId,
+                    message: `Instruction file discovery stopped after listing ${DEFAULT_MAX_WALK_DEPTH + 2} directories, so instruction files in the remaining directories were not analyzed. Instruction file discovery did not go more than ${DEFAULT_MAX_WALK_DEPTH} directories deep, so instruction files in deeper directories were not analyzed.`,
+                },
             ]);
         });
     });
