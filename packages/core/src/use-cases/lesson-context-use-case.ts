@@ -1,4 +1,5 @@
 import picomatch from "picomatch";
+import { compareCodeUnits } from "../entities/code-unit-order.js";
 import type { Lesson } from "../entities/lesson.js";
 import type {
     LessonFileGatewayPort,
@@ -182,11 +183,13 @@ export class LessonContextUseCase {
             seenSlugs.add(p.lesson.slug);
             return true;
         });
-        const sorted = [...deduped].sort((a, b) => {
-            const typeOrder = a.lesson.type.localeCompare(b.lesson.type);
-            if (typeOrder !== 0) return typeOrder;
-            return a.lesson.slug.localeCompare(b.lesson.slug);
-        });
+        // Code-unit order, not locale order, so the injected context is the
+        // same on every machine.
+        const sorted = [...deduped].sort(
+            (a, b) =>
+                compareCodeUnits(a.lesson.type, b.lesson.type) ||
+                compareCodeUnits(a.lesson.slug, b.lesson.slug),
+        );
 
         for (const parsed of sorted) {
             const rendered = renderLesson(parsed);

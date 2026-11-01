@@ -12,7 +12,7 @@
 
 import { realpath } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
-import { compareCodeUnits } from "../lib/code-unit-order.js";
+import { compareCodeUnits } from "../entities/code-unit-order.js";
 import { listDirectoryWithinRoot } from "./file-system-utils.js";
 import type { FileIdentity } from "./read-regular-file-no-follow.js";
 import { inspectPathWithinRoot } from "./real-path-within-root.js";
