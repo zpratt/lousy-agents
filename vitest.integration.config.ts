@@ -9,7 +9,10 @@ export default defineConfig({
         globals: true,
         environment: "node",
         setupFiles: ["./vitest.setup.ts"],
-        include: ["packages/**/*.integration.test.ts"],
+        include: [
+            "packages/**/*.integration.test.ts",
+            "scripts/**/*.integration.test.ts",
+        ],
         testTimeout: 120000,
         hookTimeout: 120000,
         pool: "forks",

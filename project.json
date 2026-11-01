@@ -23,23 +23,86 @@
             "prefixes": [
                 "packages/core/src/gateways",
                 "packages/core/src/lib",
-                "packages/core/src/formatters",
                 "packages/agent-shell/src/gateways",
                 "packages/agent-shell/src/lib",
                 "packages/doctor/src/gateways",
                 "packages/doctor/src/lib",
-                "packages/doctor/src/formatters",
-                "packages/doctor/src/cli",
                 "packages/cli/src/commands",
                 "packages/cli/src/lib",
                 "packages/mcp/src/tools",
-                "packages/mcp/src/lib"
+                "packages/mcp/src/lib",
+                "packages/action/src/run-lint.ts",
+                "packages/action/src/validate-inputs.ts"
             ]
+        },
+        {
+            "name": "formatters",
+            "prefixes": [
+                "packages/core/src/formatters",
+                "packages/doctor/src/formatters"
+            ]
+        },
+        {
+            "name": "composition_root",
+            "prefixes": [
+                "packages/action/src/index.ts",
+                "packages/agent-shell/src/index.ts",
+                "packages/cli/src/index.ts",
+                "packages/doctor/src/cli",
+                "packages/lint/src/lint.ts",
+                "packages/mcp/src/mcp-server.ts",
+                "packages/mcp/src/server.ts"
+            ]
+        },
+        {
+            "name": "package_api",
+            "prefixes": [
+                "packages/doctor/src/index.ts",
+                "packages/mcp/src/index.ts"
+            ]
+        },
+        {
+            "name": "core_barrel",
+            "prefixes": ["packages/core/src/index.ts"]
+        },
+        {
+            "name": "lint_api",
+            "prefixes": ["packages/lint/src/index.ts"]
+        },
+        {
+            "name": "lint_validate_directory",
+            "prefixes": ["packages/lint/src/validate-directory.ts"]
+        },
+        {
+            "name": "lint_errors",
+            "prefixes": ["packages/lint/src/lint-errors.ts"]
         }
     ],
     "forbidden_imports": [
         { "from": "entities", "to": "use_cases" },
         { "from": "entities", "to": "adapters" },
-        { "from": "use_cases", "to": "adapters" }
+        { "from": "entities", "to": "formatters" },
+        { "from": "entities", "to": "composition_root" },
+        { "from": "entities", "to": "package_api" },
+        { "from": "use_cases", "to": "adapters" },
+        { "from": "use_cases", "to": "formatters" },
+        { "from": "use_cases", "to": "composition_root" },
+        { "from": "use_cases", "to": "package_api" },
+        { "from": "adapters", "to": "composition_root" },
+        { "from": "formatters", "to": "composition_root" },
+        { "from": "lint_api", "to": "lint_validate_directory" },
+        { "from": "lint_api", "to": "adapters" },
+        { "from": "lint_api", "to": "use_cases" },
+        { "from": "lint_validate_directory", "to": "adapters" },
+        { "from": "lint_validate_directory", "to": "use_cases" },
+        { "from": "lint_errors", "to": "adapters" },
+        { "from": "lint_errors", "to": "use_cases" },
+        { "from": "lint_errors", "to": "composition_root" },
+        { "from": "lint_errors", "to": "lint_api" },
+        { "from": "lint_errors", "to": "lint_validate_directory" },
+        { "from": "entities", "to": "core_barrel" },
+        { "from": "use_cases", "to": "core_barrel" },
+        { "from": "adapters", "to": "core_barrel" },
+        { "from": "formatters", "to": "core_barrel" }
     ]
 }

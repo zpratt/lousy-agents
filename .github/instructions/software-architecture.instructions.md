@@ -32,13 +32,31 @@ packages/
 │   ├── tools/                 # Layer 3: MCP tool handlers
 │   ├── lib/                   # Layer 3: MCP-specific helpers
 │   ├── server.ts              # Layer 4: MCP server setup
-│   └── mcp-server.ts          # Layer 4: MCP process entry point
-└── agent-shell/src/
-    ├── entities/              # Layer 1: Domain schemas and types
-    ├── use-cases/             # Layer 2: Command handlers and orchestration
-    ├── gateways/              # Layer 3: External system adapters (telemetry, git, filesystem)
-    ├── lib/                   # Layer 3: Shared utilities (sanitization, path validation)
-    └── index.ts               # Layer 4: Composition root
+│   ├── mcp-server.ts          # Layer 4: MCP process entry point
+│   └── index.ts               # Package API: re-exports createMcpServer
+├── agent-shell/src/
+│   ├── entities/              # Layer 1: Domain schemas and types
+│   ├── use-cases/             # Layer 2: Command handlers and orchestration
+│   ├── gateways/              # Layer 3: External system adapters (telemetry, git, filesystem)
+│   ├── lib/                   # Layer 3: Shared utilities (sanitization, path validation)
+│   └── index.ts               # Layer 4: Composition root
+├── doctor/src/
+│   ├── entities/              # Layer 1: Findings, criteria and inventory types
+│   ├── use-cases/             # Layer 2: Classification and evaluation
+│   ├── gateways/              # Layer 3: Repository scanning and evidence readers
+│   ├── lib/                   # Layer 3: Parsing helpers
+│   ├── formatters/            # Layer 3: Output adapters
+│   ├── cli/                   # Layer 4: Standalone CLI composition root
+│   └── index.ts               # Package API: what other packages import
+├── lint/src/
+│   ├── lint.ts                # Layer 4: Wires core gateways and use cases (the only file that may)
+│   ├── index.ts               # Package API: re-exports, never imports core gateways, lib or use cases
+│   ├── validate-directory.ts  # Input validation, never imports core gateways, lib or use cases
+│   └── lint-errors.ts         # Error types, imports no other lint file
+└── action/src/
+    ├── index.ts               # Layer 4: GitHub Action entry and wiring
+    ├── run-lint.ts            # Layer 3: Runs lint for the Action
+    └── validate-inputs.ts     # Layer 3: Reads and validates Action inputs
 ```
 
 ## Layer 1: Entities
@@ -387,6 +405,27 @@ Both patterns achieve the same goal: explicit dependency injection and testabili
 | Use Cases | ✓ | ✓ | ✗ | ✗ |
 | Gateways/Commands/Lib | ✓ | ✓ | ✓ | ✗ |
 | Index (Root) | ✓ | ✓ | ✓ | ✓ |
+
+## Enforcement
+
+`project.json` at the repository root states these rules for coach: which directories and files belong to which layer, and which layers must not import which. `mise run architecture` (part of `mise run lint`) fails on any `architecture.layer_violation` coach reports in the committed code, whether new or already there, and on anything it cannot analyze. Of the findings coach reports, only the rule id `architecture.layer_violation`, matched exactly, fails the build. A rule coach adds later, including any other `architecture.*` rule, stays advisory until the gate names it. The file-local rules (cognitive complexity, nesting, branch density) stay advisory too.
+
+Coach reads committed Git objects, so commit before you run the gate. When there are uncommitted changes under `packages/`, the gate prints a notice on stderr that coach analyzed `HEAD` only and names the first few changed files. The notice is informational and never changes the exit code.
+
+The layers in `project.json` are:
+
+| Layer | What it holds | Must not import |
+| ----- | ------------- | --------------- |
+| `entities` | `entities/` in core, agent-shell and doctor | use cases, adapters, formatters, composition roots, package APIs, core's barrel |
+| `use_cases` | `use-cases/` in the same packages | adapters, formatters, composition roots, package APIs, core's barrel |
+| `adapters` | `gateways/`, `lib/`, CLI `commands/`, MCP `tools/`, the Action's `run-lint.ts` and `validate-inputs.ts` | composition roots, core's barrel |
+| `formatters` | `formatters/` in core and doctor | composition roots, core's barrel |
+| `composition_root` | Each package's wiring: `index.ts` in cli, agent-shell and the Action, MCP `server.ts` and `mcp-server.ts`, doctor `cli/`, lint's `lint.ts` | (may import anything) |
+| `package_api` | Barrels other packages import: doctor and MCP `index.ts` | (may import anything) |
+| `core_barrel` | Core's `index.ts`, an empty barrel: import core modules by subpath, never through it | (may import anything) |
+| `lint_api`, `lint_validate_directory`, `lint_errors` | Lint's `index.ts`, `validate-directory.ts` and `lint-errors.ts` | core gateways, lib or use cases; `lint_api` also not `validate-directory.ts`; `lint_errors` also not any other lint file |
+
+Add every new production file under `packages/*/src` to a layer. A test fails when a file belongs to none, to two, or when a prefix is nested inside another or matches nothing, because coach says nothing about a file that no layer claims.
 
 ## Anti-Patterns
 
