@@ -45,13 +45,25 @@ export const CRITERIA: readonly Criterion[] = [
         classification: "defect",
         category: "malformed-reference",
         description:
-            "A Claude @import reference points to a file that does not exist or escapes the repository root.",
+            "A Claude @import reference points to a file inside the repository that does not exist.",
         checkMethod: "inventory.edgePresent",
         checkArgs: {
             fromHarness: "claude",
             toHarness: "claude",
             edgeType: "hard-import",
+            malformedReasons: ["missing-target"],
         },
+    },
+    {
+        id: "external-claude-import",
+        appliesToHarness: "claude",
+        severity: "medium",
+        classification: "advisory",
+        category: "malformed-reference",
+        description:
+            "A Claude @import resolves outside the working directory (a ~/ path, an absolute path outside the repository, or a ../ path that leaves it). Claude Code loads it only after a one-time approval in an interactive session. Each such import is its own finding.",
+        checkMethod: "inventory.externalImport",
+        checkArgs: { fromHarness: "claude" },
     },
     {
         id: "cross-harness-drift",

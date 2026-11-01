@@ -10,6 +10,7 @@ import {
     DEFAULT_MAX_IMPORT_DEPTH,
     DEFAULT_MAX_UNIQUE_FILES,
     type ImportFileSystem,
+    normalizeRelativeWithinRoot,
 } from "./instruction-import-expand.js";
 
 const chance = new Chance();
@@ -612,6 +613,52 @@ describe("buildEffectiveDocument", () => {
         });
     });
 
+    describe("given an absolute import target inside the repository", () => {
+        it("should expand it, because Claude Code loads absolute paths inside the working directory", async () => {
+            await writeFile(join(repoRoot, "AGENTS.md"), "ABSOLUTE-INSIDE\n");
+            await writeFile(
+                join(repoRoot, "CLAUDE.md"),
+                `@${join(repoRoot, "AGENTS.md")}\n`,
+            );
+
+            const result = await buildEffectiveDocument({
+                repoRoot,
+                rootRelativePath: "CLAUDE.md",
+            });
+
+            expect(result.content).toContain("ABSOLUTE-INSIDE");
+            expect(result.edges).toEqual([
+                expect.objectContaining({
+                    status: "resolved",
+                    target: "AGENTS.md",
+                }),
+            ]);
+            expect(result.expansionDiagnostics).toEqual([]);
+        });
+
+        it("should still reject an absolute path that merely starts like the repository path", async () => {
+            const sibling = `${repoRoot}-sibling`;
+            await mkdir(sibling, { recursive: true });
+            try {
+                await writeFile(join(sibling, "x.md"), "SIBLING\n");
+                await writeFile(
+                    join(repoRoot, "CLAUDE.md"),
+                    `@${join(sibling, "x.md")}\n`,
+                );
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                });
+
+                expect(result.content).not.toContain("SIBLING");
+                expect(result.edges[0]?.status).toBe("absolute");
+            } finally {
+                await rm(sibling, { recursive: true, force: true });
+            }
+        });
+    });
+
     describe("given one bad import and one good import in the same file", () => {
         it("should expand the valid edge and leave the failed edge unexpanded", async () => {
             await writeFile(
@@ -779,5 +826,69 @@ describe("buildEffectiveDocument", () => {
             expect(exceeded?.target).toBe("body.md");
             expect(exceeded?.rawTarget).toBe("./body.md");
         });
+    });
+});
+
+describe("normalizeRelativeWithinRoot with absolute targets", () => {
+    const roots = ["/work/repo", "/private/work/repo"];
+
+    it("should return the repository-relative path of an absolute target inside a root", () => {
+        // Act
+        const result = normalizeRelativeWithinRoot(
+            "CLAUDE.md",
+            "/work/repo/docs/guide.md",
+            roots,
+        );
+
+        // Assert
+        expect(result).toEqual({ ok: true, relativePath: "docs/guide.md" });
+    });
+
+    it("should accept the target under any of the roots, such as a symlinked and a real spelling of one root", () => {
+        // Act
+        const result = normalizeRelativeWithinRoot(
+            "CLAUDE.md",
+            "/private/work/repo/docs/guide.md",
+            roots,
+        );
+
+        // Assert
+        expect(result).toEqual({ ok: true, relativePath: "docs/guide.md" });
+    });
+
+    it.each([
+        ["outside every root", "/etc/passwd"],
+        ["climbing out of a root", "/work/repo/../secrets.md"],
+        ["a sibling that shares the root's prefix", "/work/repo-sibling/x.md"],
+        ["the root itself", "/work/repo"],
+    ])("should report an absolute target %s as absolute", (_label, target) => {
+        // Act
+        const result = normalizeRelativeWithinRoot("CLAUDE.md", target, roots);
+
+        // Assert
+        expect(result).toEqual({ ok: false, status: "absolute" });
+    });
+
+    it("should report any absolute target as absolute when no root is given", () => {
+        // Act
+        const result = normalizeRelativeWithinRoot(
+            "CLAUDE.md",
+            "/work/repo/docs/guide.md",
+        );
+
+        // Assert
+        expect(result).toEqual({ ok: false, status: "absolute" });
+    });
+
+    it("should still report a home-directory target as home", () => {
+        // Act
+        const result = normalizeRelativeWithinRoot(
+            "CLAUDE.md",
+            "~/guide.md",
+            roots,
+        );
+
+        // Assert
+        expect(result).toEqual({ ok: false, status: "home" });
     });
 });

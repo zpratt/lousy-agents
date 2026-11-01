@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ArchetypeClassification } from "../entities/archetype.js";
-import type { InventoryRecord } from "../entities/edge-types.js";
+import type { Edge, InventoryRecord } from "../entities/edge-types.js";
+import { hasBlockingFindings } from "../formatters/human-renderer.js";
 import { CRITERIA } from "./criteria.js";
 import { evaluate } from "./evaluate-engine.js";
 
@@ -250,7 +251,7 @@ describe("evaluate", () => {
                             },
                             target: "../outside.md",
                             malformed: true,
-                            reason: "path-traversal",
+                            reason: "missing-target",
                         },
                     ],
                 }),
@@ -268,6 +269,43 @@ describe("evaluate", () => {
             expect(finding?.severity).toBe("high");
             expect(finding?.targetId).toBe("claude:malformed");
         });
+
+        it.each(["home", "absolute", "path-traversal"] as const)(
+            "should not produce a blocking finding for an import that is outside the repository (%s)",
+            (reason) => {
+                const records: InventoryRecord[] = [
+                    makeRecord({
+                        harness: "claude",
+                        path: "CLAUDE.md",
+                        id: "claude:CLAUDE.md",
+                        edges: [
+                            {
+                                type: "hard-import",
+                                direction: {
+                                    from: "CLAUDE.md",
+                                    to: "../outside.md",
+                                },
+                                target: "../outside.md",
+                                malformed: true,
+                                reason,
+                            },
+                        ],
+                    }),
+                ];
+
+                const findings = evaluate(CRITERIA, {
+                    records,
+                    classification: makeClassification("pure"),
+                    intent: null,
+                });
+
+                expect(
+                    findings.find(
+                        (f) => f.criterionId === "malformed-claude-import",
+                    ),
+                ).toBeUndefined();
+            },
+        );
 
         it("should not produce a finding when copilot (not claude) records have malformed edges", () => {
             const records: InventoryRecord[] = [
@@ -583,5 +621,122 @@ describe("evaluate", () => {
                 expect(finding.id.startsWith(finding.criterionId)).toBe(true);
             }
         });
+    });
+});
+
+describe("external-claude-import criterion (inventory.externalImport)", () => {
+    function claudeRecordWith(...edges: Edge[]): InventoryRecord {
+        return makeRecord({
+            harness: "claude",
+            path: "CLAUDE.md",
+            id: "claude:CLAUDE.md",
+            edges,
+        });
+    }
+
+    function importEdge(
+        target: string,
+        reason: Edge["reason"],
+        type: Edge["type"] = "hard-import",
+    ): Edge {
+        return {
+            type,
+            direction: { from: "CLAUDE.md", to: target },
+            target,
+            malformed: true,
+            reason,
+        };
+    }
+
+    function externalFindings(records: InventoryRecord[]) {
+        return evaluate(CRITERIA, {
+            records,
+            classification: makeClassification("pure"),
+            intent: null,
+        }).filter((f) => f.criterionId === "external-claude-import");
+    }
+
+    it.each([
+        ["~/shared.md", "home", "docs-based and was not observed"],
+        [
+            "/opt/shared.md",
+            "absolute",
+            "not loaded in testing (Claude Code 2.1.316)",
+        ],
+        [
+            "../shared.md",
+            "path-traversal",
+            "not loaded in testing (Claude Code 2.1.316)",
+        ],
+    ] as const)(
+        "should produce one medium advisory finding that names %s and says only what was observed",
+        (target, reason, observation) => {
+            // Act
+            const findings = externalFindings([
+                claudeRecordWith(importEdge(target, reason)),
+            ]);
+
+            // Assert
+            expect(findings).toHaveLength(1);
+            expect(findings[0]).toMatchObject({
+                severity: "medium",
+                classification: "advisory",
+                category: "malformed-reference",
+                intentGated: false,
+                assumedIntent: false,
+            });
+            expect(findings[0].description).toContain(
+                `External import: \`${target}\``,
+            );
+            expect(findings[0].description).toContain(observation);
+        },
+    );
+
+    it("should produce a separate finding for each external import", () => {
+        // Act
+        const findings = externalFindings([
+            claudeRecordWith(
+                importEdge("~/a.md", "home"),
+                importEdge("/opt/b.md", "absolute"),
+            ),
+        ]);
+
+        // Assert
+        expect(findings.map((f) => f.id)).toEqual([
+            "external-claude-import:claude:CLAUDE.md:~/a.md",
+            "external-claude-import:claude:CLAUDE.md:/opt/b.md",
+        ]);
+    });
+
+    it("should not report a missing in-repository target as external", () => {
+        // Act
+        const findings = externalFindings([
+            claudeRecordWith(importEdge("docs/missing.md", "missing-target")),
+        ]);
+
+        // Assert
+        expect(findings).toEqual([]);
+    });
+
+    it("should only consider hard-imports, not soft references", () => {
+        // Act
+        const findings = externalFindings([
+            claudeRecordWith(
+                importEdge("../shared.md", "path-traversal", "soft-reference"),
+            ),
+        ]);
+
+        // Assert
+        expect(findings).toEqual([]);
+    });
+
+    it("should never block CI", () => {
+        // Act
+        const findings = externalFindings([
+            claudeRecordWith(importEdge("~/a.md", "home")),
+        ]);
+
+        // Assert
+        expect(hasBlockingFindings(findings)).toBe(false);
     });
 });

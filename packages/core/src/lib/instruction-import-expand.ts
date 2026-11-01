@@ -4,6 +4,7 @@
 
 import { realpath } from "node:fs/promises";
 import { dirname, isAbsolute, join, normalize, sep } from "node:path";
+import { externalImportMessage } from "../entities/external-import-message.js";
 import { resolvePathWithinRoot } from "../gateways/file-system-utils.js";
 import {
     type BoundedReadOutcome,
@@ -16,6 +17,7 @@ import {
 } from "../gateways/real-path-within-root.js";
 import {
     type LocatedFile,
+    relativeToAnyRoot,
     statusForReadFailure,
     toLocatedFile,
 } from "./import-file-location.js";
@@ -275,11 +277,10 @@ const FAILURE_MESSAGE_BY_STATUS = {
     unresolved: (rawTarget: string) =>
         `Import target could not be resolved: ${rawTarget}`,
     escape: (rawTarget: string) =>
-        `Import target escapes the repository root: ${rawTarget}`,
+        externalImportMessage(rawTarget, "outside-working-directory"),
     absolute: (rawTarget: string) =>
-        `Absolute import paths are not allowed: ${rawTarget}`,
-    home: (rawTarget: string) =>
-        `Home-directory import paths are not allowed: ${rawTarget}`,
+        externalImportMessage(rawTarget, "outside-working-directory"),
+    home: (rawTarget: string) => externalImportMessage(rawTarget, "home"),
     symlink: (rawTarget: string) =>
         `Import target path contains a symbolic link: ${rawTarget}`,
     cycle: (rawTarget: string) =>
@@ -336,12 +337,19 @@ function classifyPathError(error: unknown): ImportEdgeStatus {
 
 /**
  * Classifies an import target relative to its importer without touching the
- * file system: home-directory, absolute, and repository-escaping targets are
- * rejected; anything else yields a repository-relative POSIX path.
+ * file system: home-directory targets, absolute targets outside every given
+ * root, and repository-escaping targets are rejected as external; anything
+ * else yields a repository-relative POSIX path.
+ *
+ * An absolute target inside one of `repoRoots` is valid, because Claude Code
+ * loads absolute paths inside the working directory (observed on Claude Code
+ * 2.1.316). Pass every spelling of the root (its path and its real path). With
+ * no roots, every absolute target is rejected.
  */
 export function normalizeRelativeWithinRoot(
     importerRelativePath: string,
     rawTarget: string,
+    repoRoots: readonly string[] = [],
 ):
     | { ok: true; relativePath: string }
     | { ok: false; status: ImportEdgeStatus } {
@@ -353,7 +361,7 @@ export function normalizeRelativeWithinRoot(
         return { ok: false, status: "home" };
     }
     if (isAbsolute(rawTarget)) {
-        return { ok: false, status: "absolute" };
+        return relativeToAnyRoot(rawTarget, repoRoots);
     }
 
     const importerDir = dirname(importerRelativePath);
@@ -415,6 +423,11 @@ class ExpansionSession {
         this.limits = limits;
         this.rootReal = rootReal;
         this.fileSystem = fileSystem;
+    }
+
+    /** Every spelling of the repository root an absolute import may use. */
+    rootSpellings(repoRoot: string): readonly string[] {
+        return [repoRoot, this.rootReal];
     }
 
     get edgeCount(): number {
@@ -668,6 +681,7 @@ async function expandToken(
     const normalized = normalizeRelativeWithinRoot(
         importerPath,
         token.rawTarget,
+        session.rootSpellings(repoRoot),
     );
     if (!normalized.ok) {
         session.recordFailure(importerPath, token, normalized.status);
