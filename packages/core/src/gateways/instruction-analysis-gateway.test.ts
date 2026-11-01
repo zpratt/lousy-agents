@@ -486,4 +486,129 @@ npm test
             expect(result.references.length).toBeGreaterThan(0);
         });
     });
+
+    describe("when ordering references", () => {
+        it("should list each script's references before the tool references, each in line order", async () => {
+            const instructionContent = [
+                "mise run lint before commit",
+                "build the package",
+                "mise run lint again",
+            ].join("\n");
+            await writeFile(
+                join(instructionsDir, "order.instructions.md"),
+                instructionContent,
+            );
+            const scripts: DiscoveredScript[] = [
+                {
+                    name: "build",
+                    command: "rspack build",
+                    phase: "build",
+                    isMandatory: true,
+                },
+            ];
+            const tools: DiscoveredTool[] = [
+                {
+                    name: "mise run lint",
+                    fullCommand: "mise run lint",
+                    phase: "lint",
+                    isMandatory: true,
+                },
+            ];
+
+            const result = await gateway.analyzeCoverage(
+                testDir,
+                scripts,
+                tools,
+            );
+
+            expect(
+                result.references.map((r) => ({
+                    target: r.target,
+                    line: r.line,
+                })),
+            ).toEqual([
+                { target: "build", line: 2 },
+                { target: "mise run lint", line: 1 },
+                { target: "mise run lint", line: 3 },
+            ]);
+        });
+
+        it("should follow the order the scripts are given rather than the line order", async () => {
+            const instructionContent = ["build first", "test second"].join(
+                "\n",
+            );
+            await writeFile(
+                join(instructionsDir, "order.instructions.md"),
+                instructionContent,
+            );
+            const scripts: DiscoveredScript[] = [
+                {
+                    name: "test",
+                    command: "vitest run",
+                    phase: "test",
+                    isMandatory: true,
+                },
+                {
+                    name: "build",
+                    command: "rspack build",
+                    phase: "build",
+                    isMandatory: true,
+                },
+            ];
+
+            const result = await gateway.analyzeCoverage(testDir, scripts, []);
+
+            expect(result.references.map((r) => r.target)).toEqual([
+                "test",
+                "build",
+            ]);
+        });
+    });
+
+    describe("when mandatory items are documented in different instruction files", () => {
+        it("should aggregate references and documented items across all files", async () => {
+            await writeFile(
+                join(instructionsDir, "first.instructions.md"),
+                "build the package",
+            );
+            await writeFile(
+                join(instructionsDir, "second.instructions.md"),
+                "lint the package",
+            );
+            const scripts: DiscoveredScript[] = [
+                {
+                    name: "build",
+                    command: "rspack build",
+                    phase: "build",
+                    isMandatory: true,
+                },
+                {
+                    name: "lint",
+                    command: "biome check",
+                    phase: "lint",
+                    isMandatory: true,
+                },
+                {
+                    name: "deploy",
+                    command: "npm publish",
+                    phase: "build",
+                    isMandatory: true,
+                },
+            ];
+
+            const result = await gateway.analyzeCoverage(testDir, scripts, []);
+
+            expect(result.references.map((r) => r.target).sort()).toEqual([
+                "build",
+                "lint",
+            ]);
+            expect(result.documentedInInstructions.map((i) => i.name)).toEqual([
+                "build",
+                "lint",
+            ]);
+            expect(result.missingInInstructions.map((i) => i.name)).toEqual([
+                "deploy",
+            ]);
+        });
+    });
 });
