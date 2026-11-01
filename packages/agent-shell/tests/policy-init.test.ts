@@ -4,8 +4,8 @@ import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ProjectScanResult } from "../src/entities/project-scan.js";
+import { createCopilotSdkLoader } from "../src/gateways/copilot-sdk-loader.js";
 import { scanProject } from "../src/gateways/project-scanner.js";
-import { resolveSdkPath } from "../src/gateways/resolve-sdk.js";
 import { readBytesWithinRoot, statWithinRoot } from "../src/lib/safe-fs.js";
 import {
     generateHooksConfig,
@@ -513,7 +513,7 @@ describe("handlePolicyInit", () => {
                 },
                 scanProject,
                 copilotIo: {
-                    resolveSdkPath,
+                    loadSdk: createCopilotSdkLoader(),
                     statWithinRoot,
                     readBytesWithinRoot,
                 },
@@ -555,7 +555,7 @@ describe("handlePolicyInit", () => {
                 },
                 scanProject,
                 copilotIo: {
-                    resolveSdkPath,
+                    loadSdk: createCopilotSdkLoader(),
                     statWithinRoot,
                     readBytesWithinRoot,
                 },
@@ -592,7 +592,7 @@ describe("handlePolicyInit", () => {
                 writeStderr: () => {},
                 scanProject,
                 copilotIo: {
-                    resolveSdkPath,
+                    loadSdk: createCopilotSdkLoader(),
                     statWithinRoot,
                     readBytesWithinRoot,
                 },
@@ -644,7 +644,7 @@ describe("handlePolicyInit", () => {
                 },
                 scanProject,
                 copilotIo: {
-                    resolveSdkPath,
+                    loadSdk: createCopilotSdkLoader(),
                     statWithinRoot,
                     readBytesWithinRoot,
                 },
@@ -690,7 +690,7 @@ describe("handlePolicyInit", () => {
                 },
                 scanProject,
                 copilotIo: {
-                    resolveSdkPath,
+                    loadSdk: createCopilotSdkLoader(),
                     statWithinRoot,
                     readBytesWithinRoot,
                 },
