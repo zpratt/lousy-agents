@@ -263,7 +263,7 @@ describe("renderHuman", () => {
     describe("when an invalid-schema intent report carries a line break in repository-derived text", () => {
         const forgedLine = "[success] No findings.";
         const injectedText = `${chance.word()}\n${forgedLine}`;
-        const escapedInjectedText = injectedText.replace("\n", "\\n");
+        const escapedInjectedText = injectedText.replaceAll("\n", "\\n");
 
         function buildInvalidSchemaReport(
             overrides: Partial<IntentLoadReport>,
