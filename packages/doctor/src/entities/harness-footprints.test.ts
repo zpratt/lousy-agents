@@ -1,10 +1,14 @@
+import Chance from "chance";
 import { describe, expect, it } from "vitest";
 import type { HarnessName } from "./edge-types.js";
 import {
+    determineHarness,
     getFootprint,
     HARNESS_FOOTPRINTS,
     HARNESS_NAMES,
 } from "./harness-footprints.js";
+
+const chance = new Chance();
 
 describe("HARNESS_NAMES", () => {
     it("should export exactly seven active harness names", () => {
@@ -139,5 +143,91 @@ describe("getFootprint", () => {
     it("should return footprints with non-empty conventionFiles lists for harnesses that have them", () => {
         const claude = getFootprint("claude");
         expect(claude.conventionFiles.length).toBeGreaterThan(0);
+    });
+});
+
+describe("determineHarness", () => {
+    it.each([
+        ["CLAUDE.md", "claude"],
+        [".github/copilot-instructions.md", "copilot"],
+        ["GEMINI.md", "antigravity"],
+        ["AGENTS.override.md", "codex"],
+        ["AGENTS.md", "shared"],
+    ] as const)(
+        "should resolve the convention file %s to the %s harness",
+        (path, expected) => {
+            // Act
+            const harness = determineHarness(path);
+
+            // Assert
+            expect(harness).toBe(expected);
+        },
+    );
+
+    it.each([
+        [".claude/", "claude"],
+        [".github/instructions/", "copilot"],
+        [".codex/", "codex"],
+    ] as const)(
+        "should resolve any file under %s to the %s harness",
+        (directory, expected) => {
+            // Arrange
+            const path = `${directory}${chance.word()}/${chance.word()}.md`;
+
+            // Act
+            const harness = determineHarness(path);
+
+            // Assert
+            expect(harness).toBe(expected);
+        },
+    );
+
+    it("should normalize backslash separators before matching", () => {
+        // Arrange
+        const path = `.claude\\${chance.word()}.json`;
+
+        // Act
+        const harness = determineHarness(path);
+
+        // Assert
+        expect(harness).toBe("claude");
+    });
+
+    it("should return null for a path no harness claims", () => {
+        // Arrange
+        const path = `src/${chance.word()}.ts`;
+
+        // Act
+        const harness = determineHarness(path);
+
+        // Assert
+        expect(harness).toBeNull();
+    });
+
+    describe("when more than one harness claims the path", () => {
+        it("should resolve the path to the shared harness", () => {
+            // Arrange
+            const contestedPath = `${chance.word()}.md`;
+            const overlappingFootprints = {
+                ...HARNESS_FOOTPRINTS,
+                claude: {
+                    ...HARNESS_FOOTPRINTS.claude,
+                    primaryIndicators: [contestedPath],
+                },
+                copilot: {
+                    ...HARNESS_FOOTPRINTS.copilot,
+                    primaryIndicators: [contestedPath],
+                },
+            };
+
+            // Act
+            const harness = determineHarness(
+                contestedPath,
+                overlappingFootprints,
+            );
+
+            // Assert
+            expect(harness).toBe("shared");
+        });
     });
 });
