@@ -399,6 +399,8 @@ Limits are fixed internal defaults today (not configurable via CLI flags). They 
 
 Exceeding a size/graph limit emits `instruction/import-size-exceeded`. Exceeding hop depth emits `instruction/import-depth-exceeded`.
 
+Every file read during expansion is bounded and verified, not just size-checked up front. The file is opened without following a symbolic link at the final path component, the open file descriptor must be a regular file with a single hard link and no more than the per-file byte limit, and at most that limit plus one byte is read, so a file that grows after it was measured cannot make a read unbounded. A file that fails these checks is reported as an unresolved import (or `instruction/import-size-exceeded` when too large) and never aborts the analysis. Line and column positions for import diagnostics come from the same bounded read; when an importer can no longer be read safely, its diagnostics fall back to line 1, column 1.
+
 #### Branch-local failures
 
 Import failures are **branch-local**: a failed edge stays unexpanded (the original `@path` token remains in the effective text for that edge), and independent valid edges on the same file or elsewhere in the graph continue to expand. Cycles, missing targets, escapes, symlinks, and limit hits do not abort the whole analysis.
