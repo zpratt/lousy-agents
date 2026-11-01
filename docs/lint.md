@@ -378,9 +378,12 @@ When `lint --instructions` analyzes a Claude entrypoint (`CLAUDE.md` format), it
 
 Only **verified native `@path` tokens** are imports:
 
-- Match is line-start `@path` (same shape as doctor `HARD_IMPORT`)
-- The path must include `/` (for example `@./AGENTS.md` or `@../shared/rules.md`)
-- Tokens inside inline code or fenced code blocks are ignored
+- Match is a line-start `@` followed by a path. One tokenizer (`findImportTokens` in `@lousy-agents/core`) is shared by lint and doctor, so they agree on what an import is. A mention in the middle of a line (`see @AGENTS.md`, an email address) is not a token
+- The path may be relative (`@./AGENTS.md`, `@../shared/rules.md`), a bare name (`@AGENTS.md`, which needs no `/`), absolute, or `~/`
+- A backslash-escaped space stays in the path (`@./has\ space.md`); the path ends at the first unescaped space
+- Quoted paths (`@"./a.md"`, `@'./a.md'`) are not imports, and neither is anything inside inline code or fenced code blocks
+- A token that resolves to a file is an import. One that does not resolve is reported (`instruction/import-unresolved`) only if it **looks like a path**: it starts with `./`, `../`, `/` or `~/`, or its last path segment has a file extension. A line-start `@types/node` or `@no-such-thing` that resolves to nothing is left alone and produces no diagnostic
+- Limits of these rules: they were observed on Claude Code 2.1.316 in headless runs only (a bare `@AGENTS.md` and an escaped space load; an unescaped space, quoted, code-span and fenced forms do not; missing mentions are ignored silently), and subdirectories reached with `--directory` were not tested. Mid-line `@` tokens are documented by Claude Code but are not yet treated as imports here
 - Markdown links (`[text](./file.md)`) are **not** imports
 
 #### Ordered splice

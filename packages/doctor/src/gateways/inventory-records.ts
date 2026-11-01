@@ -3,6 +3,7 @@ import type { FileIdentity } from "@lousy-agents/core/gateways/read-regular-file
 import { primaryConstructTypeForPath } from "@lousy-agents/core/lib/agentic-location-matchers.js";
 import type {
     ConstructType,
+    Edge,
     HarnessName,
     InventoryRecord,
 } from "../entities/edge-types.js";
@@ -108,17 +109,12 @@ async function toInventoryRecord(
     ctx: EdgeResolutionContext,
 ): Promise<InventoryRecord> {
     const rawEdges = content === null ? [] : parseRawEdges(content);
-    const edges = await Promise.all(
+    const resolved = await Promise.all(
         rawEdges.map((raw) =>
-            resolveEdge(
-                raw.rawTarget,
-                raw.type,
-                file.absPath,
-                file.readRelPath,
-                ctx,
-            ),
+            resolveEdge(raw, file.absPath, file.readRelPath, ctx),
         ),
     );
+    const edges = resolved.filter((edge): edge is Edge => edge !== null);
 
     return {
         id: `${harness}:${file.relPath}`,

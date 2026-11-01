@@ -2,6 +2,7 @@ import { dirname, relative, resolve, sep } from "node:path";
 import { resolveRealPathWithinRoot } from "@lousy-agents/core/gateways/real-path-within-root.js";
 import { normalizeRelativeWithinRoot } from "@lousy-agents/core/lib/instruction-import-expand.js";
 import type { Edge, EdgeMalformedReason } from "../entities/edge-types.js";
+import type { RawEdge } from "../lib/edge-parser.js";
 
 export interface EdgeResolutionContext {
     readonly repoRoot: string;
@@ -51,11 +52,12 @@ const HARD_IMPORT_REASON_BY_STATUS: Partial<
  * any regular file inside the repository (not only scannable files) resolves.
  */
 async function resolveHardImportEdge(
-    rawTarget: string,
+    raw: RawEdge,
     from: string,
     importerRealPath: string,
     ctx: EdgeResolutionContext,
-): Promise<Edge> {
+): Promise<Edge | null> {
+    const rawTarget = raw.rawTarget;
     // Claude Code resolves a relative import from the importing file's real
     // directory, so the base is the real path, not the symlink's location.
     const normalized = normalizeRelativeWithinRoot(
@@ -78,8 +80,13 @@ async function resolveHardImportEdge(
         (await resolveRealPathWithinRoot(ctx.rootReal, targetAbs))?.kind ===
             "file";
 
-    return exists
-        ? wellFormedEdge("hard-import", from, normalized.relativePath)
+    if (exists) {
+        return wellFormedEdge("hard-import", from, normalized.relativePath);
+    }
+    // A token such as `@types/node` that is not clearly a path and does not
+    // resolve is not an import at all, so it is not a broken one either.
+    return raw.speculative === true
+        ? null
         : malformedEdge(
               "hard-import",
               from,
@@ -126,28 +133,26 @@ function resolveSoftReferenceEdge(
 }
 
 /**
+ * Resolves a parsed edge to an inventory edge, or to null when it is an `@`
+ * token that is not clearly a path and does not resolve to a file.
+ *
  * @param sourceRealRelPath Repository-relative path of the source file's real
  * (symlink-free) location, the base for its `@` imports
  */
 export async function resolveEdge(
-    rawTarget: string,
-    type: Edge["type"],
+    raw: RawEdge,
     sourceAbsPath: string,
     sourceRealRelPath: string,
     ctx: EdgeResolutionContext,
-): Promise<Edge> {
+): Promise<Edge | null> {
+    const { rawTarget, type } = raw;
     const from = relative(ctx.repoRoot, sourceAbsPath).replace(/\\/g, "/");
 
     switch (type) {
         case "glob-binding":
             return wellFormedEdge(type, from, rawTarget);
         case "hard-import":
-            return resolveHardImportEdge(
-                rawTarget,
-                from,
-                sourceRealRelPath,
-                ctx,
-            );
+            return resolveHardImportEdge(raw, from, sourceRealRelPath, ctx);
         case "soft-reference":
             return resolveSoftReferenceEdge(
                 rawTarget,
