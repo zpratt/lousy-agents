@@ -3,15 +3,36 @@ import { describe, expect, it } from "vitest";
 import type { SetupStepCandidate } from "../entities/copilot-setup.js";
 import {
     deduplicateCandidates,
+    extractActionsFromWorkflow,
+    extractAllWorkflowSteps,
     extractSetupStepsFromWorkflow,
     findMissingCandidates,
     getExistingActionsFromWorkflow,
     isSetupAction,
     mergeCandidates,
     parseActionName,
+    parseActionVersion,
+    runCommandKey,
 } from "./setup-step-discovery.js";
 
 const chance = new Chance();
+
+const MALFORMED_WORKFLOWS: ReadonlyArray<readonly [string, unknown]> = [
+    ["null", null],
+    ["undefined", undefined],
+    ["a string", "workflow"],
+    ["a number", 42],
+    ["an object without jobs", {}],
+    ["null jobs", { jobs: null }],
+    ["string jobs", { jobs: "build" }],
+    ["a null job", { jobs: { build: null } }],
+    ["a primitive job", { jobs: { build: 42 } }],
+    ["a job without steps", { jobs: { build: {} } }],
+    [
+        "a job whose steps is not an array",
+        { jobs: { build: { steps: "run" } } },
+    ],
+];
 
 describe("Setup Step Discovery", () => {
     describe("parseActionName", () => {
@@ -128,36 +149,30 @@ describe("Setup Step Discovery", () => {
         };
 
         it("should not report the run step as missing when the workflow already runs the command", () => {
-            // Arrange
             const workflow = {
                 jobs: { setup: { steps: [{ run: installCommand }] } },
             };
 
-            // Act
             const result = findMissingCandidates(
                 [runCandidate],
                 getExistingActionsFromWorkflow(workflow),
             );
 
-            // Assert
             expect(result).toEqual([]);
         });
 
         it("should report the run step as missing when the workflow does not run the command", () => {
-            // Arrange
             const workflow = {
                 jobs: {
                     setup: { steps: [{ run: `${installCommand} --other` }] },
                 },
             };
 
-            // Act
             const result = findMissingCandidates(
                 [runCandidate],
                 getExistingActionsFromWorkflow(workflow),
             );
 
-            // Assert
             expect(result).toEqual([runCandidate]);
         });
     });
@@ -270,6 +285,271 @@ describe("Setup Step Discovery", () => {
             expect(result[0].action).toBe("actions/setup-node");
             expect(result[0].version).toBe("v4");
             expect(result[1].action).toBe("actions/setup-python");
+        });
+    });
+
+    describe("parseActionVersion", () => {
+        it("should extract the version after the @ separator", () => {
+            const version = `v${chance.natural({ min: 1, max: 9 })}`;
+
+            const result = parseActionVersion(`actions/setup-node@${version}`);
+
+            expect(result).toBe(version);
+        });
+
+        it("should return undefined when the reference has no version", () => {
+            const result = parseActionVersion("actions/setup-node");
+
+            expect(result).toBeUndefined();
+        });
+    });
+
+    describe("runCommandKey", () => {
+        it("should prefix the trimmed command", () => {
+            const command = `npm ${chance.word()}`;
+
+            const result = runCommandKey(`  ${command}  `);
+
+            expect(result).toBe(`run-command:${command}`);
+        });
+    });
+
+    describe("when the workflow structure is malformed", () => {
+        it.each(MALFORMED_WORKFLOWS)(
+            "should find no steps in %s",
+            (_label, workflow) => {
+                expect(extractAllWorkflowSteps(workflow)).toEqual([]);
+                expect(getExistingActionsFromWorkflow(workflow)).toEqual(
+                    new Set(),
+                );
+                expect(extractActionsFromWorkflow(workflow)).toEqual([]);
+                expect(
+                    extractSetupStepsFromWorkflow(workflow, [
+                        "actions/checkout",
+                    ]),
+                ).toEqual([]);
+            },
+        );
+
+        it("should skip steps that are not objects and keep the usable ones", () => {
+            const workflow = {
+                jobs: {
+                    build: {
+                        steps: [
+                            null,
+                            "run",
+                            7,
+                            { uses: "actions/checkout@v4" },
+                        ],
+                    },
+                },
+            };
+
+            const allSteps = extractAllWorkflowSteps(workflow);
+            const actions = extractActionsFromWorkflow(workflow);
+
+            expect(allSteps).toHaveLength(1);
+            expect(actions).toEqual([
+                { name: "actions/checkout", version: "v4" },
+            ]);
+        });
+    });
+
+    describe("extractAllWorkflowSteps", () => {
+        it("should return name, uses and with for every step across all jobs in order", () => {
+            const stepName = chance.word();
+            const nodeVersion = String(chance.natural({ min: 20, max: 30 }));
+            const workflow = {
+                jobs: {
+                    build: {
+                        steps: [
+                            { name: stepName, uses: "actions/checkout@v4" },
+                            { name: "Install", run: "npm ci" },
+                        ],
+                    },
+                    test: {
+                        steps: [
+                            {
+                                uses: "actions/setup-node@v4",
+                                with: { "node-version": nodeVersion },
+                            },
+                        ],
+                    },
+                },
+            };
+
+            const result = extractAllWorkflowSteps(workflow);
+
+            expect(result).toStrictEqual([
+                {
+                    name: stepName,
+                    uses: "actions/checkout@v4",
+                    with: undefined,
+                },
+                { name: "Install", uses: undefined, with: undefined },
+                {
+                    name: undefined,
+                    uses: "actions/setup-node@v4",
+                    with: { "node-version": nodeVersion },
+                },
+            ]);
+        });
+
+        it("should treat non-string name or uses and non-object with as absent", () => {
+            const workflow = {
+                jobs: {
+                    build: {
+                        steps: [
+                            { name: 5, uses: false, with: "text" },
+                            { with: null },
+                        ],
+                    },
+                },
+            };
+
+            const result = extractAllWorkflowSteps(workflow);
+
+            expect(result).toStrictEqual([
+                { name: undefined, uses: undefined, with: undefined },
+                { name: undefined, uses: undefined, with: undefined },
+            ]);
+        });
+
+        it("should iterate jobs given as an array", () => {
+            const workflow = {
+                jobs: [{ steps: [{ uses: "actions/checkout@v4" }] }],
+            };
+
+            const result = extractAllWorkflowSteps(workflow);
+
+            expect(result).toHaveLength(1);
+        });
+    });
+
+    describe("getExistingActionsFromWorkflow run steps", () => {
+        it("should record a trimmed run command key for a run step", () => {
+            const command = `npm ${chance.word()}`;
+            const workflow = {
+                jobs: { build: { steps: [{ run: `  ${command}  ` }] } },
+            };
+
+            const result = getExistingActionsFromWorkflow(workflow);
+
+            expect(result).toEqual(new Set([`run-command:${command}`]));
+        });
+
+        it("should record only the action when a step has both uses and run", () => {
+            const workflow = {
+                jobs: {
+                    build: {
+                        steps: [{ uses: "actions/checkout@v4", run: "echo" }],
+                    },
+                },
+            };
+
+            const result = getExistingActionsFromWorkflow(workflow);
+
+            expect(result).toEqual(new Set(["actions/checkout"]));
+        });
+
+        it("should ignore steps with neither uses nor run", () => {
+            const workflow = {
+                jobs: { build: { steps: [{ name: chance.word() }] } },
+            };
+
+            const result = getExistingActionsFromWorkflow(workflow);
+
+            expect(result).toEqual(new Set());
+        });
+    });
+
+    describe("extractActionsFromWorkflow", () => {
+        it("should return only references that name a version", () => {
+            const workflow = {
+                jobs: {
+                    build: {
+                        steps: [
+                            { uses: "actions/checkout@v4" },
+                            { uses: "actions/setup-node" },
+                            { uses: "actions/cache@" },
+                            { run: "npm ci" },
+                            { uses: 42 },
+                        ],
+                    },
+                },
+            };
+
+            const result = extractActionsFromWorkflow(workflow);
+
+            expect(result).toEqual([
+                { name: "actions/checkout", version: "v4" },
+            ]);
+        });
+    });
+
+    describe("extractSetupStepsFromWorkflow details", () => {
+        it("should carry version and with configuration, treating a non-object with as absent", () => {
+            const nodeVersion = String(chance.natural({ min: 20, max: 30 }));
+            const workflow = {
+                jobs: {
+                    build: {
+                        steps: [
+                            {
+                                uses: "actions/setup-node@v4",
+                                with: { "node-version": nodeVersion },
+                            },
+                            { uses: "actions/setup-node", with: "invalid" },
+                            { uses: "actions/checkout@v4" },
+                        ],
+                    },
+                },
+            };
+
+            const result = extractSetupStepsFromWorkflow(workflow, [
+                "actions/setup-node",
+            ]);
+
+            expect(result).toStrictEqual([
+                {
+                    action: "actions/setup-node",
+                    version: "v4",
+                    config: { "node-version": nodeVersion },
+                    source: "workflow",
+                },
+                {
+                    action: "actions/setup-node",
+                    version: undefined,
+                    config: undefined,
+                    source: "workflow",
+                },
+            ]);
+        });
+    });
+
+    describe("mergeCandidates edge cases", () => {
+        it("should return an empty array when given no sources", () => {
+            const result = mergeCandidates();
+
+            expect(result).toEqual([]);
+        });
+
+        it("should drop duplicates that occur within a single source", () => {
+            const source: SetupStepCandidate[] = [
+                {
+                    action: "actions/setup-node",
+                    version: "v4",
+                    source: "workflow",
+                },
+                {
+                    action: "actions/setup-node",
+                    version: "v3",
+                    source: "workflow",
+                },
+            ];
+
+            const result = mergeCandidates(source);
+
+            expect(result).toEqual([source[0]]);
         });
     });
 });
