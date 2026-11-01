@@ -18,13 +18,10 @@ import { describe, it, expect } from 'vitest';
 describe('ComponentName', () => {
   describe('when [condition]', () => {
     it('should [expected behavior]', () => {
-      // Arrange
       const input = 'test-value';
 
-      // Act
       const result = functionUnderTest(input);
 
-      // Assert
       expect(result).toBe('expected-value');
     });
   });
@@ -39,23 +36,24 @@ describe('ComponentName', () => {
 
 ## Test Design Rules
 
-1. Follow the Arrange-Act-Assert (AAA) pattern for ALL tests.
-2. Use spec-style tests with `describe` and `it` blocks.
-3. Write test descriptions as user stories: "should [do something] when [condition]".
-4. Focus on behavior, NOT implementation details.
-5. Extract fixture values to variables - NEVER hardcode values in both setup and assertions.
-6. Use `msw` to mock HTTP APIs - do NOT mock fetch or axios directly.
-7. Avoid mocking third-party dependencies when possible.
-8. Tests MUST be isolated - no shared state between tests.
-9. Tests MUST be deterministic - same result every run.
-10. Tests MUST run identically locally and in CI.
-11. NEVER use partial mocks.
-12. Test ALL conditional paths with meaningful assertions.
-13. Test unhappy paths and edge cases, not just happy paths.
-14. Every assertion should explain the expected behavior.
-15. Write tests that would FAIL if production code regressed.
-16. **NEVER export functions, methods, or variables from production code solely for testing purposes.**
-17. **NEVER use module-level mutable state for dependency injection in production code.**
+1. Follow the Arrange-Act-Assert (AAA) pattern for ALL tests. Separate the three phases with blank lines; do NOT label them with comments.
+2. Do NOT write comments in tests. Express scenarios, preconditions, fixtures, and the reason a control case exists through nested `describe` blocks and precise behavioral names, and pin non-obvious behavior with assertions instead of prose. The only exceptions are machine-readable directives (for example `// biome-ignore`) and a one-line note for an external constraint that neither names nor assertions can express.
+3. Use spec-style tests with `describe` and `it` blocks.
+4. Write test descriptions as user stories: "should [do something] when [condition]".
+5. Focus on behavior, NOT implementation details.
+6. Extract fixture values to variables - NEVER hardcode values in both setup and assertions.
+7. Use `msw` to mock HTTP APIs - do NOT mock fetch or axios directly.
+8. Avoid mocking third-party dependencies when possible.
+9. Tests MUST be isolated - no shared state between tests.
+10. Tests MUST be deterministic - same result every run.
+11. Tests MUST run identically locally and in CI.
+12. NEVER use partial mocks.
+13. Test ALL conditional paths with meaningful assertions.
+14. Test unhappy paths and edge cases, not just happy paths.
+15. Every assertion should explain the expected behavior.
+16. Write tests that would FAIL if production code regressed.
+17. **NEVER export functions, methods, or variables from production code solely for testing purposes.**
+18. **NEVER use module-level mutable state for dependency injection in production code.**
 
 ## Dependency Injection for Testing
 
