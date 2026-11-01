@@ -46,46 +46,22 @@ export class FileSystemInstructionAnalysisGateway
         tools: DiscoveredTool[],
     ): Promise<FeedbackLoopCoverage> {
         const instructionFiles = await this.findInstructionFiles(targetDir);
+        const targetNames = [...scripts, ...tools].map((item) => item.name);
 
         const references: InstructionReference[] = [];
-        const documentedTargets = new Set<string>();
-
         for (const file of instructionFiles) {
-            const content = await readTextWithinRoot(
-                targetDir,
-                file.contentPath,
-                MAX_INSTRUCTION_FILE_BYTES,
+            references.push(
+                ...(await this.findReferencesInFile(
+                    targetDir,
+                    file,
+                    targetNames,
+                )),
             );
-            const lines = content.split("\n");
-
-            for (const script of scripts) {
-                const scriptRefs = this.findReferencesInContent(
-                    script.name,
-                    content,
-                    lines,
-                    join(targetDir, file.reportedPath),
-                    targetDir,
-                );
-                if (scriptRefs.length > 0) {
-                    references.push(...scriptRefs);
-                    documentedTargets.add(script.name);
-                }
-            }
-
-            for (const tool of tools) {
-                const toolRefs = this.findReferencesInContent(
-                    tool.name,
-                    content,
-                    lines,
-                    join(targetDir, file.reportedPath),
-                    targetDir,
-                );
-                if (toolRefs.length > 0) {
-                    references.push(...toolRefs);
-                    documentedTargets.add(tool.name);
-                }
-            }
         }
+
+        const documentedTargets = new Set(
+            references.map((reference) => reference.target),
+        );
 
         const mandatoryScripts = scripts.filter((s) => s.isMandatory);
         const mandatoryTools = tools.filter((t) => t.isMandatory);
@@ -127,6 +103,34 @@ export class FileSystemInstructionAnalysisGateway
             reportedPath: relative(targetDir, file.filePath),
             contentPath: relative(targetDir, file.contentPath ?? file.filePath),
         }));
+    }
+
+    /**
+     * Finds the references to every target in one instruction file, grouped by
+     * target in the order the targets are given.
+     */
+    private async findReferencesInFile(
+        targetDir: string,
+        file: InstructionFileToScan,
+        targetNames: readonly string[],
+    ): Promise<InstructionReference[]> {
+        const content = await readTextWithinRoot(
+            targetDir,
+            file.contentPath,
+            MAX_INSTRUCTION_FILE_BYTES,
+        );
+        const lines = content.split("\n");
+        const reportedPath = join(targetDir, file.reportedPath);
+
+        return targetNames.flatMap((target) =>
+            this.findReferencesInContent(
+                target,
+                content,
+                lines,
+                reportedPath,
+                targetDir,
+            ),
+        );
     }
 
     private findReferencesInContent(
