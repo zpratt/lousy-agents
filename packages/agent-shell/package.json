@@ -38,7 +38,7 @@
     },
     "dependencies": {
         "@openclaw/fs-safe": "0.27.0",
-        "zod": "4.6.6"
+        "zod": "4.6.7"
     },
     "peerDependencies": {
         "@github/copilot-sdk": "1.0.28"
