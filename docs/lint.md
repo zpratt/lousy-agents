@@ -27,6 +27,16 @@ Paths come from the shared agentic location catalog in `@lousy-agents/core` (als
 | **Instructions** | Yes | `.github/copilot-instructions.md`, `.github/instructions/*.md`, `.github/agents/*.md` (dual-use with agent lint), root `AGENTS.md`, root `CLAUDE.md` |
 | **MCP servers** | No — flag-only | `.mcp.json`, `.vscode/mcp.json` |
 
+### Discovery limits
+
+Instruction directories such as `.github/instructions` are walked by the same bounded walk that `doctor` uses, so the two tools cannot disagree about how a tree is traversed:
+
+- **Depth**: the entry directory is depth 0, and subdirectories are walked while the depth is below 10
+- **Skipped directories**: `node_modules` and `.git` are never walked
+- **Order**: entries are visited in name order, so which path wins for a shared file does not depend on the file system (APFS lists sorted, ext4 does not)
+- **Symlinks**: a symlinked directory or file is followed only when its real target stays inside the repository. A real directory is listed once, under the first path in name order that reaches it, so a symlink cycle or a second alias never reports a file twice
+- **Directory cap**: at most 10,000 directories are listed per walk. When the cap is reached, lint keeps the instruction files it already found, stops listing more directories, and emits exactly one `instruction/discovery-limit-reached` warning. The warning appears in human output, `--format json`, `--format rdjsonl` (as a `WARNING` with the rule ID as `code.value`) and in the MCP `analyze_instruction_quality` `diagnostics[]`, and it is a warning like any other, so it does not fail a run by itself. The cap is not configurable from the command line
+
 ### Rollout status
 
 New construct kinds ship **flag-only first**, then get promoted to default-on once they pass a GA checklist (catalog coverage, rules, docs, CLI/API wiring, parity tests). This mirrors the rollout policy of the [lint construct-coverage epic](https://github.com/zpratt/lousy-agents/issues/1039).
@@ -354,6 +364,7 @@ Each feedback loop command is scored on three dimensions (0 or 1 each):
 | `instruction/import-cycle` | `warn` | Claude `@` import graph contains a cycle |
 | `instruction/import-depth-exceeded` | `warn` | Claude `@` import exceeds the maximum hop depth |
 | `instruction/import-size-exceeded` | `warn` | Claude `@` import expansion exceeded a size or graph limit (unique files, edges, emitted bytes, or per-file bytes) |
+| `instruction/discovery-limit-reached` | `warn` | Instruction file discovery stopped after listing the maximum number of directories (10,000), so instruction files in the remaining directories were not analyzed. Reported once per run, on the repository root |
 
 The `instruction/missing-structural-heading` rule warns when an instruction file does not contain one or more of the following recommended heading sections: **Validation**, **Verification**, **Feedback Loop**, **Mandatory**, **Before Commit**, **Validation Suite**, **Commands**. These headings guide coding agents through validation and verification workflows. Because instruction files stack on each other across the filesystem, this rule fires per file and is a warning (not an error). For Claude entrypoints, headings are checked on the **effective** document after verified `@` imports are expanded (see [Claude shared-instruction imports](#claude-shared-instruction-imports)), so a thin wrapper that imports a shared file with those headings does not get false missing-heading warnings.
 
@@ -689,6 +700,15 @@ When no target inputs are set, the action lints the default-on targets (skills, 
 | `reporter` | No | `github-pr-check` | reviewdog reporter (`github-pr-check`, `github-pr-review`, `github-check`) |
 | `filter_mode` | No | `added` | reviewdog filter mode (`added`, `diff_context`, `file`, `nofilter`) |
 | `level` | No | `info` | Minimum severity level (`info`, `warning`, `error`) |
+
+### Run-level warnings
+
+reviewdog's default `filter_mode: added` drops any finding that is not on a changed line. A few diagnostics describe the whole run rather than a place in a file, such as `instruction/discovery-limit-reached` (instruction discovery stopped at its directory limit), and they would never show up on a pull request. The action therefore publishes each of these on two channels of its own, outside reviewdog:
+
+- **A workflow annotation.** The action's stdout is reviewdog's input, so lint writes the `::warning title=<rule id>::<message>` commands to `$RUNNER_TEMP/lousy-agents-annotations` and the composite step replays that file on stdout when it ends (an `EXIT` trap, so it also runs when lint exits non-zero and `pipefail` fails the step), which is where the runner reads workflow commands. Message and title are escaped the way the runner reads them, so a message cannot split or inject a command. The file is removed at the start of each run, so a second run of the action in the same job does not replay stale annotations. The path comes in through `LOUSY_AGENTS_ANNOTATIONS_FILE` and must be absolute, inside `RUNNER_TEMP`, and free of `..` segments; lint also refuses to write through a symlink at it.
+- **The job summary.** The same warnings are appended to `$GITHUB_STEP_SUMMARY` as a short section.
+
+The same diagnostic is still in the rdjsonl that reviewdog receives, so a `filter_mode` of `nofilter` or `file` also reports it as a check annotation. Neither channel changes the action's exit status. Run outside the action (no annotations file configured), the commands are written to stderr instead.
 
 ### Permissions
 

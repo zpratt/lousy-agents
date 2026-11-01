@@ -74,6 +74,17 @@ runs:
       run: |
         set -euo pipefail
 
+        # Run-level warnings, such as "discovery stopped at its directory limit",
+        # cannot go through reviewdog: its diff filter drops findings that are
+        # not on a changed line. Lint writes them as workflow commands to this
+        # file, and the trap replays them on stdout, where the runner reads
+        # workflow commands, when the step ends. The trap also runs when lint
+        # exits non-zero and pipefail fails the pipeline.
+        f="$RUNNER_TEMP/lousy-agents-annotations"
+        rm -f "$f"
+        trap 'cat "$f" 2>/dev/null || true' EXIT
+        export LOUSY_AGENTS_ANNOTATIONS_FILE="$f"
+
         node "${{ github.action_path }}/packages/action/dist/index.js" | \
           reviewdog -f=rdjsonl \
             -name="lousy-agents-lint" \

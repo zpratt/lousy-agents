@@ -39,6 +39,11 @@ export function displayInstructionQuality(output: LintOutput): void {
 
     if (result.discoveredFiles.length === 0) {
         consola.info("No instruction files found");
+        // Diagnostics that concern the whole run, such as a discovery limit,
+        // exist precisely when files may be missing: never drop them here.
+        for (const d of output.diagnostics) {
+            logDiagnostic(d);
+        }
         warnSuggestions(result.suggestions);
         return;
     }

@@ -7,21 +7,22 @@ import { realpath } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import type {
     DiscoveredInstructionFile,
+    InstructionDiscoveryDiagnosticSink,
     InstructionFileFormat,
 } from "../entities/instruction-quality.js";
 import { instructionDiscoveryEntries } from "../lib/agentic-location-matchers.js";
 import type { InstructionFileDiscoveryGateway } from "../use-cases/analyze-instruction-quality.js";
-import { listDirectoryWithinRoot } from "./file-system-utils.js";
 import {
     type RealPathWithinRoot,
     resolveRealPathWithinRoot,
 } from "./real-path-within-root.js";
+import {
+    DEFAULT_MAX_WALK_DIRECTORIES,
+    walkRepository,
+} from "./repository-walk.js";
 
 // Re-export port type for consumers
 export type { InstructionFileDiscoveryGateway };
-
-/** Maximum subdirectory depth walked for directory-prefix entries */
-const MAX_SUBDIRECTORY_DEPTH = 10;
 
 /**
  * Discovery state shared by one discoverInstructionFiles call.
@@ -29,14 +30,6 @@ const MAX_SUBDIRECTORY_DEPTH = 10;
 interface DiscoveryRoot {
     readonly targetDir: string;
     readonly rootReal: string;
-}
-
-/**
- * Settings of one directory-prefix entry walk.
- */
-interface DirectoryWalkOptions {
-    readonly format: InstructionFileFormat;
-    readonly includeSubdirectories: boolean;
 }
 
 /**
@@ -50,8 +43,20 @@ interface DirectoryWalkOptions {
 export class FileSystemInstructionFileDiscoveryGateway
     implements InstructionFileDiscoveryGateway
 {
+    private readonly maxDirectories: number;
+
+    /**
+     * @param options.maxDirectories Directories one entry walk lists before it
+     * stops; defaults to the shared walk's production limit
+     */
+    constructor(options: { readonly maxDirectories?: number } = {}) {
+        this.maxDirectories =
+            options.maxDirectories ?? DEFAULT_MAX_WALK_DIRECTORIES;
+    }
+
     async discoverInstructionFiles(
         targetDir: string,
+        onDiagnostic?: InstructionDiscoveryDiagnosticSink,
     ): Promise<DiscoveredInstructionFile[]> {
         const rootReal = await realpath(resolve(targetDir)).catch(() => null);
         if (rootReal === null) {
@@ -59,6 +64,7 @@ export class FileSystemInstructionFileDiscoveryGateway
         }
         const root: DiscoveryRoot = { targetDir, rootReal };
         const files: DiscoveredInstructionFile[] = [];
+        let limitReached = false;
 
         for (const entry of instructionDiscoveryEntries()) {
             const format = entry.instructionFormat;
@@ -73,15 +79,41 @@ export class FileSystemInstructionFileDiscoveryGateway
                 continue;
             }
 
-            const walk = createDirectoryWalk(root, {
-                format,
+            const walked = await walkRepository(targetDir, {
+                startRelativePath: entry.path,
+                includeFile: isMarkdownFile,
                 includeSubdirectories: entry.includeSubdirectories === true,
+                revisit: "once-per-real-directory",
+                maxDirectories: this.maxDirectories,
             });
-            files.push(...(await walk(entry.path)));
+            limitReached = limitReached || walked.directoryLimitReached;
+            files.push(
+                ...walked.files.map((file) =>
+                    toDiscoveredFile(
+                        root,
+                        file.relativePath,
+                        { kind: "file", real: file.real },
+                        format,
+                    ),
+                ),
+            );
+        }
+
+        if (limitReached) {
+            onDiagnostic?.({
+                ruleId: DISCOVERY_LIMIT_RULE_ID,
+                message: `Instruction file discovery stopped after listing ${this.maxDirectories} directories, so instruction files in the remaining directories were not analyzed.`,
+            });
         }
 
         return files;
     }
+}
+
+const DISCOVERY_LIMIT_RULE_ID = "instruction/discovery-limit-reached";
+
+function isMarkdownFile(name: string): boolean {
+    return name.endsWith(".md");
 }
 
 /**
@@ -100,101 +132,6 @@ async function discoverExactFile(
     return resolved?.kind === "file"
         ? [toDiscoveredFile(root, relativePosixPath, resolved, format)]
         : [];
-}
-
-/**
- * Returns true when a directory entry name could escape its directory.
- */
-function isUnsafeEntryName(name: string): boolean {
-    return name.includes("..") || name.includes("/") || name.includes("\\");
-}
-
-/**
- * Lists a real directory inside the root, or nothing when it cannot be read.
- */
-async function listRealDirectory(
-    root: DiscoveryRoot,
-    dirReal: string,
-): Promise<Awaited<ReturnType<typeof listDirectoryWithinRoot>>> {
-    try {
-        return await listDirectoryWithinRoot(
-            root.rootReal,
-            relative(root.rootReal, dirReal),
-        );
-    } catch {
-        return [];
-    }
-}
-
-/**
- * Creates a walk that collects the .md files of a directory-prefix entry.
- * The walk owns its set of visited real directories, so a symlink cycle is
- * listed once.
- */
-function createDirectoryWalk(
-    root: DiscoveryRoot,
-    options: DirectoryWalkOptions,
-): (dirRelativePath: string) => Promise<DiscoveredInstructionFile[]> {
-    const visitedDirs = new Set<string>();
-
-    const walkEntry = async (
-        dirReal: string,
-        entryRelativePath: string,
-        name: string,
-        depth: number,
-    ): Promise<DiscoveredInstructionFile[]> => {
-        const resolved = await resolveRealPathWithinRoot(
-            root.rootReal,
-            join(dirReal, name),
-        );
-        if (resolved?.kind === "file" && name.endsWith(".md")) {
-            return [
-                toDiscoveredFile(
-                    root,
-                    entryRelativePath,
-                    resolved,
-                    options.format,
-                ),
-            ];
-        }
-        const descend =
-            resolved?.kind === "directory" &&
-            options.includeSubdirectories &&
-            depth < MAX_SUBDIRECTORY_DEPTH;
-        return descend ? walkDirectory(entryRelativePath, depth + 1) : [];
-    };
-
-    const walkDirectory = async (
-        dirRelativePath: string,
-        depth: number,
-    ): Promise<DiscoveredInstructionFile[]> => {
-        const dir = await resolveRealPathWithinRoot(
-            root.rootReal,
-            join(root.targetDir, ...dirRelativePath.split("/")),
-        );
-        if (dir?.kind !== "directory" || visitedDirs.has(dir.real)) {
-            return [];
-        }
-        visitedDirs.add(dir.real);
-
-        const files: DiscoveredInstructionFile[] = [];
-        for (const entry of await listRealDirectory(root, dir.real)) {
-            if (isUnsafeEntryName(entry.name)) {
-                continue;
-            }
-            files.push(
-                ...(await walkEntry(
-                    dir.real,
-                    `${dirRelativePath}/${entry.name}`,
-                    entry.name,
-                    depth,
-                )),
-            );
-        }
-        return files;
-    };
-
-    return (dirRelativePath) => walkDirectory(dirRelativePath, 0);
 }
 
 /**
@@ -228,6 +165,8 @@ function toDiscoveredFile(
 /**
  * Creates and returns the default instruction file discovery gateway.
  */
-export function createInstructionFileDiscoveryGateway(): InstructionFileDiscoveryGateway {
-    return new FileSystemInstructionFileDiscoveryGateway();
+export function createInstructionFileDiscoveryGateway(options?: {
+    readonly maxDirectories?: number;
+}): InstructionFileDiscoveryGateway {
+    return new FileSystemInstructionFileDiscoveryGateway(options);
 }

@@ -68,6 +68,71 @@ function createMockCommandsGateway(
 }
 
 describe("AnalyzeInstructionQualityUseCase", () => {
+    describe("given discovery reports that it hit its directory limit", () => {
+        function discoveryThatHitsTheLimit(
+            files: DiscoveredInstructionFile[],
+            message: string,
+        ): InstructionFileDiscoveryGateway {
+            return {
+                discoverInstructionFiles: vi.fn(
+                    async (_targetDir, onDiagnostic) => {
+                        onDiagnostic?.({
+                            ruleId: "instruction/discovery-limit-reached",
+                            message,
+                        });
+                        return files;
+                    },
+                ),
+            };
+        }
+
+        it("should emit one warning on the target directory, even when no instruction files were found", async () => {
+            const message = chance.sentence();
+            const targetDir = join(tmpdir(), chance.word());
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryThatHitsTheLimit([], message),
+                createMockAstGateway(),
+                createMockCommandsGateway([]),
+            );
+
+            const output = await useCase.execute({ targetDir });
+
+            expect(output.diagnostics).toEqual([
+                {
+                    filePath: targetDir,
+                    line: 1,
+                    severity: "warning",
+                    message,
+                    ruleId: "instruction/discovery-limit-reached",
+                    target: "instruction",
+                },
+            ]);
+        });
+
+        it("should emit it alongside the diagnostics of the files that were found", async () => {
+            const message = chance.sentence();
+            const targetDir = join(tmpdir(), chance.word());
+            const filePath = join(targetDir, "AGENTS.md");
+            const useCase = new AnalyzeInstructionQualityUseCase(
+                discoveryThatHitsTheLimit(
+                    [{ filePath, format: "agents-md" }],
+                    message,
+                ),
+                createMockAstGateway(),
+                createMockCommandsGateway([]),
+            );
+
+            const output = await useCase.execute({ targetDir });
+
+            expect(output.diagnostics.map((d) => d.ruleId)).toEqual(
+                expect.arrayContaining([
+                    "instruction/parse-error",
+                    "instruction/discovery-limit-reached",
+                ]),
+            );
+        });
+    });
+
     describe("given no instruction files found", () => {
         it("should return quality score of 0 with a suggestion", async () => {
             // Arrange
@@ -1919,8 +1984,6 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                 "should emit instruction/import-symlink on the importer token for a symlink target that leaves the repository",
                 async () => {
                     const { symlink } = await import("node:fs/promises");
-                    // In-repository symlinks are followed; only a symlink
-                    // that leaves the repository is an import-symlink.
                     const outsideDir = join(
                         tmpdir(),
                         `analyze-instruction-outside-${chance.hash({ length: 8 })}`,

@@ -86,16 +86,22 @@ export class ValidateInstructionCoverageUseCase {
         packageManager: string,
     ): string[] {
         const suggestions: string[] = [];
+        const discoveryStoppedEarly = coverage.diagnostics.length > 0;
 
         if (coverage.missingInInstructions.length === 0) {
             suggestions.push(
-                "✅ All mandatory feedback loops are documented in instructions",
+                discoveryStoppedEarly
+                    ? "✅ All mandatory feedback loops are documented in the instruction files found, but discovery stopped early, so other instruction files were not checked"
+                    : "✅ All mandatory feedback loops are documented in instructions",
             );
             return suggestions;
         }
 
+        const missingCount = coverage.missingInInstructions.length;
         suggestions.push(
-            `⚠️  ${coverage.missingInInstructions.length} mandatory feedback loop(s) are not documented:`,
+            discoveryStoppedEarly
+                ? `⚠️  ${missingCount} mandatory feedback loop(s) are not documented in the instruction files found; discovery stopped early, so they may be documented in files that were not checked:`
+                : `⚠️  ${missingCount} mandatory feedback loop(s) are not documented:`,
         );
         suggestions.push("");
 

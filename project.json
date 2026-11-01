@@ -32,7 +32,10 @@
                 "packages/mcp/src/tools",
                 "packages/mcp/src/lib",
                 "packages/mcp/src/package-version.ts",
+                "packages/action/src/annotations.ts",
+                "packages/action/src/run-level-diagnostics.ts",
                 "packages/action/src/run-lint.ts",
+                "packages/action/src/runner-temp-path.ts",
                 "packages/action/src/validate-inputs.ts"
             ]
         },
@@ -40,7 +43,8 @@
             "name": "formatters",
             "prefixes": [
                 "packages/core/src/formatters",
-                "packages/doctor/src/formatters"
+                "packages/doctor/src/formatters",
+                "packages/action/src/workflow-commands.ts"
             ]
         },
         {

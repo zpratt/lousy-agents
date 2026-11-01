@@ -191,4 +191,47 @@ describe("displayInstructionQuality", () => {
             ).toBe(true);
         });
     });
+
+    describe("when no instruction files were found but discovery reported a limit", () => {
+        it("should still print the discovery-limit warning so the truncation is never silent", () => {
+            vi.spyOn(consola, "info").mockImplementation(() => {});
+            const warnSpy = vi
+                .spyOn(consola, "warn")
+                .mockImplementation(() => {});
+            const message =
+                "Instruction file discovery stopped after listing 10000 directories, so instruction files in the remaining directories were not analyzed.";
+            const output: LintOutput = {
+                diagnostics: [
+                    {
+                        filePath: "/repo",
+                        line: 1,
+                        severity: "warning",
+                        message,
+                        target: "instruction",
+                        ruleId: "instruction/discovery-limit-reached",
+                    },
+                ],
+                target: "instruction",
+                filesAnalyzed: [],
+                summary: {
+                    totalFiles: 0,
+                    totalErrors: 0,
+                    totalWarnings: 1,
+                    totalInfos: 0,
+                },
+                qualityResult: {
+                    discoveredFiles: [],
+                    commandScores: [],
+                    overallQualityScore: 0,
+                    suggestions: [],
+                    parsingErrors: [],
+                },
+            };
+
+            displayInstructionQuality(output);
+
+            const warnings = warnSpy.mock.calls.map((call) => String(call[0]));
+            expect(warnings).toContain(`/repo:1: ${message}`);
+        });
+    });
 });

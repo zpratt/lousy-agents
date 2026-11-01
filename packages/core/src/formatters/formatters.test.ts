@@ -105,6 +105,32 @@ describe("HumanFormatter", () => {
     });
 });
 
+const DISCOVERY_LIMIT_MESSAGE =
+    "Instruction file discovery stopped after listing 10000 directories, so instruction files in the remaining directories were not analyzed.";
+
+function buildDiscoveryLimitOutput(): LintOutput {
+    return {
+        diagnostics: [
+            {
+                filePath: "/repo",
+                line: 1,
+                severity: "warning",
+                message: DISCOVERY_LIMIT_MESSAGE,
+                target: "instruction",
+                ruleId: "instruction/discovery-limit-reached",
+            },
+        ],
+        target: "instruction",
+        filesAnalyzed: [],
+        summary: {
+            totalFiles: 0,
+            totalErrors: 0,
+            totalWarnings: 1,
+            totalInfos: 0,
+        },
+    };
+}
+
 function buildInstructionImportDiagnosticOutput(): LintOutput {
     const importerPath = "/repo/CLAUDE.md";
     return {
@@ -253,6 +279,61 @@ describe("RdjsonlFormatter", () => {
                 value: "instruction/import-unresolved",
             });
             expect(entry.severity).toBe("WARNING");
+        });
+    });
+});
+
+describe("the instruction/discovery-limit-reached diagnostic", () => {
+    describe("when formatted as human output", () => {
+        it("should show the message", () => {
+            const output = buildDiscoveryLimitOutput();
+
+            const result = new HumanFormatter().format([output]);
+
+            expect(result).toContain(DISCOVERY_LIMIT_MESSAGE);
+        });
+    });
+
+    describe("when formatted as JSON", () => {
+        it("should carry the rule id, severity and the repository root as the path", () => {
+            const output = buildDiscoveryLimitOutput();
+
+            const parsed = JSON.parse(
+                new JsonFormatter().format([output]),
+            ) as Array<Record<string, unknown>>;
+
+            expect(parsed).toHaveLength(1);
+            expect(parsed[0]).toMatchObject({
+                filePath: "/repo",
+                line: 1,
+                severity: "warning",
+                ruleId: "instruction/discovery-limit-reached",
+                target: "instruction",
+            });
+        });
+    });
+
+    describe("when formatted as rdjsonl", () => {
+        it("should be one WARNING line whose code.value is the rule id", () => {
+            const output = buildDiscoveryLimitOutput();
+
+            const lines = new RdjsonlFormatter()
+                .format([output])
+                .split("\n")
+                .filter((line) => line.trim() !== "");
+            const entry = JSON.parse(lines[0]) as {
+                severity: string;
+                code: { value: string };
+                location: { path: string; range: { start: { line: number } } };
+            };
+
+            expect(lines).toHaveLength(1);
+            expect(entry.severity).toBe("WARNING");
+            expect(entry.code).toEqual({
+                value: "instruction/discovery-limit-reached",
+            });
+            expect(entry.location.path).toBe("/repo");
+            expect(entry.location.range.start.line).toBe(1);
         });
     });
 });

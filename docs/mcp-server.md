@@ -171,9 +171,12 @@ The `validate_instruction_coverage` tool checks if your repository instructions 
     "",
     "Consider adding these to .github/copilot-instructions.md",
     "or creating dedicated instruction files in .github/instructions/"
-  ]
+  ],
+  "diagnostics": []
 }
 ```
+
+`diagnostics` lists what discovery reports about itself, using the same rule IDs as `analyze_instruction_quality`. When discovery stops at its 10,000-directory limit, it holds one `instruction/discovery-limit-reached` entry (`ruleId` and `message`), because the coverage was then measured on only the instruction files found before the limit. It is an empty array otherwise. When it is not empty, `message` says that discovery stopped early: a mandatory item reported as undocumented may be documented in a file that was not checked, and a fully documented result covers only the files found.
 
 This helps ensure that AI agents have clear, consistent instructions for running feedback loops during development.
 

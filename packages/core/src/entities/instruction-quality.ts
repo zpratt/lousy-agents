@@ -11,6 +11,20 @@ export type InstructionFileFormat =
     | "agents-md"
     | "claude-md";
 
+/**
+ * Something discovery reports about itself rather than about one file, for
+ * example that it stopped early because a directory limit was reached.
+ */
+export interface InstructionDiscoveryDiagnostic {
+    readonly ruleId: string;
+    readonly message: string;
+}
+
+/** Receives the diagnostics discovery reports while it runs. */
+export type InstructionDiscoveryDiagnosticSink = (
+    diagnostic: InstructionDiscoveryDiagnostic,
+) => void;
+
 /** A discovered instruction file */
 export interface DiscoveredInstructionFile {
     /** Path where the harness loads the file (may be a symlink) */

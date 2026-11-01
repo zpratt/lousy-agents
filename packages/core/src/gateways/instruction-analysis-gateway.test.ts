@@ -8,6 +8,7 @@ import type {
     DiscoveredTool,
 } from "../entities/feedback-loop.js";
 import { FileSystemInstructionAnalysisGateway } from "./instruction-analysis-gateway.js";
+import { FileSystemInstructionFileDiscoveryGateway } from "./instruction-file-discovery-gateway.js";
 
 const chance = new Chance();
 
@@ -609,6 +610,45 @@ npm test
             expect(result.missingInInstructions.map((i) => i.name)).toEqual([
                 "deploy",
             ]);
+        });
+    });
+
+    describe("when discovery stops at its directory limit", () => {
+        const DiscoveryLimitRuleId = "instruction/discovery-limit-reached";
+
+        beforeEach(async () => {
+            for (const name of ["s1", "s2"]) {
+                const directory = join(instructionsDir, name);
+                await mkdir(directory, { recursive: true });
+                await writeFile(
+                    join(directory, "a.instructions.md"),
+                    chance.sentence(),
+                );
+            }
+        });
+
+        it("should report the limit in the coverage result instead of dropping it", async () => {
+            const capped = new FileSystemInstructionAnalysisGateway(
+                new FileSystemInstructionFileDiscoveryGateway({
+                    maxDirectories: 1,
+                }),
+            );
+
+            const result = await capped.analyzeCoverage(testDir, [], []);
+
+            expect(result.diagnostics).toEqual([
+                {
+                    ruleId: DiscoveryLimitRuleId,
+                    message:
+                        "Instruction file discovery stopped after listing 1 directories, so instruction files in the remaining directories were not analyzed.",
+                },
+            ]);
+        });
+
+        it("should report no diagnostics when the whole tree was listed", async () => {
+            const result = await gateway.analyzeCoverage(testDir, [], []);
+
+            expect(result.diagnostics).toEqual([]);
         });
     });
 });

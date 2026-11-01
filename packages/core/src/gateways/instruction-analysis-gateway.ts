@@ -9,6 +9,7 @@ import type {
     FeedbackLoopCoverage,
     InstructionReference,
 } from "../entities/feedback-loop.js";
+import type { InstructionDiscoveryDiagnostic } from "../entities/instruction-quality.js";
 import type { InstructionFileDiscoveryGateway } from "../use-cases/analyze-instruction-quality.js";
 import type { InstructionAnalysisGateway } from "../use-cases/validate-instruction-coverage.js";
 import { readTextWithinRoot } from "./file-system-utils.js";
@@ -45,7 +46,11 @@ export class FileSystemInstructionAnalysisGateway
         scripts: DiscoveredScript[],
         tools: DiscoveredTool[],
     ): Promise<FeedbackLoopCoverage> {
-        const instructionFiles = await this.findInstructionFiles(targetDir);
+        const diagnostics: InstructionDiscoveryDiagnostic[] = [];
+        const instructionFiles = await this.findInstructionFiles(
+            targetDir,
+            diagnostics,
+        );
         const targetNames = [...scripts, ...tools].map((item) => item.name);
 
         const references: InstructionReference[] = [];
@@ -85,6 +90,7 @@ export class FileSystemInstructionAnalysisGateway
             missingInInstructions,
             documentedInInstructions,
             references,
+            diagnostics,
             summary: {
                 totalMandatory,
                 totalDocumented,
@@ -95,9 +101,12 @@ export class FileSystemInstructionAnalysisGateway
 
     private async findInstructionFiles(
         targetDir: string,
+        diagnostics: InstructionDiscoveryDiagnostic[],
     ): Promise<InstructionFileToScan[]> {
-        const discovered =
-            await this.discoveryGateway.discoverInstructionFiles(targetDir);
+        const discovered = await this.discoveryGateway.discoverInstructionFiles(
+            targetDir,
+            (diagnostic) => diagnostics.push(diagnostic),
+        );
 
         return discovered.map((file) => ({
             reportedPath: relative(targetDir, file.filePath),
