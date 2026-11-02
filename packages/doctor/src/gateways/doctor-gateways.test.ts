@@ -5,15 +5,27 @@ import Chance from "chance";
 import { createConsola } from "consola";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { DeclaredIntentArtifact } from "../entities/declared-intent.js";
-import { createDoctorGateways } from "./doctor-gateways.js";
+import {
+    createDoctorGateways,
+    type DoctorGatewayDependencies,
+} from "./doctor-gateways.js";
 import { writeIntentArtifact } from "./intent-artifact.js";
+import { WisdomUnavailableError } from "./wisdom-client.js";
 
 const chance = new Chance();
 
 const WISDOM_UNAVAILABLE_DEBUG_MESSAGE =
     "Wisdom graph unavailable — snapshotRef will be omitted";
 
-function buildGateways() {
+function rejectingWisdomClient(error: Error): DoctorGatewayDependencies {
+    return {
+        createWisdomClient: () => ({
+            getGraph: () => Promise.reject(error),
+        }),
+    };
+}
+
+function buildGateways(dependencies?: DoctorGatewayDependencies) {
     const debugged: string[] = [];
     const logger = createConsola({
         level: 4,
@@ -27,7 +39,7 @@ function buildGateways() {
             },
         ],
     });
-    return { gateways: createDoctorGateways(logger), debugged };
+    return { gateways: createDoctorGateways(logger, dependencies), debugged };
 }
 
 async function writeWisdomGraph(
@@ -110,14 +122,31 @@ describe("createDoctorGateways", () => {
         });
 
         describe("when something other than an unavailable graph goes wrong", () => {
-            it("should rethrow the error instead of treating it as a missing graph", async () => {
-                const { gateways, debugged } = buildGateways();
-                const invalidRepoPath = chance.integer() as unknown as string;
+            it("should rethrow that same error instead of treating it as a missing graph", async () => {
+                const failure = new Error(chance.sentence());
+                const { gateways, debugged } = buildGateways(
+                    rejectingWisdomClient(failure),
+                );
 
-                await expect(
-                    gateways.loadSnapshotRef(invalidRepoPath),
-                ).rejects.toThrow(TypeError);
+                await expect(gateways.loadSnapshotRef(repoPath)).rejects.toBe(
+                    failure,
+                );
                 expect(debugged).toEqual([]);
+            });
+        });
+
+        describe("when the wisdom client reports the graph unavailable", () => {
+            it("should return undefined and log why exactly once at debug level", async () => {
+                const { gateways, debugged } = buildGateways(
+                    rejectingWisdomClient(
+                        new WisdomUnavailableError(chance.sentence()),
+                    ),
+                );
+
+                const result = await gateways.loadSnapshotRef(repoPath);
+
+                expect(result).toBeUndefined();
+                expect(debugged).toEqual([WISDOM_UNAVAILABLE_DEBUG_MESSAGE]);
             });
         });
     });
