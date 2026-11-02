@@ -103,24 +103,50 @@ function markdownLinkTargets(body: string): string[] {
     const targets: string[] = [];
     let open = body.indexOf("[");
     while (open !== -1) {
-        const close = body.indexOf("]", open + 1);
-        if (close === -1) {
+        const attempt = attemptLinkAt(body, open);
+        if (attempt.done) {
             break;
         }
-        if (body[close + 1] === "(") {
-            const end = body.indexOf(")", close + 2);
-            if (end === -1) {
-                break;
-            }
-            if (end > close + 2) {
-                targets.push(body.slice(close + 2, end));
-                open = body.indexOf("[", end + 1);
-                continue;
-            }
+        if (attempt.target !== undefined) {
+            targets.push(attempt.target);
         }
-        open = body.indexOf("[", close + 1);
+        open = attempt.next;
     }
     return targets;
+}
+
+/**
+ * What one attempt at a link found: the end of the scan, or the target when
+ * there was one, and where the next attempt starts.
+ */
+type LinkAttempt =
+    | { readonly done: true }
+    | {
+          readonly done: false;
+          readonly target?: string;
+          readonly next: number;
+      };
+
+function attemptLinkAt(body: string, open: number): LinkAttempt {
+    const close = body.indexOf("]", open + 1);
+    if (close === -1) {
+        return { done: true };
+    }
+    if (body[close + 1] !== "(") {
+        return { done: false, next: body.indexOf("[", close + 1) };
+    }
+    const end = body.indexOf(")", close + 2);
+    if (end === -1) {
+        return { done: true };
+    }
+    if (end > close + 2) {
+        return {
+            done: false,
+            target: body.slice(close + 2, end),
+            next: body.indexOf("[", end + 1),
+        };
+    }
+    return { done: false, next: body.indexOf("[", close + 1) };
 }
 
 function markdownLinkEdges(body: string): RawEdge[] {
