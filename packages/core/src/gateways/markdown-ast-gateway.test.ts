@@ -133,6 +133,21 @@ describe("RemarkMarkdownAstGateway", () => {
             });
         });
 
+        describe("given a file larger than a million bytes but within the size limit", () => {
+            it("should parse it, so lint and doctor agree on the size at which a file is too large", async () => {
+                const heading = "# Title\n\n";
+                const filePath = join(testDir, "big.md");
+                await writeFile(
+                    filePath,
+                    heading + "x".repeat(1_000_001 - heading.length),
+                );
+
+                const result = await gateway.parseFile(filePath);
+
+                expect(result.headings[0]?.text).toBe("Title");
+            });
+        });
+
         describe("given a file exceeding the size limit", () => {
             it("should reject with a size limit error", async () => {
                 // Arrange — write a file just over 1 MB

@@ -9,6 +9,7 @@ import type {
     FeedbackLoopCoverage,
     InstructionReference,
 } from "../entities/feedback-loop.js";
+import { MAX_INSTRUCTION_FILE_BYTES } from "../entities/file-limits.js";
 import type { InstructionDiscoveryDiagnostic } from "../entities/instruction-quality.js";
 import { INSTRUCTION_PARSE_ERROR_RULE_ID } from "../entities/lint-rules.js";
 import type { InstructionFileDiscoveryGateway } from "../use-cases/analyze-instruction-quality.js";
@@ -17,8 +18,6 @@ import { readTextWithinRoot } from "./file-system-utils.js";
 import { createInstructionFileDiscoveryGateway } from "./instruction-file-discovery-gateway.js";
 
 export type { InstructionAnalysisGateway };
-
-const MAX_INSTRUCTION_FILE_BYTES = 1_048_576;
 
 /**
  * An instruction file to scan, as paths relative to the target directory.

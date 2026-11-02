@@ -6,6 +6,7 @@
 import type { Code, Heading, InlineCode } from "mdast";
 import { remark } from "remark";
 import { visit } from "unist-util-visit";
+import { MAX_INSTRUCTION_FILE_BYTES } from "../entities/file-limits.js";
 import type {
     MarkdownAstGateway,
     MarkdownCodeBlock,
@@ -15,9 +16,6 @@ import type {
 } from "../use-cases/analyze-instruction-quality.js";
 import { isAstNodeLike } from "../use-cases/analyze-instruction-quality.js";
 import { readFileNoFollow } from "./file-system-utils.js";
-
-/** Maximum instruction file size: 1 MB */
-const MAX_INSTRUCTION_FILE_BYTES = 1_048_576;
 
 // Re-export types for consumers that need them
 export type {

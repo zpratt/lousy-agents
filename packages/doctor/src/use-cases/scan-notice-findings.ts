@@ -1,4 +1,8 @@
 import { listPaths } from "@lousy-agents/core/entities/discovery-limit-message.js";
+import {
+    describeByteLimit,
+    MAX_INSTRUCTION_FILE_BYTES,
+} from "@lousy-agents/core/entities/file-limits.js";
 import type { Finding } from "../entities/finding.js";
 import { repositoryNotice } from "./repository-notice.js";
 
@@ -57,7 +61,7 @@ export function unreadFileFindings(paths: readonly string[]): Finding[] {
         : [
               repositoryNotice(
                   "instruction-file-unread",
-                  `The repository scan could not read ${paths.length} harness file(s) (a file with more than one hard link, a file over 1 MiB, or one the system would not open), so their @ imports and links are not in this report: ${listPaths(paths)}.`,
+                  `The repository scan could not read ${paths.length} harness file(s) (a file with more than one hard link, a file over ${describeByteLimit(MAX_INSTRUCTION_FILE_BYTES)}, or one the system would not open), so their @ imports and links are not in this report: ${listPaths(paths)}.`,
               ),
           ];
 }

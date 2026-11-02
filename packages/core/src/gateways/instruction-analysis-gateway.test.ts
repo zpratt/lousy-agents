@@ -715,4 +715,34 @@ npm test
             ]);
         });
     });
+
+    describe("when an instruction file is larger than a million bytes but within the size limit", () => {
+        const scriptName = chance.word({ length: 12 });
+        const sentence = `Run npm run ${scriptName} before you commit.\n`;
+        const fileSizeJustOverOneMillion = 1_000_001;
+
+        it("should read it, so lint and doctor agree on the size at which a file is too large", async () => {
+            await writeFile(
+                join(instructionsDir, "big.instructions.md"),
+                sentence +
+                    "a".repeat(fileSizeJustOverOneMillion - sentence.length),
+            );
+
+            const result = await gateway.analyzeCoverage(
+                testDir,
+                [
+                    {
+                        name: scriptName,
+                        command: chance.word(),
+                        phase: "test",
+                        isMandatory: true,
+                    },
+                ],
+                [],
+            );
+
+            expect(result.diagnostics).toEqual([]);
+            expect(result.summary.totalDocumented).toBe(1);
+        });
+    });
 });
