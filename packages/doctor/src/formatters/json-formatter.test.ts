@@ -560,3 +560,35 @@ describe("toInventoryItems", () => {
         });
     });
 });
+
+describe("toJson malformed edge reasons", () => {
+    it.each(["missing-target", "path-traversal", "home", "absolute"] as const)(
+        "should carry the %s reason of a malformed edge into the report",
+        (reason) => {
+            const source = buildRecord({
+                edges: [
+                    buildEdge({
+                        malformed: true,
+                        reason,
+                        target: chance.word(),
+                        direction: { from: "a.md", to: chance.word() },
+                    }),
+                ],
+            });
+
+            const report = toJson(buildSummary(), [], [source]);
+
+            expect(report.edges).toEqual([
+                expect.objectContaining({ malformed: true, reason }),
+            ]);
+        },
+    );
+
+    it("should leave out the reason of an edge that is not malformed", () => {
+        const source = buildRecord({ edges: [buildEdge()] });
+
+        const report = toJson(buildSummary(), [], [source]);
+
+        expect(report.edges[0]).not.toHaveProperty("reason");
+    });
+});
