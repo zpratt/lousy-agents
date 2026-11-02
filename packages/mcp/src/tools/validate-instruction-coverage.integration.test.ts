@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { link, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
@@ -85,7 +85,9 @@ describe("MCP validate_instruction_coverage", () => {
             const parsed = await coverageResponse(repoRoot);
 
             expect(parsed.hasFullCoverage).toBe(false);
-            expect(parsed.message).toContain("discovery stopped early");
+            expect(parsed.message).toContain(
+                "discovery left some instruction files out",
+            );
             expect(parsed.message).toContain(
                 "may be documented in files that were not checked",
             );
@@ -106,9 +108,77 @@ describe("MCP validate_instruction_coverage", () => {
             const parsed = await coverageResponse(repoRoot);
 
             expect(parsed.hasFullCoverage).toBe(true);
-            expect(parsed.message).toContain("discovery stopped early");
             expect(parsed.message).toContain(
-                "other instruction files were not checked",
+                "discovery left some instruction files out",
+            );
+            expect(parsed.message).toContain("so they were not checked");
+        });
+    });
+
+    describe.skipIf(process.platform === "win32")(
+        "when an instruction file is a symbolic link to a file outside the repository",
+        () => {
+            it("should report the skipped link and say the coverage left instruction files out", async () => {
+                const outsideDir = join(
+                    tmpdir(),
+                    `mcp-coverage-outside-${chance.guid()}`,
+                );
+                await mkdir(outsideDir, { recursive: true });
+                try {
+                    const target = join(outsideDir, "CLAUDE.md");
+                    await writeFile(target, "# Outside\n");
+                    await symlink(target, join(repoRoot, "CLAUDE.md"));
+
+                    const parsed = await coverageResponse(repoRoot);
+
+                    expect(parsed.diagnostics).toEqual([
+                        {
+                            ruleId: "instruction/discovery-symlink-skipped",
+                            message: expect.stringContaining("CLAUDE.md"),
+                        },
+                    ]);
+                    expect(parsed.message).toContain(
+                        "discovery left some instruction files out",
+                    );
+                } finally {
+                    await rm(outsideDir, { recursive: true, force: true });
+                }
+            });
+        },
+    );
+
+    describe("when an instruction file has more than one hard link", () => {
+        it("should still succeed, name the file it did not read, and say the coverage left it out", async () => {
+            await writeFile(join(repoRoot, "CLAUDE.md"), "# Claude\n");
+            await link(
+                join(repoRoot, "CLAUDE.md"),
+                join(repoRoot, "SHARED.md"),
+            );
+            await rm(join(repoRoot, "AGENTS.md"));
+            await link(
+                join(repoRoot, "CLAUDE.md"),
+                join(repoRoot, "AGENTS.md"),
+            );
+
+            const parsed = await coverageResponse(repoRoot);
+
+            expect(parsed.success).toBe(true);
+            expect(parsed.diagnostics).toEqual([
+                {
+                    ruleId: "instruction/parse-error",
+                    message: expect.stringContaining(
+                        "Could not read AGENTS.md",
+                    ),
+                },
+                {
+                    ruleId: "instruction/parse-error",
+                    message: expect.stringContaining(
+                        "Could not read CLAUDE.md",
+                    ),
+                },
+            ]);
+            expect(parsed.message).toContain(
+                "discovery left some instruction files out",
             );
         });
     });
@@ -119,7 +189,9 @@ describe("MCP validate_instruction_coverage", () => {
 
             expect(parsed.success).toBe(true);
             expect(parsed.diagnostics).toEqual([]);
-            expect(parsed.message).not.toContain("discovery stopped early");
+            expect(parsed.message).not.toContain(
+                "discovery left some instruction files out",
+            );
         });
     });
 });

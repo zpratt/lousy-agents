@@ -19,6 +19,9 @@ export interface LintRulesConfig {
     readonly mcpServers: RuleConfigMap;
 }
 
+/** Reported when an instruction file could not be read or parsed. */
+export const INSTRUCTION_PARSE_ERROR_RULE_ID = "instruction/parse-error";
+
 /** Default severity levels for all known lint rules */
 export const DEFAULT_LINT_RULES: LintRulesConfig = {
     agents: {
@@ -60,7 +63,7 @@ export const DEFAULT_LINT_RULES: LintRulesConfig = {
         "hook/missing-timeout": "warn",
     },
     instructions: {
-        "instruction/parse-error": "warn",
+        [INSTRUCTION_PARSE_ERROR_RULE_ID]: "warn",
         "instruction/command-not-in-code-block": "warn",
         "instruction/command-outside-section": "warn",
         "instruction/missing-error-handling": "warn",

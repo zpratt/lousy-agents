@@ -10,6 +10,7 @@ import type {
     InstructionReference,
 } from "../entities/feedback-loop.js";
 import type { InstructionDiscoveryDiagnostic } from "../entities/instruction-quality.js";
+import { INSTRUCTION_PARSE_ERROR_RULE_ID } from "../entities/lint-rules.js";
 import type { InstructionFileDiscoveryGateway } from "../use-cases/analyze-instruction-quality.js";
 import type { InstructionAnalysisGateway } from "../use-cases/validate-instruction-coverage.js";
 import { readTextWithinRoot } from "./file-system-utils.js";
@@ -46,23 +47,31 @@ export class FileSystemInstructionAnalysisGateway
         scripts: DiscoveredScript[],
         tools: DiscoveredTool[],
     ): Promise<FeedbackLoopCoverage> {
-        const diagnostics: InstructionDiscoveryDiagnostic[] = [];
-        const instructionFiles = await this.findInstructionFiles(
-            targetDir,
-            diagnostics,
-        );
+        const { files: instructionFiles, diagnostics: discoveryDiagnostics } =
+            await this.findInstructionFiles(targetDir);
         const targetNames = [...scripts, ...tools].map((item) => item.name);
 
         const references: InstructionReference[] = [];
+        const unreadable: InstructionDiscoveryDiagnostic[] = [];
         for (const file of instructionFiles) {
-            references.push(
-                ...(await this.findReferencesInFile(
-                    targetDir,
-                    file,
-                    targetNames,
-                )),
-            );
+            const content = await this.readInstructionFile(targetDir, file);
+            if (content.ok) {
+                references.push(
+                    ...this.findReferencesInFile(
+                        targetDir,
+                        file,
+                        content.text,
+                        targetNames,
+                    ),
+                );
+            } else {
+                unreadable.push({
+                    ruleId: INSTRUCTION_PARSE_ERROR_RULE_ID,
+                    message: `Could not read ${file.reportedPath} (${content.reason}), so it was not checked.`,
+                });
+            }
         }
+        const diagnostics = [...discoveryDiagnostics, ...unreadable];
 
         const documentedTargets = new Set(
             references.map((reference) => reference.target),
@@ -99,35 +108,62 @@ export class FileSystemInstructionAnalysisGateway
         };
     }
 
-    private async findInstructionFiles(
-        targetDir: string,
-        diagnostics: InstructionDiscoveryDiagnostic[],
-    ): Promise<InstructionFileToScan[]> {
+    private async findInstructionFiles(targetDir: string): Promise<{
+        files: InstructionFileToScan[];
+        diagnostics: InstructionDiscoveryDiagnostic[];
+    }> {
+        const diagnostics: InstructionDiscoveryDiagnostic[] = [];
         const discovered = await this.discoveryGateway.discoverInstructionFiles(
             targetDir,
             (diagnostic) => diagnostics.push(diagnostic),
         );
 
-        return discovered.map((file) => ({
-            reportedPath: relative(targetDir, file.filePath),
-            contentPath: relative(targetDir, file.contentPath ?? file.filePath),
-        }));
+        return {
+            files: discovered.map((file) => ({
+                reportedPath: relative(targetDir, file.filePath),
+                contentPath: relative(
+                    targetDir,
+                    file.contentPath ?? file.filePath,
+                ),
+            })),
+            diagnostics,
+        };
+    }
+
+    /**
+     * Reads one instruction file, or says why it could not be read (a hard
+     * link, a file over the size limit, a file that vanished), so one file
+     * that cannot be read leaves out only itself and not the whole analysis.
+     */
+    private async readInstructionFile(
+        targetDir: string,
+        file: InstructionFileToScan,
+    ): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
+        try {
+            const text = await readTextWithinRoot(
+                targetDir,
+                file.contentPath,
+                MAX_INSTRUCTION_FILE_BYTES,
+            );
+            return { ok: true, text };
+        } catch (error: unknown) {
+            return {
+                ok: false,
+                reason: error instanceof Error ? error.message : "unreadable",
+            };
+        }
     }
 
     /**
      * Finds the references to every target in one instruction file, grouped by
      * target in the order the targets are given.
      */
-    private async findReferencesInFile(
+    private findReferencesInFile(
         targetDir: string,
         file: InstructionFileToScan,
+        content: string,
         targetNames: readonly string[],
-    ): Promise<InstructionReference[]> {
-        const content = await readTextWithinRoot(
-            targetDir,
-            file.contentPath,
-            MAX_INSTRUCTION_FILE_BYTES,
-        );
+    ): InstructionReference[] {
         const lines = content.split("\n");
         const reportedPath = join(targetDir, file.reportedPath);
 
