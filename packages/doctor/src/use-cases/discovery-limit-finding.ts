@@ -1,4 +1,14 @@
+import {
+    type DiscoveryLimitWording,
+    describeDiscoveryLimits,
+} from "@lousy-agents/core/entities/discovery-limit-message.js";
 import type { Finding } from "../entities/finding.js";
+
+const SCAN_WORDING: DiscoveryLimitWording = {
+    subject: "The repository scan",
+    missing: "agentic constructs",
+    consequence: "are not in this report",
+};
 
 /** The directory limit a scan stopped at. */
 export interface DiscoveryDirectoryLimit {
@@ -28,23 +38,20 @@ export function discoveryLimitFindings(
     depthLimit?: DiscoveryDepthLimit,
     entryLimit?: DiscoveryEntryLimit,
 ): Finding[] {
-    const reasons = [
-        ...(directoryLimit === undefined
-            ? []
-            : [
-                  `The repository scan stopped after listing ${directoryLimit.maxDirectories} directories, so agentic constructs in the remaining directories are not in this report.`,
-              ]),
-        ...(depthLimit === undefined
-            ? []
-            : [
-                  `The repository scan did not go more than ${depthLimit.maxDepth} directories deep, so agentic constructs in deeper directories are not in this report.`,
-              ]),
-        ...(entryLimit === undefined
-            ? []
-            : [
-                  `The repository scan stopped after examining ${entryLimit.maxEntries} directory entries, so agentic constructs in the remaining entries are not in this report.`,
-              ]),
-    ];
+    const reasons = describeDiscoveryLimits(
+        {
+            ...(directoryLimit === undefined
+                ? {}
+                : { maxDirectories: directoryLimit.maxDirectories }),
+            ...(depthLimit === undefined
+                ? {}
+                : { maxDepth: depthLimit.maxDepth }),
+            ...(entryLimit === undefined
+                ? {}
+                : { maxEntries: entryLimit.maxEntries }),
+        },
+        SCAN_WORDING,
+    );
     return reasons.length === 0
         ? []
         : [

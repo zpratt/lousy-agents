@@ -5,6 +5,10 @@
 
 import { realpath } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
+import {
+    type DiscoveryLimitWording,
+    describeDiscoveryLimits,
+} from "../entities/discovery-limit-message.js";
 import type {
     DiscoveredInstructionFile,
     InstructionDiscoveryDiagnosticSink,
@@ -119,23 +123,23 @@ export class FileSystemInstructionFileDiscoveryGateway
             );
         }
 
-        const reasons = [
-            ...(directoryLimitReached && limits !== undefined
-                ? [
-                      `Instruction file discovery stopped after listing ${limits.maxDirectories} directories, so instruction files in the remaining directories were not analyzed.`,
-                  ]
-                : []),
-            ...(depthLimitReached && limits !== undefined
-                ? [
-                      `Instruction file discovery did not go more than ${limits.maxDepth} directories deep, so instruction files in deeper directories were not analyzed.`,
-                  ]
-                : []),
-            ...(entryLimitReached && limits !== undefined
-                ? [
-                      `Instruction file discovery stopped after examining ${limits.maxEntries} directory entries, so instruction files in the remaining entries were not analyzed.`,
-                  ]
-                : []),
-        ];
+        const reasons =
+            limits === undefined
+                ? []
+                : describeDiscoveryLimits(
+                      {
+                          ...(directoryLimitReached
+                              ? { maxDirectories: limits.maxDirectories }
+                              : {}),
+                          ...(depthLimitReached
+                              ? { maxDepth: limits.maxDepth }
+                              : {}),
+                          ...(entryLimitReached
+                              ? { maxEntries: limits.maxEntries }
+                              : {}),
+                      },
+                      DISCOVERY_WORDING,
+                  );
         if (reasons.length > 0) {
             onDiagnostic?.({
                 ruleId: DISCOVERY_LIMIT_RULE_ID,
@@ -148,6 +152,12 @@ export class FileSystemInstructionFileDiscoveryGateway
 }
 
 const DISCOVERY_LIMIT_RULE_ID = "instruction/discovery-limit-reached";
+
+const DISCOVERY_WORDING: DiscoveryLimitWording = {
+    subject: "Instruction file discovery",
+    missing: "instruction files",
+    consequence: "were not analyzed",
+};
 
 /**
  * Discovers one exact-path instruction file, or nothing when it is missing
