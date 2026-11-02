@@ -13,6 +13,7 @@ import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+    type InspectionFsPort,
     inspectPathWithinRoot,
     resolveRealPathWithinRoot,
 } from "./real-path-within-root.js";
@@ -331,4 +332,168 @@ describe("inspectPathWithinRoot", () => {
             expect(result).toEqual({ status: "unsupported" });
         },
     );
+
+    describe("when the file system fails with an error code", () => {
+        const FakeRoot = join("/", "repo");
+        const FakeTarget = join(FakeRoot, "docs", "a.md");
+        const Identity = { dev: 7, ino: 11 };
+
+        function failure(code: string): Error {
+            return Object.assign(new Error(code), { code });
+        }
+
+        function failingRealpath(code: string): InspectionFsPort {
+            return {
+                realpath: async () => {
+                    throw failure(code);
+                },
+                stat: async () => ({
+                    ...Identity,
+                    isDirectory: () => false,
+                    isFile: () => true,
+                }),
+            };
+        }
+
+        function failingStat(code: string): InspectionFsPort {
+            return {
+                realpath: async () => FakeTarget,
+                stat: async () => {
+                    throw failure(code);
+                },
+            };
+        }
+
+        const unreadableCodes = ["EMFILE", "ENFILE", "EACCES", "EPERM", "EIO"];
+        const missingCodes = [
+            "ENOENT",
+            "ENOTDIR",
+            "ENAMETOOLONG",
+            "EINVAL",
+            "ERR_INVALID_ARG_VALUE",
+        ];
+        const unsupportedCodes = ["ELOOP"];
+
+        it.each(unreadableCodes)(
+            "should report %s from resolving the path as unreadable",
+            async (code) => {
+                const result = await inspectPathWithinRoot(
+                    FakeRoot,
+                    FakeTarget,
+                    failingRealpath(code),
+                );
+
+                expect(result).toEqual({ status: "unreadable" });
+            },
+        );
+
+        it.each(unreadableCodes)(
+            "should report %s from looking at the file as unreadable",
+            async (code) => {
+                const result = await inspectPathWithinRoot(
+                    FakeRoot,
+                    FakeTarget,
+                    failingStat(code),
+                );
+
+                expect(result).toEqual({ status: "unreadable" });
+            },
+        );
+
+        it.each(missingCodes)("should report %s as missing", async (code) => {
+            const result = await inspectPathWithinRoot(
+                FakeRoot,
+                FakeTarget,
+                failingRealpath(code),
+            );
+
+            expect(result).toEqual({ status: "missing" });
+        });
+
+        it.each(unsupportedCodes)(
+            "should report %s as a path that cannot be followed, not as unreadable or missing",
+            async (code) => {
+                const result = await inspectPathWithinRoot(
+                    FakeRoot,
+                    FakeTarget,
+                    failingRealpath(code),
+                );
+
+                expect(result).toEqual({ status: "unsupported" });
+            },
+        );
+
+        it("should report a failure that is not an error as unsupported", async () => {
+            const fs: InspectionFsPort = {
+                realpath: async () => {
+                    throw "EMFILE";
+                },
+                stat: failingStat("EMFILE").stat,
+            };
+
+            const result = await inspectPathWithinRoot(
+                FakeRoot,
+                FakeTarget,
+                fs,
+            );
+
+            expect(result).toEqual({ status: "unsupported" });
+        });
+
+        it("should report an error whose code is not text as unsupported", async () => {
+            const fs: InspectionFsPort = {
+                realpath: async () => {
+                    throw Object.assign(new Error("odd"), { code: 24 });
+                },
+                stat: failingStat("EMFILE").stat,
+            };
+
+            const result = await inspectPathWithinRoot(
+                FakeRoot,
+                FakeTarget,
+                fs,
+            );
+
+            expect(result).toEqual({ status: "unsupported" });
+        });
+
+        it("should say what a path outside the root is when the file system can look at it", async () => {
+            const outside = join("/", "elsewhere", "a.md");
+            const fs: InspectionFsPort = {
+                realpath: async () => outside,
+                stat: async () => ({
+                    ...Identity,
+                    isDirectory: () => true,
+                    isFile: () => false,
+                }),
+            };
+
+            const result = await inspectPathWithinRoot(
+                FakeRoot,
+                FakeTarget,
+                fs,
+            );
+
+            expect(result).toEqual({
+                status: "outside-root",
+                kind: "directory",
+            });
+        });
+
+        it("should call a path outside the root another kind when the file system will not say", async () => {
+            const outside = join("/", "elsewhere", "a.md");
+            const fs: InspectionFsPort = {
+                realpath: async () => outside,
+                stat: failingStat("EMFILE").stat,
+            };
+
+            const result = await inspectPathWithinRoot(
+                FakeRoot,
+                FakeTarget,
+                fs,
+            );
+
+            expect(result).toEqual({ status: "outside-root", kind: "other" });
+        });
+    });
 });

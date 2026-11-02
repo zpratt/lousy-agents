@@ -5,6 +5,7 @@ import {
     mkdtemp,
     realpath,
     rm,
+    stat,
     symlink,
     writeFile,
 } from "node:fs/promises";
@@ -18,6 +19,7 @@ import type {
     NoFollowFsPort,
     NoFollowStats,
 } from "./read-regular-file-no-follow.js";
+import type { InspectionFsPort } from "./real-path-within-root.js";
 
 const chance = new Chance();
 const CAP_BYTES = 64;
@@ -198,7 +200,7 @@ describe("classifyImportTarget", () => {
         }
 
         it.each(["EMFILE", "ENFILE", "EACCES"])(
-            "should report %s as unreadable, never as missing",
+            "should report an open that fails with %s as unreadable, never as missing",
             async (code) => {
                 await writeFile(join(rootReal, "a.md"), chance.word());
 
@@ -253,5 +255,71 @@ describe("classifyImportTarget", () => {
                 }
             },
         );
+    });
+
+    describe("when it is given the file system calls to inspect the path with", () => {
+        function inspectionFailing(code: string): InspectionFsPort {
+            const failure = Object.assign(new Error(code), { code });
+            return {
+                realpath: async () => {
+                    throw failure;
+                },
+                stat,
+            };
+        }
+
+        it("should look at the target through the port it was given", async () => {
+            await writeFile(join(rootReal, "a.md"), chance.word());
+            const looked: string[] = [];
+            const inspectionFs: InspectionFsPort = {
+                realpath: async (path) => {
+                    looked.push(`realpath ${path}`);
+                    return realpath(path);
+                },
+                stat: async (path) => {
+                    looked.push(`stat ${path}`);
+                    return stat(path);
+                },
+            };
+
+            const result = await classifyImportTarget(
+                rootReal,
+                join(rootReal, "a.md"),
+                CAP_BYTES,
+                { inspectionFs },
+            );
+
+            expect(result).toEqual({ ok: true, real: "a.md" });
+            expect(looked).toEqual([
+                `realpath ${join(rootReal, "a.md")}`,
+                `stat ${join(rootReal, "a.md")}`,
+            ]);
+        });
+
+        it("should report a failure of the port to resolve the path as unreadable when the code means the system refused", async () => {
+            await writeFile(join(rootReal, "a.md"), chance.word());
+
+            const result = await classifyImportTarget(
+                rootReal,
+                join(rootReal, "a.md"),
+                CAP_BYTES,
+                { inspectionFs: inspectionFailing("EMFILE") },
+            );
+
+            expect(result).toEqual({ ok: false, status: "unreadable" });
+        });
+
+        it("should report a name too long for the file system as unresolved", async () => {
+            await writeFile(join(rootReal, "a.md"), chance.word());
+
+            const result = await classifyImportTarget(
+                rootReal,
+                join(rootReal, "a.md"),
+                CAP_BYTES,
+                { inspectionFs: inspectionFailing("ENAMETOOLONG") },
+            );
+
+            expect(result).toEqual({ ok: false, status: "unresolved" });
+        });
     });
 });

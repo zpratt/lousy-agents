@@ -83,6 +83,16 @@ describe("HARNESS_FOOTPRINTS", () => {
         });
     });
 
+    describe("when harness reads AGENTS.md by convention, in the entries not named above", () => {
+        it("should set readsAgentsMd: false for antigravity", () => {
+            expect(HARNESS_FOOTPRINTS.antigravity.readsAgentsMd).toBe(false);
+        });
+
+        it("should set readsAgentsMd: true for the shared entry", () => {
+            expect(HARNESS_FOOTPRINTS.shared.readsAgentsMd).toBe(true);
+        });
+    });
+
     describe("when harness reads AGENTS.md only under a condition", () => {
         // Corrected from false: Copilot reads AGENTS.md (GitHub docs: custom
         // instructions support), and Claude Code reads it when no CLAUDE.md,
