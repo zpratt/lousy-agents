@@ -427,6 +427,28 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
         });
     });
 
+    describe("when .github/instructions has a dist subdirectory", () => {
+        it("should discover the instruction files in it, because only node_modules and .git are skipped", async () => {
+            const directory = join(testDir, ".github", "instructions", "dist");
+            await mkdir(directory, { recursive: true });
+            await writeFile(
+                join(directory, "built.instructions.md"),
+                chance.sentence(),
+            );
+
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            expect(files.map((f) => relative(testDir, f.filePath))).toEqual([
+                join(
+                    ".github",
+                    "instructions",
+                    "dist",
+                    "built.instructions.md",
+                ),
+            ]);
+        });
+    });
+
     describe("when .github/instructions has markdown files that are not *.instructions.md", () => {
         it("should discover only the files named *.instructions.md, as Copilot loads them", async () => {
             const dir = join(testDir, ".github", "instructions");

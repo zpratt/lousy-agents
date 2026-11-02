@@ -1058,6 +1058,23 @@ describe("scanRepository", () => {
             },
         );
 
+        it("should leave a file under a dist directory out of the inventory, even inside an instruction directory that lint reads", async () => {
+            const kept = ".github/instructions/kept.instructions.md";
+            const built = ".github/instructions/dist/built.instructions.md";
+            const files = {
+                [CLAUDE_MD]: "# Claude\n",
+                [kept]: "# kept\n",
+                [built]: "# built\n",
+            };
+            await withTempRepo(files, async (repoRoot) => {
+                const records = await scanRepository(repoRoot);
+
+                const paths = records.map((r) => r.path);
+                expect(paths).toContain(kept);
+                expect(paths).not.toContain(built);
+            });
+        });
+
         it("should treat a file outside the skipped directories as part of the scanned repository", async () => {
             const files = {
                 [CLAUDE_MD]: "[guide](./docs/guide.md)\n",
