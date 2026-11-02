@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { FileSystemEnvironmentGateway } from "./environment-gateway.js";
+import { DEFAULT_COPILOT_SETUP_CONFIG } from "../entities/copilot-setup-config.js";
+import {
+    createEnvironmentGatewayWithConfig,
+    FileSystemEnvironmentGateway,
+} from "./environment-gateway.js";
 
 const chance = new Chance();
 
@@ -53,6 +57,55 @@ describe("EnvironmentGateway", () => {
                     gateway.detectEnvironment(testDir),
                 ).rejects.toThrow("symbolic link");
             });
+        });
+    });
+
+    describe("createEnvironmentGatewayWithConfig", () => {
+        const CustomFile = ".customver";
+
+        it("should detect with the configuration it was given, not the one in the directory it inspects", async () => {
+            await writeFile(join(testDir, CustomFile), "22");
+            await writeFile(join(testDir, ".nvmrc"), "20");
+            await writeFile(
+                join(testDir, "lousy-agents.config.json"),
+                JSON.stringify({
+                    versionFiles: [{ filename: ".nvmrc", type: "node" }],
+                }),
+            );
+            const given = {
+                ...DEFAULT_COPILOT_SETUP_CONFIG,
+                versionFiles: [{ filename: CustomFile, type: "node" as const }],
+            };
+
+            const environment =
+                await createEnvironmentGatewayWithConfig(
+                    given,
+                ).detectEnvironment(testDir);
+
+            expect(environment.versionFiles.map((f) => f.filename)).toEqual([
+                CustomFile,
+            ]);
+        });
+
+        it("should keep using the configuration it was given when the file changes afterwards", async () => {
+            await writeFile(join(testDir, CustomFile), "22");
+            const given = {
+                ...DEFAULT_COPILOT_SETUP_CONFIG,
+                versionFiles: [{ filename: CustomFile, type: "node" as const }],
+            };
+            const gatewayWithConfig = createEnvironmentGatewayWithConfig(given);
+            await gatewayWithConfig.detectEnvironment(testDir);
+            await writeFile(
+                join(testDir, "lousy-agents.config.json"),
+                JSON.stringify({ versionFiles: [] }),
+            );
+
+            const environment =
+                await gatewayWithConfig.detectEnvironment(testDir);
+
+            expect(environment.versionFiles.map((f) => f.filename)).toEqual([
+                CustomFile,
+            ]);
         });
     });
 });

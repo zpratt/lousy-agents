@@ -31,9 +31,21 @@ const COPILOT_SETUP_WORKFLOW_FILENAMES = [
 const MAX_WORKFLOW_FILE_BYTES = 1024 * 1024;
 
 export class FileSystemWorkflowGateway implements WorkflowGateway {
-    private config: CopilotSetupConfig | null = null;
+    private config: CopilotSetupConfig | null;
 
-    constructor(private readonly cwd?: string) {}
+    /**
+     * @param cwd Directory the configuration is loaded from (defaults to
+     * process.cwd()), unless `config` is given
+     * @param config A configuration loaded by the caller. The gateway uses it
+     * as it is and does not read the configuration file itself, so a caller
+     * that also needs the configuration reads the file once for both.
+     */
+    constructor(
+        private readonly cwd?: string,
+        config?: CopilotSetupConfig,
+    ) {
+        this.config = config ?? null;
+    }
 
     private async getConfig(): Promise<CopilotSetupConfig> {
         if (!this.config) {
@@ -157,4 +169,15 @@ export class FileSystemWorkflowGateway implements WorkflowGateway {
 
 export function createWorkflowGateway(cwd?: string): WorkflowGateway {
     return new FileSystemWorkflowGateway(cwd);
+}
+
+/**
+ * Creates a workflow gateway that scans workflows with a configuration the
+ * caller has already loaded, so the configuration file is read once and the
+ * gateway and the caller cannot see two different versions of it.
+ */
+export function createWorkflowGatewayWithConfig(
+    config: CopilotSetupConfig,
+): WorkflowGateway {
+    return new FileSystemWorkflowGateway(undefined, config);
 }

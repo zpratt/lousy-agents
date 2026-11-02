@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { FileSystemWorkflowGateway } from "./file-system-workflow-gateway.js";
+import { DEFAULT_COPILOT_SETUP_CONFIG } from "../entities/copilot-setup-config.js";
+import {
+    createWorkflowGatewayWithConfig,
+    FileSystemWorkflowGateway,
+} from "./file-system-workflow-gateway.js";
 
 const chance = new Chance();
 
@@ -72,6 +76,77 @@ describe("FileSystemWorkflowGateway", () => {
                 // Assert — bad.yml is skipped but ci.yml is processed
                 expect(candidates).toBeDefined();
             });
+        });
+    });
+
+    describe("parseWorkflowsForSetupActions with a configuration the caller loaded", () => {
+        const InjectedAction = "acme/injected-setup";
+        const OnDiskAction = "acme/on-disk-setup";
+
+        function workflowUsing(action: string): string {
+            return [
+                "name: CI",
+                "on: push",
+                "jobs:",
+                "  setup:",
+                "    runs-on: ubuntu-latest",
+                "    steps:",
+                `      - uses: ${action}@v1`,
+                "",
+            ].join("\n");
+        }
+
+        async function writeWorkflowsUsingBothActions(): Promise<void> {
+            const workflowsDir = join(testDir, ".github", "workflows");
+            await mkdir(workflowsDir, { recursive: true });
+            await writeFile(
+                join(workflowsDir, "injected.yml"),
+                workflowUsing(InjectedAction),
+            );
+            await writeFile(
+                join(workflowsDir, "on-disk.yml"),
+                workflowUsing(OnDiskAction),
+            );
+            await writeFile(
+                join(testDir, "lousy-agents.config.json"),
+                JSON.stringify({
+                    ...DEFAULT_COPILOT_SETUP_CONFIG,
+                    setupActionPatterns: [OnDiskAction],
+                }),
+            );
+        }
+
+        it("should recognise actions by the patterns of the configuration it was given, not the file in the directory", async () => {
+            await writeWorkflowsUsingBothActions();
+            const injectedConfig = {
+                ...DEFAULT_COPILOT_SETUP_CONFIG,
+                setupActionPatterns: [InjectedAction],
+            };
+            const gatewayWithConfig =
+                createWorkflowGatewayWithConfig(injectedConfig);
+
+            const candidates =
+                await gatewayWithConfig.parseWorkflowsForSetupActions(testDir);
+
+            expect(candidates.map((candidate) => candidate.action)).toEqual([
+                InjectedAction,
+            ]);
+        });
+
+        it("should recognise actions by the file in the directory when it was given no configuration", async () => {
+            await writeWorkflowsUsingBothActions();
+            const gatewayReadingTheFile = new FileSystemWorkflowGateway(
+                testDir,
+            );
+
+            const candidates =
+                await gatewayReadingTheFile.parseWorkflowsForSetupActions(
+                    testDir,
+                );
+
+            expect(candidates.map((candidate) => candidate.action)).toEqual([
+                OnDiskAction,
+            ]);
         });
     });
 

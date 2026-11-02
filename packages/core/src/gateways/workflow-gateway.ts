@@ -6,5 +6,6 @@ export type { WorkflowGateway } from "../use-cases/init-copilot-setup-workflow.j
 
 export {
     createWorkflowGateway,
+    createWorkflowGatewayWithConfig,
     FileSystemWorkflowGateway,
 } from "./file-system-workflow-gateway.js";

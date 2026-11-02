@@ -19,6 +19,7 @@ export {
 } from "./claude-file-gateway.js";
 export {
     createEnvironmentGateway,
+    createEnvironmentGatewayWithConfig,
     type EnvironmentGateway,
     FileSystemEnvironmentGateway,
 } from "./environment-gateway.js";
@@ -79,6 +80,7 @@ export {
 } from "./tool-discovery-gateway.js";
 export {
     createWorkflowGateway,
+    createWorkflowGatewayWithConfig,
     FileSystemWorkflowGateway,
     type WorkflowGateway,
 } from "./workflow-gateway.js";

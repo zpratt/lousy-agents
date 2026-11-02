@@ -11,7 +11,7 @@ import type {
 import type { DetectedEnvironment } from "@lousy-agents/core/entities/copilot-setup.js";
 import {
     createClaudeFileGateway,
-    createEnvironmentGateway,
+    createEnvironmentGatewayWithConfig,
 } from "@lousy-agents/core/gateways/index.js";
 import { loadCopilotSetupConfig } from "@lousy-agents/core/lib/copilot-setup-config.js";
 import {
@@ -42,11 +42,12 @@ export const createClaudeCodeWebSetupHandler: ToolHandler = async (
             return targetDirError;
         }
 
-        const environmentGateway = createEnvironmentGateway(dir);
+        const copilotSetupConfig = await loadCopilotSetupConfig(dir);
+        const environmentGateway =
+            createEnvironmentGatewayWithConfig(copilotSetupConfig);
         const claudeGateway = createClaudeFileGateway();
 
         const environment = await environmentGateway.detectEnvironment(dir);
-        const copilotSetupConfig = await loadCopilotSetupConfig(dir);
 
         const hooks = await buildSessionStartHooks(
             environment,
