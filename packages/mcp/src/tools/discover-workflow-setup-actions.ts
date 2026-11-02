@@ -29,7 +29,7 @@ export const discoverWorkflowSetupActionsHandler: ToolHandler = async (
             return targetDirError;
         }
 
-        const workflowGateway = createWorkflowGateway();
+        const workflowGateway = createWorkflowGateway(dir);
         const workflowsDir = join(dir, ".github", "workflows");
         const workflowsDirExists = await fileExists(workflowsDir);
 

@@ -4,9 +4,10 @@
 
 import { mkdir } from "node:fs/promises";
 import type { SetupStepCandidate } from "@lousy-agents/core/entities/copilot-setup.js";
+import type { CopilotSetupConfig } from "@lousy-agents/core/entities/copilot-setup-config.js";
 import {
-    createEnvironmentGateway,
-    createWorkflowGateway,
+    createEnvironmentGatewayWithConfig,
+    createWorkflowGatewayWithConfig,
     fileExists,
     resolveSafePath,
 } from "@lousy-agents/core/gateways/index.js";
@@ -21,6 +22,7 @@ import {
     generateWorkflowContent,
     updateWorkflowWithMissingSteps,
 } from "@lousy-agents/core/use-cases/copilot-setup.js";
+import type { WorkflowGateway } from "@lousy-agents/core/use-cases/init-copilot-setup-workflow.js";
 import {
     findMissingCandidates,
     getExistingActionsFromWorkflow,
@@ -41,10 +43,11 @@ import {
 async function gatherCandidates(
     dir: string,
     workflowsDirExists: boolean,
+    workflowGateway: WorkflowGateway,
+    copilotSetupConfig: CopilotSetupConfig,
 ): Promise<SetupStepCandidate[]> {
-    const environmentGateway = createEnvironmentGateway(dir);
-    const workflowGateway = createWorkflowGateway();
-    const copilotSetupConfig = await loadCopilotSetupConfig(dir);
+    const environmentGateway =
+        createEnvironmentGatewayWithConfig(copilotSetupConfig);
 
     // Detect environment configuration
     const environment = await environmentGateway.detectEnvironment(dir);
@@ -70,12 +73,11 @@ async function gatherCandidates(
  */
 async function updateExistingWorkflow(
     dir: string,
+    workflowGateway: WorkflowGateway,
     workflowPath: string,
     allCandidates: SetupStepCandidate[],
     args: CreateWorkflowArgs,
 ): Promise<ToolResult> {
-    const workflowGateway = createWorkflowGateway();
-
     const existingWorkflow =
         await workflowGateway.readCopilotSetupWorkflow(dir);
     const existingActions = getExistingActionsFromWorkflow(existingWorkflow);
@@ -148,12 +150,11 @@ async function updateExistingWorkflow(
  */
 async function createNewWorkflow(
     dir: string,
+    workflowGateway: WorkflowGateway,
     workflowPath: string,
     allCandidates: SetupStepCandidate[],
     args: CreateWorkflowArgs,
 ): Promise<ToolResult> {
-    const workflowGateway = createWorkflowGateway();
-
     // Generate workflow with placeholder mode and resolved versions
     const content = await generateWorkflowContent(allCandidates, undefined, {
         usePlaceholders: true,
@@ -182,48 +183,90 @@ async function createNewWorkflow(
 }
 
 /**
- * Creates or updates the Copilot Setup Steps workflow.
+ * What the create_copilot_setup_workflow handler reads from outside.
  */
-export const createCopilotSetupWorkflowHandler: CreateWorkflowHandler = async (
-    args: CreateWorkflowArgs,
-) => {
-    try {
-        const dir = args.targetDir || process.cwd();
+export interface CreateWorkflowPorts {
+    /** Loads the configuration of the repository at the given directory */
+    readonly loadConfig: (directory: string) => Promise<CopilotSetupConfig>;
+}
 
-        const targetDirError = await validateTargetDirectory(dir);
-        if (targetDirError) {
-            return targetDirError;
-        }
+/**
+ * Builds the handler for creating or updating the Copilot Setup Steps
+ * workflow. The configuration is loaded once per call and shared by the
+ * environment detection and the workflow scan, so the two cannot see two
+ * different versions of the file.
+ */
+export function buildCreateCopilotSetupWorkflowHandler(
+    ports: CreateWorkflowPorts,
+): CreateWorkflowHandler {
+    return async (args: CreateWorkflowArgs) => {
+        try {
+            const dir = args.targetDir || process.cwd();
 
-        const workflowGateway = createWorkflowGateway();
-        const workflowsDir = await resolveSafePath(dir, ".github/workflows");
-        const workflowsDirExists = await fileExists(workflowsDir);
+            const targetDirError = await validateTargetDirectory(dir);
+            if (targetDirError) {
+                return targetDirError;
+            }
 
-        const allCandidates = await gatherCandidates(dir, workflowsDirExists);
-
-        if (!workflowsDirExists) {
-            await mkdir(workflowsDir, { recursive: true });
-        }
-
-        const workflowPath =
-            await workflowGateway.getCopilotSetupWorkflowPath(dir);
-
-        const workflowExists =
-            await workflowGateway.copilotSetupWorkflowExists(dir);
-
-        if (workflowExists) {
-            return await updateExistingWorkflow(
+            const copilotSetupConfig = await ports.loadConfig(dir);
+            const workflowGateway =
+                createWorkflowGatewayWithConfig(copilotSetupConfig);
+            const workflowsDir = await resolveSafePath(
                 dir,
+                ".github/workflows",
+            );
+            const workflowsDirExists = await fileExists(workflowsDir);
+
+            const allCandidates = await gatherCandidates(
+                dir,
+                workflowsDirExists,
+                workflowGateway,
+                copilotSetupConfig,
+            );
+
+            if (!workflowsDirExists) {
+                await mkdir(workflowsDir, { recursive: true });
+            }
+
+            const workflowPath =
+                await workflowGateway.getCopilotSetupWorkflowPath(dir);
+
+            const workflowExists =
+                await workflowGateway.copilotSetupWorkflowExists(dir);
+
+            if (workflowExists) {
+                return await updateExistingWorkflow(
+                    dir,
+                    workflowGateway,
+                    workflowPath,
+                    allCandidates,
+                    args,
+                );
+            }
+
+            return await createNewWorkflow(
+                dir,
+                workflowGateway,
                 workflowPath,
                 allCandidates,
                 args,
             );
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Unknown error occurred";
+            return errorResponse(
+                `Failed to create/update workflow: ${message}`,
+            );
         }
+    };
+}
 
-        return await createNewWorkflow(dir, workflowPath, allCandidates, args);
-    } catch (error) {
-        const message =
-            error instanceof Error ? error.message : "Unknown error occurred";
-        return errorResponse(`Failed to create/update workflow: ${message}`);
-    }
-};
+/**
+ * Creates or updates the Copilot Setup Steps workflow.
+ */
+export const createCopilotSetupWorkflowHandler: CreateWorkflowHandler =
+    buildCreateCopilotSetupWorkflowHandler({
+        loadConfig: loadCopilotSetupConfig,
+    });

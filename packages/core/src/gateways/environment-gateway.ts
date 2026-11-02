@@ -46,9 +46,21 @@ async function readVersionFileContent(
  * File system implementation of the environment gateway.
  */
 export class FileSystemEnvironmentGateway implements EnvironmentGateway {
-    private config: CopilotSetupConfig | null = null;
+    private config: CopilotSetupConfig | null;
 
-    constructor(private readonly cwd?: string) {}
+    /**
+     * @param cwd Directory the configuration is loaded from (defaults to
+     * process.cwd()), unless `config` is given
+     * @param config A configuration loaded by the caller. The gateway uses it
+     * as it is and does not read the configuration file itself, so a caller
+     * that also needs the configuration reads the file once for both.
+     */
+    constructor(
+        private readonly cwd?: string,
+        config?: CopilotSetupConfig,
+    ) {
+        this.config = config ?? null;
+    }
 
     private async getConfig(): Promise<CopilotSetupConfig> {
         if (!this.config) {
@@ -267,4 +279,15 @@ export class FileSystemEnvironmentGateway implements EnvironmentGateway {
  */
 export function createEnvironmentGateway(cwd?: string): EnvironmentGateway {
     return new FileSystemEnvironmentGateway(cwd);
+}
+
+/**
+ * Creates an environment gateway that detects with a configuration the caller
+ * has already loaded, so the configuration file is read once and the gateway
+ * and the caller cannot see two different versions of it.
+ */
+export function createEnvironmentGatewayWithConfig(
+    config: CopilotSetupConfig,
+): EnvironmentGateway {
+    return new FileSystemEnvironmentGateway(undefined, config);
 }
