@@ -731,3 +731,44 @@ describe("external-claude-import criterion (inventory.externalImport)", () => {
         expect(hasBlockingFindings(findings)).toBe(false);
     });
 });
+
+describe("evaluate malformed imports without a recorded reason", () => {
+    const missingTarget = "docs/missing.md";
+    const reasonlessEdge: Edge = {
+        type: "hard-import",
+        direction: { from: "CLAUDE.md", to: missingTarget },
+        target: missingTarget,
+        malformed: true,
+    };
+
+    function claudeFindings(edge: Edge) {
+        return evaluate(CRITERIA, {
+            records: [
+                makeRecord({
+                    harness: "claude",
+                    path: "CLAUDE.md",
+                    id: "claude:CLAUDE.md",
+                    edges: [edge],
+                }),
+            ],
+            classification: makeClassification("pure"),
+            intent: null,
+        });
+    }
+
+    it("should count it as a missing target and block, like an import that names missing-target", () => {
+        const finding = claudeFindings(reasonlessEdge).find(
+            (f) => f.criterionId === "malformed-claude-import",
+        );
+
+        expect(finding?.severity).toBe("high");
+    });
+
+    it("should not report it as an import outside the repository", () => {
+        const external = claudeFindings(reasonlessEdge).filter(
+            (f) => f.criterionId === "external-claude-import",
+        );
+
+        expect(external).toEqual([]);
+    });
+});

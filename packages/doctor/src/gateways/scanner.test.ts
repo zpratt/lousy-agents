@@ -716,6 +716,47 @@ describe("scanRepository", () => {
             });
         });
 
+        describe("when the scanned root is a symlink to the repository", () => {
+            it.each([
+                ["the path the scan was given", "link"],
+                ["the real path of the repository", "real"],
+            ])(
+                "should resolve an absolute import written with %s as a well-formed edge",
+                async (_name, spelling) => {
+                    await withTempRepo(
+                        { "docs/guide.md": "# guide\n" },
+                        async (repoRoot) => {
+                            const linkRoot = `${repoRoot}-link`;
+                            await symlink(repoRoot, linkRoot);
+                            try {
+                                const spelledRoot =
+                                    spelling === "link" ? linkRoot : repoRoot;
+                                await writeFile(
+                                    join(repoRoot, CLAUDE_MD),
+                                    `@${join(spelledRoot, "docs", "guide.md")}\n`,
+                                );
+
+                                const records = await scanRepository(linkRoot);
+
+                                const claudeMd = records.find(
+                                    (r) => r.path === CLAUDE_MD,
+                                );
+                                expect(claudeMd?.edges).toEqual([
+                                    expect.objectContaining({
+                                        type: "hard-import",
+                                        malformed: false,
+                                        target: "docs/guide.md",
+                                    }),
+                                ]);
+                            } finally {
+                                await rm(linkRoot, { force: true });
+                            }
+                        },
+                    );
+                },
+            );
+        });
+
         describe("depth limit", () => {
             const chain = (levels: number) =>
                 Array.from({ length: levels }, (_, level) => `d${level}`).join(
