@@ -52,10 +52,52 @@ interface FenceLines {
     readonly lengths: number[];
 }
 
-interface ClosingLines {
-    readonly starts: number[];
-    readonly ends: number[];
-    cursor: number;
+/**
+ * The lines that can close fences of one character and length, in file order.
+ * The cursor moves forward only: a lookup never goes back to a line before the
+ * one an earlier lookup stopped at, so all lookups together cost one pass.
+ */
+class ClosingLines {
+    private readonly starts: number[] = [];
+    private readonly ends: number[] = [];
+    private cursor = 0;
+
+    add(start: number, end: number): void {
+        this.starts.push(start);
+        this.ends.push(end);
+    }
+
+    firstEndFrom(from: number, countSteps: CountSteps): number | undefined {
+        const startedAt = this.cursor;
+        while (
+            this.cursor < this.starts.length &&
+            (this.starts[this.cursor] ?? 0) < from
+        ) {
+            this.cursor += 1;
+        }
+        countSteps(this.cursor - startedAt + 1);
+        return this.ends[this.cursor];
+    }
+}
+
+/** The closing lines, indexed by fence character and length. */
+class ClosingIndex {
+    private readonly byKey = new Map<number, ClosingLines>();
+
+    add(key: number, start: number, end: number): void {
+        const existing = this.byKey.get(key);
+        if (existing) {
+            existing.add(start, end);
+            return;
+        }
+        const created = new ClosingLines();
+        created.add(start, end);
+        this.byKey.set(key, created);
+    }
+
+    get(key: number): ClosingLines | undefined {
+        return this.byKey.get(key);
+    }
 }
 
 /**
@@ -120,21 +162,6 @@ function closingKey(code: number, length: number): number {
     return length * 2 + (code === TILDE ? 1 : 0);
 }
 
-function addClosingLine(
-    closers: Map<number, ClosingLines>,
-    key: number,
-    start: number,
-    end: number,
-): void {
-    const existing = closers.get(key);
-    if (existing) {
-        existing.starts.push(start);
-        existing.ends.push(end);
-        return;
-    }
-    closers.set(key, { starts: [start], ends: [end], cursor: 0 });
-}
-
 /**
  * One pass over the lines that begin with three or more fence characters.
  * A line that is only the fence run and trailing spaces or tabs can close a
@@ -146,10 +173,10 @@ function collectFenceLines(
     countSteps: CountSteps,
 ): {
     fenceLines: FenceLines;
-    closers: Map<number, ClosingLines>;
+    closers: ClosingIndex;
 } {
     const fenceLines: FenceLines = { starts: [], lengths: [] };
-    const closers = new Map<number, ClosingLines>();
+    const closers = new ClosingIndex();
     for (let index = 0; index < content.length; index += 1) {
         if (!isLineStart(content, index)) {
             continue;
@@ -167,8 +194,7 @@ function collectFenceLines(
             trailingEnd >= content.length ||
             isLineTerminator(content.charCodeAt(trailingEnd))
         ) {
-            addClosingLine(
-                closers,
+            closers.add(
                 closingKey(content.charCodeAt(index), length),
                 index,
                 trailingEnd,
@@ -232,29 +258,13 @@ function fenceBodyStart(
     return undefined;
 }
 
-function firstClosingEndFrom(
-    closing: ClosingLines,
-    from: number,
-    countSteps: CountSteps,
-): number | undefined {
-    const startedAt = closing.cursor;
-    while (
-        closing.cursor < closing.starts.length &&
-        (closing.starts[closing.cursor] ?? 0) < from
-    ) {
-        closing.cursor += 1;
-    }
-    countSteps(closing.cursor - startedAt + 1);
-    return closing.ends[closing.cursor];
-}
-
 /**
  * A fence is closed by the first line after it that is exactly as many fence
  * characters as the opener. When no such line follows, shorter lengths are
  * tried in turn, down to three.
  */
 function findClosingEnd(
-    closers: ReadonlyMap<number, ClosingLines>,
+    closers: ClosingIndex,
     code: number,
     fenceLength: number,
     bodyStart: number,
@@ -263,8 +273,7 @@ function findClosingEnd(
     for (let length = fenceLength; length >= MIN_FENCE_LENGTH; length -= 1) {
         countSteps(1);
         const closing = closers.get(closingKey(code, length));
-        const end =
-            closing && firstClosingEndFrom(closing, bodyStart, countSteps);
+        const end = closing?.firstEndFrom(bodyStart, countSteps);
         if (end !== undefined) {
             return end;
         }
