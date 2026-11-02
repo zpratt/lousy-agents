@@ -23,7 +23,7 @@ The server identifies itself to clients as `lousy-agents` with the version of th
 
 A tool that fails sets `isError: true` on its result, as the MCP specification requires, and its text content is `{"success": false, "error": "..."}`. A client that checks `isError` sees every failure; a tool that succeeds does not set it.
 
-Every tool that takes `targetDir` checks it before doing anything else, and defaults it to the server's working directory when it is omitted. A path that does not exist fails with `Target directory does not exist: <path>`, and a path that is not a directory fails with `Target path is not a directory: <path>`. The setup tools (`create_copilot_setup_workflow`, `create_claude_code_web_setup`) read the `lousy-agents` configuration from `targetDir`, so a repository's own `copilotSetup` settings (custom setup actions, install commands) apply to the repository named in the call and not to the directory the server was started in.
+Every tool that takes `targetDir` checks it before doing anything else, and defaults it to the server's working directory when it is omitted. The one exception is `resolve_action_versions` called with an explicit `actions` list: it answers from the list and does not look at `targetDir`. A path that does not exist fails with `Target directory does not exist: <path>`, and a path that is not a directory fails with `Target path is not a directory: <path>`. The setup tools (`create_copilot_setup_workflow`, `create_claude_code_web_setup`) read the `lousy-agents` configuration from `targetDir`, so a repository's own `copilotSetup` settings (custom setup actions, install commands) apply to the repository named in the call and not to the directory the server was started in.
 
 ## Version Resolution
 
