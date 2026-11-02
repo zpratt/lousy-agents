@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
     assertFileSizeWithinLimit,
     assertPathHasNoSymbolicLinks,
+    isPathWithinRoot,
     listDirectoryWithinRoot,
     pathExistsWithinRoot,
     readFileNoFollow,
@@ -580,6 +581,47 @@ describe("statWithinRoot", () => {
             await expect(statWithinRoot(testDir, "link.txt")).rejects.toThrow(
                 /symlinks are not allowed/i,
             );
+        });
+    });
+});
+
+describe("isPathWithinRoot", () => {
+    describe("when the candidate is the root or below it", () => {
+        it.each([
+            ["the root itself", "/repo", "/repo"],
+            ["a child", "/repo", "/repo/a.md"],
+            ["a deeper descendant", "/repo", "/repo/a/b/c.md"],
+            [
+                "a child of a root written with a trailing separator",
+                "/repo/",
+                "/repo/a.md",
+            ],
+            [
+                "any path when the root is the file system root",
+                "/",
+                "/repo/a.md",
+            ],
+        ])("should accept %s", (_name, root, candidate) => {
+            expect(isPathWithinRoot(root, candidate)).toBe(true);
+        });
+    });
+
+    describe("when the candidate is outside the root", () => {
+        it.each([
+            [
+                "a sibling whose name starts with the root's name",
+                "/repo",
+                "/repo-evil/a.md",
+            ],
+            [
+                "a sibling whose name starts with the root's name, root with a trailing separator",
+                "/repo/",
+                "/repo-evil/a.md",
+            ],
+            ["the parent of the root", "/repo", "/"],
+            ["an unrelated directory", "/repo", "/other/a.md"],
+        ])("should reject %s", (_name, root, candidate) => {
+            expect(isPathWithinRoot(root, candidate)).toBe(false);
         });
     });
 });
