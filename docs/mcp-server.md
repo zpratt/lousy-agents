@@ -17,6 +17,14 @@ Lousy Agents publishes an MCP (Model Context Protocol) server as `@lousy-agents/
 | `analyze_action_versions` | Analyze GitHub Action versions across all workflows |
 | `resolve_action_versions` | Get version resolution metadata for GitHub Actions (standalone tool) |
 
+The server identifies itself to clients as `lousy-agents` with the version of the installed `@lousy-agents/mcp` package, read from the package's own `package.json` when the server starts (the release process writes the published version there after the build). If that file cannot be read, the version is reported as `0.0.0-unknown`, and the server still starts.
+
+## Errors and the target directory
+
+A tool that fails sets `isError: true` on its result, as the MCP specification requires, and its text content is `{"success": false, "error": "..."}`. A client that checks `isError` sees every failure; a tool that succeeds does not set it.
+
+Every tool that takes `targetDir` checks it before doing anything else, and defaults it to the server's working directory when it is omitted. A path that does not exist fails with `Target directory does not exist: <path>`, and a path that is not a directory fails with `Target path is not a directory: <path>`. The setup tools (`create_copilot_setup_workflow`, `create_claude_code_web_setup`) read the `lousy-agents` configuration from `targetDir`, so a repository's own `copilotSetup` settings (custom setup actions, install commands) apply to the repository named in the call and not to the directory the server was started in.
+
 ## Version Resolution
 
 The MCP server supports dynamic version resolution for GitHub Actions. When creating or updating workflows, the tools return metadata that enables AI assistants to look up and pin actions to their latest SHA versions for security.
@@ -26,6 +34,8 @@ The MCP server supports dynamic version resolution for GitHub Actions. When crea
 1. **Placeholder Mode**: When creating workflows, actions use `RESOLVE_VERSION` placeholders
 2. **Resolution Metadata**: The response includes an `actionsToResolve` array with lookup URLs
 3. **SHA Pinning**: After resolving versions, call the tool again with `resolvedVersions` to generate SHA-pinned actions
+
+`actionsToResolve` lists only actions. An install command (a `run` step, such as `npm ci`) has no action version to resolve and is never listed. When the workflow already exists, missing steps are added to its `copilot-setup-steps` job (the job Copilot runs), or to its first job when it has no job with that name. A step the job already has is not added again: an action is matched by its name, and a `run` step by its command with surrounding whitespace removed, so calling the tool again with the same inputs changes nothing.
 
 ### Response Format
 
