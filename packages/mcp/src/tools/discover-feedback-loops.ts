@@ -17,6 +17,18 @@ import {
     validateTargetDirectory,
 } from "./types.js";
 
+/** Groups items by their phase, each as the entry the response shows. */
+function groupByPhase<T extends { readonly phase: string }>(
+    items: readonly T[],
+    toEntry: (item: T) => Record<string, unknown>,
+): Record<string, unknown[]> {
+    const grouped: Record<string, unknown[]> = {};
+    for (const item of items) {
+        grouped[item.phase] = [...(grouped[item.phase] ?? []), toEntry(item)];
+    }
+    return grouped;
+}
+
 /**
  * Discovers npm scripts from package.json and CLI tools from GitHub Actions workflows,
  * mapping them to SDLC feedback loop phases (test, build, lint, format, etc.).
@@ -59,36 +71,18 @@ export const discoverFeedbackLoopsHandler: ToolHandler = async (
         const { scripts, tools, packageManager } = result.feedbackLoops;
 
         // Group by phase for better readability
-        const scriptsByPhase = scripts.reduce(
-            (acc, script) => {
-                if (!acc[script.phase]) {
-                    acc[script.phase] = [];
-                }
-                acc[script.phase].push({
-                    name: script.name,
-                    command: script.command,
-                    mandatory: script.isMandatory,
-                });
-                return acc;
-            },
-            {} as Record<string, unknown[]>,
-        );
+        const scriptsByPhase = groupByPhase(scripts, (script) => ({
+            name: script.name,
+            command: script.command,
+            mandatory: script.isMandatory,
+        }));
 
-        const toolsByPhase = tools.reduce(
-            (acc, tool) => {
-                if (!acc[tool.phase]) {
-                    acc[tool.phase] = [];
-                }
-                acc[tool.phase].push({
-                    name: tool.name,
-                    command: tool.fullCommand,
-                    mandatory: tool.isMandatory,
-                    source: tool.sourceWorkflow,
-                });
-                return acc;
-            },
-            {} as Record<string, unknown[]>,
-        );
+        const toolsByPhase = groupByPhase(tools, (tool) => ({
+            name: tool.name,
+            command: tool.fullCommand,
+            mandatory: tool.isMandatory,
+            source: tool.sourceWorkflow,
+        }));
 
         const mandatoryScripts = scripts.filter((s) => s.isMandatory);
         const mandatoryTools = tools.filter((t) => t.isMandatory);
