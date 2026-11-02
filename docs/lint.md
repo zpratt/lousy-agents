@@ -29,7 +29,9 @@ Paths come from the shared agentic location catalog in `@lousy-agents/core` (als
 
 ### Discovery limits
 
-Instruction directories such as `.github/instructions` are walked by the same bounded walk that `doctor` uses, so the two tools cannot disagree about how a tree is traversed:
+Instruction directories such as `.github/instructions` are walked by the same bounded walk that `doctor` uses (`@lousy-agents/core`), so the two tools share one set of ordering, symlink and limit rules. They do not always see the same files: see *Differences from doctor* below.
+
+The walk:
 
 - **Depth**: the entry directory is depth 0, directories through depth 10 are listed, and a subdirectory of a directory at depth 10 is not entered. A directory below that limit is not entered, and lint reports it with the discovery-limit warning described under *Directory cap*, because `.github/instructions/**/*.instructions.md` files at any depth are loaded by Copilot
 - **Skipped directories**: `node_modules` and `.git` are never walked
@@ -38,6 +40,11 @@ Instruction directories such as `.github/instructions` are walked by the same bo
 - **Unreadable entries**: a directory the process cannot list, or an entry it cannot inspect (permission denied, a symlink loop, too many open files), is skipped without a diagnostic and the walk goes on, so the files beside it are still found. A run as a user who cannot read an instruction directory analyzes less than a run that can, and does not say so.
 - **Directory cap**: at most 10,000 directories are listed per walk. When the cap is reached, lint keeps the instruction files it already found, stops listing more directories, and emits exactly one `instruction/discovery-limit-reached` warning. The warning appears in human output, `--format json`, `--format rdjsonl` (as a `WARNING` with the rule ID as `code.value`) and in the MCP `analyze_instruction_quality` `diagnostics[]`, and it is a warning like any other, so it does not fail a run by itself. The cap is not configurable from the command line. The same warning, with a message that names the depth, is emitted when a directory lies below the depth limit, and with a message that names the entry budget when that budget is spent. A run that reaches several limits still emits exactly one warning
 - **Entry budget**: at most 200,000 directory entries are examined per walk, counting every entry of every directory the walk lists. It bounds the work itself, whatever the shape of the tree. Lint lists each real directory once, so a tree of symlinks cannot multiply the work in lint as it can in `doctor`, which lists a directory again when a second symlink reaches it and so needs the budget most; the budget is part of the shared walk, and a very wide tree can reach it in either tool. When the budget is spent, lint keeps the instruction files it already found, stops walking, and emits the same `instruction/discovery-limit-reached` warning, once, with a message that says it stopped after examining 200,000 directory entries. The budget is not configurable from the command line
+
+Differences from doctor, which are on purpose:
+
+- **Start and depth**: lint walks from each instruction location (depth 0 is `.github/instructions` itself), while doctor walks from the repository root (depth 0 is the root). A file nested nine directories below `.github/instructions` is at depth 9 for lint and at depth 11 for doctor, which does not enter it and reports the limit with its `discovery-limit-reached` finding
+- **Build output**: doctor also skips directories named `dist`, which lint does not, so `.github/instructions/dist/x.instructions.md` is linted but is not in the doctor inventory
 
 ### Rollout status
 
