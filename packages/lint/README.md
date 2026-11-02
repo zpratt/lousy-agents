@@ -67,7 +67,7 @@ try {
 | `targets.agents` | `boolean` | — | Lint agent frontmatter in `.github/agents/**/*.md` |
 | `targets.subagents` | `boolean` | — | **Flag-only (not GA)** — lint Claude Code subagent frontmatter in `.claude/agents/**/*.md`. Never runs unless explicitly `true`, even when `targets` is entirely omitted |
 | `targets.hooks` | `boolean` | — | Lint hook configs: `.github/hooks/agent-shell/hooks.json` (Copilot), `.claude/settings.json` and `.claude/settings.local.json` (Claude); only when content has `preToolUse` / `PreToolUse`; symlinks skipped |
-| `targets.instructions` | `boolean` | — | Lint instruction quality: `.github/copilot-instructions.md`, `.github/instructions/**/*.instructions.md`, `.github/agents/*.md` (dual-use with agents), root `AGENTS.md`, root `CLAUDE.md` |
+| `targets.instructions` | `boolean` | — | Lint instruction quality: `.github/copilot-instructions.md`, `.github/instructions/**/*.instructions.md`, `.github/agents/*.md` (dual-use with agents), root `AGENTS.md`, root `AGENTS.override.md`, root `CLAUDE.md`, `.claude/CLAUDE.md` |
 | `targets.mcpServers` | `boolean` | — | **Flag-only (not GA)** — validate MCP server config files: `.mcp.json`, `.vscode/mcp.json`. Never runs unless explicitly `true`, even when `targets` is entirely omitted |
 | `logger` | `LintLogger` | — | Custom logger for gateway diagnostics (must have a `.warn` method); defaults to `consola` |
 
