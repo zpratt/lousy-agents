@@ -1,4 +1,4 @@
-import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { link, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
@@ -119,6 +119,18 @@ describe("RemarkMarkdownAstGateway", () => {
                     );
                 },
             );
+        });
+
+        describe("given a file with more than one hard link", () => {
+            it("should parse it, because only Claude entrypoints and imports are read with the hard-link refusal", async () => {
+                const original = join(testDir, "AGENTS.md");
+                await writeFile(original, "# Shared\n");
+                await link(original, join(testDir, "CLAUDE.md"));
+
+                const result = await gateway.parseFile(original);
+
+                expect(result.headings[0]?.text).toBe("Shared");
+            });
         });
 
         describe("given a file exceeding the size limit", () => {
