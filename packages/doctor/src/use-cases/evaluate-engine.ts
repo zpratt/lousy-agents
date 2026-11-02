@@ -113,6 +113,7 @@ const EXTERNAL_IMPORT_REASONS: readonly EdgeMalformedReason[] = [
     "home",
     "absolute",
     "path-traversal",
+    "symlink-outside",
 ];
 
 /** An edge with no reason counts as a missing target. */

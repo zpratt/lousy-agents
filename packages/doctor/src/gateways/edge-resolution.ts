@@ -1,6 +1,10 @@
 import { dirname, relative, resolve, sep } from "node:path";
-import { resolveRealPathWithinRoot } from "@lousy-agents/core/gateways/real-path-within-root.js";
-import { normalizeRelativeWithinRoot } from "@lousy-agents/core/lib/instruction-import-expand.js";
+import { classifyImportTarget } from "@lousy-agents/core/gateways/import-target-classifier.js";
+import type { ImportLocationFailure } from "@lousy-agents/core/lib/import-file-location.js";
+import {
+    DEFAULT_MAX_FILE_BYTES,
+    normalizeRelativeWithinRoot,
+} from "@lousy-agents/core/lib/instruction-import-expand.js";
 import type { Edge, EdgeMalformedReason } from "../entities/edge-types.js";
 import type { RawEdge } from "../lib/edge-parser.js";
 
@@ -38,6 +42,17 @@ function wellFormedEdge(
     };
 }
 
+const REASON_BY_REFUSED_TARGET: Record<
+    ImportLocationFailure,
+    EdgeMalformedReason
+> = {
+    symlink: "symlink-outside",
+    "hard-linked": "hard-link",
+    "not-regular": "not-regular",
+    "size-exceeded": "too-large",
+    unresolved: "missing-target",
+};
+
 const HARD_IMPORT_REASON_BY_STATUS: Partial<
     Record<string, EdgeMalformedReason>
 > = {
@@ -74,25 +89,25 @@ async function resolveHardImportEdge(
         );
     }
 
-    const targetAbs = resolve(ctx.repoRoot, normalized.relativePath);
-    const exists =
-        ctx.existingAbsPaths.has(targetAbs) ||
-        (await resolveRealPathWithinRoot(ctx.rootReal, targetAbs))?.kind ===
-            "file";
-
-    if (exists) {
+    const target = await classifyImportTarget(
+        ctx.rootReal,
+        resolve(ctx.repoRoot, normalized.relativePath),
+        DEFAULT_MAX_FILE_BYTES,
+    );
+    if (target.ok) {
         return wellFormedEdge("hard-import", from, normalized.relativePath);
     }
     // A token such as `@types/node` that is not clearly a path and does not
     // resolve is not an import at all, so it is not a broken one either.
-    return raw.speculative === true
-        ? null
-        : malformedEdge(
-              "hard-import",
-              from,
-              normalized.relativePath,
-              "missing-target",
-          );
+    if (target.status === "unresolved" && raw.speculative === true) {
+        return null;
+    }
+    return malformedEdge(
+        "hard-import",
+        from,
+        normalized.relativePath,
+        REASON_BY_REFUSED_TARGET[target.status],
+    );
 }
 
 function resolveSoftReferenceEdge(

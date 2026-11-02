@@ -42,12 +42,20 @@ export interface EdgeDirection {
 /**
  * Why an edge is malformed. "home" and "absolute" mirror the core import
  * expansion statuses (both reported by core as instruction/import-escape).
+ * "symlink-outside", "hard-link", "not-regular" and "too-large" are the
+ * import targets core refuses to read: a symlink that leaves the repository,
+ * a file with more than one hard link, a directory or other non-regular file,
+ * and a file over the size cap.
  */
 export type EdgeMalformedReason =
     | "missing-target"
     | "path-traversal"
     | "home"
-    | "absolute";
+    | "absolute"
+    | "symlink-outside"
+    | "hard-link"
+    | "not-regular"
+    | "too-large";
 
 export interface Edge {
     type: EdgeType;

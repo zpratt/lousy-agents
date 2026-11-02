@@ -189,6 +189,39 @@ async function checkOpenedFile(
 }
 
 /**
+ * Applies the checks of readRegularFileNoFollow (no symlink at the final
+ * component, a plain regular file, a single hard link, the file now at the
+ * path, within the size cap) to a file without reading its content. Returns
+ * the refusal, or null when the file would be read.
+ */
+export async function checkRegularFileNoFollow(
+    filePath: string,
+    maxBytes: number,
+    options: BoundedReadOptions = {},
+): Promise<BoundedReadFailure | null> {
+    const fs = options.fs ?? nodeFsPort;
+    const opened = await openForBoundedRead(fs, filePath);
+    if ("failure" in opened) {
+        return opened.failure;
+    }
+
+    const { handle } = opened;
+    try {
+        return await checkOpenedFile(
+            fs,
+            handle,
+            filePath,
+            maxBytes,
+            options.expectedIdentity,
+        );
+    } catch {
+        return "unreadable";
+    } finally {
+        await handle.close().catch(() => undefined);
+    }
+}
+
+/**
  * Reads a regular file without following a symlink at the final path
  * component, never throwing for an unacceptable file.
  *
