@@ -103,7 +103,16 @@ const ReportEdgeSchema = z.object({
     type: EdgeTypeSchema,
     malformed: z.boolean(),
     reason: z
-        .enum(["missing-target", "path-traversal", "home", "absolute"])
+        .enum([
+            "missing-target",
+            "path-traversal",
+            "home",
+            "absolute",
+            "symlink-outside",
+            "hard-link",
+            "not-regular",
+            "too-large",
+        ])
         .optional(),
     crossHarness: z.boolean(),
 });

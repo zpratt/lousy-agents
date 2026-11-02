@@ -55,13 +55,29 @@ export const CRITERIA: readonly Criterion[] = [
         },
     },
     {
+        id: "unread-claude-import",
+        appliesToHarness: "claude",
+        severity: "medium",
+        classification: "advisory",
+        category: "malformed-reference",
+        description:
+            "A Claude @import points to a file inside the repository that lint and doctor do not read: a directory, a file with more than one hard link, or a file over 1 MiB. Claude Code may still load it, but nothing here checks its content.",
+        checkMethod: "inventory.edgePresent",
+        checkArgs: {
+            fromHarness: "claude",
+            toHarness: "claude",
+            edgeType: "hard-import",
+            malformedReasons: ["hard-link", "not-regular", "too-large"],
+        },
+    },
+    {
         id: "external-claude-import",
         appliesToHarness: "claude",
         severity: "medium",
         classification: "advisory",
         category: "malformed-reference",
         description:
-            "A Claude @import resolves outside the working directory (a ~/ path, an absolute path outside the repository, or a ../ path that leaves it). Claude Code loads it only after a one-time approval in an interactive session. Each such import is its own finding.",
+            "A Claude @import resolves outside the working directory (a ~/ path, an absolute path outside the repository, a ../ path that leaves it, or a symlink whose target is outside it). Claude Code loads it only after a one-time approval in an interactive session. Each such import is its own finding.",
         checkMethod: "inventory.externalImport",
         checkArgs: { fromHarness: "claude" },
     },

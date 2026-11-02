@@ -562,7 +562,16 @@ describe("toInventoryItems", () => {
 });
 
 describe("toJson malformed edge reasons", () => {
-    it.each(["missing-target", "path-traversal", "home", "absolute"] as const)(
+    it.each([
+        "missing-target",
+        "path-traversal",
+        "home",
+        "absolute",
+        "symlink-outside",
+        "hard-link",
+        "not-regular",
+        "too-large",
+    ] as const)(
         "should carry the %s reason of a malformed edge into the report",
         (reason) => {
             const source = buildRecord({
