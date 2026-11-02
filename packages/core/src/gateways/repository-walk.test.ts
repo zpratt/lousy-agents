@@ -1,4 +1,11 @@
-import { mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import {
+    chmod,
+    mkdir,
+    realpath,
+    rm,
+    symlink,
+    writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
@@ -354,6 +361,34 @@ describe("walkRepository", () => {
 
             expect(found).toEqual(["a.md", "b.md", "c/z.md"]);
         });
+    });
+
+    describe("a directory that cannot be listed", () => {
+        it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+            "should be skipped without failing the walk, and the files elsewhere should still be returned",
+            async () => {
+                await write("a/a.md");
+                await write("b/b.md");
+                await write("c/c.md");
+                await chmod(join(root, "b"), 0o000);
+
+                try {
+                    const result = await walkRepository(root, {
+                        startRelativePath: "",
+                        includeFile: isMarkdown,
+                    });
+
+                    expect(result.files.map((f) => f.relativePath)).toEqual([
+                        "a/a.md",
+                        "c/c.md",
+                    ]);
+                    expect(result.directoryLimitReached).toBe(false);
+                    expect(result.depthLimitReached).toBe(false);
+                } finally {
+                    await chmod(join(root, "b"), 0o755);
+                }
+            },
+        );
     });
 
     describe("depth cap reporting", () => {

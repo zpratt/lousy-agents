@@ -281,3 +281,73 @@ describe("readRegularFileNoFollow", () => {
         });
     });
 });
+
+describe("readRegularFileNoFollow identity and size checks on the opened file", () => {
+    function portFor(
+        opened: NoFollowStats,
+        atPath: NoFollowStats,
+        read: NoFollowFileHandle["read"],
+    ): NoFollowFsPort {
+        const handle = fakeHandle(opened, read);
+        return { open: async () => handle, lstat: async () => atPath };
+    }
+
+    it("should reject the read when only the device differs from the identity recorded at check time", async () => {
+        const read = vi.fn(async () => ({ bytesRead: 0 }));
+        const fs = portFor(
+            regularStats({ dev: 1, ino: 1 }),
+            regularStats({ dev: 1, ino: 1 }),
+            read,
+        );
+
+        const outcome = await readRegularFileNoFollow("/x/y.md", CAP_BYTES, {
+            fs,
+            expectedIdentity: { dev: 2, ino: 1 },
+        });
+
+        expect(outcome).toEqual({ ok: false, reason: "identity-mismatch" });
+        expect(read).not.toHaveBeenCalled();
+    });
+
+    it("should reject the read when only the device differs from the file now at the path", async () => {
+        const read = vi.fn(async () => ({ bytesRead: 0 }));
+        const fs = portFor(
+            regularStats({ dev: 1, ino: 1 }),
+            regularStats({ dev: 2, ino: 1 }),
+            read,
+        );
+
+        const outcome = await readRegularFileNoFollow("/x/y.md", CAP_BYTES, {
+            fs,
+        });
+
+        expect(outcome).toEqual({ ok: false, reason: "identity-mismatch" });
+        expect(read).not.toHaveBeenCalled();
+    });
+
+    it("should report too-large without reading when the opened file is over the cap", async () => {
+        const read = vi.fn(async () => ({ bytesRead: 0 }));
+        const stats = regularStats({ size: CAP_BYTES + 1 });
+        const fs = portFor(stats, stats, read);
+
+        const outcome = await readRegularFileNoFollow("/x/y.md", CAP_BYTES, {
+            fs,
+        });
+
+        expect(outcome).toEqual({ ok: false, reason: "too-large" });
+        expect(read).not.toHaveBeenCalled();
+    });
+
+    it("should read an opened file that is exactly the cap", async () => {
+        const read = vi.fn(async () => ({ bytesRead: 0 }));
+        const stats = regularStats({ size: CAP_BYTES });
+        const fs = portFor(stats, stats, read);
+
+        const outcome = await readRegularFileNoFollow("/x/y.md", CAP_BYTES, {
+            fs,
+        });
+
+        expect(outcome).toEqual({ ok: true, content: "" });
+        expect(read).toHaveBeenCalled();
+    });
+});
