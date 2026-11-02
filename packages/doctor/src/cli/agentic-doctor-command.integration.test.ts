@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
 const execFileAsync = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -10,6 +11,11 @@ const standaloneBin = resolve(__dirname, "..", "..", "dist", "cli", "index.js");
 const fixturesDir = resolve(__dirname, "..", "..", "tests", "fixtures");
 const BLOCKING_FIXTURE = "integration-scenario";
 const NON_BLOCKING_FIXTURE = "accidental-sprawl";
+
+const ExecFailureSchema = z.object({
+    code: z.number().optional(),
+    stdout: z.string().optional(),
+});
 
 interface ExecResult {
     exitCode: number;
@@ -34,8 +40,12 @@ async function runStandaloneBin(
         );
         return { exitCode: 0, stdout: result.stdout };
     } catch (err: unknown) {
-        const e = err as { code?: number; stdout?: string };
-        return { exitCode: e.code ?? 1, stdout: e.stdout ?? "" };
+        const failure = ExecFailureSchema.safeParse(err);
+        if (!failure.success) throw err;
+        return {
+            exitCode: failure.data.code ?? 1,
+            stdout: failure.data.stdout ?? "",
+        };
     }
 }
 

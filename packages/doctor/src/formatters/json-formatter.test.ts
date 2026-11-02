@@ -426,19 +426,16 @@ describe("toJson", () => {
             expect(() => ReportJsonSchema.parse(report)).not.toThrow();
         });
 
-        it("should reject an evaluation state outside the known set", () => {
+        it("should reject a report whose evaluation state is outside the known set", () => {
             const unknownState = chance.word();
+            const report = toJson(buildSummary(), [], []);
 
-            expect(() =>
-                toJson(
-                    buildSummary(),
-                    [],
-                    [],
-                    undefined,
-                    undefined,
-                    unknownState as unknown as "completed",
-                ),
-            ).toThrow();
+            const result = ReportJsonSchema.safeParse({
+                ...report,
+                evaluation: unknownState,
+            });
+
+            expect(result.success).toBe(false);
         });
     });
 
