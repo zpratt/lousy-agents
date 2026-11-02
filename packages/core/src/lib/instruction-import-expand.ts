@@ -9,6 +9,7 @@
 import { realpath } from "node:fs/promises";
 import { dirname, isAbsolute, join, normalize, sep } from "node:path";
 import { externalImportMessage } from "../entities/external-import-message.js";
+import { MAX_INSTRUCTION_FILE_BYTES } from "../entities/file-limits.js";
 import { resolvePathWithinRoot } from "../gateways/file-system-utils.js";
 import {
     type BoundedReadOutcome,
@@ -33,7 +34,7 @@ export const DEFAULT_MAX_IMPORT_DEPTH = 4;
 export const DEFAULT_MAX_UNIQUE_FILES = 64;
 export const DEFAULT_MAX_EDGES = 256;
 export const DEFAULT_MAX_EMITTED_BYTES = 512_000;
-export const DEFAULT_MAX_FILE_BYTES = 1_048_576;
+export const DEFAULT_MAX_FILE_BYTES = MAX_INSTRUCTION_FILE_BYTES;
 
 export type ImportEdgeStatus =
     | "resolved"

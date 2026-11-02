@@ -72,4 +72,14 @@ describe("CRITERIA", () => {
             expect(validMethods.has(criterion.checkMethod)).toBe(true);
         }
     });
+
+    describe("unread-claude-import", () => {
+        it("should name the size at which a file is no longer read", () => {
+            const criterion = CRITERIA.find(
+                (candidate) => candidate.id === "unread-claude-import",
+            );
+
+            expect(criterion?.description).toContain("a file over 1 MiB,");
+        });
+    });
 });
