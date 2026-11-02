@@ -1,4 +1,5 @@
-import { dirname, relative, resolve, sep } from "node:path";
+import { dirname, relative, resolve } from "node:path";
+import { isPathWithinRoot } from "@lousy-agents/core/gateways/file-system-utils.js";
 import { classifyImportTarget } from "@lousy-agents/core/gateways/import-target-classifier.js";
 import type { ImportLocationFailure } from "@lousy-agents/core/lib/import-file-location.js";
 import {
@@ -119,11 +120,7 @@ function resolveSoftReferenceEdge(
     const resolvedAbs = resolve(dirname(sourceAbsPath), rawTarget);
     const absoluteRoot = resolve(ctx.repoRoot);
 
-    const isWithinRoot =
-        resolvedAbs === absoluteRoot ||
-        resolvedAbs.startsWith(`${absoluteRoot}${sep}`);
-
-    if (!isWithinRoot) {
+    if (!isPathWithinRoot(absoluteRoot, resolvedAbs)) {
         return malformedEdge(
             "soft-reference",
             from,
