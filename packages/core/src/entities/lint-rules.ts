@@ -72,6 +72,7 @@ export const DEFAULT_LINT_RULES: LintRulesConfig = {
         "instruction/import-depth-exceeded": "warn",
         "instruction/import-size-exceeded": "warn",
         "instruction/discovery-limit-reached": "warn",
+        "instruction/discovery-symlink-skipped": "warn",
     },
     skills: {
         "skill/invalid-frontmatter": "error",
@@ -88,6 +89,7 @@ export const DEFAULT_LINT_RULES: LintRulesConfig = {
 
 const RUN_LEVEL_RULE_IDS: ReadonlySet<string> = new Set([
     "instruction/discovery-limit-reached",
+    "instruction/discovery-symlink-skipped",
 ]);
 
 /**

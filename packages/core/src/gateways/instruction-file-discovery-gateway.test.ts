@@ -235,6 +235,202 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
         });
     });
 
+    describe("when an instruction file path is a directory inside the repository", () => {
+        it("should discover nothing and report nothing", async () => {
+            await mkdir(join(testDir, "CLAUDE.md"), { recursive: true });
+            const diagnostics: InstructionDiscoveryDiagnostic[] = [];
+
+            const files = await gateway.discoverInstructionFiles(
+                testDir,
+                (diagnostic) => diagnostics.push(diagnostic),
+            );
+
+            expect(files).toEqual([]);
+            expect(diagnostics).toEqual([]);
+        });
+    });
+
+    describe("when instruction symlinks lead outside the repository", () => {
+        const SymlinkSkippedRuleId = "instruction/discovery-symlink-skipped";
+        const ListedPaths = 5;
+        let outsideDir: string;
+
+        beforeEach(async () => {
+            outsideDir = join(tmpdir(), `outside-${chance.guid()}`);
+            await mkdir(outsideDir, { recursive: true });
+        });
+
+        afterEach(async () => {
+            await rm(outsideDir, { recursive: true, force: true });
+        });
+
+        async function linkOutside(
+            relativePath: string,
+            kind: "file" | "directory" = "file",
+        ): Promise<void> {
+            const target = join(outsideDir, chance.guid());
+            if (kind === "file") {
+                await writeFile(target, "# External\n");
+            } else {
+                await mkdir(target, { recursive: true });
+            }
+            const linkPath = join(testDir, ...relativePath.split("/"));
+            await mkdir(dirname(linkPath), { recursive: true });
+            await symlink(target, linkPath);
+        }
+
+        async function discoveryDiagnostics(
+            discoveryGateway = gateway,
+        ): Promise<InstructionDiscoveryDiagnostic[]> {
+            const diagnostics: InstructionDiscoveryDiagnostic[] = [];
+            await discoveryGateway.discoverInstructionFiles(
+                testDir,
+                (diagnostic) => diagnostics.push(diagnostic),
+            );
+            return diagnostics;
+        }
+
+        it("should report one diagnostic that names the instruction file link and how to have it analyzed", async () => {
+            await linkOutside("CLAUDE.md");
+
+            const diagnostics = await discoveryDiagnostics();
+
+            expect(diagnostics).toEqual([
+                {
+                    ruleId: SymlinkSkippedRuleId,
+                    message:
+                        "Instruction file discovery skipped 1 symbolic link(s) that point outside the repository, so their targets were not analyzed: CLAUDE.md. Replace a link with a file inside the repository to have it analyzed.",
+                },
+            ]);
+        });
+
+        it("should report a symlinked instruction directory by its path", async () => {
+            await linkOutside(".github/instructions", "directory");
+
+            const diagnostics = await discoveryDiagnostics();
+
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    ruleId: SymlinkSkippedRuleId,
+                    message: expect.stringContaining(
+                        "outside the repository, so their targets were not analyzed: .github/instructions.",
+                    ),
+                }),
+            ]);
+        });
+
+        it("should report a symlinked instruction file below an instruction directory", async () => {
+            await linkOutside(
+                ".github/instructions/team/shared.instructions.md",
+            );
+
+            const diagnostics = await discoveryDiagnostics();
+
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    message: expect.stringContaining(
+                        ".github/instructions/team/shared.instructions.md.",
+                    ),
+                }),
+            ]);
+        });
+
+        it("should report every skipped link in one diagnostic, in the order discovery met them", async () => {
+            await linkOutside("CLAUDE.md");
+            await linkOutside("AGENTS.md");
+            await linkOutside(".github/instructions/b.instructions.md");
+            await linkOutside(".github/instructions/a.instructions.md");
+
+            const diagnostics = await discoveryDiagnostics();
+
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    message: expect.stringContaining(
+                        "skipped 4 symbolic link(s) that point outside the repository, so their targets were not analyzed: .github/instructions/a.instructions.md, .github/instructions/b.instructions.md, AGENTS.md, CLAUDE.md.",
+                    ),
+                }),
+            ]);
+        });
+
+        it.each([
+            [ListedPaths, ""],
+            [ListedPaths + 1, ", and 1 more"],
+            [ListedPaths + 3, ", and 3 more"],
+        ])(
+            "should name the first few of %i skipped links and count the rest",
+            async (count, expectedTail) => {
+                const names = Array.from(
+                    { length: count },
+                    (_, index) => `n${index}.instructions.md`,
+                );
+                for (const name of names) {
+                    await linkOutside(`.github/instructions/${name}`);
+                }
+
+                const [diagnostic] = await discoveryDiagnostics();
+
+                const listed = names
+                    .slice(0, ListedPaths)
+                    .map((name) => `.github/instructions/${name}`)
+                    .join(", ");
+                expect(diagnostic?.message).toContain(
+                    `skipped ${count} symbolic link(s) that point outside the repository, so their targets were not analyzed: ${listed}${expectedTail}. Replace`,
+                );
+            },
+        );
+
+        it("should report nothing for an instruction file path that links to a directory outside the repository", async () => {
+            await linkOutside("AGENTS.md", "directory");
+
+            const diagnostics = await discoveryDiagnostics();
+
+            expect(diagnostics).toEqual([]);
+        });
+
+        it("should report nothing for a link to a file the walk would not have discovered anyway", async () => {
+            await linkOutside(".github/instructions/notes.txt");
+
+            const diagnostics = await discoveryDiagnostics();
+
+            expect(diagnostics).toEqual([]);
+        });
+
+        it("should report nothing when no link leads outside the repository", async () => {
+            const target = join(testDir, "real.md");
+            await writeFile(target, "# Real\n");
+            await symlink(target, join(testDir, "CLAUDE.md"));
+
+            const diagnostics = await discoveryDiagnostics();
+
+            expect(diagnostics).toEqual([]);
+        });
+
+        it("should report it after the discovery limit when both apply", async () => {
+            await linkOutside("CLAUDE.md");
+            const agents = join(testDir, ".github", "agents");
+            await mkdir(agents, { recursive: true });
+            await writeFile(join(agents, "a.md"), chance.sentence());
+            const capped = new FileSystemInstructionFileDiscoveryGateway({
+                maxDirectories: 0,
+            });
+
+            const diagnostics = await discoveryDiagnostics(capped);
+
+            expect(diagnostics.map((d) => d.ruleId)).toEqual([
+                "instruction/discovery-limit-reached",
+                SymlinkSkippedRuleId,
+            ]);
+        });
+
+        it("should not require a diagnostics callback", async () => {
+            await linkOutside("CLAUDE.md");
+
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            expect(files).toEqual([]);
+        });
+    });
+
     describe("when a scoped instruction file is in a subdirectory of .github/instructions", () => {
         it("should discover it with copilot-scoped format", async () => {
             const subdir = chance.word();

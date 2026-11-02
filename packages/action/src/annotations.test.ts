@@ -12,6 +12,10 @@ import type { LintDiagnostic } from "@lousy-agents/lint";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { publishRunLevelDiagnostics } from "./annotations.js";
 
+const HOSTILE_MESSAGE = "[x](https://e) <img src=x> www.e.com #1";
+const ESCAPED_HOSTILE_MESSAGE =
+    "\\[x\\]\\(https\\://e\\) \\<img src=x\\> www\\.e.com \\#1";
+
 const LIMIT_MESSAGE =
     "Discovery stopped after 10000 directories.\nSecond line.";
 
@@ -103,6 +107,24 @@ describe("publishRunLevelDiagnostics", () => {
         });
     });
 
+    describe("when a step summary is configured and a message holds markup", () => {
+        it("should write the message into the summary file as literal text", async () => {
+            const summary = join(temp, "hostile-summary.md");
+            await writeFile(summary, "");
+
+            await publishRunLevelDiagnostics(
+                [{ ...limitDiagnostic(), message: HOSTILE_MESSAGE }],
+                { stepSummaryFile: summary, writeStderr: () => undefined },
+            );
+
+            const content = await readFile(summary, "utf8");
+            expect(content).toContain(`: ${ESCAPED_HOSTILE_MESSAGE}\n`);
+            expect(content).not.toContain("](");
+            expect(content).not.toMatch(/(?<!\\)<img/);
+            expect(content).not.toMatch(/(?<!\\)www\./);
+        });
+    });
+
     describe("when no annotations file is configured", () => {
         it("should fall back to workflow commands on stderr, so a truncated scan is never silent", async () => {
             const stderr: string[] = [];
@@ -133,65 +155,6 @@ describe("publishRunLevelDiagnostics", () => {
             await expect(readFile(file, "utf8")).rejects.toThrow();
             await expect(readFile(summary, "utf8")).rejects.toThrow();
             expect(stderr).toEqual([]);
-        });
-    });
-
-    describe("when the step summary lists the diagnostics", () => {
-        const WarningSign = String.fromCodePoint(0x26a0, 0xfe0f);
-        const Heading = "\n### lousy-agents lint: run-level warnings\n\n";
-
-        async function summaryAfterPublishing(
-            diagnostics: LintDiagnostic[],
-        ): Promise<string> {
-            const summary = join(temp, "exact-summary.md");
-            await writeFile(summary, "");
-            await publishRunLevelDiagnostics(diagnostics, {
-                stepSummaryFile: summary,
-                writeStderr: () => undefined,
-            });
-            return readFile(summary, "utf8");
-        }
-
-        it("should write one bullet per diagnostic, in order, under the heading", async () => {
-            const second: LintDiagnostic = {
-                ...limitDiagnostic(),
-                ruleId: "instruction/other-rule",
-                message: "Another warning.",
-            };
-
-            const content = await summaryAfterPublishing([
-                limitDiagnostic(),
-                second,
-            ]);
-
-            expect(content).toBe(
-                `${Heading}- ${WarningSign} \`instruction/discovery-limit-reached\`: Discovery stopped after 10000 directories. Second line.\n- ${WarningSign} \`instruction/other-rule\`: Another warning.\n`,
-            );
-        });
-
-        it("should keep each bullet on one line whatever kind of line break the message holds", async () => {
-            const content = await summaryAfterPublishing([
-                {
-                    ...limitDiagnostic(),
-                    message: "first\rsecond\r\nthird\nfourth",
-                },
-            ]);
-
-            expect(content).toBe(
-                `${Heading}- ${WarningSign} \`instruction/discovery-limit-reached\`: first second third fourth\n`,
-            );
-        });
-
-        it("should label a diagnostic that has no rule id with the tool name", async () => {
-            const { ruleId: _ruleId, ...withoutRuleId } = limitDiagnostic();
-
-            const content = await summaryAfterPublishing([
-                { ...withoutRuleId, message: "Plain." },
-            ]);
-
-            expect(content).toBe(
-                `${Heading}- ${WarningSign} \`lousy-agents\`: Plain.\n`,
-            );
         });
     });
 });

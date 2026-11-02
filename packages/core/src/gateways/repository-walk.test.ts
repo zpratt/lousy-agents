@@ -556,6 +556,191 @@ describe("walkRepository", () => {
         );
     });
 
+    describe.skipIf(process.platform === "win32")(
+        "a symbolic link whose target is outside the repository",
+        () => {
+            async function link(
+                relativePath: string,
+                target: string,
+            ): Promise<void> {
+                const absolute = join(root, relativePath);
+                await mkdir(join(absolute, ".."), { recursive: true });
+                await symlink(target, absolute);
+            }
+
+            async function outsideFile(name = "target.md"): Promise<string> {
+                const path = join(outside, name);
+                await writeFile(path, "x");
+                return path;
+            }
+
+            async function outsideDirectory(name = "dir"): Promise<string> {
+                const path = join(outside, name);
+                await mkdir(path, { recursive: true });
+                return path;
+            }
+
+            it("should be reported, by its path in the repository, when it is a file the walk would have collected", async () => {
+                await write("keep.md");
+                await link("sub/out.md", await outsideFile());
+
+                const result = await walkRepository(root, {
+                    startRelativePath: "",
+                    includeFile: isMarkdown,
+                    includeSubdirectories: true,
+                });
+
+                expect(result.files.map((f) => f.relativePath)).toEqual([
+                    "keep.md",
+                ]);
+                expect(result.skippedOutsideRoot).toEqual(["sub/out.md"]);
+            });
+
+            it("should be reported when it is a directory the walk would have entered", async () => {
+                await link("shared", await outsideDirectory());
+
+                const result = await walkRepository(root, {
+                    startRelativePath: "",
+                    includeFile: isMarkdown,
+                    includeSubdirectories: true,
+                });
+
+                expect(result.skippedOutsideRoot).toEqual(["shared"]);
+            });
+
+            it("should be reported when it is the directory the walk starts from", async () => {
+                await link("shared", await outsideDirectory());
+
+                const result = await walkRepository(root, {
+                    startRelativePath: "shared",
+                    includeFile: isMarkdown,
+                });
+
+                expect(result.files).toEqual([]);
+                expect(result.skippedOutsideRoot).toEqual(["shared"]);
+            });
+
+            it("should not be reported as a starting directory when it points at a file", async () => {
+                await link("shared", await outsideFile());
+
+                const result = await walkRepository(root, {
+                    startRelativePath: "shared",
+                    includeFile: isMarkdown,
+                });
+
+                expect(result.skippedOutsideRoot).toEqual([]);
+            });
+
+            it("should not be reported when the directory the walk starts from does not exist", async () => {
+                const result = await walkRepository(root, {
+                    startRelativePath: "absent",
+                    includeFile: isMarkdown,
+                });
+
+                expect(result.skippedOutsideRoot).toEqual([]);
+            });
+
+            it("should not be reported when the walk does not enter subdirectories", async () => {
+                await link("shared", await outsideDirectory());
+
+                const result = await walkRepository(root, {
+                    startRelativePath: "",
+                    includeFile: isMarkdown,
+                    includeSubdirectories: false,
+                });
+
+                expect(result.skippedOutsideRoot).toEqual([]);
+            });
+
+            it("should not be reported when it is a directory the walk skips by name", async () => {
+                await link("node_modules", await outsideDirectory());
+
+                const result = await walkRepository(root, {
+                    startRelativePath: "",
+                    includeFile: isMarkdown,
+                    includeSubdirectories: true,
+                });
+
+                expect(result.skippedOutsideRoot).toEqual([]);
+            });
+
+            it("should not be reported when it is a file the walk would not have collected", async () => {
+                await link("notes.txt", await outsideFile("notes.txt"));
+
+                const result = await walkRepository(root, {
+                    startRelativePath: "",
+                    includeFile: isMarkdown,
+                    includeSubdirectories: true,
+                });
+
+                expect(result.skippedOutsideRoot).toEqual([]);
+            });
+
+            it("should not be reported when it points at something that is neither a file nor a directory", async () => {
+                await link("device.md", "/dev/null");
+
+                const result = await walkRepository(root, {
+                    startRelativePath: "",
+                    includeFile: isMarkdown,
+                    includeSubdirectories: true,
+                });
+
+                expect(result.skippedOutsideRoot).toEqual([]);
+            });
+
+            it("should not be reported when its target stays inside the repository", async () => {
+                await write("real.md");
+                await link("alias.md", join(root, "real.md"));
+
+                const result = await walkRepository(root, {
+                    startRelativePath: "",
+                    includeFile: isMarkdown,
+                    includeSubdirectories: true,
+                });
+
+                expect(result.skippedOutsideRoot).toEqual([]);
+            });
+
+            it("should be reported in the order the walk meets it, below the directory it starts from", async () => {
+                await link("start/b.md", await outsideFile("b.md"));
+                await link("start/a.md", await outsideFile("a.md"));
+                await link("elsewhere/c.md", await outsideFile("c.md"));
+
+                const result = await walkRepository(root, {
+                    startRelativePath: "start",
+                    includeFile: isMarkdown,
+                });
+
+                expect(result.skippedOutsideRoot).toEqual([
+                    "start/a.md",
+                    "start/b.md",
+                ]);
+            });
+        },
+    );
+
+    describe("a root directory that does not exist", () => {
+        it("should return no files and report no limit and no skipped link", async () => {
+            const result = await walkRepository(join(root, "absent"), {
+                startRelativePath: "",
+                includeFile: isMarkdown,
+            });
+
+            expect(result).toEqual({
+                files: [],
+                directoryLimitReached: false,
+                depthLimitReached: false,
+                entryLimitReached: false,
+                skippedOutsideRoot: [],
+                limits: {
+                    maxDirectories: DEFAULT_MAX_WALK_DIRECTORIES,
+                    maxDepth: DEFAULT_MAX_WALK_DEPTH,
+                    maxEntries: DEFAULT_MAX_WALK_ENTRIES,
+                },
+            });
+        });
+    });
+
     describe("an entry that cannot be inspected", () => {
         it.skipIf(process.platform === "win32")(
             "should be skipped without failing the walk, and the files beside it should still be returned",

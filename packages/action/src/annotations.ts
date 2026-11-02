@@ -12,6 +12,7 @@
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import type { LintDiagnostic } from "@lousy-agents/lint";
+import { summarySection } from "./summary-markdown.js";
 import { formatWorkflowCommand } from "./workflow-commands.js";
 
 export interface AnnotationTargets {
@@ -38,17 +39,6 @@ async function writeWithoutFollowing(
     } finally {
         await handle.close();
     }
-}
-
-/** Any line break a Markdown renderer would honor, so a bullet stays one line. */
-const LINE_BREAK = /\r\n|\r|\n/g;
-
-function summarySection(diagnostics: readonly LintDiagnostic[]): string {
-    const items = diagnostics.map(
-        (d) =>
-            `- \u26A0\uFE0F \`${d.ruleId ?? "lousy-agents"}\`: ${d.message.replace(LINE_BREAK, " ")}`,
-    );
-    return `\n### lousy-agents lint: run-level warnings\n\n${items.join("\n")}\n`;
 }
 
 export async function publishRunLevelDiagnostics(

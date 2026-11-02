@@ -15,7 +15,10 @@ import { join, relative, resolve } from "node:path";
 import { compareCodeUnits } from "../entities/code-unit-order.js";
 import { listDirectoryWithinRoot } from "./file-system-utils.js";
 import type { FileIdentity } from "./read-regular-file-no-follow.js";
-import { inspectPathWithinRoot } from "./real-path-within-root.js";
+import {
+    inspectPathWithinRoot,
+    type OutsideRootKind,
+} from "./real-path-within-root.js";
 
 /**
  * The deepest level whose directories are listed (the start directory is 0).
@@ -112,6 +115,13 @@ export interface RepositoryWalkResult {
     readonly depthLimitReached: boolean;
     /** True when the entry budget stopped the walk from examining more */
     readonly entryLimitReached: boolean;
+    /**
+     * Repository-relative paths of symbolic links the walk did not follow
+     * because their target is outside the repository, limited to those it
+     * would otherwise have collected (a file it accepts) or entered (a
+     * directory), in the order it met them
+     */
+    readonly skippedOutsideRoot: readonly string[];
     /** The limits the walk ran with, for messages that name them */
     readonly limits: {
         readonly maxDirectories: number;
@@ -191,6 +201,7 @@ class RepositoryWalk {
     private depthLimitReached = false;
     private entriesExamined = 0;
     private entryLimitReached = false;
+    private readonly skippedOutsideRoot: string[] = [];
 
     constructor(
         private readonly targetDir: string,
@@ -205,6 +216,7 @@ class RepositoryWalk {
             directoryLimitReached: this.limitReached,
             depthLimitReached: this.depthLimitReached,
             entryLimitReached: this.entryLimitReached,
+            skippedOutsideRoot: this.skippedOutsideRoot,
             limits: {
                 maxDirectories: this.settings.maxDirectories,
                 maxDepth: this.settings.maxDepth,
@@ -231,6 +243,13 @@ class RepositoryWalk {
             this.rootReal,
             join(this.targetDir, ...segmentsOf(directoryRelativePath)),
         );
+        if (
+            directory.status === "outside-root" &&
+            directory.kind === "directory"
+        ) {
+            this.skippedOutsideRoot.push(directoryRelativePath);
+            return;
+        }
         if (directory.status !== "ok" || directory.kind !== "directory") {
             return;
         }
@@ -278,6 +297,12 @@ class RepositoryWalk {
             this.rootReal,
             join(directoryReal, name),
         );
+        if (entry.status === "outside-root") {
+            if (this.wouldHaveCollected(entry.kind, name, depth)) {
+                this.skippedOutsideRoot.push(entryRelativePath);
+            }
+            return;
+        }
         if (entry.status !== "ok") {
             return;
         }
@@ -298,6 +323,17 @@ class RepositoryWalk {
         ) {
             this.depthLimitReached = true;
         }
+    }
+
+    private wouldHaveCollected(
+        kind: OutsideRootKind,
+        name: string,
+        depth: number,
+    ): boolean {
+        if (kind === "file") {
+            return this.settings.includeFile(name);
+        }
+        return kind === "directory" && this.shouldDescend(name, depth);
     }
 
     private collectFile(
@@ -350,6 +386,7 @@ export async function walkRepository(
             directoryLimitReached: false,
             depthLimitReached: false,
             entryLimitReached: false,
+            skippedOutsideRoot: [],
             limits: {
                 maxDirectories: settings.maxDirectories,
                 maxDepth: settings.maxDepth,
