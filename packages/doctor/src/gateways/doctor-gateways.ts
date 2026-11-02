@@ -3,10 +3,24 @@ import type { ConsolaInstance } from "consola";
 import type { DoctorRunPorts } from "../use-cases/run-doctor.js";
 import { readIntentArtifact } from "./intent-artifact.js";
 import { scanRepository } from "./scanner.js";
-import { createWisdomClient, WisdomUnavailableError } from "./wisdom-client.js";
+import {
+    createWisdomClient,
+    type WisdomClient,
+    WisdomUnavailableError,
+} from "./wisdom-client.js";
+
+/** The only part of a wisdom client the doctor gateways use. */
+export type WisdomGraphReader = Pick<WisdomClient, "getGraph">;
+
+export interface DoctorGatewayDependencies {
+    createWisdomClient(wisdomDir: string): WisdomGraphReader;
+}
+
+const DEFAULT_DEPENDENCIES: DoctorGatewayDependencies = { createWisdomClient };
 
 export function createDoctorGateways(
     logger: ConsolaInstance,
+    dependencies: DoctorGatewayDependencies = DEFAULT_DEPENDENCIES,
 ): Omit<DoctorRunPorts, "elicitIntent"> {
     return {
         scanRepository,
@@ -19,9 +33,9 @@ export function createDoctorGateways(
         },
         async loadSnapshotRef(repoPath) {
             try {
-                const graph = await createWisdomClient(
-                    resolve(repoPath, "wisdom"),
-                ).getGraph();
+                const graph = await dependencies
+                    .createWisdomClient(resolve(repoPath, "wisdom"))
+                    .getGraph();
                 return graph.snapshotRef;
             } catch (error: unknown) {
                 if (!(error instanceof WisdomUnavailableError)) throw error;

@@ -393,11 +393,33 @@ describe("toJson", () => {
             expect(report).not.toHaveProperty("intent");
         });
 
-        it("should reject an unknown intent status", () => {
-            const intentLoad = {
-                status: chance.word(),
+        it("should reject a report whose intent status is unknown", () => {
+            const intentLoad: IntentLoadReport = {
+                status: "absent",
                 checkedPath: chance.word(),
-            } as unknown as IntentLoadReport;
+            };
+            const report = toJson(
+                buildSummary(),
+                [],
+                [],
+                undefined,
+                intentLoad,
+            );
+
+            const result = ReportJsonSchema.safeParse({
+                ...report,
+                intent: { ...intentLoad, status: chance.word() },
+            });
+
+            expect(result.success).toBe(false);
+        });
+
+        it("should throw when the intent load reports a non-positive omitted issue count", () => {
+            const intentLoad: IntentLoadReport = {
+                status: "invalid-schema",
+                checkedPath: chance.word(),
+                omittedIssueCount: chance.integer({ min: -10, max: 0 }),
+            };
 
             expect(() =>
                 toJson(buildSummary(), [], [], undefined, intentLoad),
@@ -451,18 +473,28 @@ describe("toJson", () => {
             expect(() => ReportJsonSchema.parse(report)).not.toThrow();
         });
 
-        it("should throw when a record has a harness outside the known set", () => {
-            const invalidRecord = {
-                id: "x:a.md",
-                path: "a.md",
-                harness: "not-a-real-harness",
-                constructType: "instruction",
-                loadMechanism: "convention-loaded",
-                edges: [],
-            } as unknown as InventoryRecord;
-            const summary = buildSummary({ totalRecords: 1 });
+        it("should reject a report whose inventory has a harness outside the known set", () => {
+            const report = toJson(
+                buildSummary({ totalRecords: 1 }),
+                [],
+                [buildRecord()],
+            );
 
-            expect(() => toJson(summary, [], [invalidRecord])).toThrow();
+            const result = ReportJsonSchema.safeParse({
+                ...report,
+                inventory: report.inventory.map((item) => ({
+                    ...item,
+                    harness: chance.word(),
+                })),
+            });
+
+            expect(result.success).toBe(false);
+        });
+
+        it("should throw instead of returning a report that fails the schema", () => {
+            const summary = buildSummary({ dominanceScore: Number.NaN });
+
+            expect(() => toJson(summary, [], [])).toThrow();
         });
     });
 });
