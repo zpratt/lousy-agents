@@ -42,6 +42,12 @@ export interface NoFollowFileHandle {
  * races between the check and the read can be tested deterministically.
  */
 export interface NoFollowFsPort {
+    /**
+     * Whether open() refuses a symlink at the final path component when given
+     * O_NOFOLLOW. When it does not, the reader checks with lstat before it
+     * opens. Defaults to what the platform's O_NOFOLLOW constant says.
+     */
+    readonly kernelNoFollow?: boolean;
     open(path: string, flags: number): Promise<NoFollowFileHandle>;
     lstat(path: string): Promise<NoFollowStats>;
 }
@@ -75,10 +81,14 @@ function isSameFile(a: FileIdentity, b: FileIdentity): boolean {
     return a.dev === b.dev && a.ino === b.ino;
 }
 
-function hasKernelNoFollow(): boolean {
+function platformHasKernelNoFollow(): boolean {
     return (
         typeof constants.O_NOFOLLOW === "number" && constants.O_NOFOLLOW !== 0
     );
+}
+
+function hasKernelNoFollow(fs: NoFollowFsPort): boolean {
+    return fs.kernelNoFollow ?? platformHasKernelNoFollow();
 }
 
 type OpenResult =
@@ -92,7 +102,7 @@ async function isSymlinkWithoutKernelSupport(
     fs: NoFollowFsPort,
     filePath: string,
 ): Promise<boolean> {
-    if (hasKernelNoFollow()) {
+    if (hasKernelNoFollow(fs)) {
         return false;
     }
     return (await fs.lstat(filePath)).isSymbolicLink();
@@ -106,7 +116,7 @@ async function openForBoundedRead(
         if (await isSymlinkWithoutKernelSupport(fs, filePath)) {
             return { failure: "symlink" };
         }
-        const flags = hasKernelNoFollow()
+        const flags = hasKernelNoFollow(fs)
             ? constants.O_RDONLY | constants.O_NOFOLLOW
             : constants.O_RDONLY;
         return { handle: await fs.open(filePath, flags) };
