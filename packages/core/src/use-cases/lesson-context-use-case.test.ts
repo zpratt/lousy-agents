@@ -87,6 +87,192 @@ describe("LessonContextUseCase", () => {
         });
     });
 
+    describe("given matched lessons of two types whose slugs sort the other way", () => {
+        it("orders them by type first and by slug only within a type", async () => {
+            const matchesTs = { tags: [], paths: ["**/*.ts"], patterns: [] };
+            const lessons = [
+                makeLesson({
+                    slug: "a-pattern",
+                    title: "Pattern A",
+                    type: "pattern",
+                    triggers: matchesTs,
+                }),
+                makeLesson({
+                    slug: "z-invariant",
+                    title: "Invariant Z",
+                    type: "invariant",
+                    triggers: matchesTs,
+                }),
+            ];
+            const useCase = new LessonContextUseCase(makeGateway(lessons));
+
+            const result = await useCase.execute({
+                rootDir: "/repo",
+                hookEventName: "PreToolUse",
+                filePaths: ["src/foo.ts"],
+            });
+
+            expect(
+                result.additionalContext.indexOf("## Invariant Z"),
+            ).toBeGreaterThanOrEqual(0);
+            expect(
+                result.additionalContext.indexOf("## Invariant Z"),
+            ).toBeLessThan(result.additionalContext.indexOf("## Pattern A"));
+        });
+    });
+
+    describe("given lessons that fill the aggregate cap to the character", () => {
+        const aggregateCap = 9800;
+        const bodyCap = 2000;
+        const headingLength = "## A\n\n".length;
+        const separatorLength = "\n\n".length;
+        const fullLessonLength = headingLength + bodyCap;
+
+        function fourFullLessons(): ParsedLesson[] {
+            return ["a", "b", "c", "d"].map((slug) =>
+                makeLesson({
+                    slug,
+                    title: slug.toUpperCase(),
+                    body: "x".repeat(bodyCap),
+                }),
+            );
+        }
+
+        function lessonOfRenderedLength(length: number): ParsedLesson {
+            return makeLesson({
+                slug: "e",
+                title: "E",
+                body: "y".repeat(length - headingLength),
+            });
+        }
+
+        const usedByFourLessons = 4 * fullLessonLength + 3 * separatorLength;
+
+        async function run(lessons: ParsedLesson[]) {
+            return new LessonContextUseCase(makeGateway(lessons)).execute({
+                rootDir: "/repo",
+                hookEventName: "SessionStart",
+            });
+        }
+
+        it("should keep a lesson that brings the text to exactly the cap", async () => {
+            const last = lessonOfRenderedLength(
+                aggregateCap - usedByFourLessons - separatorLength,
+            );
+
+            const result = await run([...fourFullLessons(), last]);
+
+            expect(result.truncatedCount).toBe(0);
+            expect(result.additionalContext).toHaveLength(aggregateCap);
+        });
+
+        it("should leave out a lesson that would take the text one character over the cap, and say so", async () => {
+            const last = lessonOfRenderedLength(
+                aggregateCap - usedByFourLessons - separatorLength + 1,
+            );
+
+            const result = await run([...fourFullLessons(), last]);
+
+            expect(result.truncatedCount).toBe(1);
+            expect(result.additionalContext).toContain(
+                "_(1 additional lesson truncated due to length cap)_",
+            );
+        });
+
+        it("should say lessons, in the plural, when more than one was left out", async () => {
+            const lessons = [
+                ...fourFullLessons(),
+                makeLesson({
+                    slug: "e",
+                    title: "E",
+                    body: "z".repeat(bodyCap),
+                }),
+                makeLesson({
+                    slug: "f",
+                    title: "F",
+                    body: "z".repeat(bodyCap),
+                }),
+                makeLesson({
+                    slug: "g",
+                    title: "G",
+                    body: "z".repeat(bodyCap),
+                }),
+            ];
+
+            const result = await run(lessons);
+
+            expect(result.additionalContext).toContain(
+                "_(3 additional lessons truncated due to length cap)_",
+            );
+        });
+
+        it("should trim the text so that it and the note together stay within the cap", async () => {
+            const full = lessonOfRenderedLength(
+                aggregateCap - usedByFourLessons - separatorLength,
+            );
+            const overflow = makeLesson({
+                slug: "f",
+                title: "F",
+                body: "z".repeat(bodyCap),
+            });
+
+            const result = await run([...fourFullLessons(), full, overflow]);
+
+            expect(result.additionalContext).toHaveLength(aggregateCap);
+            expect(
+                result.additionalContext.endsWith(
+                    "\n\n_(1 additional lesson truncated due to length cap)_",
+                ),
+            ).toBe(true);
+        });
+
+        it("should trim exactly the one character by which the text and the note together pass the cap", async () => {
+            const note =
+                "\n\n_(1 additional lesson truncated due to length cap)_";
+            const textLength = aggregateCap - note.length + 1;
+            const last = lessonOfRenderedLength(
+                textLength - usedByFourLessons - separatorLength,
+            );
+            const overflow = makeLesson({
+                slug: "f",
+                title: "F",
+                body: "z".repeat(bodyCap),
+            });
+
+            const result = await run([...fourFullLessons(), last, overflow]);
+
+            expect(result.additionalContext).toHaveLength(aggregateCap);
+            expect(result.additionalContext.endsWith(note)).toBe(true);
+        });
+    });
+
+    describe("given lessons whose path triggers differ", () => {
+        it("should match each lesson against its own patterns", async () => {
+            const lessons = [
+                makeLesson({
+                    slug: "ts-lesson",
+                    title: "TS Lesson",
+                    triggers: { tags: [], paths: ["**/*.ts"], patterns: [] },
+                }),
+                makeLesson({
+                    slug: "py-lesson",
+                    title: "PY Lesson",
+                    triggers: { tags: [], paths: ["**/*.py"], patterns: [] },
+                }),
+            ];
+            const useCase = new LessonContextUseCase(makeGateway(lessons));
+
+            const result = await useCase.execute({
+                rootDir: "/repo",
+                hookEventName: "PreToolUse",
+                filePaths: ["src/job.py"],
+            });
+
+            expect(result.additionalContext).toContain("## PY Lesson");
+            expect(result.additionalContext).not.toContain("## TS Lesson");
+        });
+    });
+
     describe("given a lesson with no triggers on SessionStart", () => {
         it("includes invariant lessons regardless of empty triggers", async () => {
             const parsed = makeLesson({
