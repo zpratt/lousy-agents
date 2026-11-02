@@ -1,6 +1,10 @@
 import type { InventoryRecord } from "./edge-types.js";
 
-/** Paths that some well-formed hard-import or soft-reference edge points to. */
+/**
+ * Paths that some well-formed hard-import or soft-reference edge points to,
+ * leaving out an edge from a file to itself: a file that only imports itself
+ * is not referenced by anything.
+ */
 function referencedPaths(records: readonly InventoryRecord[]): Set<string> {
     return new Set(
         records
@@ -8,7 +12,8 @@ function referencedPaths(records: readonly InventoryRecord[]): Set<string> {
             .flatMap((edge) =>
                 !edge.malformed &&
                 edge.type !== "glob-binding" &&
-                typeof edge.direction.to === "string"
+                typeof edge.direction.to === "string" &&
+                edge.direction.to !== edge.direction.from
                     ? [edge.direction.to]
                     : [],
             ),
