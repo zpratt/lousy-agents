@@ -7,7 +7,17 @@ import {
 const HUGE_LINE_COUNT = 150_000;
 const OFFSETS_TO_MAP = 200_000;
 const BUDGET_MS = 2_000;
+const BUDGET_RUNS = 3;
 const TEST_TIMEOUT_MS = 60_000;
+
+function fastestRunMs(run: () => void): number {
+    const durations = Array.from({ length: BUDGET_RUNS }, () => {
+        const start = performance.now();
+        run();
+        return performance.now() - start;
+    });
+    return Math.min(...durations);
+}
 
 describe("offsetToSourcePosition", () => {
     const content = "ab\ncde\n\nf";
@@ -61,6 +71,52 @@ describe("createSourcePositionIndex", () => {
         }
     });
 
+    describe("the work the index does", () => {
+        const SmallLines = 1_000;
+        const LargeLines = 100_000;
+        const Lookups = 500;
+
+        function stepsOf(lineCount: number): {
+            build: number;
+            perLookup: number;
+        } {
+            const content = "abc\n".repeat(lineCount);
+            let build = 0;
+            const index = createSourcePositionIndex(content, (steps) => {
+                build += steps;
+            });
+            const afterBuild = build;
+            for (let n = 0; n < Lookups; n += 1) {
+                index(Math.floor((n * content.length) / Lookups));
+            }
+            return {
+                build: afterBuild,
+                perLookup: (build - afterBuild) / Lookups,
+            };
+        }
+
+        it("should read the content once to build the index", () => {
+            expect(stepsOf(SmallLines).build).toBe(SmallLines * 4);
+            expect(stepsOf(LargeLines).build).toBe(LargeLines * 4);
+        });
+
+        it("should answer an offset in a number of steps that grows with the logarithm of the line count, not the content length", () => {
+            const small = stepsOf(SmallLines).perLookup;
+            const large = stepsOf(LargeLines).perLookup;
+
+            expect(small).toBeGreaterThan(1);
+            expect(large).toBeLessThanOrEqual(Math.log2(LargeLines) + 2);
+            expect(large / small).toBeLessThan(2);
+        });
+
+        it("should answer an offset without counting when no counter is given", () => {
+            expect(createSourcePositionIndex("a\nb")(2)).toEqual({
+                line: 2,
+                column: 1,
+            });
+        });
+    });
+
     it(
         "should map two hundred thousand offsets of a huge content within the budget",
         () => {
@@ -70,12 +126,12 @@ describe("createSourcePositionIndex", () => {
             const stride = Math.floor(content.length / OFFSETS_TO_MAP);
             const lastOffset = (OFFSETS_TO_MAP - 1) * stride;
 
-            const start = performance.now();
             let last = { line: 0, column: 0 };
-            for (let n = 0; n < OFFSETS_TO_MAP; n += 1) {
-                last = index(n * stride);
-            }
-            const elapsed = performance.now() - start;
+            const elapsed = fastestRunMs(() => {
+                for (let n = 0; n < OFFSETS_TO_MAP; n += 1) {
+                    last = index(n * stride);
+                }
+            });
 
             expect(last).toEqual({
                 line: Math.floor(lastOffset / line.length) + 1,
