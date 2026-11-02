@@ -201,6 +201,32 @@ describe("inspectPathWithinRoot", () => {
         },
     );
 
+    it("should report missing for a path that goes through a regular file as if it were a directory", async () => {
+        const file = join(rootReal, `${chance.word()}.md`);
+        await writeFile(file, chance.sentence());
+
+        const result = await inspectPathWithinRoot(
+            rootReal,
+            join(file, "child.md"),
+        );
+
+        expect(result).toEqual({ status: "missing" });
+    });
+
+    it.skipIf(process.platform === "win32")(
+        "should report unsupported, not missing, for a symlink loop",
+        async () => {
+            const first = join(rootReal, `${chance.word()}-first`);
+            const second = join(rootReal, `${chance.word()}-second`);
+            await symlink(second, first);
+            await symlink(first, second);
+
+            const result = await inspectPathWithinRoot(rootReal, first);
+
+            expect(result).toEqual({ status: "unsupported" });
+        },
+    );
+
     it("should report missing for a path that does not exist", async () => {
         const result = await inspectPathWithinRoot(
             rootReal,
