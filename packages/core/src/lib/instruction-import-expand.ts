@@ -1,5 +1,9 @@
 /**
- * Pure Claude `@` import expander that builds an ordered EffectiveDocument.
+ * Claude `@` import expander that builds an ordered EffectiveDocument.
+ *
+ * It reads the file system through an injectable port (real paths, bounded
+ * reads of regular files, no symlink followed at the final component), so it
+ * is deterministic for a given tree but not pure.
  */
 
 import { realpath } from "node:fs/promises";
