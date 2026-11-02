@@ -4,6 +4,7 @@ import {
     isExcludedBySuffix,
     primaryConstructTypeForPath,
 } from "@lousy-agents/core/lib/agentic-location-matchers.js";
+import { DEFAULT_MAX_FILE_BYTES } from "@lousy-agents/core/lib/instruction-import-expand.js";
 import type {
     ConstructType,
     Edge,
@@ -14,8 +15,6 @@ import { determineHarness } from "../entities/harness-footprints.js";
 import { parseRawEdges } from "../lib/edge-parser.js";
 import { type EdgeResolutionContext, resolveEdge } from "./edge-resolution.js";
 import type { McpServerRecord } from "./mcp-config.js";
-
-const MAX_FILE_BYTES = 1_048_576;
 
 /**
  * A file discovered by the repository walk. `readRoot`/`readRelPath` locate
@@ -62,7 +61,7 @@ async function readMarkdownContent(
         return await readTextWithinRoot(
             file.readRoot,
             file.readRelPath,
-            MAX_FILE_BYTES,
+            DEFAULT_MAX_FILE_BYTES,
         );
     } catch {
         return null;

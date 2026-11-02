@@ -8,11 +8,7 @@ import {
 } from "@lousy-agents/core/gateways/repository-walk.js";
 import type { InventoryRecord } from "../entities/edge-types.js";
 import { markReferencedRecords } from "../entities/inventory-references.js";
-import type {
-    DiscoveryDepthLimit,
-    DiscoveryDirectoryLimit,
-    DiscoveryEntryLimit,
-} from "../use-cases/discovery-limit-finding.js";
+import type { RepositoryScan } from "../use-cases/run-doctor.js";
 import type { EdgeResolutionContext } from "./edge-resolution.js";
 import {
     buildFileInventoryRecords,
@@ -52,18 +48,8 @@ export interface ScanOptions {
     readonly maxDirectories?: number;
     /** Directory entries examined before the scan stops; defaults to the shared walk's limit */
     readonly maxEntries?: number;
-    /** Reads a file's markdown content; defaults to a bounded, no-follow read */
+    /** Reads a file's markdown content; defaults to a read of its symlink-free real path, bounded by the shared file size limit */
     readonly readContent?: ReadMarkdownContent;
-}
-
-export interface ScanReport {
-    readonly records: InventoryRecord[];
-    /** Present when the scan stopped at its directory limit, so records may be missing */
-    readonly directoryLimit?: DiscoveryDirectoryLimit;
-    /** Present when the scan left directories below its depth limit unentered, so records may be missing */
-    readonly depthLimit?: DiscoveryDepthLimit;
-    /** Present when the scan stopped at its entry budget, so records may be missing */
-    readonly entryLimit?: DiscoveryEntryLimit;
 }
 
 function toSourceFile(
@@ -94,7 +80,7 @@ function toSourceFile(
 export async function scanRepositoryWithReport(
     repoRoot: string,
     options: ScanOptions = {},
-): Promise<ScanReport> {
+): Promise<RepositoryScan> {
     const absRoot = resolve(repoRoot);
     const rootReal = await realpath(absRoot);
     const maxDirectories =

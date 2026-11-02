@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEFAULT_MAX_WALK_DEPTH } from "@lousy-agents/core/gateways/repository-walk.js";
+import { DEFAULT_MAX_FILE_BYTES } from "@lousy-agents/core/lib/instruction-import-expand.js";
 import Chance from "chance";
 import { describe, expect, it } from "vitest";
 import { scanRepository, scanRepositoryWithReport } from "./scanner.js";
@@ -557,19 +558,40 @@ describe("scanRepository", () => {
             });
         });
 
-        it("should keep a markdown file that is too large to read but record no edges for it", async () => {
-            const oversizedContent = `@./${AGENTS_MD}\n${"x".repeat(1_048_576)}`;
-            const files = {
-                [CLAUDE_MD]: oversizedContent,
-                [AGENTS_MD]: AGENTS_CONTENT,
-            };
+        describe("a markdown file measured against the read limit", () => {
+            const ImportLine = `@./${AGENTS_MD}\n`;
 
-            await withTempRepo(files, async (repoRoot) => {
-                const records = await scanRepository(repoRoot);
+            function contentOfLength(length: number): string {
+                return ImportLine + "x".repeat(length - ImportLine.length);
+            }
 
-                const claudeMd = records.find((r) => r.path === CLAUDE_MD);
-                expect(claudeMd).toBeDefined();
-                expect(claudeMd?.edges).toEqual([]);
+            it("should keep a markdown file that is too large to read but record no edges for it", async () => {
+                const files = {
+                    [CLAUDE_MD]: contentOfLength(DEFAULT_MAX_FILE_BYTES + 1),
+                    [AGENTS_MD]: AGENTS_CONTENT,
+                };
+
+                await withTempRepo(files, async (repoRoot) => {
+                    const records = await scanRepository(repoRoot);
+
+                    const claudeMd = records.find((r) => r.path === CLAUDE_MD);
+                    expect(claudeMd).toBeDefined();
+                    expect(claudeMd?.edges).toEqual([]);
+                });
+            });
+
+            it("should read a markdown file that is exactly at the limit", async () => {
+                const files = {
+                    [CLAUDE_MD]: contentOfLength(DEFAULT_MAX_FILE_BYTES),
+                    [AGENTS_MD]: AGENTS_CONTENT,
+                };
+
+                await withTempRepo(files, async (repoRoot) => {
+                    const records = await scanRepository(repoRoot);
+
+                    const claudeMd = records.find((r) => r.path === CLAUDE_MD);
+                    expect(claudeMd?.edges).toHaveLength(1);
+                });
             });
         });
 
