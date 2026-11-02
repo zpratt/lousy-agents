@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     importLimitFindings,
     skippedSymlinkFindings,
+    unreadFileFindings,
 } from "./scan-notice-findings.js";
 
 describe("skippedSymlinkFindings", () => {
@@ -64,5 +65,40 @@ describe("importLimitFindings", () => {
                     "The repository scan checked only the first 256 @ imports of 2 file(s), so imports after them are not in this report: CLAUDE.md, .claude/CLAUDE.md.",
             },
         ]);
+    });
+});
+
+describe("unreadFileFindings", () => {
+    it("should report nothing when the scan read every file it needed", () => {
+        expect(unreadFileFindings([])).toEqual([]);
+    });
+
+    it("should report one advisory that names the files and what is missing from the report", () => {
+        const findings = unreadFileFindings(["CLAUDE.md", "docs/AGENTS.md"]);
+
+        expect(findings).toEqual([
+            {
+                id: "instruction-file-unread:all:repository",
+                criterionId: "instruction-file-unread",
+                targetId: "all:repository",
+                severity: "medium",
+                category: "governance",
+                classification: "advisory",
+                intentGated: false,
+                assumedIntent: false,
+                description:
+                    "The repository scan could not read 2 harness file(s) (a file with more than one hard link, a file over 1 MiB, or one the system would not open), so their @ imports and links are not in this report: CLAUDE.md, docs/AGENTS.md.",
+            },
+        ]);
+    });
+
+    it("should name the first five files and count the rest", () => {
+        const paths = Array.from({ length: 7 }, (_, index) => `f${index}.md`);
+
+        const [finding] = unreadFileFindings(paths);
+
+        expect(finding?.description).toContain(
+            "f0.md, f1.md, f2.md, f3.md, f4.md, and 2 more.",
+        );
     });
 });

@@ -396,6 +396,55 @@ describe("runDoctor", () => {
         );
     });
 
+    describe("when the scan could not read an instruction file", () => {
+        it.each([
+            ["a summary", true, [buildRecord()]],
+            ["a run with no agentic constructs", false, []],
+            ["an evaluated run", false, [buildRecord()]],
+        ] as const)(
+            "should carry the advisory that names the file on %s",
+            async (_name, summaryOnly, records) => {
+                const ports = buildPorts({
+                    scanRepository: vi.fn().mockResolvedValue({
+                        records: [...records],
+                        unreadFiles: ["CLAUDE.md"],
+                    }),
+                });
+
+                const run = await runDoctor({ repoPath, summaryOnly }, ports);
+
+                expect(run.scanWarnings).toEqual([
+                    expect.objectContaining({
+                        criterionId: "instruction-file-unread",
+                        classification: "advisory",
+                        description: expect.stringContaining("CLAUDE.md"),
+                    }),
+                ]);
+            },
+        );
+
+        it("should report it after the walk, the links and the imports", async () => {
+            const ports = buildPorts({
+                scanRepository: vi.fn().mockResolvedValue({
+                    records: [buildRecord()],
+                    directoryLimit: DIRECTORY_LIMIT,
+                    skippedOutsideRoot: ["docs/leak.md"],
+                    importLimit: { maxImports: 256, files: ["CLAUDE.md"] },
+                    unreadFiles: ["AGENTS.md"],
+                }),
+            });
+
+            const run = await runDoctor({ repoPath, summaryOnly: true }, ports);
+
+            expect(run.scanWarnings.map((f) => f.criterionId)).toEqual([
+                "discovery-limit-reached",
+                "discovery-symlink-skipped",
+                "import-limit-reached",
+                "instruction-file-unread",
+            ]);
+        });
+    });
+
     describe("when a file had more @ imports than the scan checks", () => {
         it.each([
             ["a summary", true, [buildRecord()]],

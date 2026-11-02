@@ -20,6 +20,7 @@ import {
     type ImportLimitNotice,
     importLimitFindings,
     skippedSymlinkFindings,
+    unreadFileFindings,
 } from "./scan-notice-findings.js";
 
 export interface LoadedIntent {
@@ -39,6 +40,8 @@ export interface RepositoryScan {
     skippedOutsideRoot?: readonly string[];
     /** Present when some files had more `@` imports than the scan checks */
     importLimit?: ImportLimitNotice;
+    /** Present when the scan could not read some instruction files */
+    unreadFiles?: readonly string[];
 }
 
 export interface DoctorRunPorts {
@@ -163,6 +166,7 @@ export async function runDoctor(
             ),
             ...skippedSymlinkFindings(scan.skippedOutsideRoot ?? []),
             ...importLimitFindings(scan.importLimit),
+            ...unreadFileFindings(scan.unreadFiles ?? []),
         ],
     };
     try {

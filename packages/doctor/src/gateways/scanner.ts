@@ -112,8 +112,11 @@ export async function scanRepositoryWithReport(
         classifyTarget: createTargetClassifier(rootReal, { fs: options.fs }),
     };
 
-    const { records: fileRecords, filesOverImportLimit } =
-        await buildFileInventory(files, edgeContext, options.readContent);
+    const {
+        records: fileRecords,
+        filesOverImportLimit,
+        unreadFiles,
+    } = await buildFileInventory(files, edgeContext, options.readContent);
     const mcpServers = await enumerateMcpServers(absRoot);
 
     return {
@@ -145,6 +148,7 @@ export async function scanRepositoryWithReport(
                   },
               }
             : {}),
+        ...(unreadFiles.length > 0 ? { unreadFiles } : {}),
     };
 }
 
