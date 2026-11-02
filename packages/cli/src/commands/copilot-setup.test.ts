@@ -1016,4 +1016,84 @@ jobs:
             expect(createRuleset).not.toHaveBeenCalled();
         });
     });
+
+    describe("when the existing workflow has more than one job", () => {
+        it("should add the missing steps to the copilot-setup-steps job, not to the first job", async () => {
+            const workflow = [
+                "name: Copilot Setup Steps",
+                "on:",
+                "  workflow_dispatch: null",
+                "jobs:",
+                "  lint:",
+                "    runs-on: ubuntu-latest",
+                "    steps:",
+                "      - uses: actions/checkout@v4",
+                "  copilot-setup-steps:",
+                "    runs-on: ubuntu-latest",
+                "    steps:",
+                "      - uses: actions/checkout@v4",
+                "",
+            ].join("\n");
+            await writeFile(
+                join(workflowsDir, "copilot-setup-steps.yml"),
+                workflow,
+            );
+            await writeFile(join(testDir, ".nvmrc"), "20.0.0");
+
+            await copilotSetupCommand.run({
+                rawArgs: [],
+                args: { _: [], "dry-run": false },
+                cmd: copilotSetupCommand,
+                data: {
+                    targetDir: testDir,
+                    rulesetGateway: createMockRulesetGateway(),
+                },
+            });
+
+            const parsed = parseYaml(
+                await readFile(
+                    join(workflowsDir, "copilot-setup-steps.yml"),
+                    "utf-8",
+                ),
+            );
+            expect(parsed.jobs.lint.steps).toHaveLength(1);
+            expect(parsed.jobs["copilot-setup-steps"].steps).toHaveLength(2);
+        });
+    });
+
+    describe("when the command runs again on a project with an install step", () => {
+        it("should not add the same install command a second time", async () => {
+            await writeFile(
+                join(testDir, "package.json"),
+                JSON.stringify({ name: chance.word() }),
+            );
+            await writeFile(join(testDir, "package-lock.json"), "{}");
+            const run = () =>
+                copilotSetupCommand.run({
+                    rawArgs: [],
+                    args: { _: [], "dry-run": false },
+                    cmd: copilotSetupCommand,
+                    data: {
+                        targetDir: testDir,
+                        rulesetGateway: createMockRulesetGateway(),
+                        npmrcGateway: createMockNpmrcGateway(),
+                        prompt: () => Promise.resolve(false),
+                    },
+                });
+
+            await run();
+            await run();
+
+            const parsed = parseYaml(
+                await readFile(
+                    join(workflowsDir, "copilot-setup-steps.yml"),
+                    "utf-8",
+                ),
+            );
+            const installSteps = parsed.jobs[
+                "copilot-setup-steps"
+            ].steps.filter((step: { run?: string }) => step.run === "npm ci");
+            expect(installSteps).toHaveLength(1);
+        });
+    });
 });
