@@ -1,4 +1,4 @@
-import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { link, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
@@ -640,6 +640,79 @@ npm test
             const result = await gateway.analyzeCoverage(testDir, [], []);
 
             expect(result.diagnostics).toEqual([]);
+        });
+    });
+
+    describe("when some of the instruction files cannot be read", () => {
+        const oversizeBytes = 1_048_577;
+        const documentedScript = chance.word({ length: 12 });
+
+        function mandatory(name: string): DiscoveredScript {
+            return {
+                name,
+                command: chance.word(),
+                phase: "test",
+                isMandatory: true,
+            };
+        }
+
+        async function writeUnreadableAndReadableFiles(): Promise<void> {
+            await writeFile(join(testDir, "CLAUDE.md"), "# Claude\n");
+            await link(join(testDir, "CLAUDE.md"), join(testDir, "AGENTS.md"));
+            await writeFile(
+                join(testDir, ".github", "copilot-instructions.md"),
+                "a".repeat(oversizeBytes),
+            );
+            await writeFile(
+                join(instructionsDir, "docs.instructions.md"),
+                `Run npm run ${documentedScript} before you commit.\n`,
+            );
+        }
+
+        it("should still measure coverage over the files it can read", async () => {
+            await writeUnreadableAndReadableFiles();
+
+            const result = await gateway.analyzeCoverage(
+                testDir,
+                [mandatory(documentedScript)],
+                [],
+            );
+
+            expect(result.summary.totalDocumented).toBe(1);
+            expect(result.references).toEqual([
+                expect.objectContaining({ target: documentedScript }),
+            ]);
+        });
+
+        it("should report each file it could not read, by path, with the reason", async () => {
+            await writeUnreadableAndReadableFiles();
+
+            const result = await gateway.analyzeCoverage(
+                testDir,
+                [mandatory(documentedScript)],
+                [],
+            );
+
+            expect(result.diagnostics).toEqual([
+                {
+                    ruleId: "instruction/parse-error",
+                    message: expect.stringMatching(
+                        /^Could not read \.github\/copilot-instructions\.md \(.*size limit.*\), so it was not checked/,
+                    ),
+                },
+                {
+                    ruleId: "instruction/parse-error",
+                    message: expect.stringMatching(
+                        /^Could not read AGENTS\.md \(.*hard.*\), so it was not checked/,
+                    ),
+                },
+                {
+                    ruleId: "instruction/parse-error",
+                    message: expect.stringMatching(
+                        /^Could not read CLAUDE\.md \(.*hard.*\), so it was not checked/,
+                    ),
+                },
+            ]);
         });
     });
 });

@@ -2,6 +2,11 @@
  * MCP tool handler for validating instruction coverage of feedback loops.
  */
 
+import {
+    discoveryLeftFilesOut,
+    qualifyAllDocumented,
+    qualifyUndocumented,
+} from "@lousy-agents/core/entities/coverage-discovery-caveat.js";
 import { createEnvironmentGateway } from "@lousy-agents/core/gateways/environment-gateway.js";
 import { createInstructionAnalysisGateway } from "@lousy-agents/core/gateways/instruction-analysis-gateway.js";
 import { createScriptDiscoveryGateway } from "@lousy-agents/core/gateways/script-discovery-gateway.js";
@@ -23,29 +28,32 @@ interface CoverageMessageInput {
     hasFullCoverage: boolean;
     coveragePercentage: number;
     missingCount: number;
-    discoveryStoppedEarly: boolean;
+    leftFilesOut: boolean;
 }
 
 /**
- * Summarizes the coverage. When discovery stopped early the result says so:
- * a mandatory item reported as undocumented may be documented in a file that
- * was not checked, and a fully documented result covers only the files found.
+ * Summarizes the coverage. When discovery left instruction files out (it hit a
+ * limit, or skipped a symbolic link that points outside the repository) the
+ * result says so: a mandatory item reported as undocumented may be documented
+ * in a file that was not checked, and a fully documented result covers only the
+ * files found.
  */
 function coverageMessage({
     hasFullCoverage,
     coveragePercentage,
     missingCount,
-    discoveryStoppedEarly,
+    leftFilesOut,
 }: CoverageMessageInput): string {
     if (hasFullCoverage) {
-        return discoveryStoppedEarly
-            ? "✅ All mandatory feedback loops are documented in the instruction files found, but discovery stopped early, so other instruction files were not checked"
-            : "✅ All mandatory feedback loops are documented";
+        return qualifyAllDocumented(
+            "✅ All mandatory feedback loops are documented",
+            leftFilesOut,
+        );
     }
-    const measured = `${coveragePercentage.toFixed(1)}% coverage - ${missingCount} mandatory items not documented`;
-    return discoveryStoppedEarly
-        ? `⚠️  ${measured} in the instruction files found; discovery stopped early, so they may be documented in files that were not checked`
-        : `⚠️  ${measured}`;
+    return qualifyUndocumented(
+        `⚠️  ${coveragePercentage.toFixed(1)}% coverage - ${missingCount} mandatory items not documented`,
+        leftFilesOut,
+    );
 }
 
 /**
@@ -152,7 +160,7 @@ export const validateInstructionCoverageHandler: ToolHandler = async (
                 hasFullCoverage,
                 coveragePercentage: coverage.summary.coveragePercentage,
                 missingCount: missing.length,
-                discoveryStoppedEarly: coverage.diagnostics.length > 0,
+                leftFilesOut: discoveryLeftFilesOut(coverage.diagnostics),
             }),
         });
     } catch (error) {

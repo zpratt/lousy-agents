@@ -2,6 +2,11 @@
  * Use case for validating instruction coverage of feedback loops
  */
 
+import {
+    discoveryLeftFilesOut,
+    qualifyAllDocumented,
+    qualifyUndocumented,
+} from "../entities/coverage-discovery-caveat.js";
 import type {
     DiscoveredScript,
     DiscoveredTool,
@@ -86,23 +91,24 @@ export class ValidateInstructionCoverageUseCase {
         packageManager: string,
     ): string[] {
         const suggestions: string[] = [];
-        const discoveryStoppedEarly = coverage.diagnostics.length > 0;
+        const leftFilesOut = discoveryLeftFilesOut(coverage.diagnostics);
 
         if (coverage.missingInInstructions.length === 0) {
             suggestions.push(
-                discoveryStoppedEarly
-                    ? "✅ All mandatory feedback loops are documented in the instruction files found, but discovery stopped early, so other instruction files were not checked"
-                    : "✅ All mandatory feedback loops are documented in instructions",
+                qualifyAllDocumented(
+                    "✅ All mandatory feedback loops are documented in instructions",
+                    leftFilesOut,
+                ),
             );
             return suggestions;
         }
 
         const missingCount = coverage.missingInInstructions.length;
-        suggestions.push(
-            discoveryStoppedEarly
-                ? `⚠️  ${missingCount} mandatory feedback loop(s) are not documented in the instruction files found; discovery stopped early, so they may be documented in files that were not checked:`
-                : `⚠️  ${missingCount} mandatory feedback loop(s) are not documented:`,
+        const undocumented = qualifyUndocumented(
+            `⚠️  ${missingCount} mandatory feedback loop(s) are not documented`,
+            leftFilesOut,
         );
+        suggestions.push(`${undocumented}:`);
         suggestions.push("");
 
         const byPhase = new Map<

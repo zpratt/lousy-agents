@@ -311,7 +311,7 @@ describe("ValidateInstructionCoverageUseCase", () => {
         });
     });
 
-    describe("when discovery stopped early", () => {
+    describe("when discovery left instruction files out", () => {
         const DiscoveryLimitRuleId = "instruction/discovery-limit-reached";
         const discoveryLimitMessage = chance.sentence();
         const mandatoryScript: DiscoveredScript = {
@@ -356,7 +356,7 @@ describe("ValidateInstructionCoverageUseCase", () => {
             { ruleId: DiscoveryLimitRuleId, message: discoveryLimitMessage },
         ];
 
-        it("should not say every mandatory loop is documented without saying other files were not checked", async () => {
+        it("should not say every mandatory loop is documented without saying some files were not checked", async () => {
             const useCase = useCaseWith(coverageWith([], limitDiagnostics));
 
             const { suggestions } = await useCase.execute({
@@ -364,7 +364,7 @@ describe("ValidateInstructionCoverageUseCase", () => {
             });
 
             expect(suggestions).toEqual([
-                "✅ All mandatory feedback loops are documented in the instruction files found, but discovery stopped early, so other instruction files were not checked",
+                "✅ All mandatory feedback loops are documented in the instruction files found, but discovery left some instruction files out, so they were not checked",
             ]);
         });
 
@@ -378,7 +378,29 @@ describe("ValidateInstructionCoverageUseCase", () => {
             });
 
             expect(suggestions[0]).toBe(
-                "⚠️  1 mandatory feedback loop(s) are not documented in the instruction files found; discovery stopped early, so they may be documented in files that were not checked:",
+                "⚠️  1 mandatory feedback loop(s) are not documented in the instruction files found; discovery left some instruction files out, so they may be documented in files that were not checked:",
+            );
+        });
+
+        it("should say so for a skipped symbolic link as it does for a discovery limit", async () => {
+            const useCase = useCaseWith(
+                coverageWith(
+                    [],
+                    [
+                        {
+                            ruleId: "instruction/discovery-symlink-skipped",
+                            message: discoveryLimitMessage,
+                        },
+                    ],
+                ),
+            );
+
+            const { suggestions } = await useCase.execute({
+                targetDir: chance.word(),
+            });
+
+            expect(suggestions[0]).toContain(
+                "discovery left some instruction files out",
             );
         });
 
