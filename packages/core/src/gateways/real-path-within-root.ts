@@ -36,16 +36,66 @@ export type PathInspection =
            */
           readonly kind: OutsideRootKind;
       }
-    | { readonly status: "unsupported" };
+    | { readonly status: "unsupported" }
+    | {
+          /**
+           * The path could not be looked at because of a failure of the
+           * system or its permissions (too many open files, access denied),
+           * so nothing is known about whether it exists.
+           */
+          readonly status: "unreadable";
+      };
 
 export type OutsideRootKind = "file" | "directory" | "other";
+
+/**
+ * The error codes that mean no file is there. A path the system cannot
+ * represent cannot name a file, so it is as missing as one that was never
+ * created: a name too long for the file system to hold, one it rejects as
+ * invalid, or one holding a NUL byte, which Node rejects before it asks the
+ * system at all.
+ */
+const MISSING_ERROR_CODES: readonly string[] = [
+    "ENOENT",
+    "ENOTDIR",
+    "ENAMETOOLONG",
+    "EINVAL",
+    "ERR_INVALID_ARG_VALUE",
+];
 
 function isMissingError(error: unknown): boolean {
     return (
         error instanceof Error &&
         "code" in error &&
-        (error.code === "ENOENT" || error.code === "ENOTDIR")
+        typeof error.code === "string" &&
+        MISSING_ERROR_CODES.includes(error.code)
     );
+}
+
+const UNREADABLE_ERROR_CODES: readonly string[] = [
+    "EMFILE",
+    "ENFILE",
+    "EACCES",
+    "EPERM",
+    "EIO",
+];
+
+function isUnreadableError(error: unknown): boolean {
+    return (
+        error instanceof Error &&
+        "code" in error &&
+        typeof error.code === "string" &&
+        UNREADABLE_ERROR_CODES.includes(error.code)
+    );
+}
+
+function statusForInspectionError(
+    error: unknown,
+): "missing" | "unreadable" | "unsupported" {
+    if (isMissingError(error)) {
+        return "missing";
+    }
+    return isUnreadableError(error) ? "unreadable" : "unsupported";
 }
 
 async function kindOutsideRoot(real: string): Promise<OutsideRootKind> {
@@ -62,8 +112,8 @@ async function kindOutsideRoot(real: string): Promise<OutsideRootKind> {
 
 /**
  * Follows a path (and any symlink along it) to its real location and reports
- * why it cannot be used: missing, outside the real root, or neither a regular
- * file nor a directory. Stats the already-resolved real path (rather than
+ * why it cannot be used: missing, outside the real root, neither a regular
+ * file nor a directory, or unreadable (the system refused to look at it). Stats the already-resolved real path (rather than
  * re-resolving the symlink) so the within-root check, the type check and the
  * recorded identity observe the same target.
  *
@@ -93,7 +143,7 @@ export async function inspectPathWithinRoot(
         }
         return { status: "unsupported" };
     } catch (error: unknown) {
-        return { status: isMissingError(error) ? "missing" : "unsupported" };
+        return { status: statusForInspectionError(error) };
     }
 }
 

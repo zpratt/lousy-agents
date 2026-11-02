@@ -1,22 +1,25 @@
 import { realpath } from "node:fs/promises";
 import { relative, resolve } from "node:path";
+import type { NoFollowFsPort } from "@lousy-agents/core/gateways/read-regular-file-no-follow.js";
 import {
     DEFAULT_MAX_WALK_DIRECTORIES,
     DEFAULT_SKIPPED_DIRECTORY_NAMES,
     type WalkedFile,
     walkRepository,
 } from "@lousy-agents/core/gateways/repository-walk.js";
+import { DEFAULT_MAX_EDGES } from "@lousy-agents/core/lib/instruction-import-expand.js";
 import type { InventoryRecord } from "../entities/edge-types.js";
 import { markReferencedRecords } from "../entities/inventory-references.js";
 import type { RepositoryScan } from "../use-cases/run-doctor.js";
 import type { EdgeResolutionContext } from "./edge-resolution.js";
 import {
-    buildFileInventoryRecords,
+    buildFileInventory,
     type InventorySourceFile,
     mcpServerRecords,
     type ReadMarkdownContent,
 } from "./inventory-records.js";
 import { enumerateMcpServers } from "./mcp-config.js";
+import { createTargetClassifier } from "./target-classifier.js";
 
 const SCANNABLE_EXTENSIONS = new Set([
     ".md",
@@ -50,6 +53,8 @@ export interface ScanOptions {
     readonly maxEntries?: number;
     /** Reads a file's markdown content; defaults to a read of its symlink-free real path, bounded by the shared file size limit */
     readonly readContent?: ReadMarkdownContent;
+    /** The file system `@` import targets are opened with; defaults to the real one */
+    readonly fs?: NoFollowFsPort;
 }
 
 function toSourceFile(
@@ -104,13 +109,11 @@ export async function scanRepositoryWithReport(
         repoRoot: absRoot,
         rootReal,
         existingAbsPaths: new Set(files.map((file) => file.absPath)),
+        classifyTarget: createTargetClassifier(rootReal, { fs: options.fs }),
     };
 
-    const fileRecords = await buildFileInventoryRecords(
-        files,
-        edgeContext,
-        options.readContent,
-    );
+    const { records: fileRecords, filesOverImportLimit } =
+        await buildFileInventory(files, edgeContext, options.readContent);
     const mcpServers = await enumerateMcpServers(absRoot);
 
     return {
@@ -130,6 +133,17 @@ export async function scanRepositoryWithReport(
             : {}),
         ...(walked.entryLimitReached
             ? { entryLimit: { maxEntries: walked.limits.maxEntries } }
+            : {}),
+        ...(walked.skippedOutsideRoot.length > 0
+            ? { skippedOutsideRoot: walked.skippedOutsideRoot }
+            : {}),
+        ...(filesOverImportLimit.length > 0
+            ? {
+                  importLimit: {
+                      maxImports: DEFAULT_MAX_EDGES,
+                      files: filesOverImportLimit,
+                  },
+              }
             : {}),
     };
 }

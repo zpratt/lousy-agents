@@ -4,7 +4,10 @@ import {
     isExcludedBySuffix,
     primaryConstructTypeForPath,
 } from "@lousy-agents/core/lib/agentic-location-matchers.js";
-import { DEFAULT_MAX_FILE_BYTES } from "@lousy-agents/core/lib/instruction-import-expand.js";
+import {
+    DEFAULT_MAX_EDGES,
+    DEFAULT_MAX_FILE_BYTES,
+} from "@lousy-agents/core/lib/instruction-import-expand.js";
 import type {
     ConstructType,
     Edge,
@@ -13,6 +16,7 @@ import type {
 } from "../entities/edge-types.js";
 import { determineHarness } from "../entities/harness-footprints.js";
 import { parseRawEdges } from "../lib/edge-parser.js";
+import { limitHardImports } from "../lib/limit-hard-imports.js";
 import { type EdgeResolutionContext, resolveEdge } from "./edge-resolution.js";
 import type { McpServerRecord } from "./mcp-config.js";
 
@@ -115,11 +119,21 @@ async function readInventorySources(
     return sources;
 }
 
+interface BuiltRecord {
+    readonly record: InventoryRecord;
+    /** Whether `@` imports past the limit were left out of the record */
+    readonly importsOverLimit: boolean;
+}
+
 async function toInventoryRecord(
     { file, harness, content }: InventorySource,
     ctx: EdgeResolutionContext,
-): Promise<InventoryRecord> {
-    const rawEdges = content === null ? [] : parseRawEdges(content);
+): Promise<BuiltRecord> {
+    const parsed = content === null ? [] : parseRawEdges(content);
+    const { edges: rawEdges, overLimit } = limitHardImports(
+        parsed,
+        DEFAULT_MAX_EDGES,
+    );
     const resolved = await Promise.all(
         rawEdges.map((raw) =>
             resolveEdge(raw, file.absPath, file.readRelPath, ctx),
@@ -128,30 +142,48 @@ async function toInventoryRecord(
     const edges = resolved.filter((edge): edge is Edge => edge !== null);
 
     return {
-        id: `${harness}:${file.relPath}`,
-        path: file.relPath,
-        harness,
-        constructType: determineConstructType(file.relPath),
-        loadMechanism: "convention-loaded",
-        edges,
+        record: {
+            id: `${harness}:${file.relPath}`,
+            path: file.relPath,
+            harness,
+            constructType: determineConstructType(file.relPath),
+            loadMechanism: "convention-loaded",
+            edges,
+        },
+        importsOverLimit: overLimit,
     };
+}
+
+/** The file inventory, and the files whose `@` imports went past the limit. */
+export interface FileInventory {
+    readonly records: InventoryRecord[];
+    readonly filesOverImportLimit: string[];
 }
 
 /**
  * Builds one inventory record per harness-owned file, with its edges
- * resolved. Every record starts out convention-loaded; see
- * markReferencedRecords in the entities layer.
+ * resolved. At most as many `@` imports per file as lint expands are
+ * resolved; the files with more are named. Every record starts out
+ * convention-loaded; see markReferencedRecords in the entities layer.
  */
-export async function buildFileInventoryRecords(
+export async function buildFileInventory(
     files: readonly InventorySourceFile[],
     ctx: EdgeResolutionContext,
     readContent: ReadMarkdownContent = readMarkdownContent,
-): Promise<InventoryRecord[]> {
+): Promise<FileInventory> {
     const sources = await readInventorySources(
         files,
         readOncePerRealFile(readContent),
     );
-    return Promise.all(sources.map((source) => toInventoryRecord(source, ctx)));
+    const built = await Promise.all(
+        sources.map((source) => toInventoryRecord(source, ctx)),
+    );
+    return {
+        records: built.map(({ record }) => record),
+        filesOverImportLimit: built
+            .filter(({ importsOverLimit }) => importsOverLimit)
+            .map(({ record }) => record.path),
+    };
 }
 
 export function mcpServerRecords(

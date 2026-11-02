@@ -41,10 +41,8 @@ export async function classifyImportTarget(
     maxBytes: number,
     options: { readonly fs?: NoFollowFsPort } = {},
 ): Promise<ImportTargetClassification> {
-    const located = toLocatedFile(
-        rootReal,
-        await inspectPathWithinRoot(rootReal, absolutePath),
-    );
+    const inspection = await inspectPathWithinRoot(rootReal, absolutePath);
+    const located = toLocatedFile(rootReal, inspection);
     if (!located.ok) {
         return { ok: false, status: located.status };
     }
@@ -53,7 +51,8 @@ export async function classifyImportTarget(
         maxBytes,
         { expectedIdentity: located.identity, fs: options.fs },
     );
-    return refusal === null
-        ? { ok: true, real: located.real }
-        : { ok: false, status: statusForReadFailure(refusal) };
+    if (refusal === null) {
+        return { ok: true, real: located.real };
+    }
+    return { ok: false, status: statusForReadFailure(refusal) };
 }

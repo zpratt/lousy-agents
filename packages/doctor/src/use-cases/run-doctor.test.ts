@@ -368,6 +368,81 @@ describe("runDoctor", () => {
         );
     });
 
+    describe("when the scan skipped symbolic links that lead outside the repository", () => {
+        it.each([
+            ["a summary", true, [buildRecord()]],
+            ["a run with no agentic constructs", false, []],
+            ["an evaluated run", false, [buildRecord()]],
+        ] as const)(
+            "should carry the advisory that names the links on %s",
+            async (_name, summaryOnly, records) => {
+                const ports = buildPorts({
+                    scanRepository: vi.fn().mockResolvedValue({
+                        records: [...records],
+                        skippedOutsideRoot: ["docs/leak.md"],
+                    }),
+                });
+
+                const run = await runDoctor({ repoPath, summaryOnly }, ports);
+
+                expect(run.scanWarnings).toEqual([
+                    expect.objectContaining({
+                        criterionId: "discovery-symlink-skipped",
+                        classification: "advisory",
+                        description: expect.stringContaining("docs/leak.md"),
+                    }),
+                ]);
+            },
+        );
+    });
+
+    describe("when a file had more @ imports than the scan checks", () => {
+        it.each([
+            ["a summary", true, [buildRecord()]],
+            ["a run with no agentic constructs", false, []],
+            ["an evaluated run", false, [buildRecord()]],
+        ] as const)(
+            "should carry the advisory that names the limit on %s",
+            async (_name, summaryOnly, records) => {
+                const ports = buildPorts({
+                    scanRepository: vi.fn().mockResolvedValue({
+                        records: [...records],
+                        importLimit: { maxImports: 256, files: ["CLAUDE.md"] },
+                    }),
+                });
+
+                const run = await runDoctor({ repoPath, summaryOnly }, ports);
+
+                expect(run.scanWarnings).toEqual([
+                    expect.objectContaining({
+                        criterionId: "import-limit-reached",
+                        classification: "advisory",
+                        description: expect.stringContaining("256"),
+                    }),
+                ]);
+            },
+        );
+
+        it("should keep the notices in the order the walk, the links and the imports are reported", async () => {
+            const ports = buildPorts({
+                scanRepository: vi.fn().mockResolvedValue({
+                    records: [buildRecord()],
+                    directoryLimit: DIRECTORY_LIMIT,
+                    skippedOutsideRoot: ["docs/leak.md"],
+                    importLimit: { maxImports: 256, files: ["CLAUDE.md"] },
+                }),
+            });
+
+            const run = await runDoctor({ repoPath, summaryOnly: true }, ports);
+
+            expect(run.scanWarnings.map((f) => f.criterionId)).toEqual([
+                "discovery-limit-reached",
+                "discovery-symlink-skipped",
+                "import-limit-reached",
+            ]);
+        });
+    });
+
     describe("when the scan reached its entry budget", () => {
         it.each([
             ["a summary", true, [buildRecord()]],

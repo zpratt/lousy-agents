@@ -358,7 +358,7 @@ describe("buildEffectiveDocument", () => {
         );
 
         it.skipIf(process.platform === "win32")(
-            "should report a self-referential symlink as unresolved without hanging",
+            "should report a self-referential symlink as not a regular file without hanging",
             async () => {
                 await symlink("loop.md", join(repoRoot, "loop.md"));
                 await writeFile(join(repoRoot, "CLAUDE.md"), "@./loop.md\n");
@@ -368,7 +368,7 @@ describe("buildEffectiveDocument", () => {
                     rootRelativePath: "CLAUDE.md",
                 });
 
-                expect(result.edges[0]?.status).toBe("unresolved");
+                expect(result.edges[0]?.status).toBe("not-regular");
             },
         );
 
@@ -462,7 +462,7 @@ describe("buildEffectiveDocument", () => {
                 });
 
                 expect(result.content).not.toContain("SWAPPED-IN");
-                expect(result.edges[0]?.status).toBe("unresolved");
+                expect(result.edges[0]?.status).toBe("unreadable");
                 expect(result.expansionDiagnostics[0]?.ruleId).toBe(
                     "instruction/import-unresolved",
                 );

@@ -1,5 +1,6 @@
 import {
     link,
+    lstat,
     mkdir,
     mkdtemp,
     realpath,
@@ -9,6 +10,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { NoFollowFsPort } from "@lousy-agents/core/gateways/read-regular-file-no-follow.js";
 import {
     buildEffectiveDocument,
     DEFAULT_MAX_FILE_BYTES,
@@ -287,6 +289,58 @@ describe("doctor edges for @ import targets that lint refuses", () => {
             expect(findings.map((f) => f.criterionId)).toContain(
                 "malformed-claude-import",
             );
+        });
+    });
+
+    describe("when the system refuses to open an import target", () => {
+        const refuseEveryOpen: NoFollowFsPort = {
+            open: async () => {
+                throw Object.assign(new Error("EMFILE"), { code: "EMFILE" });
+            },
+            lstat: (path) => lstat(path),
+        };
+
+        async function scanRefusingEveryOpen(importLine: string) {
+            await writeFile(join(repoRoot, CLAUDE_MD), `${importLine}\n`);
+            await writeFile(join(repoRoot, "a.md"), "a\n");
+            await writeFile(join(repoRoot, "readme"), "r\n");
+            return scanRepository(repoRoot, { fs: refuseEveryOpen });
+        }
+
+        it("should be a malformed edge with the unreadable reason, not a missing target", async () => {
+            const records = await scanRefusingEveryOpen("@./a.md");
+
+            expect(
+                records.find((r) => r.path === CLAUDE_MD)?.edges,
+            ).toMatchObject([
+                { malformed: true, reason: "unreadable", target: "a.md" },
+            ]);
+        });
+
+        it("should keep a token that is not clearly a path but names a file the system would not open", async () => {
+            const records = await scanRefusingEveryOpen("@readme");
+
+            expect(
+                records.find((r) => r.path === CLAUDE_MD)?.edges,
+            ).toMatchObject([{ malformed: true, reason: "unreadable" }]);
+        });
+
+        it("should report it as an advisory unread import, and never block", async () => {
+            const records = await scanRefusingEveryOpen("@./a.md");
+
+            const findings = evaluate(CRITERIA, {
+                records,
+                classification: classifyArchetype(records),
+                intent: null,
+            });
+
+            expect(findings.map((f) => f.criterionId)).toContain(
+                "unread-claude-import",
+            );
+            expect(findings.map((f) => f.criterionId)).not.toContain(
+                "malformed-claude-import",
+            );
+            expect(hasBlockingFindings(findings)).toBe(false);
         });
     });
 });

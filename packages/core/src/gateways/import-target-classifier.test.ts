@@ -1,4 +1,5 @@
 import {
+    chmod,
     link,
     mkdir,
     mkdtemp,
@@ -170,7 +171,7 @@ describe("classifyImportTarget", () => {
             return { open: async () => handle, lstat: async () => swapped };
         }
 
-        it("should report it as unresolved instead of trusting the earlier inspection", async () => {
+        it("should report it as unreadable instead of trusting the earlier inspection", async () => {
             await writeFile(join(rootReal, "a.md"), chance.word());
 
             const result = await classifyImportTarget(
@@ -180,7 +181,77 @@ describe("classifyImportTarget", () => {
                 { fs: swappedFs() },
             );
 
+            expect(result).toEqual({ ok: false, status: "unreadable" });
+        });
+    });
+
+    describe("when the file system refuses to open the target", () => {
+        function refusingFs(code: string): NoFollowFsPort {
+            return {
+                open: async () => {
+                    throw Object.assign(new Error(code), { code });
+                },
+                lstat: async () => {
+                    throw Object.assign(new Error(code), { code });
+                },
+            };
+        }
+
+        it.each(["EMFILE", "ENFILE", "EACCES"])(
+            "should report %s as unreadable, never as missing",
+            async (code) => {
+                await writeFile(join(rootReal, "a.md"), chance.word());
+
+                const result = await classifyImportTarget(
+                    rootReal,
+                    join(rootReal, "a.md"),
+                    CAP_BYTES,
+                    { fs: refusingFs(code) },
+                );
+
+                expect(result).toEqual({ ok: false, status: "unreadable" });
+            },
+        );
+
+        it("should still report a target that does not exist as unresolved", async () => {
+            const result = await classifyImportTarget(
+                rootReal,
+                join(rootReal, "nothing.md"),
+                CAP_BYTES,
+                { fs: refusingFs("EMFILE") },
+            );
+
             expect(result).toEqual({ ok: false, status: "unresolved" });
         });
+    });
+
+    describe("when the process may not look through a directory on the way to the target", () => {
+        const cannotDenyAccess =
+            process.platform === "win32" || process.getuid?.() === 0;
+
+        it.skipIf(cannotDenyAccess)(
+            "should report it as unreadable, because nothing is known about whether it exists",
+            async () => {
+                const closed = join(rootReal, "closed");
+                await mkdir(closed);
+                await writeFile(join(closed, "a.md"), chance.word());
+                await chmod(closed, 0o000);
+
+                try {
+                    const result = await classifyImportTarget(
+                        rootReal,
+                        join(closed, "a.md"),
+                        CAP_BYTES,
+                    );
+
+                    expect(result).toEqual({
+                        ok: false,
+                        status: "unreadable",
+                    });
+                } finally {
+                    await chmod(closed, 0o700);
+                }
+            },
+        );
     });
 });
