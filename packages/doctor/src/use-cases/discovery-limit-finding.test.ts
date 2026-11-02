@@ -44,6 +44,36 @@ describe("discoveryLimitFindings", () => {
         });
     });
 
+    describe("when the scan reached its entry budget", () => {
+        it("should return one finding that names the budget", () => {
+            const maxEntries = chance.natural({ min: 1, max: 999_999 });
+
+            const findings = discoveryLimitFindings(undefined, undefined, {
+                maxEntries,
+            });
+
+            expect(findings).toHaveLength(1);
+            expect(findings[0].description).toBe(
+                `The repository scan stopped after examining ${maxEntries} directory entries, so agentic constructs in the remaining entries are not in this report.`,
+            );
+        });
+    });
+
+    describe("when the scan reached every limit", () => {
+        it("should return one finding that names all three, in order", () => {
+            const findings = discoveryLimitFindings(
+                { maxDirectories: 11 },
+                { maxDepth: 12 },
+                { maxEntries: 13 },
+            );
+
+            expect(findings).toHaveLength(1);
+            expect(findings[0].description).toBe(
+                "The repository scan stopped after listing 11 directories, so agentic constructs in the remaining directories are not in this report. The repository scan did not go more than 12 directories deep, so agentic constructs in deeper directories are not in this report. The repository scan stopped after examining 13 directory entries, so agentic constructs in the remaining entries are not in this report.",
+            );
+        });
+    });
+
     describe("when the scan reached both limits", () => {
         it("should return one finding that names both", () => {
             const maxDirectories = chance.natural({ min: 1, max: 99_999 });

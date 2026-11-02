@@ -6,6 +6,7 @@ import type { IntentLoadReport } from "../entities/intent-load.js";
 import type {
     DiscoveryDepthLimit,
     DiscoveryDirectoryLimit,
+    DiscoveryEntryLimit,
 } from "./discovery-limit-finding.js";
 import type {
     DoctorRunPorts,
@@ -54,11 +55,13 @@ function scanOf(
     records: InventoryRecord[],
     directoryLimit?: DiscoveryDirectoryLimit,
     depthLimit?: DiscoveryDepthLimit,
+    entryLimit?: DiscoveryEntryLimit,
 ): RepositoryScan {
     return {
         records,
         ...(directoryLimit ? { directoryLimit } : {}),
         ...(depthLimit ? { depthLimit } : {}),
+        ...(entryLimit ? { entryLimit } : {}),
     };
 }
 
@@ -358,6 +361,37 @@ describe("runDoctor", () => {
                         criterionId: "discovery-limit-reached",
                         description: expect.stringContaining(
                             `${maxDepth} directories deep`,
+                        ),
+                    }),
+                ]);
+            },
+        );
+    });
+
+    describe("when the scan reached its entry budget", () => {
+        it.each([
+            ["a summary", true, [buildRecord()]],
+            ["a run with no agentic constructs", false, []],
+            ["an evaluated run", false, [buildRecord()]],
+        ] as const)(
+            "should carry the discovery-limit warning that names the budget on %s",
+            async (_name, summaryOnly, records) => {
+                const maxEntries = chance.integer({ min: 1, max: 99_999 });
+                const ports = buildPorts({
+                    scanRepository: vi.fn().mockResolvedValue(
+                        scanOf([...records], undefined, undefined, {
+                            maxEntries,
+                        }),
+                    ),
+                });
+
+                const run = await runDoctor({ repoPath, summaryOnly }, ports);
+
+                expect(run.scanWarnings).toEqual([
+                    expect.objectContaining({
+                        criterionId: "discovery-limit-reached",
+                        description: expect.stringContaining(
+                            `${maxEntries} directory entries`,
                         ),
                     }),
                 ]);
