@@ -11,6 +11,10 @@ export interface LimitedEdges {
  * every soft reference and glob binding. Every `@` token counts, including
  * one that is not clearly a path, so the work a file can cost is bounded by
  * the limit and not by its size; only hard imports cost a file check.
+ *
+ * This relies on the parser giving such a token the `hard-import` type (and
+ * marking it speculative) rather than dropping it: a token that never reached
+ * this function would not count toward the limit.
  */
 export function limitHardImports(
     edges: readonly RawEdge[],

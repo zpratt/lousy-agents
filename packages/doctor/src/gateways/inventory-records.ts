@@ -34,7 +34,12 @@ export interface InventorySourceFile {
     readonly identity: FileIdentity;
 }
 
-/** Reads a file's markdown content, or null when it has none to read. */
+/**
+ * Reads a file's markdown content, or null when it has none to read (it is
+ * not markdown). It throws when the file cannot be read safely: more than one
+ * hard link, over the size cap, a symbolic link swapped in, or refused by the
+ * system.
+ */
 export type ReadMarkdownContent = (
     file: InventorySourceFile,
 ) => Promise<string | null>;
@@ -43,6 +48,8 @@ interface InventorySource {
     readonly file: InventorySourceFile;
     readonly harness: HarnessName;
     readonly content: string | null;
+    /** Whether the reader threw, so the file's imports are not in the report */
+    readonly unread: boolean;
 }
 
 function isMarkdownFile(name: string): boolean {
@@ -54,22 +61,19 @@ function determineConstructType(relPath: string): ConstructType {
 }
 
 /**
- * Reads a markdown file's content. Non-markdown files and files that cannot
- * be read safely have no content, and so contribute no edges.
+ * Reads a markdown file's content. A file that is not markdown has no content
+ * and contributes no edges. A markdown file that cannot be read safely throws,
+ * so the scan can say it was left out.
  */
 async function readMarkdownContent(
     file: InventorySourceFile,
 ): Promise<string | null> {
     if (!isMarkdownFile(file.relPath)) return null;
-    try {
-        return await readTextWithinRoot(
-            file.readRoot,
-            file.readRelPath,
-            DEFAULT_MAX_FILE_BYTES,
-        );
-    } catch {
-        return null;
-    }
+    return readTextWithinRoot(
+        file.readRoot,
+        file.readRelPath,
+        DEFAULT_MAX_FILE_BYTES,
+    );
 }
 
 /**
@@ -98,6 +102,17 @@ function ownerOf(relPath: string): HarnessName | null {
     return isExcludedBySuffix(relPath) ? null : determineHarness(relPath);
 }
 
+async function readOrMarkUnread(
+    readContent: ReadMarkdownContent,
+    file: InventorySourceFile,
+): Promise<{ content: string | null; unread: boolean }> {
+    try {
+        return { content: await readContent(file), unread: false };
+    } catch {
+        return { content: null, unread: true };
+    }
+}
+
 /** Reads files one at a time, keeping only those that belong to a harness. */
 async function readInventorySources(
     files: readonly InventorySourceFile[],
@@ -111,7 +126,7 @@ async function readInventorySources(
             sources.push({
                 file,
                 harness,
-                content: await readContent(file),
+                ...(await readOrMarkUnread(readContent, file)),
             });
         }
     }
@@ -154,10 +169,14 @@ async function toInventoryRecord(
     };
 }
 
-/** The file inventory, and the files whose `@` imports went past the limit. */
+/**
+ * The file inventory, the files whose `@` imports went past the limit, and
+ * the files the scan could not read.
+ */
 export interface FileInventory {
     readonly records: InventoryRecord[];
     readonly filesOverImportLimit: string[];
+    readonly unreadFiles: string[];
 }
 
 /**
@@ -183,6 +202,9 @@ export async function buildFileInventory(
         filesOverImportLimit: built
             .filter(({ importsOverLimit }) => importsOverLimit)
             .map(({ record }) => record.path),
+        unreadFiles: sources
+            .filter(({ unread }) => unread)
+            .map(({ file }) => file.relPath),
     };
 }
 

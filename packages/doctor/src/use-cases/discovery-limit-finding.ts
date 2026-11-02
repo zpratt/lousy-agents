@@ -3,6 +3,7 @@ import {
     describeDiscoveryLimits,
 } from "@lousy-agents/core/entities/discovery-limit-message.js";
 import type { Finding } from "../entities/finding.js";
+import { repositoryNotice } from "./repository-notice.js";
 
 const SCAN_WORDING: DiscoveryLimitWording = {
     subject: "The repository scan",
@@ -27,11 +28,9 @@ export interface DiscoveryDepthLimit {
 
 /**
  * The finding that tells a user the scan stopped listing directories or did
- * not enter deeper ones, so the inventory may be missing constructs. It is advisory (medium, not a defect),
- * so it is always visible but never fails `--ci`.
- *
- * It rides on the existing findings model: a repository-level target in the
- * same `all:<scope>` form as the other findings, and no new report field.
+ * not enter deeper ones, so the inventory may be missing constructs. It is
+ * advisory (medium, not a defect), so it is always visible but never fails
+ * `--ci`.
  */
 export function discoveryLimitFindings(
     directoryLimit: DiscoveryDirectoryLimit | undefined,
@@ -54,17 +53,5 @@ export function discoveryLimitFindings(
     );
     return reasons.length === 0
         ? []
-        : [
-              {
-                  id: "discovery-limit-reached:all:repository",
-                  criterionId: "discovery-limit-reached",
-                  targetId: "all:repository",
-                  severity: "medium",
-                  category: "governance",
-                  classification: "advisory",
-                  intentGated: false,
-                  assumedIntent: false,
-                  description: reasons.join(" "),
-              },
-          ];
+        : [repositoryNotice("discovery-limit-reached", reasons.join(" "))];
 }
