@@ -92,6 +92,7 @@ describe("the committed layering policy (project.json)", () => {
                 "packages/mcp/src/tools",
             ],
             formatters: [
+                "packages/action/src/summary-markdown.ts",
                 "packages/action/src/workflow-commands.ts",
                 "packages/core/src/formatters",
                 "packages/doctor/src/formatters",

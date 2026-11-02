@@ -83,6 +83,7 @@ describe("Lint rule registry", () => {
                 "instruction/import-depth-exceeded",
                 "instruction/import-size-exceeded",
                 "instruction/discovery-limit-reached",
+                "instruction/discovery-symlink-skipped",
             ];
 
             // Assert
@@ -98,6 +99,14 @@ describe("Lint rule registry", () => {
             expect(
                 DEFAULT_LINT_RULES.instructions[
                     "instruction/discovery-limit-reached"
+                ],
+            ).toBe("warn");
+        });
+
+        it("should default the symlink-skipped rule to warn so it never fails a run by itself", () => {
+            expect(
+                DEFAULT_LINT_RULES.instructions[
+                    "instruction/discovery-symlink-skipped"
                 ],
             ).toBe("warn");
         });
@@ -293,6 +302,12 @@ describe("isRunLevelRuleId", () => {
         );
     });
 
+    it("should accept the symlink-skipped rule, which names skipped paths and not a place in a file", () => {
+        expect(isRunLevelRuleId("instruction/discovery-symlink-skipped")).toBe(
+            true,
+        );
+    });
+
     it("should refuse a rule that reports a place in a file", () => {
         expect(isRunLevelRuleId("instruction/import-unresolved")).toBe(false);
     });
@@ -306,8 +321,9 @@ describe("isRunLevelRuleId", () => {
             (rules) => Object.keys(rules),
         );
 
-        expect(knownRuleIds.filter(isRunLevelRuleId)).toEqual([
+        expect(knownRuleIds.filter(isRunLevelRuleId).sort()).toEqual([
             "instruction/discovery-limit-reached",
+            "instruction/discovery-symlink-skipped",
         ]);
     });
 });

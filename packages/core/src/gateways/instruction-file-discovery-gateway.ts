@@ -17,8 +17,8 @@ import type {
 import { instructionDiscoveryEntries } from "../lib/agentic-location-matchers.js";
 import type { InstructionFileDiscoveryGateway } from "../use-cases/analyze-instruction-quality.js";
 import {
+    inspectPathWithinRoot,
     type RealPathWithinRoot,
-    resolveRealPathWithinRoot,
 } from "./real-path-within-root.js";
 import {
     DEFAULT_MAX_WALK_DIRECTORIES,
@@ -78,6 +78,7 @@ export class FileSystemInstructionFileDiscoveryGateway
         }
         const root: DiscoveryRoot = { targetDir, rootReal };
         const files: DiscoveredInstructionFile[] = [];
+        const skippedOutsideRoot: string[] = [];
         let directoryLimitReached = false;
         let depthLimitReached = false;
         let entryLimitReached = false;
@@ -90,9 +91,9 @@ export class FileSystemInstructionFileDiscoveryGateway
             }
 
             if (entry.matchKind === "exact") {
-                files.push(
-                    ...(await discoverExactFile(root, entry.path, format)),
-                );
+                const exact = await discoverExactFile(root, entry.path, format);
+                files.push(...exact.files);
+                skippedOutsideRoot.push(...exact.skippedOutsideRoot);
                 continue;
             }
 
@@ -111,6 +112,7 @@ export class FileSystemInstructionFileDiscoveryGateway
                 directoryLimitReached || walked.directoryLimitReached;
             depthLimitReached = depthLimitReached || walked.depthLimitReached;
             entryLimitReached = entryLimitReached || walked.entryLimitReached;
+            skippedOutsideRoot.push(...walked.skippedOutsideRoot);
             files.push(
                 ...walked.files.map((file) =>
                     toDiscoveredFile(
@@ -146,12 +148,29 @@ export class FileSystemInstructionFileDiscoveryGateway
                 message: reasons.join(" "),
             });
         }
+        if (skippedOutsideRoot.length > 0) {
+            onDiagnostic?.({
+                ruleId: SYMLINK_SKIPPED_RULE_ID,
+                message: describeSkippedSymlinks(skippedOutsideRoot),
+            });
+        }
 
         return files;
     }
 }
 
 const DISCOVERY_LIMIT_RULE_ID = "instruction/discovery-limit-reached";
+const SYMLINK_SKIPPED_RULE_ID = "instruction/discovery-symlink-skipped";
+
+/** How many skipped links the message names before it counts the rest. */
+const LISTED_SKIPPED_LINKS = 5;
+
+function describeSkippedSymlinks(paths: readonly string[]): string {
+    const listed = paths.slice(0, LISTED_SKIPPED_LINKS).join(", ");
+    const unlisted = paths.length - LISTED_SKIPPED_LINKS;
+    const names = unlisted > 0 ? `${listed}, and ${unlisted} more` : listed;
+    return `Instruction file discovery skipped ${paths.length} symbolic link(s) that point outside the repository, so their targets were not analyzed: ${names}. Replace a link with a file inside the repository to have it analyzed.`;
+}
 
 const DISCOVERY_WORDING: DiscoveryLimitWording = {
     subject: "Instruction file discovery",
@@ -159,22 +178,40 @@ const DISCOVERY_WORDING: DiscoveryLimitWording = {
     consequence: "were not analyzed",
 };
 
+interface ExactDiscovery {
+    readonly files: DiscoveredInstructionFile[];
+    /** The path itself when it is a link to a file outside the repository */
+    readonly skippedOutsideRoot: string[];
+}
+
 /**
  * Discovers one exact-path instruction file, or nothing when it is missing
- * or resolves outside the root.
+ * or resolves outside the root, in which case a link out of the repository is
+ * reported as skipped.
  */
 async function discoverExactFile(
     root: DiscoveryRoot,
     relativePosixPath: string,
     format: InstructionFileFormat,
-): Promise<DiscoveredInstructionFile[]> {
-    const resolved = await resolveRealPathWithinRoot(
+): Promise<ExactDiscovery> {
+    const inspected = await inspectPathWithinRoot(
         root.rootReal,
         join(root.targetDir, ...relativePosixPath.split("/")),
     );
-    return resolved?.kind === "file"
-        ? [toDiscoveredFile(root, relativePosixPath, resolved, format)]
-        : [];
+    if (inspected.status === "ok" && inspected.kind === "file") {
+        return {
+            files: [
+                toDiscoveredFile(root, relativePosixPath, inspected, format),
+            ],
+            skippedOutsideRoot: [],
+        };
+    }
+    const leadsOutside =
+        inspected.status === "outside-root" && inspected.kind === "file";
+    return {
+        files: [],
+        skippedOutsideRoot: leadsOutside ? [relativePosixPath] : [],
+    };
 }
 
 /**

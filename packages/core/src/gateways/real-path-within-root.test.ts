@@ -181,7 +181,36 @@ describe("inspectPathWithinRoot", () => {
 
             const result = await inspectPathWithinRoot(rootReal, link);
 
-            expect(result).toEqual({ status: "outside-root" });
+            expect(result).toEqual({ status: "outside-root", kind: "file" });
+        },
+    );
+
+    it.skipIf(process.platform === "win32")(
+        "should say a symlink that leaves the root points at a directory when it does",
+        async () => {
+            const elsewhere = join(outsideReal, chance.word());
+            const link = join(rootReal, `${chance.word()}-link`);
+            await mkdir(elsewhere);
+            await symlink(elsewhere, link);
+
+            const result = await inspectPathWithinRoot(rootReal, link);
+
+            expect(result).toEqual({
+                status: "outside-root",
+                kind: "directory",
+            });
+        },
+    );
+
+    it.skipIf(process.platform === "win32")(
+        "should say a symlink that leaves the root points at something else when it is neither a file nor a directory",
+        async () => {
+            const link = join(rootReal, `${chance.word()}-link`);
+            await symlink("/dev/null", link);
+
+            const result = await inspectPathWithinRoot(rootReal, link);
+
+            expect(result).toEqual({ status: "outside-root", kind: "other" });
         },
     );
 
@@ -197,7 +226,7 @@ describe("inspectPathWithinRoot", () => {
 
             const result = await inspectPathWithinRoot(rootReal, link);
 
-            expect(result).toEqual({ status: "outside-root" });
+            expect(result).toEqual({ status: "outside-root", kind: "file" });
         },
     );
 

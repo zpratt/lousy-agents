@@ -28,8 +28,17 @@ export type PathInspection =
           readonly identity: FileIdentity;
       }
     | { readonly status: "missing" }
-    | { readonly status: "outside-root" }
+    | {
+          readonly status: "outside-root";
+          /**
+           * What the target outside the root is, so a caller can say what was
+           * skipped. Only its type is read, never its content.
+           */
+          readonly kind: OutsideRootKind;
+      }
     | { readonly status: "unsupported" };
+
+export type OutsideRootKind = "file" | "directory" | "other";
 
 function isMissingError(error: unknown): boolean {
     return (
@@ -37,6 +46,18 @@ function isMissingError(error: unknown): boolean {
         "code" in error &&
         (error.code === "ENOENT" || error.code === "ENOTDIR")
     );
+}
+
+async function kindOutsideRoot(real: string): Promise<OutsideRootKind> {
+    try {
+        const outside = await stat(real);
+        if (outside.isDirectory()) {
+            return "directory";
+        }
+        return outside.isFile() ? "file" : "other";
+    } catch {
+        return "other";
+    }
 }
 
 /**
@@ -56,7 +77,10 @@ export async function inspectPathWithinRoot(
     try {
         const real = await realpath(absolutePath);
         if (!isPathWithinRoot(rootReal, real)) {
-            return { status: "outside-root" };
+            return {
+                status: "outside-root",
+                kind: await kindOutsideRoot(real),
+            };
         }
 
         const targetStat = await stat(real);

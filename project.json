@@ -44,7 +44,8 @@
             "prefixes": [
                 "packages/core/src/formatters",
                 "packages/doctor/src/formatters",
-                "packages/action/src/workflow-commands.ts"
+                "packages/action/src/workflow-commands.ts",
+                "packages/action/src/summary-markdown.ts"
             ]
         },
         {
