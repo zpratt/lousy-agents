@@ -5,15 +5,21 @@
 
 import { realpath } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
+import type { AgenticLocationEntry } from "../entities/agentic-location-catalog.js";
 import {
     type DiscoveryLimitWording,
     describeDiscoveryLimits,
+    describeSkippedSymlinks,
 } from "../entities/discovery-limit-message.js";
 import type {
     DiscoveredInstructionFile,
     InstructionDiscoveryDiagnosticSink,
     InstructionFileFormat,
 } from "../entities/instruction-quality.js";
+import {
+    DISCOVERY_LIMIT_REACHED_RULE_ID,
+    DISCOVERY_SYMLINK_SKIPPED_RULE_ID,
+} from "../entities/lint-rules.js";
 import { instructionDiscoveryEntries } from "../lib/agentic-location-matchers.js";
 import type { InstructionFileDiscoveryGateway } from "../use-cases/analyze-instruction-quality.js";
 import {
@@ -22,7 +28,9 @@ import {
 } from "./real-path-within-root.js";
 import {
     DEFAULT_MAX_WALK_DIRECTORIES,
+    type RepositoryWalkOptions,
     type RepositoryWalkResult,
+    type WalkedFile,
     walkRepository,
 } from "./repository-walk.js";
 
@@ -77,99 +85,113 @@ export class FileSystemInstructionFileDiscoveryGateway
             return [];
         }
         const root: DiscoveryRoot = { targetDir, rootReal };
-        const files: DiscoveredInstructionFile[] = [];
-        const skippedOutsideRoot: string[] = [];
-        let directoryLimitReached = false;
-        let depthLimitReached = false;
-        let entryLimitReached = false;
-        let limits: RepositoryWalkResult["limits"] | undefined;
+        const findings = new DiscoveryFindings();
 
         for (const entry of instructionDiscoveryEntries()) {
             const format = entry.instructionFormat;
             if (format == null) {
                 continue;
             }
-
             if (entry.matchKind === "exact") {
-                const exact = await discoverExactFile(root, entry.path, format);
-                files.push(...exact.files);
-                skippedOutsideRoot.push(...exact.skippedOutsideRoot);
+                findings.addExact(
+                    await discoverExactFile(root, entry.path, format),
+                );
                 continue;
             }
-
-            const walked = await walkRepository(targetDir, {
-                startRelativePath: entry.path,
-                includeFile: (name) => name.endsWith(entry.fileSuffix ?? ".md"),
-                includeSubdirectories: entry.includeSubdirectories === true,
-                revisit: "once-per-real-directory",
-                maxDirectories: this.maxDirectories,
-                ...(this.maxEntries === undefined
-                    ? {}
-                    : { maxEntries: this.maxEntries }),
-            });
-            limits = walked.limits;
-            directoryLimitReached =
-                directoryLimitReached || walked.directoryLimitReached;
-            depthLimitReached = depthLimitReached || walked.depthLimitReached;
-            entryLimitReached = entryLimitReached || walked.entryLimitReached;
-            skippedOutsideRoot.push(...walked.skippedOutsideRoot);
-            files.push(
-                ...walked.files.map((file) =>
+            findings.addWalk(
+                await walkRepository(targetDir, this.walkOptions(entry)),
+                (file) =>
                     toDiscoveredFile(
                         root,
                         file.relativePath,
                         { kind: "file", real: file.real },
                         format,
                     ),
-                ),
             );
         }
 
-        const reasons =
-            limits === undefined
-                ? []
-                : describeDiscoveryLimits(
-                      {
-                          ...(directoryLimitReached
-                              ? { maxDirectories: limits.maxDirectories }
-                              : {}),
-                          ...(depthLimitReached
-                              ? { maxDepth: limits.maxDepth }
-                              : {}),
-                          ...(entryLimitReached
-                              ? { maxEntries: limits.maxEntries }
-                              : {}),
-                      },
-                      DISCOVERY_WORDING,
-                  );
-        if (reasons.length > 0) {
-            onDiagnostic?.({
-                ruleId: DISCOVERY_LIMIT_RULE_ID,
-                message: reasons.join(" "),
-            });
-        }
-        if (skippedOutsideRoot.length > 0) {
-            onDiagnostic?.({
-                ruleId: SYMLINK_SKIPPED_RULE_ID,
-                message: describeSkippedSymlinks(skippedOutsideRoot),
-            });
-        }
+        findings.report(onDiagnostic);
+        return findings.files;
+    }
 
-        return files;
+    private walkOptions(entry: AgenticLocationEntry): RepositoryWalkOptions {
+        return {
+            startRelativePath: entry.path,
+            includeFile: (name) => name.endsWith(entry.fileSuffix ?? ".md"),
+            includeSubdirectories: entry.includeSubdirectories === true,
+            revisit: "once-per-real-directory",
+            maxDirectories: this.maxDirectories,
+            ...(this.maxEntries === undefined
+                ? {}
+                : { maxEntries: this.maxEntries }),
+        };
     }
 }
 
-const DISCOVERY_LIMIT_RULE_ID = "instruction/discovery-limit-reached";
-const SYMLINK_SKIPPED_RULE_ID = "instruction/discovery-symlink-skipped";
+/**
+ * What discovery found across the instruction locations it looked at, and
+ * what it left out, so it can say so once at the end.
+ */
+class DiscoveryFindings {
+    readonly files: DiscoveredInstructionFile[] = [];
+    private readonly skippedOutsideRoot: string[] = [];
+    private directoryLimitReached = false;
+    private depthLimitReached = false;
+    private entryLimitReached = false;
+    private limits: RepositoryWalkResult["limits"] | undefined;
 
-/** How many skipped links the message names before it counts the rest. */
-const LISTED_SKIPPED_LINKS = 5;
+    addExact(exact: ExactDiscovery): void {
+        this.files.push(...exact.files);
+        this.skippedOutsideRoot.push(...exact.skippedOutsideRoot);
+    }
 
-function describeSkippedSymlinks(paths: readonly string[]): string {
-    const listed = paths.slice(0, LISTED_SKIPPED_LINKS).join(", ");
-    const unlisted = paths.length - LISTED_SKIPPED_LINKS;
-    const names = unlisted > 0 ? `${listed}, and ${unlisted} more` : listed;
-    return `Instruction file discovery skipped ${paths.length} symbolic link(s) that point outside the repository, so their targets were not analyzed: ${names}. Replace a link with a file inside the repository to have it analyzed.`;
+    addWalk(
+        walked: RepositoryWalkResult,
+        toDiscovered: (file: WalkedFile) => DiscoveredInstructionFile,
+    ): void {
+        this.limits = walked.limits;
+        this.directoryLimitReached ||= walked.directoryLimitReached;
+        this.depthLimitReached ||= walked.depthLimitReached;
+        this.entryLimitReached ||= walked.entryLimitReached;
+        this.skippedOutsideRoot.push(...walked.skippedOutsideRoot);
+        this.files.push(...walked.files.map(toDiscovered));
+    }
+
+    report(onDiagnostic?: InstructionDiscoveryDiagnosticSink): void {
+        const reasons = this.describeLimits();
+        if (reasons.length > 0) {
+            onDiagnostic?.({
+                ruleId: DISCOVERY_LIMIT_REACHED_RULE_ID,
+                message: reasons.join(" "),
+            });
+        }
+        if (this.skippedOutsideRoot.length > 0) {
+            onDiagnostic?.({
+                ruleId: DISCOVERY_SYMLINK_SKIPPED_RULE_ID,
+                message: describeSkippedSymlinks(this.skippedOutsideRoot),
+            });
+        }
+    }
+
+    private describeLimits(): string[] {
+        if (this.limits === undefined) {
+            return [];
+        }
+        return describeDiscoveryLimits(
+            {
+                ...(this.directoryLimitReached
+                    ? { maxDirectories: this.limits.maxDirectories }
+                    : {}),
+                ...(this.depthLimitReached
+                    ? { maxDepth: this.limits.maxDepth }
+                    : {}),
+                ...(this.entryLimitReached
+                    ? { maxEntries: this.limits.maxEntries }
+                    : {}),
+            },
+            DISCOVERY_WORDING,
+        );
+    }
 }
 
 const DISCOVERY_WORDING: DiscoveryLimitWording = {
