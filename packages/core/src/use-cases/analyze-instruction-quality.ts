@@ -447,7 +447,11 @@ export class AnalyzeInstructionQualityUseCase {
         }
 
         // Import-expansion failures (stable ruleIds, importer-token provenance)
-        diagnostics.push(...importDiagnostics);
+        diagnostics.push(
+            ...AnalyzeInstructionQualityUseCase.withoutRepeats(
+                importDiagnostics,
+            ),
+        );
 
         // Check each successfully parsed file for missing structural headings
         const sortedFilePaths = Array.from(fileStructures.keys()).sort(
@@ -610,6 +614,31 @@ export class AnalyzeInstructionQualityUseCase {
             ruleId: diagnostic.ruleId,
             target: "instruction",
         };
+    }
+
+    /**
+     * An imported file that several import paths or several entrypoints reach
+     * is expanded once per path, so the same failure at the same place in it
+     * is found more than once. Keeps the first of each.
+     */
+    private static withoutRepeats(
+        diagnostics: readonly LintDiagnostic[],
+    ): LintDiagnostic[] {
+        const seen = new Set<string>();
+        return diagnostics.filter((diagnostic) => {
+            const identity = JSON.stringify([
+                diagnostic.ruleId,
+                diagnostic.filePath,
+                diagnostic.line,
+                diagnostic.column,
+                diagnostic.message,
+            ]);
+            if (seen.has(identity)) {
+                return false;
+            }
+            seen.add(identity);
+            return true;
+        });
     }
 
     private static compareImportDiagnostics(

@@ -2117,6 +2117,174 @@ describe("AnalyzeInstructionQualityUseCase", () => {
                 });
             });
 
+            describe("when one imported file is reached through more than one import path", () => {
+                const OutsideTarget = `/${chance.word({ length: 12 })}/${chance.word({ length: 12 })}.md`;
+
+                async function writeShared(
+                    relativePath: string,
+                    content: string,
+                ): Promise<string> {
+                    const absolute = join(repoRoot, relativePath);
+                    await mkdir(join(absolute, ".."), { recursive: true });
+                    await writeFile(absolute, content);
+                    return absolute;
+                }
+
+                function escapeDiagnosticsOf(
+                    output: Awaited<
+                        ReturnType<AnalyzeInstructionQualityUseCase["execute"]>
+                    >,
+                ) {
+                    return output.diagnostics.filter(
+                        (d) => d.ruleId === "instruction/import-escape",
+                    );
+                }
+
+                it("should report an external import in it once when two imports in one entrypoint lead to it", async () => {
+                    const claudePath = await writeShared(
+                        "CLAUDE.md",
+                        "@./left.md\n@./right.md\n",
+                    );
+                    await writeShared("left.md", "@./shared.md\n");
+                    await writeShared("right.md", "@./shared.md\n");
+                    const sharedPath = await writeShared(
+                        "shared.md",
+                        `@${OutsideTarget}\n`,
+                    );
+                    const useCase = createRealUseCase([
+                        { filePath: claudePath, format: "claude-md" },
+                    ]);
+
+                    const output = await useCase.execute({
+                        targetDir: repoRoot,
+                    });
+
+                    expect(escapeDiagnosticsOf(output)).toMatchObject([
+                        { filePath: sharedPath, line: 1, column: 1 },
+                    ]);
+                });
+
+                it("should report an external import in it once when two entrypoints import it", async () => {
+                    const rootClaude = await writeShared(
+                        "CLAUDE.md",
+                        "@./shared.md\n",
+                    );
+                    const nestedClaude = await writeShared(
+                        ".claude/CLAUDE.md",
+                        "@../shared.md\n",
+                    );
+                    const sharedPath = await writeShared(
+                        "shared.md",
+                        `@${OutsideTarget}\n`,
+                    );
+                    const useCase = createRealUseCase([
+                        { filePath: rootClaude, format: "claude-md" },
+                        { filePath: nestedClaude, format: "claude-md" },
+                    ]);
+
+                    const output = await useCase.execute({
+                        targetDir: repoRoot,
+                    });
+
+                    expect(escapeDiagnosticsOf(output)).toMatchObject([
+                        { filePath: sharedPath, line: 1, column: 1 },
+                    ]);
+                });
+
+                it("should keep a diagnostic for each file that holds the same external import", async () => {
+                    const claudePath = await writeShared(
+                        "CLAUDE.md",
+                        "@./one.md\n@./two.md\n",
+                    );
+                    const onePath = await writeShared(
+                        "one.md",
+                        `@${OutsideTarget}\n`,
+                    );
+                    const twoPath = await writeShared(
+                        "two.md",
+                        `@${OutsideTarget}\n`,
+                    );
+                    const useCase = createRealUseCase([
+                        { filePath: claudePath, format: "claude-md" },
+                    ]);
+
+                    const output = await useCase.execute({
+                        targetDir: repoRoot,
+                    });
+
+                    expect(
+                        escapeDiagnosticsOf(output).map((d) => d.filePath),
+                    ).toEqual([onePath, twoPath]);
+                });
+
+                it("should keep a diagnostic for each line that repeats the same external import", async () => {
+                    const claudePath = await writeShared(
+                        "CLAUDE.md",
+                        `@${OutsideTarget}\n@${OutsideTarget}\n`,
+                    );
+                    const useCase = createRealUseCase([
+                        { filePath: claudePath, format: "claude-md" },
+                    ]);
+
+                    const output = await useCase.execute({
+                        targetDir: repoRoot,
+                    });
+
+                    expect(
+                        escapeDiagnosticsOf(output).map((d) => d.line),
+                    ).toEqual([1, 2]);
+                });
+            });
+
+            describe("when the expander reports two diagnostics that differ in one respect only", () => {
+                const sameLocation = {
+                    ruleId: "instruction/import-unresolved",
+                    message: chance.sentence(),
+                    line: 3,
+                    column: 1,
+                    endLine: 3,
+                    endColumn: 9,
+                };
+
+                it.each([
+                    ["rule", { ruleId: "instruction/import-escape" }],
+                    ["column", { column: 12, endColumn: 20 }],
+                    ["message", { message: chance.sentence() }],
+                ])(
+                    "should keep both when only the %s differs",
+                    async (_, change) => {
+                        const claudePath = join(repoRoot, "CLAUDE.md");
+                        await writeFile(claudePath, "no imports\n");
+                        const first = { ...sameLocation, filePath: claudePath };
+                        const expander: ClaudeInstructionImportExpander = {
+                            expandClaudeEntrypoint: async () => ({
+                                content: "no imports\n",
+                                effectiveRoot: claudePath,
+                                resolvedImports: [],
+                                expansionDiagnostics: [
+                                    first,
+                                    { ...first, ...change },
+                                ],
+                            }),
+                        };
+                        const useCase = createRealUseCase(
+                            [{ filePath: claudePath, format: "claude-md" }],
+                            expander,
+                        );
+
+                        const output = await useCase.execute({
+                            targetDir: repoRoot,
+                        });
+
+                        expect(
+                            output.diagnostics.filter((d) =>
+                                d.ruleId?.startsWith("instruction/import-"),
+                            ),
+                        ).toHaveLength(2);
+                    },
+                );
+            });
+
             it("should attribute nested unresolved import diagnostics to the nested importer path", async () => {
                 const claudePath = join(repoRoot, "CLAUDE.md");
                 const midPath = join(repoRoot, "mid.md");
