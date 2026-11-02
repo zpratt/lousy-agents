@@ -10,14 +10,22 @@ export interface SourcePosition {
 
 const LINE_FEED = 0x0a;
 
+/** Receives the number of steps of work the index does, as it does them. */
+export type CountSourcePositionSteps = (steps: number) => void;
+
 /**
  * Indexes the line starts of a content once, and answers each offset with a
  * binary search, so mapping many offsets of one content costs the length of
  * the content plus a logarithm per offset, not a rescan from the start.
  * Offsets are clamped to [0, content.length]. Newlines (`\n`) advance the line.
+ *
+ * @param countSteps Told one step per character when the index is built, and
+ * one per comparison when an offset is answered, so a test can show that the
+ * work stays linear and logarithmic and not quadratic
  */
 export function createSourcePositionIndex(
     content: string,
+    countSteps?: CountSourcePositionSteps,
 ): (offset: number) => SourcePosition {
     const lineStarts = [0];
     for (let i = 0; i < content.length; i += 1) {
@@ -25,11 +33,14 @@ export function createSourcePositionIndex(
             lineStarts.push(i + 1);
         }
     }
+    countSteps?.(content.length);
     return (offset) => {
         const safeOffset = Math.max(0, Math.min(offset, content.length));
         let low = 0;
         let high = lineStarts.length - 1;
+        countSteps?.(1);
         while (low < high) {
+            countSteps?.(1);
             const middle = (low + high + 1) >> 1;
             if ((lineStarts[middle] ?? 0) <= safeOffset) {
                 low = middle;

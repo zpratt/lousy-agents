@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createSourcePositionIndex } from "../entities/source-position.js";
 import { DEFAULT_MAX_FILE_BYTES } from "../lib/instruction-import-expand.js";
 import { createClaudeInstructionImportExpander } from "./claude-instruction-import-expander.js";
 import type { BoundedReadOutcome } from "./read-regular-file-no-follow.js";
@@ -125,6 +126,36 @@ describe("createClaudeInstructionImportExpander", () => {
                     column: 1,
                 }),
             ]);
+        });
+
+        it("should build one position index per importer and answer every diagnostic from it", async () => {
+            const claudePath = join(repoRoot, "CLAUDE.md");
+            const content = Array.from(
+                { length: 40 },
+                (_, index) => `@./missing${index}.md\n`,
+            ).join("");
+            await writeFile(claudePath, content);
+            const indexedContents: string[] = [];
+            let lookups = 0;
+            const expander = createClaudeInstructionImportExpander({
+                createPositionIndex: (indexed) => {
+                    indexedContents.push(indexed);
+                    const index = createSourcePositionIndex(indexed);
+                    return (offset) => {
+                        lookups += 1;
+                        return index(offset);
+                    };
+                },
+            });
+
+            const result = await expander.expandClaudeEntrypoint({
+                repoRoot,
+                absoluteFilePath: claudePath,
+            });
+
+            expect(result.expansionDiagnostics).toHaveLength(40);
+            expect(indexedContents).toEqual([content]);
+            expect(lookups).toBe(80);
         });
 
         it("should read each importer once however many diagnostics it has", async () => {

@@ -32,6 +32,8 @@ export type ReadImporterSource = (
 export interface ClaudeInstructionImportExpanderOptions {
     /** Defaults to the bounded no-follow reader */
     readonly readSource?: ReadImporterSource;
+    /** Builds the line and column lookup for an importer's content; defaults to the shared position index */
+    readonly createPositionIndex?: (content: string) => PositionOf;
 }
 
 function toRepoRelativePosix(
@@ -65,12 +67,13 @@ type PositionOf = (offset: number) => SourcePosition;
 
 async function readImporterSource(
     readSource: ReadImporterSource,
+    createPositionIndex: (content: string) => PositionOf,
     absolutePath: string,
 ): Promise<readonly [string, PositionOf | null]> {
     const outcome = await readSource(absolutePath, DEFAULT_MAX_FILE_BYTES);
     return [
         absolutePath,
-        outcome.ok ? createSourcePositionIndex(outcome.content) : null,
+        outcome.ok ? createPositionIndex(outcome.content) : null,
     ];
 }
 
@@ -83,6 +86,7 @@ async function mapExpansionDiagnostics(
         readonly range?: { readonly start: number; readonly end: number };
     }[],
     readSource: ReadImporterSource,
+    createPositionIndex: (content: string) => PositionOf,
 ): Promise<ClaudeImportExpansionDiagnostic[]> {
     const located = diagnostics.map((diagnostic) => ({
         diagnostic,
@@ -92,7 +96,7 @@ async function mapExpansionDiagnostics(
     const contentByPath = new Map(
         await Promise.all(
             [...importerPaths].map((path) =>
-                readImporterSource(readSource, path),
+                readImporterSource(readSource, createPositionIndex, path),
             ),
         ),
     );
@@ -168,6 +172,9 @@ export function createClaudeInstructionImportExpander(
     options: ClaudeInstructionImportExpanderOptions = {},
 ): ClaudeInstructionImportExpander {
     const readSource = options.readSource ?? readRegularFileNoFollow;
+    const createPositionIndex =
+        options.createPositionIndex ??
+        ((content: string) => createSourcePositionIndex(content));
 
     return {
         async expandClaudeEntrypoint(
@@ -185,6 +192,7 @@ export function createClaudeInstructionImportExpander(
                 input.repoRoot,
                 document.expansionDiagnostics,
                 readSource,
+                createPositionIndex,
             );
             return {
                 content: document.content,
