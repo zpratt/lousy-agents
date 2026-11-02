@@ -14,9 +14,12 @@ const PackageManifestSchema = z.object({ version: z.string().min(1) });
 
 const UNKNOWN_VERSION = "0.0.0-unknown";
 
-export function readPackageVersion(): string {
+const OWN_MANIFEST_URL = new URL("../package.json", import.meta.url);
+
+export function readPackageVersion(
+    manifestUrl: URL = OWN_MANIFEST_URL,
+): string {
     try {
-        const manifestUrl = new URL("../package.json", import.meta.url);
         const manifest: unknown = JSON.parse(
             readFileSync(manifestUrl, "utf-8"),
         );
