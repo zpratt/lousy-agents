@@ -17,7 +17,10 @@ import {
     checkRegularFileNoFollow,
     type NoFollowFsPort,
 } from "./read-regular-file-no-follow.js";
-import { inspectPathWithinRoot } from "./real-path-within-root.js";
+import {
+    type InspectionFsPort,
+    inspectPathWithinRoot,
+} from "./real-path-within-root.js";
 
 export type ImportTargetClassification =
     | {
@@ -34,14 +37,22 @@ export type ImportTargetClassification =
  * @param absolutePath The target, which may reach its file through symlinks
  * @param maxBytes The size cap for an import target
  * @param options.fs The file system the readability check opens files with
+ * @param options.inspectionFs The file system calls the path is inspected with
  */
 export async function classifyImportTarget(
     rootReal: string,
     absolutePath: string,
     maxBytes: number,
-    options: { readonly fs?: NoFollowFsPort } = {},
+    options: {
+        readonly fs?: NoFollowFsPort;
+        readonly inspectionFs?: InspectionFsPort;
+    } = {},
 ): Promise<ImportTargetClassification> {
-    const inspection = await inspectPathWithinRoot(rootReal, absolutePath);
+    const inspection = await inspectPathWithinRoot(
+        rootReal,
+        absolutePath,
+        options.inspectionFs,
+    );
     const located = toLocatedFile(rootReal, inspection);
     if (!located.ok) {
         return { ok: false, status: located.status };

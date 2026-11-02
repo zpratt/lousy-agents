@@ -48,6 +48,23 @@ export type PathInspection =
 
 export type OutsideRootKind = "file" | "directory" | "other";
 
+/** What inspection needs to know about a path it has resolved. */
+export interface InspectionStats extends FileIdentity {
+    isDirectory(): boolean;
+    isFile(): boolean;
+}
+
+/**
+ * The file system calls inspection makes. Injectable so each error code the
+ * system can fail with can be tested without producing it.
+ */
+export interface InspectionFsPort {
+    realpath(path: string): Promise<string>;
+    stat(path: string): Promise<InspectionStats>;
+}
+
+const nodeInspectionFs: InspectionFsPort = { realpath, stat };
+
 /**
  * The error codes that mean no file is there. A path the system cannot
  * represent cannot name a file, so it is as missing as one that was never
@@ -98,9 +115,12 @@ function statusForInspectionError(
     return isUnreadableError(error) ? "unreadable" : "unsupported";
 }
 
-async function kindOutsideRoot(real: string): Promise<OutsideRootKind> {
+async function kindOutsideRoot(
+    real: string,
+    fs: InspectionFsPort,
+): Promise<OutsideRootKind> {
     try {
-        const outside = await stat(real);
+        const outside = await fs.stat(real);
         if (outside.isDirectory()) {
             return "directory";
         }
@@ -119,21 +139,23 @@ async function kindOutsideRoot(real: string): Promise<OutsideRootKind> {
  *
  * @param rootReal Real (symlink-free) path of the root directory
  * @param absolutePath Path to resolve, which may contain symlinks
+ * @param fs The file system calls to make; the real ones by default
  */
 export async function inspectPathWithinRoot(
     rootReal: string,
     absolutePath: string,
+    fs: InspectionFsPort = nodeInspectionFs,
 ): Promise<PathInspection> {
     try {
-        const real = await realpath(absolutePath);
+        const real = await fs.realpath(absolutePath);
         if (!isPathWithinRoot(rootReal, real)) {
             return {
                 status: "outside-root",
-                kind: await kindOutsideRoot(real),
+                kind: await kindOutsideRoot(real, fs),
             };
         }
 
-        const targetStat = await stat(real);
+        const targetStat = await fs.stat(real);
         const identity = { dev: targetStat.dev, ino: targetStat.ino };
         if (targetStat.isDirectory()) {
             return { status: "ok", kind: "directory", real, identity };

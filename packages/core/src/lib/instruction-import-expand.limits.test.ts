@@ -12,6 +12,8 @@ import {
 
 const SIZE_EXCEEDED = "instruction/import-size-exceeded";
 const BUDGET_RUNS = 3;
+const BUDGET_MS = 5_000;
+const TEST_TIMEOUT_MS = 60_000;
 
 async function fastestRunMs(run: () => Promise<unknown>): Promise<number> {
     const durations: number[] = [];
@@ -166,29 +168,33 @@ describe("buildEffectiveDocument import limit", () => {
             DEFAULT_MAX_FILE_BYTES / importLine.length,
         );
 
-        it("should finish quickly and report the limit once", async () => {
-            await mkdir(repoRoot, { recursive: true });
-            await writeFile(join(repoRoot, "a.md"), "A\n");
-            await writeFile(
-                join(repoRoot, "CLAUDE.md"),
-                importLine.repeat(lineCount),
-            );
+        it(
+            "should finish quickly and report the limit once",
+            async () => {
+                await mkdir(repoRoot, { recursive: true });
+                await writeFile(join(repoRoot, "a.md"), "A\n");
+                await writeFile(
+                    join(repoRoot, "CLAUDE.md"),
+                    importLine.repeat(lineCount),
+                );
 
-            const expand = () =>
-                buildEffectiveDocument({
-                    repoRoot,
-                    rootRelativePath: "CLAUDE.md",
-                });
+                const expand = () =>
+                    buildEffectiveDocument({
+                        repoRoot,
+                        rootRelativePath: "CLAUDE.md",
+                    });
 
-            const result = await expand();
-            const fastestMs = await fastestRunMs(expand);
+                const result = await expand();
+                const fastestMs = await fastestRunMs(expand);
 
-            expect(
-                result.expansionDiagnostics.filter(
-                    (d) => d.ruleId === SIZE_EXCEEDED,
-                ),
-            ).toHaveLength(1);
-            expect(fastestMs).toBeLessThan(5_000);
-        }, 60_000);
+                expect(
+                    result.expansionDiagnostics.filter(
+                        (d) => d.ruleId === SIZE_EXCEEDED,
+                    ),
+                ).toHaveLength(1);
+                expect(fastestMs).toBeLessThan(BUDGET_MS);
+            },
+            TEST_TIMEOUT_MS,
+        );
     });
 });
