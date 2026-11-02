@@ -17,10 +17,20 @@ import { listDirectoryWithinRoot } from "./file-system-utils.js";
 import type { FileIdentity } from "./read-regular-file-no-follow.js";
 import { inspectPathWithinRoot } from "./real-path-within-root.js";
 
-/** A directory is listed only while its depth is below this (root = 0). */
+/**
+ * The deepest level whose directories are listed (the start directory is 0).
+ * A directory at this depth is listed, and its own subdirectories are not
+ * entered.
+ */
 export const DEFAULT_MAX_WALK_DEPTH = 10;
 /** Directories listed before the walk stops descending. */
 export const DEFAULT_MAX_WALK_DIRECTORIES = 10_000;
+/**
+ * Directory entries examined before the walk stops. The directory cap counts
+ * listings, not the entries in them, and a fan-out of directory aliases lists
+ * a wide directory many times over, so this bounds the work itself.
+ */
+export const DEFAULT_MAX_WALK_ENTRIES = 200_000;
 export const DEFAULT_SKIPPED_DIRECTORY_NAMES: readonly string[] = [
     "node_modules",
     ".git",
@@ -37,7 +47,7 @@ export const DEFAULT_SKIPPED_DIRECTORY_NAMES: readonly string[] = [
  *   location the walk lists again, so `.claude/skills -> ../.agents/skills`
  *   stays visible under both names. Doctor uses this because each location
  *   can be loaded by a different harness. Aliases are not a cycle, so only
- *   the directory cap bounds how many times a fan-out is listed.
+ *   the directory cap and the entry budget bound a fan-out.
  */
 export type DirectoryRevisitPolicy =
     | "once-per-real-directory"
@@ -73,6 +83,11 @@ export interface RepositoryWalkOptions {
      * Default 10,000.
      */
     readonly maxDirectories?: number;
+    /**
+     * Directory entries examined, across every listing, before the walk
+     * stops. Default 200,000.
+     */
+    readonly maxEntries?: number;
     readonly skipDirectoryNames?: readonly string[];
     readonly listDirectory?: DirectoryLister;
 }
@@ -95,6 +110,14 @@ export interface RepositoryWalkResult {
      * limit, so files in it or under it, if any, are not in the result
      */
     readonly depthLimitReached: boolean;
+    /** True when the entry budget stopped the walk from examining more */
+    readonly entryLimitReached: boolean;
+    /** The limits the walk ran with, for messages that name them */
+    readonly limits: {
+        readonly maxDirectories: number;
+        readonly maxDepth: number;
+        readonly maxEntries: number;
+    };
 }
 
 interface WalkSettings {
@@ -104,6 +127,7 @@ interface WalkSettings {
     readonly revisit: DirectoryRevisitPolicy;
     readonly maxDepth: number;
     readonly maxDirectories: number;
+    readonly maxEntries: number;
     readonly skipDirectoryNames: ReadonlySet<string>;
     readonly listDirectory: DirectoryLister;
 }
@@ -124,6 +148,7 @@ function resolveSettings(options: RepositoryWalkOptions): WalkSettings {
         revisit: options.revisit ?? "once-per-real-directory",
         maxDepth: options.maxDepth ?? DEFAULT_MAX_WALK_DEPTH,
         maxDirectories: options.maxDirectories ?? DEFAULT_MAX_WALK_DIRECTORIES,
+        maxEntries: options.maxEntries ?? DEFAULT_MAX_WALK_ENTRIES,
         skipDirectoryNames: new Set(
             options.skipDirectoryNames ?? DEFAULT_SKIPPED_DIRECTORY_NAMES,
         ),
@@ -155,6 +180,8 @@ class RepositoryWalk {
     private listedDirectories = 0;
     private limitReached = false;
     private depthLimitReached = false;
+    private entriesExamined = 0;
+    private entryLimitReached = false;
 
     constructor(
         private readonly targetDir: string,
@@ -168,6 +195,12 @@ class RepositoryWalk {
             files: this.files,
             directoryLimitReached: this.limitReached,
             depthLimitReached: this.depthLimitReached,
+            entryLimitReached: this.entryLimitReached,
+            limits: {
+                maxDirectories: this.settings.maxDirectories,
+                maxDepth: this.settings.maxDepth,
+                maxEntries: this.settings.maxEntries,
+            },
         };
     }
 
@@ -210,6 +243,11 @@ class RepositoryWalk {
             .filter((entry) => !isUnsafeEntryName(entry.name))
             .sort((a, b) => compareCodeUnits(a.name, b.name));
         for (const entry of sorted) {
+            if (this.entriesExamined >= this.settings.maxEntries) {
+                this.entryLimitReached = true;
+                return;
+            }
+            this.entriesExamined += 1;
             await this.walkEntry(
                 directory.real,
                 joinRelative(directoryRelativePath, entry.name),
@@ -296,16 +334,19 @@ export async function walkRepository(
     options: RepositoryWalkOptions,
 ): Promise<RepositoryWalkResult> {
     const rootReal = await realpath(resolve(targetDir)).catch(() => null);
+    const settings = resolveSettings(options);
     if (rootReal === null) {
         return {
             files: [],
             directoryLimitReached: false,
             depthLimitReached: false,
+            entryLimitReached: false,
+            limits: {
+                maxDirectories: settings.maxDirectories,
+                maxDepth: settings.maxDepth,
+                maxEntries: settings.maxEntries,
+            },
         };
     }
-    return new RepositoryWalk(
-        targetDir,
-        rootReal,
-        resolveSettings(options),
-    ).run();
+    return new RepositoryWalk(targetDir, rootReal, settings).run();
 }

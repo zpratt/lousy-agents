@@ -1,7 +1,6 @@
 import { realpath } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import {
-    DEFAULT_MAX_WALK_DEPTH,
     DEFAULT_MAX_WALK_DIRECTORIES,
     DEFAULT_SKIPPED_DIRECTORY_NAMES,
     type WalkedFile,
@@ -12,6 +11,7 @@ import { markReferencedRecords } from "../entities/inventory-references.js";
 import type {
     DiscoveryDepthLimit,
     DiscoveryDirectoryLimit,
+    DiscoveryEntryLimit,
 } from "../use-cases/discovery-limit-finding.js";
 import type { EdgeResolutionContext } from "./edge-resolution.js";
 import {
@@ -50,6 +50,8 @@ function isScannableFile(name: string): boolean {
 export interface ScanOptions {
     /** Directories listed before the scan stops; defaults to the shared walk's limit */
     readonly maxDirectories?: number;
+    /** Directory entries examined before the scan stops; defaults to the shared walk's limit */
+    readonly maxEntries?: number;
     /** Reads a file's markdown content; defaults to a bounded, no-follow read */
     readonly readContent?: ReadMarkdownContent;
 }
@@ -60,6 +62,8 @@ export interface ScanReport {
     readonly directoryLimit?: DiscoveryDirectoryLimit;
     /** Present when the scan left directories below its depth limit unentered, so records may be missing */
     readonly depthLimit?: DiscoveryDepthLimit;
+    /** Present when the scan stopped at its entry budget, so records may be missing */
+    readonly entryLimit?: DiscoveryEntryLimit;
 }
 
 function toSourceFile(
@@ -83,7 +87,8 @@ function toSourceFile(
  * directory reached through an alias (for example
  * `.claude/skills -> ../.agents/skills`) is listed again under each name; only
  * a symlink back to one of its own ancestors is refused. The directory limit,
- * which counts every logical listing, is what bounds a fan-out of aliases.
+ * which counts every logical listing, and the entry budget, which counts the
+ * entries examined across all of them, are what bound a fan-out of aliases.
  * Each real file is read once however many locations reach it.
  */
 export async function scanRepositoryWithReport(
@@ -101,6 +106,9 @@ export async function scanRepositoryWithReport(
         revisit: "refuse-ancestors",
         skipDirectoryNames: DOCTOR_SKIPPED_DIRECTORY_NAMES,
         maxDirectories,
+        ...(options.maxEntries === undefined
+            ? {}
+            : { maxEntries: options.maxEntries }),
     });
     const files = walked.files.map((file) =>
         toSourceFile(absRoot, rootReal, file),
@@ -125,10 +133,17 @@ export async function scanRepositoryWithReport(
             ...mcpServerRecords(mcpServers),
         ],
         ...(walked.directoryLimitReached
-            ? { directoryLimit: { maxDirectories } }
+            ? {
+                  directoryLimit: {
+                      maxDirectories: walked.limits.maxDirectories,
+                  },
+              }
             : {}),
         ...(walked.depthLimitReached
-            ? { depthLimit: { maxDepth: DEFAULT_MAX_WALK_DEPTH } }
+            ? { depthLimit: { maxDepth: walked.limits.maxDepth } }
+            : {}),
+        ...(walked.entryLimitReached
+            ? { entryLimit: { maxEntries: walked.limits.maxEntries } }
             : {}),
     };
 }

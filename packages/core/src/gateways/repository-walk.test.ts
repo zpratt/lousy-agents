@@ -10,9 +10,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { listDirectoryWithinRoot } from "./file-system-utils.js";
 import {
     DEFAULT_MAX_WALK_DEPTH,
     DEFAULT_MAX_WALK_DIRECTORIES,
+    DEFAULT_MAX_WALK_ENTRIES,
     type DirectoryLister,
     walkRepository,
 } from "./repository-walk.js";
@@ -360,6 +362,100 @@ describe("walkRepository", () => {
             });
 
             expect(found).toEqual(["a.md", "b.md", "c/z.md"]);
+        });
+    });
+
+    describe("entry budget", () => {
+        function countingLister(): {
+            lister: DirectoryLister;
+            listed: () => number;
+        } {
+            let entries = 0;
+            return {
+                listed: () => entries,
+                lister: async (rootReal, relativePath) => {
+                    const found = await listDirectoryWithinRoot(
+                        rootReal,
+                        relativePath,
+                    );
+                    entries += found.length;
+                    return found;
+                },
+            };
+        }
+
+        it("should stop and report it when a directory holds more entries than the budget", async () => {
+            for (let n = 0; n < 20; n += 1) {
+                await write(`f${String(n).padStart(2, "0")}.md`);
+            }
+
+            const result = await walkRepository(root, {
+                startRelativePath: "",
+                includeFile: isMarkdown,
+                maxEntries: 5,
+            });
+
+            expect(result.entryLimitReached).toBe(true);
+            expect(result.files).toHaveLength(5);
+            expect(result.directoryLimitReached).toBe(false);
+        });
+
+        it("should not report it when the tree has exactly as many entries as the budget", async () => {
+            await write("a/one.md");
+            await write("a/two.md");
+            await write("b.md");
+
+            const result = await walkRepository(root, {
+                startRelativePath: "",
+                includeFile: isMarkdown,
+                maxEntries: 4,
+            });
+
+            expect(result.entryLimitReached).toBe(false);
+            expect(result.files).toHaveLength(3);
+        });
+
+        it("should bound the work of a fan-out of directory aliases, which the directory cap does not", async () => {
+            await mkdir(join(root, "a"));
+            await mkdir(join(root, "b"));
+            await mkdir(join(root, "c"));
+            for (let n = 0; n < 10; n += 1) {
+                await write(`c/f${n}.md`);
+                await symlink("../b", join(root, "a", `to-b${n}`));
+                await symlink("../c", join(root, "b", `to-c${n}`));
+            }
+            const { lister, listed } = countingLister();
+
+            const result = await walkRepository(root, {
+                startRelativePath: "a",
+                includeFile: isMarkdown,
+                revisit: "refuse-ancestors",
+                maxEntries: 100,
+                listDirectory: lister,
+            });
+
+            expect(result.entryLimitReached).toBe(true);
+            expect(result.directoryLimitReached).toBe(false);
+            expect(listed()).toBeLessThanOrEqual(100 + 10);
+        });
+
+        it("should allow two hundred thousand entries by default", () => {
+            expect(DEFAULT_MAX_WALK_ENTRIES).toBe(200_000);
+        });
+
+        it("should apply the default budget when none is given", async () => {
+            await write("a.md");
+
+            const result = await walkRepository(root, {
+                startRelativePath: "",
+                includeFile: isMarkdown,
+            });
+
+            expect(result.limits).toEqual({
+                maxDirectories: DEFAULT_MAX_WALK_DIRECTORIES,
+                maxDepth: DEFAULT_MAX_WALK_DEPTH,
+                maxEntries: DEFAULT_MAX_WALK_ENTRIES,
+            });
         });
     });
 

@@ -5,6 +5,11 @@ export interface DiscoveryDirectoryLimit {
     readonly maxDirectories: number;
 }
 
+/** The entry budget a scan stopped at. */
+export interface DiscoveryEntryLimit {
+    readonly maxEntries: number;
+}
+
 /** The depth below which a scan left directories unentered. */
 export interface DiscoveryDepthLimit {
     readonly maxDepth: number;
@@ -21,6 +26,7 @@ export interface DiscoveryDepthLimit {
 export function discoveryLimitFindings(
     directoryLimit: DiscoveryDirectoryLimit | undefined,
     depthLimit?: DiscoveryDepthLimit,
+    entryLimit?: DiscoveryEntryLimit,
 ): Finding[] {
     const reasons = [
         ...(directoryLimit === undefined
@@ -32,6 +38,11 @@ export function discoveryLimitFindings(
             ? []
             : [
                   `The repository scan did not go more than ${depthLimit.maxDepth} directories deep, so agentic constructs in deeper directories are not in this report.`,
+              ]),
+        ...(entryLimit === undefined
+            ? []
+            : [
+                  `The repository scan stopped after examining ${entryLimit.maxEntries} directory entries, so agentic constructs in the remaining entries are not in this report.`,
               ]),
     ];
     return reasons.length === 0

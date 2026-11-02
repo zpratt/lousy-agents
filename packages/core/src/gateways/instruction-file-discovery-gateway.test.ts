@@ -544,4 +544,52 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
             ]);
         });
     });
+
+    describe("when .github/instructions holds more entries than the entry budget", () => {
+        const EntryBudget = 2;
+
+        beforeEach(async () => {
+            const directory = join(testDir, ".github", "instructions");
+            await mkdir(directory, { recursive: true });
+            for (const name of ["a", "b", "c", "d", "e"]) {
+                await writeFile(
+                    join(directory, `${name}.instructions.md`),
+                    chance.sentence(),
+                );
+            }
+        });
+
+        it("should keep the files it reached and report the entry limit exactly once", async () => {
+            const capped = new FileSystemInstructionFileDiscoveryGateway({
+                maxEntries: EntryBudget,
+            });
+            const diagnostics: InstructionDiscoveryDiagnostic[] = [];
+
+            const files = await capped.discoverInstructionFiles(
+                testDir,
+                (diagnostic) => diagnostics.push(diagnostic),
+            );
+
+            expect(files).toHaveLength(EntryBudget);
+            expect(diagnostics).toEqual([
+                {
+                    ruleId: "instruction/discovery-limit-reached",
+                    message: `Instruction file discovery stopped after examining ${EntryBudget} directory entries, so instruction files in the remaining entries were not analyzed.`,
+                },
+            ]);
+        });
+
+        it("should report nothing when the budget covers every entry", async () => {
+            const roomy = new FileSystemInstructionFileDiscoveryGateway({
+                maxEntries: 5,
+            });
+            const diagnostics: InstructionDiscoveryDiagnostic[] = [];
+
+            await roomy.discoverInstructionFiles(testDir, (diagnostic) =>
+                diagnostics.push(diagnostic),
+            );
+
+            expect(diagnostics).toEqual([]);
+        });
+    });
 });

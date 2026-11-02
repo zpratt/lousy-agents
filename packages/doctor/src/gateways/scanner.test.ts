@@ -757,6 +757,44 @@ describe("scanRepository", () => {
             );
         });
 
+        describe("entry budget", () => {
+            it("should report the entry limit and keep the records it reached", async () => {
+                await withTempRepo(
+                    {
+                        "CLAUDE.md": "# claude\n",
+                        "AGENTS.md": "# agents\n",
+                        "docs/a.md": "# a\n",
+                        "docs/b.md": "# b\n",
+                    },
+                    async (repoRoot) => {
+                        const report = await scanRepositoryWithReport(
+                            repoRoot,
+                            { maxEntries: 2 },
+                        );
+
+                        expect(report.entryLimit).toEqual({ maxEntries: 2 });
+                        expect(report.records.length).toBeGreaterThan(0);
+                    },
+                );
+            });
+
+            it("should report no entry limit when the budget covers the tree", async () => {
+                await withTempRepo(
+                    { "CLAUDE.md": "# claude\n" },
+                    async (repoRoot) => {
+                        const report = await scanRepositoryWithReport(
+                            repoRoot,
+                            {
+                                maxEntries: 100,
+                            },
+                        );
+
+                        expect(report.entryLimit).toBeUndefined();
+                    },
+                );
+            });
+        });
+
         describe("depth limit", () => {
             const chain = (levels: number) =>
                 Array.from({ length: levels }, (_, level) => `d${level}`).join(

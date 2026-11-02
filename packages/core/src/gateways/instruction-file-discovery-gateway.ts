@@ -17,8 +17,8 @@ import {
     resolveRealPathWithinRoot,
 } from "./real-path-within-root.js";
 import {
-    DEFAULT_MAX_WALK_DEPTH,
     DEFAULT_MAX_WALK_DIRECTORIES,
+    type RepositoryWalkResult,
     walkRepository,
 } from "./repository-walk.js";
 
@@ -45,14 +45,23 @@ export class FileSystemInstructionFileDiscoveryGateway
     implements InstructionFileDiscoveryGateway
 {
     private readonly maxDirectories: number;
+    private readonly maxEntries: number | undefined;
 
     /**
      * @param options.maxDirectories Directories one entry walk lists before it
      * stops; defaults to the shared walk's production limit
+     * @param options.maxEntries Directory entries one entry walk examines
+     * before it stops; defaults to the shared walk's production limit
      */
-    constructor(options: { readonly maxDirectories?: number } = {}) {
+    constructor(
+        options: {
+            readonly maxDirectories?: number;
+            readonly maxEntries?: number;
+        } = {},
+    ) {
         this.maxDirectories =
             options.maxDirectories ?? DEFAULT_MAX_WALK_DIRECTORIES;
+        this.maxEntries = options.maxEntries;
     }
 
     async discoverInstructionFiles(
@@ -67,6 +76,8 @@ export class FileSystemInstructionFileDiscoveryGateway
         const files: DiscoveredInstructionFile[] = [];
         let directoryLimitReached = false;
         let depthLimitReached = false;
+        let entryLimitReached = false;
+        let limits: RepositoryWalkResult["limits"] | undefined;
 
         for (const entry of instructionDiscoveryEntries()) {
             const format = entry.instructionFormat;
@@ -87,10 +98,15 @@ export class FileSystemInstructionFileDiscoveryGateway
                 includeSubdirectories: entry.includeSubdirectories === true,
                 revisit: "once-per-real-directory",
                 maxDirectories: this.maxDirectories,
+                ...(this.maxEntries === undefined
+                    ? {}
+                    : { maxEntries: this.maxEntries }),
             });
+            limits = walked.limits;
             directoryLimitReached =
                 directoryLimitReached || walked.directoryLimitReached;
             depthLimitReached = depthLimitReached || walked.depthLimitReached;
+            entryLimitReached = entryLimitReached || walked.entryLimitReached;
             files.push(
                 ...walked.files.map((file) =>
                     toDiscoveredFile(
@@ -104,14 +120,19 @@ export class FileSystemInstructionFileDiscoveryGateway
         }
 
         const reasons = [
-            ...(directoryLimitReached
+            ...(directoryLimitReached && limits !== undefined
                 ? [
-                      `Instruction file discovery stopped after listing ${this.maxDirectories} directories, so instruction files in the remaining directories were not analyzed.`,
+                      `Instruction file discovery stopped after listing ${limits.maxDirectories} directories, so instruction files in the remaining directories were not analyzed.`,
                   ]
                 : []),
-            ...(depthLimitReached
+            ...(depthLimitReached && limits !== undefined
                 ? [
-                      `Instruction file discovery did not go more than ${DEFAULT_MAX_WALK_DEPTH} directories deep, so instruction files in deeper directories were not analyzed.`,
+                      `Instruction file discovery did not go more than ${limits.maxDepth} directories deep, so instruction files in deeper directories were not analyzed.`,
+                  ]
+                : []),
+            ...(entryLimitReached && limits !== undefined
+                ? [
+                      `Instruction file discovery stopped after examining ${limits.maxEntries} directory entries, so instruction files in the remaining entries were not analyzed.`,
                   ]
                 : []),
         ];

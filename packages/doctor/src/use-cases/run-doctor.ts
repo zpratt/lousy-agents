@@ -12,6 +12,7 @@ import {
 import {
     type DiscoveryDepthLimit,
     type DiscoveryDirectoryLimit,
+    type DiscoveryEntryLimit,
     discoveryLimitFindings,
 } from "./discovery-limit-finding.js";
 import { evaluate } from "./evaluate-engine.js";
@@ -27,6 +28,8 @@ export interface RepositoryScan {
     directoryLimit?: DiscoveryDirectoryLimit;
     /** Present when the scan left directories below its depth limit unentered */
     depthLimit?: DiscoveryDepthLimit;
+    /** Present when the scan stopped at its entry budget, so records may be missing */
+    entryLimit?: DiscoveryEntryLimit;
 }
 
 export interface DoctorRunPorts {
@@ -146,6 +149,7 @@ export async function runDoctor(
         scanWarnings: discoveryLimitFindings(
             scan.directoryLimit,
             scan.depthLimit,
+            scan.entryLimit,
         ),
     };
     try {
