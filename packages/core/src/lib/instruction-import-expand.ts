@@ -45,6 +45,7 @@ export type ImportEdgeStatus =
     | "size-exceeded"
     | "not-regular"
     | "hard-linked"
+    | "unreadable"
     | "absolute"
     | "home";
 
@@ -192,6 +193,7 @@ const RULE_ID_BY_STATUS = {
     unresolved: "instruction/import-unresolved",
     "not-regular": "instruction/import-unresolved",
     "hard-linked": "instruction/import-unresolved",
+    unreadable: "instruction/import-unresolved",
     escape: "instruction/import-escape",
     absolute: "instruction/import-escape",
     home: "instruction/import-escape",
@@ -222,6 +224,8 @@ const FAILURE_MESSAGE_BY_STATUS = {
         `Import target is not a regular file: ${rawTarget}`,
     "hard-linked": (rawTarget: string) =>
         `Import target has more than one hard link and is not read: ${rawTarget}`,
+    unreadable: (rawTarget: string) =>
+        `Import target could not be read, for example because access was denied or too many files were open: ${rawTarget}`,
     resolved: () => "",
 } as const satisfies Record<ImportEdgeStatus, (rawTarget: string) => string>;
 

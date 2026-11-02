@@ -1,6 +1,7 @@
 import { parse, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { type EdgeResolutionContext, resolveEdge } from "./edge-resolution.js";
+import { createTargetClassifier } from "./target-classifier.js";
 
 const FILESYSTEM_ROOT = parse(process.cwd()).root;
 const REPO_ROOT = resolve(FILESYSTEM_ROOT, "work", "repo");
@@ -14,6 +15,7 @@ function contextFor(
         repoRoot,
         rootReal: repoRoot,
         existingAbsPaths: new Set(existing),
+        classifyTarget: createTargetClassifier(repoRoot),
     };
 }
 

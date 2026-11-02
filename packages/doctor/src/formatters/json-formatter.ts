@@ -1,6 +1,9 @@
 import { compareCodeUnits } from "@lousy-agents/core/entities/code-unit-order.js";
 import { z } from "zod";
-import type { InventoryRecord } from "../entities/edge-types.js";
+import {
+    EdgeMalformedReasonSchema,
+    type InventoryRecord,
+} from "../entities/edge-types.js";
 import type { Finding } from "../entities/finding.js";
 import {
     INTENT_LOAD_STATUSES,
@@ -102,18 +105,7 @@ const ReportEdgeSchema = z.object({
     to: z.string(),
     type: EdgeTypeSchema,
     malformed: z.boolean(),
-    reason: z
-        .enum([
-            "missing-target",
-            "path-traversal",
-            "home",
-            "absolute",
-            "symlink-outside",
-            "hard-link",
-            "not-regular",
-            "too-large",
-        ])
-        .optional(),
+    reason: EdgeMalformedReasonSchema.optional(),
     crossHarness: z.boolean(),
 });
 

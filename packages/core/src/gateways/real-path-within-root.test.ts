@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import {
+    chmod,
     mkdir,
     realpath,
     rm,
@@ -265,6 +266,21 @@ describe("inspectPathWithinRoot", () => {
         expect(result).toEqual({ status: "missing" });
     });
 
+    it.each([
+        [
+            "a name too long for the file system to hold",
+            `${"a".repeat(300)}.md`,
+        ],
+        ["a name holding a NUL byte", "nul\u0000x.md"],
+    ])("should report missing for %s", async (_kind, name) => {
+        const result = await inspectPathWithinRoot(
+            rootReal,
+            join(rootReal, name),
+        );
+
+        expect(result).toEqual({ status: "missing" });
+    });
+
     it.skipIf(process.platform === "win32")(
         "should report unsupported for a path that is neither a file nor a directory",
         async () => {
@@ -272,6 +288,45 @@ describe("inspectPathWithinRoot", () => {
             execFileSync("mkfifo", [fifo]);
 
             const result = await inspectPathWithinRoot(rootReal, fifo);
+
+            expect(result).toEqual({ status: "unsupported" });
+        },
+    );
+
+    const cannotDenyAccess =
+        process.platform === "win32" || process.getuid?.() === 0;
+
+    it.skipIf(cannotDenyAccess)(
+        "should report unreadable, not missing, for a path the process may not look through",
+        async () => {
+            const closed = join(rootReal, "closed");
+            await mkdir(closed);
+            await writeFile(join(closed, "a.md"), chance.word());
+            await chmod(closed, 0o000);
+
+            try {
+                const result = await inspectPathWithinRoot(
+                    rootReal,
+                    join(closed, "a.md"),
+                );
+
+                expect(result).toEqual({ status: "unreadable" });
+            } finally {
+                await chmod(closed, 0o700);
+            }
+        },
+    );
+
+    it.skipIf(process.platform === "win32")(
+        "should keep reporting a symlink loop as unsupported, because it is not a failure to read",
+        async () => {
+            await symlink("loop-b", join(rootReal, "loop-a"));
+            await symlink("loop-a", join(rootReal, "loop-b"));
+
+            const result = await inspectPathWithinRoot(
+                rootReal,
+                join(rootReal, "loop-a"),
+            );
 
             expect(result).toEqual({ status: "unsupported" });
         },

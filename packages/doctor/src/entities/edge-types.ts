@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 export type HarnessName =
     | "claude"
     | "copilot"
@@ -45,17 +47,26 @@ export interface EdgeDirection {
  * "symlink-outside", "hard-link", "not-regular" and "too-large" are the
  * import targets core refuses to read: a symlink that leaves the repository,
  * a file with more than one hard link, a directory or other non-regular file,
- * and a file over the size cap.
+ * and a file over the size cap. "unreadable" is a target the system would not
+ * look at or open (too many open files, access denied): nothing is known
+ * about whether it exists, so it is never reported as a missing target.
+ *
+ * The schema is the one definition: the report format validates with it and
+ * the type is derived from it, so the two cannot drift.
  */
-export type EdgeMalformedReason =
-    | "missing-target"
-    | "path-traversal"
-    | "home"
-    | "absolute"
-    | "symlink-outside"
-    | "hard-link"
-    | "not-regular"
-    | "too-large";
+export const EdgeMalformedReasonSchema = z.enum([
+    "missing-target",
+    "path-traversal",
+    "home",
+    "absolute",
+    "symlink-outside",
+    "hard-link",
+    "not-regular",
+    "too-large",
+    "unreadable",
+]);
+
+export type EdgeMalformedReason = z.infer<typeof EdgeMalformedReasonSchema>;
 
 export interface Edge {
     type: EdgeType;

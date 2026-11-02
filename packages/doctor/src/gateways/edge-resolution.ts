@@ -1,18 +1,21 @@
 import { dirname, relative, resolve } from "node:path";
 import { isPathWithinRoot } from "@lousy-agents/core/gateways/file-system-utils.js";
-import { classifyImportTarget } from "@lousy-agents/core/gateways/import-target-classifier.js";
+import type { ImportTargetClassification } from "@lousy-agents/core/gateways/import-target-classifier.js";
 import type { ImportLocationFailure } from "@lousy-agents/core/lib/import-file-location.js";
-import {
-    DEFAULT_MAX_FILE_BYTES,
-    normalizeRelativeWithinRoot,
-} from "@lousy-agents/core/lib/instruction-import-expand.js";
+import { normalizeRelativeWithinRoot } from "@lousy-agents/core/lib/instruction-import-expand.js";
 import type { Edge, EdgeMalformedReason } from "../entities/edge-types.js";
 import type { RawEdge } from "../lib/edge-parser.js";
+
+/** Classifies an import target, given its absolute path. */
+export type ClassifyTarget = (
+    absolutePath: string,
+) => Promise<ImportTargetClassification>;
 
 export interface EdgeResolutionContext {
     readonly repoRoot: string;
     readonly rootReal: string;
     readonly existingAbsPaths: Set<string>;
+    readonly classifyTarget: ClassifyTarget;
 }
 
 function malformedEdge(
@@ -52,6 +55,7 @@ const REASON_BY_REFUSED_TARGET: Record<
     "not-regular": "not-regular",
     "size-exceeded": "too-large",
     unresolved: "missing-target",
+    unreadable: "unreadable",
 };
 
 const HARD_IMPORT_REASON_BY_STATUS: Partial<
@@ -90,10 +94,8 @@ async function resolveHardImportEdge(
         );
     }
 
-    const target = await classifyImportTarget(
-        ctx.rootReal,
+    const target = await ctx.classifyTarget(
         resolve(ctx.repoRoot, normalized.relativePath),
-        DEFAULT_MAX_FILE_BYTES,
     );
     if (target.ok) {
         return wellFormedEdge("hard-import", from, normalized.relativePath);

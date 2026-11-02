@@ -271,6 +271,38 @@ describe("evaluate", () => {
             expect(finding?.targetId).toBe("claude:malformed");
         });
 
+        it("should not produce a blocking finding for an import the system would not open", () => {
+            const records: InventoryRecord[] = [
+                makeRecord({
+                    harness: "claude",
+                    path: "CLAUDE.md",
+                    id: "claude:CLAUDE.md",
+                    edges: [
+                        {
+                            type: "hard-import",
+                            direction: { from: "CLAUDE.md", to: "a.md" },
+                            target: "a.md",
+                            malformed: true,
+                            reason: "unreadable",
+                        },
+                    ],
+                }),
+            ];
+
+            const findings = evaluate(CRITERIA, {
+                records,
+                classification: makeClassification("pure"),
+                intent: null,
+            });
+
+            expect(findings.map((f) => f.criterionId)).toContain(
+                "unread-claude-import",
+            );
+            expect(findings.map((f) => f.criterionId)).not.toContain(
+                "malformed-claude-import",
+            );
+        });
+
         it.each(["home", "absolute", "path-traversal"] as const)(
             "should not produce a blocking finding for an import that is outside the repository (%s)",
             (reason) => {

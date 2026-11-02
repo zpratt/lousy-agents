@@ -16,6 +16,11 @@ import {
     discoveryLimitFindings,
 } from "./discovery-limit-finding.js";
 import { evaluate } from "./evaluate-engine.js";
+import {
+    type ImportLimitNotice,
+    importLimitFindings,
+    skippedSymlinkFindings,
+} from "./scan-notice-findings.js";
 
 export interface LoadedIntent {
     intent: DeclaredIntentArtifact | null;
@@ -30,6 +35,10 @@ export interface RepositoryScan {
     depthLimit?: DiscoveryDepthLimit;
     /** Present when the scan stopped at its entry budget, so records may be missing */
     entryLimit?: DiscoveryEntryLimit;
+    /** Present when the scan skipped symbolic links that lead outside the repository */
+    skippedOutsideRoot?: readonly string[];
+    /** Present when some files had more `@` imports than the scan checks */
+    importLimit?: ImportLimitNotice;
 }
 
 export interface DoctorRunPorts {
@@ -146,11 +155,15 @@ export async function runDoctor(
     const base: DoctorRunBase = {
         records: scan.records,
         classification: classifyArchetype(scan.records),
-        scanWarnings: discoveryLimitFindings(
-            scan.directoryLimit,
-            scan.depthLimit,
-            scan.entryLimit,
-        ),
+        scanWarnings: [
+            ...discoveryLimitFindings(
+                scan.directoryLimit,
+                scan.depthLimit,
+                scan.entryLimit,
+            ),
+            ...skippedSymlinkFindings(scan.skippedOutsideRoot ?? []),
+            ...importLimitFindings(scan.importLimit),
+        ],
     };
     try {
         return await completeRun(input, ports, base);

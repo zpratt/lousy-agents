@@ -61,13 +61,18 @@ export const CRITERIA: readonly Criterion[] = [
         classification: "advisory",
         category: "malformed-reference",
         description:
-            "A Claude @import points to a file inside the repository that lint and doctor do not read: a directory, a file with more than one hard link, or a file over 1 MiB. Claude Code may still load it, but nothing here checks its content.",
+            "A Claude @import points to a file inside the repository that lint and doctor do not read: a directory, a file with more than one hard link, a file over 1 MiB, or a file the system would not open (too many open files, access denied). Claude Code may still load it, but nothing here checks its content.",
         checkMethod: "inventory.edgePresent",
         checkArgs: {
             fromHarness: "claude",
             toHarness: "claude",
             edgeType: "hard-import",
-            malformedReasons: ["hard-link", "not-regular", "too-large"],
+            malformedReasons: [
+                "hard-link",
+                "not-regular",
+                "too-large",
+                "unreadable",
+            ],
         },
     },
     {

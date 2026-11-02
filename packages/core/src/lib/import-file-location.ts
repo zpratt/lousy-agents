@@ -10,13 +10,19 @@ import type {
 } from "../gateways/read-regular-file-no-follow.js";
 import type { PathInspection } from "../gateways/real-path-within-root.js";
 
-/** The import failures a located or read import target can produce. */
+/**
+ * The import failures a located or read import target can produce. An
+ * "unreadable" target is one the system would not let the process look at or
+ * open (too many open files, access denied): it is not known to be missing, so
+ * no caller may report it as missing.
+ */
 export type ImportLocationFailure =
     | "symlink"
     | "unresolved"
     | "not-regular"
     | "hard-linked"
-    | "size-exceeded";
+    | "size-exceeded"
+    | "unreadable";
 
 export interface LocatedFile {
     readonly ok: true;
@@ -50,19 +56,35 @@ export function relativeToAnyRoot(
 }
 
 /**
- * Maps a path inspection to a usable file, or to the import failure it means:
- * a path that only resolves outside the repository is a symlink violation.
+ * Maps a path inspection to a usable file, or to the import failure it means.
+ * Only a path that is not there is "unresolved". A path that only resolves
+ * outside the repository is a symlink violation, one the system would not let
+ * the process look at is "unreadable", and one that is there but cannot be
+ * used as a file (a directory, a named pipe, a symbolic link that loops) is
+ * "not-regular".
  */
 export function toLocatedFile(
     rootReal: string,
     inspection: PathInspection,
 ): LocatedFile | { ok: false; status: ImportLocationFailure } {
-    if (inspection.status === "outside-root") {
-        return { ok: false, status: "symlink" };
+    switch (inspection.status) {
+        case "outside-root":
+            return { ok: false, status: "symlink" };
+        case "unreadable":
+            return { ok: false, status: "unreadable" };
+        case "unsupported":
+            return { ok: false, status: "not-regular" };
+        case "missing":
+            return { ok: false, status: "unresolved" };
+        case "ok":
+            return locateInspectedFile(rootReal, inspection);
     }
-    if (inspection.status !== "ok") {
-        return { ok: false, status: "unresolved" };
-    }
+}
+
+function locateInspectedFile(
+    rootReal: string,
+    inspection: Extract<PathInspection, { status: "ok" }>,
+): LocatedFile | { ok: false; status: ImportLocationFailure } {
     if (inspection.kind !== "file") {
         return { ok: false, status: "not-regular" };
     }
@@ -86,8 +108,8 @@ export function statusForReadFailure(
             return "not-regular";
         case "hard-linked":
             return "hard-linked";
-        case "identity-mismatch":
         case "unreadable":
-            return "unresolved";
+        case "identity-mismatch":
+            return "unreadable";
     }
 }

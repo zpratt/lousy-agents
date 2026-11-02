@@ -571,6 +571,7 @@ describe("toJson malformed edge reasons", () => {
         "hard-link",
         "not-regular",
         "too-large",
+        "unreadable",
     ] as const)(
         "should carry the %s reason of a malformed edge into the report",
         (reason) => {
