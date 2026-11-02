@@ -2,70 +2,75 @@
  * Instruction-quality display for the lint CLI command.
  */
 
-import type { LintOutput } from "@lousy-agents/lint";
-import { consola } from "consola";
+import type { LintOutput, LintSeverity } from "@lousy-agents/lint";
+import { type ConsolaInstance, consola } from "consola";
 
-const SEVERITY_LOGGERS = {
-    error: (msg: string) => consola.error(msg),
-    warning: (msg: string) => consola.warn(msg),
-    info: (msg: string) => consola.info(msg),
-} as const;
+const SEVERITY_METHODS: Record<LintSeverity, "error" | "warn" | "info"> = {
+    error: "error",
+    warning: "warn",
+    info: "info",
+};
 
 function warnSuggestions(
     suggestions: ReadonlyArray<{ message: string }>,
+    logger: ConsolaInstance,
 ): void {
     for (const suggestion of suggestions) {
-        consola.warn(suggestion.message);
+        logger.warn(suggestion.message);
     }
 }
 
-function logDiagnostic(d: LintOutput["diagnostics"][number]): void {
+function logDiagnostic(
+    d: LintOutput["diagnostics"][number],
+    logger: ConsolaInstance,
+): void {
     const fieldInfo = d.field ? ` [${d.field}]` : "";
     const message = `${d.filePath}:${d.line}${fieldInfo}: ${d.message}`;
-    const log =
-        SEVERITY_LOGGERS[d.severity as keyof typeof SEVERITY_LOGGERS] ??
-        SEVERITY_LOGGERS.info;
-    log(message);
+    logger[SEVERITY_METHODS[d.severity]](message);
 }
 
 /**
- * Displays instruction quality analysis results using consola.
+ * Displays instruction quality analysis results using consola, or the logger
+ * it is given.
  */
-export function displayInstructionQuality(output: LintOutput): void {
+export function displayInstructionQuality(
+    output: LintOutput,
+    logger: ConsolaInstance = consola,
+): void {
     const result = output.qualityResult;
     if (!result) {
         return;
     }
 
     if (result.discoveredFiles.length === 0) {
-        consola.info("No instruction files found");
+        logger.info("No instruction files found");
         // Diagnostics that concern the whole run, such as a discovery limit,
         // exist precisely when files may be missing: never drop them here.
         for (const d of output.diagnostics) {
-            logDiagnostic(d);
+            logDiagnostic(d, logger);
         }
-        warnSuggestions(result.suggestions);
+        warnSuggestions(result.suggestions, logger);
         return;
     }
 
-    consola.info(
+    logger.info(
         `Discovered ${result.discoveredFiles.length} instruction file(s)`,
     );
     for (const file of result.discoveredFiles) {
-        consola.info(`  ${file.filePath} (${file.format})`);
+        logger.info(`  ${file.filePath} (${file.format})`);
     }
     if (result.effectiveDocuments !== undefined) {
         for (const doc of result.effectiveDocuments) {
-            consola.info(
+            logger.info(
                 `  ${doc.effectiveRoot}: ${doc.resolvedImports.length} resolved import(s)`,
             );
         }
     }
-    consola.info(
+    logger.info(
         `Overall instruction quality score: ${result.overallQualityScore}%`,
     );
     for (const d of output.diagnostics) {
-        logDiagnostic(d);
+        logDiagnostic(d, logger);
     }
-    warnSuggestions(result.suggestions);
+    warnSuggestions(result.suggestions, logger);
 }
