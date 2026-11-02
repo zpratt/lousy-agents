@@ -117,6 +117,103 @@ function renderLesson(parsed: ParsedLesson): string {
     return `${heading}\n\n${truncatedBody}`;
 }
 
+/** Keeps the first lesson of each slug. */
+function dedupeBySlug(lessons: readonly ParsedLesson[]): ParsedLesson[] {
+    const seenSlugs = new Set<string>();
+    return lessons.filter((p) => {
+        if (seenSlugs.has(p.lesson.slug)) return false;
+        seenSlugs.add(p.lesson.slug);
+        return true;
+    });
+}
+
+/**
+ * Orders lessons by type, then slug, in code-unit order and not locale order,
+ * so the injected context is the same on every machine.
+ */
+function sortByTypeThenSlug(lessons: readonly ParsedLesson[]): ParsedLesson[] {
+    return [...lessons].sort((a, b) => {
+        const typeOrder = compareCodeUnits(a.lesson.type, b.lesson.type);
+        if (typeOrder !== 0) return typeOrder;
+        return compareCodeUnits(a.lesson.slug, b.lesson.slug);
+    });
+}
+
+/**
+ * The lessons that apply to the event: on SessionStart every invariant, and
+ * otherwise those whose triggers match the files being touched.
+ */
+function selectMatchedLessons(
+    lessons: readonly ParsedLesson[],
+    hookEventName: string,
+    filePaths: readonly string[],
+    fileContents: ReadonlyMap<string, string>,
+): readonly ParsedLesson[] {
+    if (hookEventName === "SessionStart") {
+        // SessionStart injects all invariant lessons regardless of triggers
+        return lessons.filter((p) => p.lesson.type === "invariant");
+    }
+    // Precompute once per execute() call (not per-lesson) for efficiency
+    const segments = extractPathSegments(filePaths);
+    const normalizedPaths = filePaths.map((p) => p.replace(/\\/g, "/"));
+    // Precompile glob matchers per-lesson-position (not keyed by slug —
+    // two lessons may share a slug while carrying different triggers.paths,
+    // and a slug-keyed Map would silently overwrite the first matcher with
+    // the second, causing incorrect matching).
+    const globMatchers = lessons.map((p) => {
+        const { paths } = p.lesson.triggers;
+        return paths.length > 0
+            ? picomatch([...paths], PICOMATCH_OPTIONS)
+            : null;
+    });
+    return lessons.filter((p, i) =>
+        matchesLesson(
+            p.lesson,
+            filePaths,
+            fileContents,
+            segments,
+            normalizedPaths,
+            globMatchers[i] ?? null,
+        ),
+    );
+}
+
+/** Joins the rendered lessons until the aggregate cap, and counts those left out. */
+function assembleLessons(sorted: readonly ParsedLesson[]): {
+    assembled: string;
+    truncatedCount: number;
+} {
+    let assembled = "";
+    let truncatedCount = 0;
+    for (const parsed of sorted) {
+        const rendered = renderLesson(parsed);
+        const separator = assembled.length > 0 ? "\n\n" : "";
+        const candidate = assembled + separator + rendered;
+        if (candidate.length > AGGREGATE_TRUNCATE_CHARS) {
+            truncatedCount++;
+        } else {
+            assembled = candidate;
+        }
+    }
+    return { assembled, truncatedCount };
+}
+
+/** Appends the note that lessons were left out, keeping the whole within the cap. */
+function withTruncationNote(assembled: string, truncatedCount: number): string {
+    if (truncatedCount === 0) {
+        return assembled;
+    }
+    const note = `\n\n_(${truncatedCount} additional lesson${truncatedCount === 1 ? "" : "s"} truncated due to length cap)_`;
+    // Trim assembled to ensure the full string (assembled + note) stays
+    // within the cap — the loop above only enforces the cap for lesson
+    // bodies, not for the footer appended here.
+    const trimmedAssembled =
+        assembled.length + note.length > AGGREGATE_TRUNCATE_CHARS
+            ? assembled.slice(0, AGGREGATE_TRUNCATE_CHARS - note.length)
+            : assembled;
+    return trimmedAssembled + note;
+}
+
 export class LessonContextUseCase {
     constructor(private readonly gateway: LessonFileGatewayPort) {}
 
@@ -141,80 +238,17 @@ export class LessonContextUseCase {
             };
         }
 
-        let matched: readonly ParsedLesson[];
-        if (hookEventName === "SessionStart") {
-            // SessionStart injects all invariant lessons regardless of triggers
-            matched = result.lessons.filter(
-                (p) => p.lesson.type === "invariant",
-            );
-        } else {
-            // Precompute once per execute() call (not per-lesson) for efficiency
-            const segments = extractPathSegments(filePaths);
-            const normalizedPaths = filePaths.map((p) => p.replace(/\\/g, "/"));
-            // Precompile glob matchers per-lesson-position (not keyed by slug —
-            // two lessons may share a slug while carrying different triggers.paths,
-            // and a slug-keyed Map would silently overwrite the first matcher with
-            // the second, causing incorrect matching).
-            const globMatchers = result.lessons.map((p) => {
-                const { paths } = p.lesson.triggers;
-                return paths.length > 0
-                    ? picomatch([...paths], PICOMATCH_OPTIONS)
-                    : null;
-            });
-            matched = result.lessons.filter((p, i) =>
-                matchesLesson(
-                    p.lesson,
-                    filePaths,
-                    fileContents,
-                    segments,
-                    normalizedPaths,
-                    globMatchers[i] ?? null,
-                ),
-            );
-        }
-
-        let assembled = "";
-        let truncatedCount = 0;
-
-        // Dedup by slug (keep first occurrence), then sort: type asc, then slug asc
-        const seenSlugs = new Set<string>();
-        const deduped = matched.filter((p) => {
-            if (seenSlugs.has(p.lesson.slug)) return false;
-            seenSlugs.add(p.lesson.slug);
-            return true;
-        });
-        // Code-unit order, not locale order, so the injected context is the
-        // same on every machine.
-        const sorted = [...deduped].sort(
-            (a, b) =>
-                compareCodeUnits(a.lesson.type, b.lesson.type) ||
-                compareCodeUnits(a.lesson.slug, b.lesson.slug),
+        const matched = selectMatchedLessons(
+            result.lessons,
+            hookEventName,
+            filePaths,
+            fileContents,
         );
 
-        for (const parsed of sorted) {
-            const rendered = renderLesson(parsed);
-            const separator = assembled.length > 0 ? "\n\n" : "";
-            const candidate = assembled + separator + rendered;
-            if (candidate.length > AGGREGATE_TRUNCATE_CHARS) {
-                truncatedCount++;
-            } else {
-                assembled = candidate;
-            }
-        }
-
-        let additionalContext = assembled;
-
-        if (truncatedCount > 0) {
-            const note = `\n\n_(${truncatedCount} additional lesson${truncatedCount === 1 ? "" : "s"} truncated due to length cap)_`;
-            // Trim assembled to ensure the full string (assembled + note) stays
-            // within the cap — the loop above only enforces the cap for lesson
-            // bodies, not for the footer appended here.
-            const trimmedAssembled =
-                assembled.length + note.length > AGGREGATE_TRUNCATE_CHARS
-                    ? assembled.slice(0, AGGREGATE_TRUNCATE_CHARS - note.length)
-                    : assembled;
-            additionalContext = trimmedAssembled + note;
-        }
+        const { assembled, truncatedCount } = assembleLessons(
+            sortByTypeThenSlug(dedupeBySlug(matched)),
+        );
+        const additionalContext = withTruncationNote(assembled, truncatedCount);
 
         return {
             additionalContext,
