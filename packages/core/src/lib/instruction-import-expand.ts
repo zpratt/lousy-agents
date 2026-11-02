@@ -375,16 +375,60 @@ class ExpansionSession {
     }
 
     /**
-     * Reports that the edge limit stopped an importer, once per importer:
-     * the first token it could not expand carries the diagnostic, and the
-     * tokens after it are left alone without one each.
+     * Reports that a size limit stopped an importer, once per importer: the
+     * first token it could not expand carries the diagnostic, and the tokens
+     * after it are left alone without one each.
      */
-    recordEdgeLimit(importer: string, token: ImportToken): void {
+    recordLimitAtToken(
+        importer: string,
+        token: ImportToken,
+        message?: string,
+    ): void {
         if (this.importersAtTheLimit.has(importer)) {
             return;
         }
         this.importersAtTheLimit.add(importer);
-        this.recordFailure(importer, token, "size-exceeded");
+        this.recordFailure(
+            importer,
+            token,
+            "size-exceeded",
+            undefined,
+            message,
+        );
+    }
+
+    /**
+     * Reports that the importer has more `@` tokens than the limit, the cause
+     * of a stop that is neither a file size nor a graph size.
+     */
+    recordTokenLimitAtToken(importer: string, token: ImportToken): void {
+        this.recordLimitAtToken(
+            importer,
+            token,
+            `Too many @ tokens (the limit is ${this.limits.maxEdges}), so this import and the ones after it in ${importer} were not expanded: ${token.rawTarget}`,
+        );
+    }
+
+    /**
+     * Reports that the emit budget cut the text of an importer short, from the
+     * offset where the text stopped to its end. An importer already reported
+     * for hitting a size limit is not reported again. The budget is spent once
+     * it has cut text, so no importer is expanded again after this.
+     */
+    recordClippedContent(
+        importer: string,
+        stoppedAt: number,
+        contentLength: number,
+    ): void {
+        if (this.importersAtTheLimit.has(importer)) {
+            return;
+        }
+        this.diagnostics.push({
+            ruleId: RULE_ID_BY_STATUS["size-exceeded"],
+            message: `Effective instruction content stopped at ${this.limits.maxEmittedBytes} characters, so the rest of this file was not analyzed.`,
+            filePath: importer,
+            range: { start: stoppedAt, end: contentLength },
+        });
     }
 
     get remainingEmitBudget(): number {
@@ -405,7 +449,7 @@ class ExpansionSession {
         };
     }
 
-    recordEdge(edge: ImportEdge): void {
+    recordEdge(edge: ImportEdge, message?: string): void {
         this.edges.push(edge);
         // Failures always carry ruleId; resolved edges do not.
         if (!edge.ruleId) {
@@ -413,7 +457,7 @@ class ExpansionSession {
         }
         this.diagnostics.push({
             ruleId: edge.ruleId,
-            message: messageForFailure(edge.status, edge.rawTarget),
+            message: message ?? messageForFailure(edge.status, edge.rawTarget),
             filePath: edge.importer,
             range: edge.tokenRange,
         });
@@ -424,15 +468,19 @@ class ExpansionSession {
         token: ImportToken,
         status: ImportEdgeStatus,
         target?: string,
+        message?: string,
     ): void {
-        this.recordEdge({
-            importer,
-            tokenRange: { start: token.start, end: token.end },
-            rawTarget: token.rawTarget,
-            target,
-            status,
-            ruleId: ruleIdForStatus(status),
-        });
+        this.recordEdge(
+            {
+                importer,
+                tokenRange: { start: token.start, end: token.end },
+                rawTarget: token.rawTarget,
+                target,
+                status,
+                ruleId: ruleIdForStatus(status),
+            },
+            message,
+        );
     }
 
     recordResolved(importer: string, token: ImportToken, target: string): void {
@@ -591,6 +639,12 @@ class ContentBuilder {
     }
 }
 
+interface EmitOutcome {
+    readonly complete: boolean;
+    /** Source offset the emitted text reaches */
+    readonly stoppedAt: number;
+}
+
 function emitSourceSlice(
     session: ExpansionSession,
     builder: ContentBuilder,
@@ -599,15 +653,36 @@ function emitSourceSlice(
     from: number,
     to: number,
     importChain: readonly string[],
-): boolean {
+): EmitOutcome {
     if (to <= from) {
-        return true;
+        return { complete: true, stoppedAt: from };
     }
     const { emitted, complete } = session.takeEmitBudget(
         content.slice(from, to),
     );
     builder.appendLiteral(sourcePath, from, emitted, importChain);
-    return complete;
+    return { complete, stoppedAt: from + emitted.length };
+}
+
+const NON_BLANK = /\S/;
+
+/**
+ * Reports text the emit budget cut off, unless nothing but whitespace was
+ * lost, which no reader of the file would miss.
+ */
+function recordIfClipped(
+    session: ExpansionSession,
+    sourcePath: string,
+    content: string,
+    outcome: EmitOutcome,
+): void {
+    if (!outcome.complete && NON_BLANK.test(content.slice(outcome.stoppedAt))) {
+        session.recordClippedContent(
+            sourcePath,
+            outcome.stoppedAt,
+            content.length,
+        );
+    }
 }
 
 async function expandToken(
@@ -621,7 +696,7 @@ async function expandToken(
     outputOffset: number,
 ): Promise<TokenExpansion> {
     if (!session.hasEdgeBudgetLeft()) {
-        session.recordEdgeLimit(importerPath, token);
+        session.recordTokenLimitAtToken(importerPath, token);
         return { kind: "unexpanded" };
     }
 
@@ -705,7 +780,7 @@ async function expandContent(
     let cursor = 0;
 
     for (const token of tokens) {
-        const literalOk = emitSourceSlice(
+        const literal = emitSourceSlice(
             session,
             builder,
             sourcePath,
@@ -714,8 +789,8 @@ async function expandContent(
             token.start,
             importChain,
         );
-        if (!literalOk) {
-            session.recordFailure(sourcePath, token, "size-exceeded");
+        if (!literal.complete) {
+            session.recordLimitAtToken(sourcePath, token);
             emitSourceSlice(
                 session,
                 builder,
@@ -742,7 +817,7 @@ async function expandContent(
         if (expansion.kind === "expanded") {
             builder.appendExpanded(expansion.content, expansion.segments);
         } else {
-            const tokenOk = emitSourceSlice(
+            const emittedToken = emitSourceSlice(
                 session,
                 builder,
                 sourcePath,
@@ -751,7 +826,8 @@ async function expandContent(
                 token.end,
                 importChain,
             );
-            if (!tokenOk) {
+            if (!emittedToken.complete) {
+                recordIfClipped(session, sourcePath, content, emittedToken);
                 return builder.toResult();
             }
         }
@@ -759,14 +835,19 @@ async function expandContent(
         cursor = token.end;
     }
 
-    emitSourceSlice(
+    recordIfClipped(
         session,
-        builder,
         sourcePath,
         content,
-        cursor,
-        content.length,
-        importChain,
+        emitSourceSlice(
+            session,
+            builder,
+            sourcePath,
+            content,
+            cursor,
+            content.length,
+            importChain,
+        ),
     );
     return builder.toResult();
 }

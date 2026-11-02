@@ -943,6 +943,168 @@ describe("buildEffectiveDocument", () => {
             expect(result.edges[0]?.status).toBe("resolved");
         });
 
+        describe("when the emit budget clips the content of a file", () => {
+            const SizeExceeded = "instruction/import-size-exceeded";
+
+            function sizeExceeded(
+                result: Awaited<ReturnType<typeof buildEffectiveDocument>>,
+            ) {
+                return result.expansionDiagnostics.filter(
+                    (diagnostic) => diagnostic.ruleId === SizeExceeded,
+                );
+            }
+
+            it("should report the file that has no import and is longer than the budget, from where it was cut", async () => {
+                await writeFile(join(repoRoot, "CLAUDE.md"), "ABCDEFGH\n");
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                    limits: { maxEmittedBytes: 4 },
+                });
+
+                expect(result.content).toBe("ABCD");
+                expect(sizeExceeded(result)).toEqual([
+                    {
+                        ruleId: SizeExceeded,
+                        message:
+                            "Effective instruction content stopped at 4 characters, so the rest of this file was not analyzed.",
+                        filePath: "CLAUDE.md",
+                        range: { start: 4, end: 9 },
+                    },
+                ]);
+            });
+
+            it("should report a text that fits the budget exactly as complete", async () => {
+                await writeFile(join(repoRoot, "CLAUDE.md"), "ABCD");
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                    limits: { maxEmittedBytes: 4 },
+                });
+
+                expect(result.content).toBe("ABCD");
+                expect(sizeExceeded(result)).toEqual([]);
+            });
+
+            it("should not report a cut that only lost whitespace", async () => {
+                await writeFile(join(repoRoot, "CLAUDE.md"), "ABCD\n  \n");
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                    limits: { maxEmittedBytes: 4 },
+                });
+
+                expect(result.content).toBe("ABCD");
+                expect(sizeExceeded(result)).toEqual([]);
+            });
+
+            it("should report the text after the last import that was cut", async () => {
+                await writeFile(
+                    join(repoRoot, "CLAUDE.md"),
+                    "X\n@./body.md\nTAIL\n",
+                );
+                await writeFile(join(repoRoot, "body.md"), "ABCD");
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                    limits: { maxEmittedBytes: 6 },
+                });
+
+                expect(sizeExceeded(result)).toMatchObject([
+                    { filePath: "CLAUDE.md", range: { start: 12, end: 18 } },
+                ]);
+            });
+
+            it("should report an import token that was cut in the middle", async () => {
+                await writeFile(join(repoRoot, "CLAUDE.md"), "X\n@./gone.md\n");
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                    limits: { maxEmittedBytes: 6 },
+                });
+
+                expect(result.content).toBe("X\n@./g");
+                expect(sizeExceeded(result)).toMatchObject([
+                    { filePath: "CLAUDE.md", range: { start: 6, end: 13 } },
+                ]);
+            });
+
+            it("should report an imported file that was cut, under its own path", async () => {
+                await writeFile(join(repoRoot, "CLAUDE.md"), "@./body.md\n");
+                await writeFile(join(repoRoot, "body.md"), "ABCDEFGH");
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                    limits: { maxEmittedBytes: 4 },
+                });
+
+                expect(sizeExceeded(result)).toMatchObject([
+                    { filePath: "body.md", range: { start: 4, end: 8 } },
+                ]);
+            });
+
+            it("should report a file once when the edge limit stopped it and its last text was cut", async () => {
+                await writeFile(
+                    join(repoRoot, "CLAUDE.md"),
+                    "@./a.md\n@./b.md\nTAIL-TEXT\n",
+                );
+                await writeFile(join(repoRoot, "a.md"), "A");
+                await writeFile(join(repoRoot, "b.md"), "B");
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                    limits: { maxEdges: 1, maxEmittedBytes: 10 },
+                });
+
+                expect(sizeExceeded(result)).toMatchObject([
+                    { filePath: "CLAUDE.md", range: { start: 8, end: 15 } },
+                ]);
+            });
+
+            it("should report a file once when the edge limit stopped it and a later stretch of text was cut", async () => {
+                await writeFile(
+                    join(repoRoot, "CLAUDE.md"),
+                    "@./a.md\n@./b.md\nLONG-LITERAL-TEXT\n@./c.md\n",
+                );
+                await writeFile(join(repoRoot, "a.md"), "A");
+                await writeFile(join(repoRoot, "b.md"), "B");
+                await writeFile(join(repoRoot, "c.md"), "C");
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                    limits: { maxEdges: 1, maxEmittedBytes: 10 },
+                });
+
+                expect(sizeExceeded(result)).toMatchObject([
+                    { filePath: "CLAUDE.md", range: { start: 8, end: 15 } },
+                ]);
+            });
+
+            it("should report a file once when its text before an import and the rest were all cut", async () => {
+                await writeFile(
+                    join(repoRoot, "CLAUDE.md"),
+                    "PREFIXPREFIX\n@./body.md\n",
+                );
+                await writeFile(join(repoRoot, "body.md"), "BODY\n");
+
+                const result = await buildEffectiveDocument({
+                    repoRoot,
+                    rootRelativePath: "CLAUDE.md",
+                    limits: { maxEmittedBytes: 4 },
+                });
+
+                expect(sizeExceeded(result)).toHaveLength(1);
+            });
+        });
+
         it("should leave a token unexpanded when the emit budget is already exhausted", async () => {
             // Prefix alone consumes the entire budget before the import token.
             // Correct full-fit (`text.length <= room`) still enters expandToken,
