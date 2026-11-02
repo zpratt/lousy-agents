@@ -185,6 +185,22 @@ describe("inspectPathWithinRoot", () => {
         },
     );
 
+    it.skipIf(process.platform === "win32")(
+        "should report outside-root for a symlink into a sibling directory whose name starts with the root's name",
+        async () => {
+            const sibling = join(workDir, "root-evil");
+            await mkdir(sibling);
+            const secret = join(await realpath(sibling), `${chance.word()}.md`);
+            const link = join(rootReal, `${chance.word()}-link.md`);
+            await writeFile(secret, chance.sentence());
+            await symlink(secret, link);
+
+            const result = await inspectPathWithinRoot(rootReal, link);
+
+            expect(result).toEqual({ status: "outside-root" });
+        },
+    );
+
     it("should report missing for a path that does not exist", async () => {
         const result = await inspectPathWithinRoot(
             rootReal,
