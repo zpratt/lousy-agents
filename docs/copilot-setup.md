@@ -106,6 +106,8 @@ npx @lousy-agents/cli copilot-setup
 # Adds actions/setup-python to existing workflow
 ```
 
+Missing setup steps are added to the `copilot-setup-steps` job, because Copilot runs only that job. When the workflow has no job with that name, they are added to the first job. A step the job already has is not added again: an action step is matched by the action's name, and an install command (a `run` step) is matched by its command with leading and trailing whitespace removed. Running `copilot-setup` a second time therefore changes nothing.
+
 ## npm Project Integration (agent-shell)
 
 After generating or updating the workflow, the command detects whether the project is an npm project. If it is, it prompts you to add [agent-shell](../packages/agent-shell/README.md) as npm's script shell for structured telemetry:

@@ -112,6 +112,21 @@ console.log(DEFAULT_LINT_RULES.skills);
 
 ---
 
+### `isRunLevelRuleId(ruleId)`
+
+Returns whether a rule ID is one whose diagnostics describe the whole run and not a place in one file: they are reported on the repository root at line 1 (an `undefined` rule ID is not). A reporter that keeps only diagnostics on changed files or lines (reviewdog's default diff filter, for example) would drop them, so surface them some other way. Today it accepts `instruction/discovery-limit-reached` (instruction discovery stopped at a directory, depth or entry limit) and `instruction/discovery-symlink-skipped` (discovery skipped symbolic links that point outside the repository).
+
+```typescript
+import { runLint, isRunLevelRuleId } from '@lousy-agents/lint';
+
+const result = await runLint({ directory: '/path/to/project' });
+const runLevel = result.outputs
+  .flatMap((output) => output.diagnostics)
+  .filter((diagnostic) => isRunLevelRuleId(diagnostic.ruleId));
+```
+
+---
+
 ### `LintValidationError`
 
 Thrown when user-supplied input fails validation. Catch this to distinguish user-input errors from system errors.
