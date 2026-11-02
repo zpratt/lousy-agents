@@ -592,4 +592,58 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
             expect(diagnostics).toEqual([]);
         });
     });
+
+    describe("when the entry budget is reached in one location and not in a later one", () => {
+        it("should still report the limit, since the flag is kept across locations", async () => {
+            const agents = join(testDir, ".github", "agents");
+            const instructions = join(testDir, ".github", "instructions");
+            await mkdir(agents, { recursive: true });
+            await mkdir(instructions, { recursive: true });
+            for (const name of ["a", "b", "c"]) {
+                await writeFile(join(agents, `${name}.md`), chance.sentence());
+            }
+            await writeFile(
+                join(instructions, "only.instructions.md"),
+                chance.sentence(),
+            );
+            const capped = new FileSystemInstructionFileDiscoveryGateway({
+                maxEntries: 2,
+            });
+            const diagnostics: InstructionDiscoveryDiagnostic[] = [];
+
+            await capped.discoverInstructionFiles(testDir, (diagnostic) =>
+                diagnostics.push(diagnostic),
+            );
+
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    ruleId: "instruction/discovery-limit-reached",
+                    message: expect.stringContaining("2 directory entries"),
+                }),
+            ]);
+        });
+    });
+
+    describe("when the directory cap is reached in one location and a later location is absent", () => {
+        it("should still report the limit, since the flag is kept across locations", async () => {
+            const agents = join(testDir, ".github", "agents");
+            await mkdir(agents, { recursive: true });
+            await writeFile(join(agents, "a.md"), chance.sentence());
+            const capped = new FileSystemInstructionFileDiscoveryGateway({
+                maxDirectories: 0,
+            });
+            const diagnostics: InstructionDiscoveryDiagnostic[] = [];
+
+            await capped.discoverInstructionFiles(testDir, (diagnostic) =>
+                diagnostics.push(diagnostic),
+            );
+
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    ruleId: "instruction/discovery-limit-reached",
+                    message: expect.stringContaining("0 directories"),
+                }),
+            ]);
+        });
+    });
 });

@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { link, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -350,4 +351,32 @@ describe("readRegularFileNoFollow identity and size checks on the opened file", 
         expect(outcome).toEqual({ ok: true, content: "" });
         expect(read).toHaveBeenCalled();
     });
+});
+
+describe("readRegularFileNoFollow on a named pipe", () => {
+    it.skipIf(process.platform === "win32")(
+        "should report not-regular at once instead of waiting for a writer",
+        async () => {
+            const directory = join(
+                tmpdir(),
+                `read-fifo-${chance.hash({ length: 8 })}`,
+            );
+            await mkdir(directory, { recursive: true });
+            const pipe = join(directory, "pipe.md");
+            execFileSync("mkfifo", [pipe]);
+
+            try {
+                const outcome = await Promise.race([
+                    readRegularFileNoFollow(pipe, CAP_BYTES),
+                    new Promise<"hung">((resolve) =>
+                        setTimeout(() => resolve("hung"), 2_000),
+                    ),
+                ]);
+
+                expect(outcome).toEqual({ ok: false, reason: "not-regular" });
+            } finally {
+                await rm(directory, { recursive: true, force: true });
+            }
+        },
+    );
 });

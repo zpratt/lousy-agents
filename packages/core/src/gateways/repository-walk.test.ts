@@ -459,6 +459,75 @@ describe("walkRepository", () => {
         });
     });
 
+    describe("a directory entry name that could escape its directory", () => {
+        function listing(...names: string[]) {
+            return async () => names.map((name) => ({ name }));
+        }
+
+        it.each([
+            ["the current directory", "."],
+            ["the parent directory", ".."],
+        ])("should not spend entry budget on %s", async (_, name) => {
+            await write("ok.md");
+
+            const result = await walkRepository(root, {
+                startRelativePath: "",
+                includeFile: isMarkdown,
+                maxEntries: 1,
+                listDirectory: listing(name, "ok.md"),
+            });
+
+            expect(result.files.map((f) => f.relativePath)).toEqual(["ok.md"]);
+            expect(result.entryLimitReached).toBe(false);
+        });
+
+        it("should not follow a name that holds a forward slash into a subdirectory", async () => {
+            await write("nested/inner.md");
+
+            const result = await walkRepository(root, {
+                startRelativePath: "",
+                includeFile: isMarkdown,
+                listDirectory: listing("nested/inner.md"),
+            });
+
+            expect(result.files).toEqual([]);
+        });
+
+        it.skipIf(process.platform === "win32")(
+            "should skip a name that holds a backslash",
+            async () => {
+                const name = "windows\\style.md";
+                await write(name);
+
+                const result = await walkRepository(root, {
+                    startRelativePath: "",
+                    includeFile: isMarkdown,
+                    listDirectory: listing(name),
+                });
+
+                expect(result.files).toEqual([]);
+            },
+        );
+    });
+
+    describe("a file name with two dots in it", () => {
+        it.each([
+            "review..strict.md",
+            "a..instructions.md",
+            "..hidden.md",
+            "trailing...md",
+        ])("should find %s, which is an ordinary name", async (name) => {
+            await write(name);
+
+            const result = await walkRepository(root, {
+                startRelativePath: "",
+                includeFile: isMarkdown,
+            });
+
+            expect(result.files.map((f) => f.relativePath)).toEqual([name]);
+        });
+    });
+
     describe("a directory that cannot be listed", () => {
         it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
             "should be skipped without failing the walk, and the files elsewhere should still be returned",
@@ -483,6 +552,31 @@ describe("walkRepository", () => {
                 } finally {
                     await chmod(join(root, "b"), 0o755);
                 }
+            },
+        );
+    });
+
+    describe("an entry that cannot be inspected", () => {
+        it.skipIf(process.platform === "win32")(
+            "should be skipped without failing the walk, and the files beside it should still be returned",
+            async () => {
+                await write("a/a.md");
+                await write("c/c.md");
+                await symlink("loop.md", join(root, "a", "loop.md"));
+
+                const result = await walkRepository(root, {
+                    startRelativePath: "",
+                    includeFile: isMarkdown,
+                    includeSubdirectories: true,
+                });
+
+                expect(result.files.map((f) => f.relativePath)).toEqual([
+                    "a/a.md",
+                    "c/c.md",
+                ]);
+                expect(result.directoryLimitReached).toBe(false);
+                expect(result.depthLimitReached).toBe(false);
+                expect(result.entryLimitReached).toBe(false);
             },
         );
     });

@@ -76,6 +76,12 @@ export interface BoundedReadOptions {
 }
 
 const READ_CHUNK_BYTES = 64 * 1024;
+/**
+ * Opening a named pipe for reading waits for a writer. With O_NONBLOCK the
+ * open returns at once, and the check on the open descriptor then refuses
+ * anything that is not a regular file. It has no effect on a regular file.
+ */
+const NON_BLOCKING = constants.O_NONBLOCK ?? 0;
 
 function isSameFile(a: FileIdentity, b: FileIdentity): boolean {
     return a.dev === b.dev && a.ino === b.ino;
@@ -116,9 +122,10 @@ async function openForBoundedRead(
         if (await isSymlinkWithoutKernelSupport(fs, filePath)) {
             return { failure: "symlink" };
         }
-        const flags = hasKernelNoFollow(fs)
-            ? constants.O_RDONLY | constants.O_NOFOLLOW
-            : constants.O_RDONLY;
+        const flags =
+            (hasKernelNoFollow(fs)
+                ? constants.O_RDONLY | constants.O_NOFOLLOW
+                : constants.O_RDONLY) | NON_BLOCKING;
         return { handle: await fs.open(filePath, flags) };
     } catch (error: unknown) {
         return { failure: isEloopError(error) ? "symlink" : "unreadable" };
