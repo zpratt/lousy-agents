@@ -338,6 +338,8 @@ class ExpansionSession {
     private readonly uniqueFiles = new Set<string>();
     private readonly edges: ImportEdge[] = [];
     private readonly diagnostics: ExpansionDiagnostic[] = [];
+    private readonly importersAtTheLimit = new Set<string>();
+    private tokensAttempted = 0;
     private emittedBytes = 0;
 
     constructor(
@@ -357,6 +359,32 @@ class ExpansionSession {
 
     get edgeCount(): number {
         return this.edges.length;
+    }
+
+    /**
+     * Counts a token against the edge limit. Every token counts, including
+     * one that is not clearly a path and does not resolve, so the work a file
+     * can cost is bounded by the limit and not by its size.
+     */
+    hasEdgeBudgetLeft(): boolean {
+        if (this.tokensAttempted >= this.limits.maxEdges) {
+            return false;
+        }
+        this.tokensAttempted += 1;
+        return true;
+    }
+
+    /**
+     * Reports that the edge limit stopped an importer, once per importer:
+     * the first token it could not expand carries the diagnostic, and the
+     * tokens after it are left alone without one each.
+     */
+    recordEdgeLimit(importer: string, token: ImportToken): void {
+        if (this.importersAtTheLimit.has(importer)) {
+            return;
+        }
+        this.importersAtTheLimit.add(importer);
+        this.recordFailure(importer, token, "size-exceeded");
     }
 
     get remainingEmitBudget(): number {
@@ -592,8 +620,8 @@ async function expandToken(
     importChain: readonly string[],
     outputOffset: number,
 ): Promise<TokenExpansion> {
-    if (session.edgeCount >= session.limits.maxEdges) {
-        session.recordFailure(importerPath, token, "size-exceeded");
+    if (!session.hasEdgeBudgetLeft()) {
+        session.recordEdgeLimit(importerPath, token);
         return { kind: "unexpanded" };
     }
 

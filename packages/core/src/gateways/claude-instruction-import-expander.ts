@@ -3,7 +3,10 @@
  */
 
 import { isAbsolute, join, relative, sep } from "node:path";
-import { offsetToSourcePosition } from "../entities/source-position.js";
+import {
+    createSourcePositionIndex,
+    type SourcePosition,
+} from "../entities/source-position.js";
 import {
     buildEffectiveDocument,
     DEFAULT_MAX_FILE_BYTES,
@@ -58,12 +61,17 @@ function toAbsolutePath(repoRoot: string, relativePosixPath: string): string {
  * can no longer be read safely has no content, so its diagnostics fall back to
  * line 1, column 1 instead of failing the whole expansion.
  */
+type PositionOf = (offset: number) => SourcePosition;
+
 async function readImporterSource(
     readSource: ReadImporterSource,
     absolutePath: string,
-): Promise<readonly [string, string | null]> {
+): Promise<readonly [string, PositionOf | null]> {
     const outcome = await readSource(absolutePath, DEFAULT_MAX_FILE_BYTES);
-    return [absolutePath, outcome.ok ? outcome.content : null];
+    return [
+        absolutePath,
+        outcome.ok ? createSourcePositionIndex(outcome.content) : null,
+    ];
 }
 
 async function mapExpansionDiagnostics(
@@ -105,9 +113,9 @@ function toExpansionDiagnostic(
         readonly range?: { readonly start: number; readonly end: number };
     },
     absolutePath: string,
-    content: string | null,
+    positionOf: PositionOf | null,
 ): ClaudeImportExpansionDiagnostic {
-    if (diagnostic.range === undefined || content === null) {
+    if (diagnostic.range === undefined || positionOf === null) {
         return {
             ruleId: diagnostic.ruleId,
             message: diagnostic.message,
@@ -117,8 +125,8 @@ function toExpansionDiagnostic(
         };
     }
 
-    const start = offsetToSourcePosition(content, diagnostic.range.start);
-    const end = offsetToSourcePosition(content, diagnostic.range.end);
+    const start = positionOf(diagnostic.range.start);
+    const end = positionOf(diagnostic.range.end);
     return {
         ruleId: diagnostic.ruleId,
         message: diagnostic.message,
