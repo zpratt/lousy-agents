@@ -2,7 +2,6 @@ import { findImportTokens } from "@lousy-agents/core/lib/instruction-import-expa
 import { parse as parseYaml } from "yaml";
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/;
-const MARKDOWN_LINK_RE = /\[(?:[^\]]*)\]\(([^)]+)\)/g;
 const SOFT_REF_FRONTMATTER_KEYS = ["see", "references", "requires"] as const;
 
 interface ParsedFrontmatter {
@@ -91,8 +90,41 @@ function hardImportEdges(body: string): RawEdge[] {
     );
 }
 
+/**
+ * The targets of the `[text](target)` links in a body, in order: an opening
+ * bracket, the text up to the first closing bracket after it, an opening
+ * parenthesis right behind that bracket, and a non-empty target up to the
+ * first closing parenthesis. One pass: every opening bracket before the same
+ * closing bracket gets the same answer, so a failed attempt skips to the
+ * first opening bracket after that closing bracket, and a missing closer
+ * ends the scan, since nothing after it can match either.
+ */
+function markdownLinkTargets(body: string): string[] {
+    const targets: string[] = [];
+    let open = body.indexOf("[");
+    while (open !== -1) {
+        const close = body.indexOf("]", open + 1);
+        if (close === -1) {
+            break;
+        }
+        if (body[close + 1] === "(") {
+            const end = body.indexOf(")", close + 2);
+            if (end === -1) {
+                break;
+            }
+            if (end > close + 2) {
+                targets.push(body.slice(close + 2, end));
+                open = body.indexOf("[", end + 1);
+                continue;
+            }
+        }
+        open = body.indexOf("[", close + 1);
+    }
+    return targets;
+}
+
 function markdownLinkEdges(body: string): RawEdge[] {
-    return Array.from(body.matchAll(MARKDOWN_LINK_RE), (match) => match[1])
+    return markdownLinkTargets(body)
         .filter((href) => !isExternalUrl(href) && isInstructionFilePath(href))
         .map((href): RawEdge => ({ type: "soft-reference", rawTarget: href }));
 }
