@@ -19,7 +19,6 @@ export type {
 export {
     hasBlockingFindings,
     renderHuman,
-    warnAboutFindings,
 } from "./formatters/human-renderer.js";
 export type {
     ReportInventoryItem,
@@ -33,11 +32,7 @@ export {
     readIntentArtifact,
     writeIntentArtifact,
 } from "./gateways/intent-artifact.js";
-export type { ScanReport } from "./gateways/scanner.js";
-export {
-    scanRepository,
-    scanRepositoryWithReport,
-} from "./gateways/scanner.js";
+export { scanRepository } from "./gateways/scanner.js";
 export {
     createWisdomClient,
     WisdomUnavailableError,
@@ -46,5 +41,4 @@ export type { DoctorFormat } from "./lib/doctor-options.js";
 export { classifyArchetype } from "./use-cases/classify-archetype.js";
 export { CRITERIA } from "./use-cases/criteria.js";
 export { detectAmbiguities } from "./use-cases/detect-ambiguities.js";
-export { discoveryLimitFindings } from "./use-cases/discovery-limit-finding.js";
 export { evaluate } from "./use-cases/evaluate-engine.js";
