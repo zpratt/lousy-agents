@@ -46,3 +46,24 @@ export function describeDiscoveryLimits(
     }
     return sentences;
 }
+
+/** How many paths a message names before it counts the rest. */
+const NAMED_PATHS = 5;
+
+/**
+ * The first few paths joined with commas, and a count of the rest, so a
+ * message about a fan-out stays readable: "a, b, c, d, e, and 3 more".
+ */
+export function listPaths(paths: readonly string[]): string {
+    const listed = paths.slice(0, NAMED_PATHS).join(", ");
+    const unlisted = paths.length - NAMED_PATHS;
+    return unlisted > 0 ? `${listed}, and ${unlisted} more` : listed;
+}
+
+/**
+ * The message for instruction file discovery skipping symbolic links that
+ * point outside the repository, so their targets were not analyzed.
+ */
+export function describeSkippedSymlinks(paths: readonly string[]): string {
+    return `Instruction file discovery skipped ${paths.length} symbolic link(s) that point outside the repository, so their targets were not analyzed: ${listPaths(paths)}. Replace a link with a file inside the repository to have it analyzed.`;
+}

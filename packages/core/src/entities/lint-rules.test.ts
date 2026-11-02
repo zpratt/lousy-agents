@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
     DEFAULT_LINT_RULES,
+    DISCOVERY_LIMIT_REACHED_RULE_ID,
+    DISCOVERY_SYMLINK_SKIPPED_RULE_ID,
     isRunLevelRuleId,
     type LintRulesConfig,
     type RuleSeverityConfig,
@@ -322,6 +324,29 @@ describe("isRunLevelRuleId", () => {
         );
 
         expect(knownRuleIds.filter(isRunLevelRuleId).sort()).toEqual([
+            DISCOVERY_LIMIT_REACHED_RULE_ID,
+            DISCOVERY_SYMLINK_SKIPPED_RULE_ID,
+        ]);
+    });
+});
+
+describe("the discovery rule IDs that instruction discovery emits", () => {
+    it.each([
+        ["discovery limit", DISCOVERY_LIMIT_REACHED_RULE_ID],
+        ["symlink skipped", DISCOVERY_SYMLINK_SKIPPED_RULE_ID],
+    ])(
+        "should be a registered warning and a run-level rule: %s",
+        (_, ruleId) => {
+            expect(DEFAULT_LINT_RULES.instructions[ruleId]).toBe("warn");
+            expect(isRunLevelRuleId(ruleId)).toBe(true);
+        },
+    );
+
+    it("should be the IDs the documentation names", () => {
+        expect([
+            DISCOVERY_LIMIT_REACHED_RULE_ID,
+            DISCOVERY_SYMLINK_SKIPPED_RULE_ID,
+        ]).toEqual([
             "instruction/discovery-limit-reached",
             "instruction/discovery-symlink-skipped",
         ]);

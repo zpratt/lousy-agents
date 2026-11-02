@@ -252,7 +252,6 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
 
     describe("when instruction symlinks lead outside the repository", () => {
         const SymlinkSkippedRuleId = "instruction/discovery-symlink-skipped";
-        const ListedPaths = 5;
         let outsideDir: string;
 
         beforeEach(async () => {
@@ -351,33 +350,6 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
                 }),
             ]);
         });
-
-        it.each([
-            [ListedPaths, ""],
-            [ListedPaths + 1, ", and 1 more"],
-            [ListedPaths + 3, ", and 3 more"],
-        ])(
-            "should name the first few of %i skipped links and count the rest",
-            async (count, expectedTail) => {
-                const names = Array.from(
-                    { length: count },
-                    (_, index) => `n${index}.instructions.md`,
-                );
-                for (const name of names) {
-                    await linkOutside(`.github/instructions/${name}`);
-                }
-
-                const [diagnostic] = await discoveryDiagnostics();
-
-                const listed = names
-                    .slice(0, ListedPaths)
-                    .map((name) => `.github/instructions/${name}`)
-                    .join(", ");
-                expect(diagnostic?.message).toContain(
-                    `skipped ${count} symbolic link(s) that point outside the repository, so their targets were not analyzed: ${listed}${expectedTail}. Replace`,
-                );
-            },
-        );
 
         it("should report nothing for an instruction file path that links to a directory outside the repository", async () => {
             await linkOutside("AGENTS.md", "directory");

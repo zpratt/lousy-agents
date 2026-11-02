@@ -22,6 +22,14 @@ export interface LintRulesConfig {
 /** Reported when an instruction file could not be read or parsed. */
 export const INSTRUCTION_PARSE_ERROR_RULE_ID = "instruction/parse-error";
 
+/** Reported when instruction discovery stopped at one of its limits. */
+export const DISCOVERY_LIMIT_REACHED_RULE_ID =
+    "instruction/discovery-limit-reached";
+
+/** Reported when instruction discovery skipped symbolic links that lead outside the repository. */
+export const DISCOVERY_SYMLINK_SKIPPED_RULE_ID =
+    "instruction/discovery-symlink-skipped";
+
 /** Default severity levels for all known lint rules */
 export const DEFAULT_LINT_RULES: LintRulesConfig = {
     agents: {
@@ -74,8 +82,8 @@ export const DEFAULT_LINT_RULES: LintRulesConfig = {
         "instruction/import-cycle": "warn",
         "instruction/import-depth-exceeded": "warn",
         "instruction/import-size-exceeded": "warn",
-        "instruction/discovery-limit-reached": "warn",
-        "instruction/discovery-symlink-skipped": "warn",
+        [DISCOVERY_LIMIT_REACHED_RULE_ID]: "warn",
+        [DISCOVERY_SYMLINK_SKIPPED_RULE_ID]: "warn",
     },
     skills: {
         "skill/invalid-frontmatter": "error",
@@ -91,8 +99,8 @@ export const DEFAULT_LINT_RULES: LintRulesConfig = {
 };
 
 const RUN_LEVEL_RULE_IDS: ReadonlySet<string> = new Set([
-    "instruction/discovery-limit-reached",
-    "instruction/discovery-symlink-skipped",
+    DISCOVERY_LIMIT_REACHED_RULE_ID,
+    DISCOVERY_SYMLINK_SKIPPED_RULE_ID,
 ]);
 
 /**
