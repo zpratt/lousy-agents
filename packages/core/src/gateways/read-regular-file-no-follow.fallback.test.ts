@@ -12,6 +12,7 @@ import {
 const chance = new Chance();
 
 const CAP_BYTES = 1_048_576;
+const NON_BLOCKING = constants.O_NONBLOCK ?? 0;
 
 function followingFsPort(
     kernelNoFollow: boolean,
@@ -64,7 +65,7 @@ describe("readRegularFileNoFollow on a file system without kernel O_NOFOLLOW", (
                 fs: followingFsPort(false, openedWith),
             });
 
-            expect(openedWith).toEqual([constants.O_RDONLY]);
+            expect(openedWith).toEqual([constants.O_RDONLY | NON_BLOCKING]);
         });
     });
 
@@ -118,7 +119,7 @@ describe("readRegularFileNoFollow on a file system with kernel O_NOFOLLOW", () =
             });
 
             expect(openedWith).toEqual([
-                constants.O_RDONLY | constants.O_NOFOLLOW,
+                constants.O_RDONLY | constants.O_NOFOLLOW | NON_BLOCKING,
             ]);
         },
     );

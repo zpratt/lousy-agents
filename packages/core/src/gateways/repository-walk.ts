@@ -156,9 +156,18 @@ function resolveSettings(options: RepositoryWalkOptions): WalkSettings {
     };
 }
 
-/** Whether a directory entry name could escape its directory. */
+/**
+ * Whether a directory entry name could escape its directory: a name that is
+ * the parent or current directory, or that holds a path separator. A name
+ * with two dots inside it, such as `review..strict.md`, is an ordinary name.
+ */
 function isUnsafeEntryName(name: string): boolean {
-    return name.includes("..") || name.includes("/") || name.includes("\\");
+    return (
+        name === "." ||
+        name === ".." ||
+        name.includes("/") ||
+        name.includes("\\")
+    );
 }
 
 /** Joins a repository-relative directory and an entry without a leading "/". */
