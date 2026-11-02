@@ -54,6 +54,42 @@ describe("markReferencedRecords", () => {
         );
     });
 
+    describe("when a record imports itself", () => {
+        it.each(["hard-import", "soft-reference"] as const)(
+            "should not count its own %s edge as a reference to it",
+            (edgeType) => {
+                const path = `${chance.word()}.md`;
+                const records = [
+                    inventoryRecord(path, [edge(edgeType, path, path)]),
+                ];
+
+                const result = markReferencedRecords(records);
+
+                expect(result.map((r) => r.loadMechanism)).toEqual([
+                    "convention-loaded",
+                ]);
+            },
+        );
+
+        it("should still mark it as referenced when another record points at it", () => {
+            const path = `${chance.word()}.md`;
+            const otherPath = `${chance.word()}-other.md`;
+            const records = [
+                inventoryRecord(path, [edge("hard-import", path, path)]),
+                inventoryRecord(otherPath, [
+                    edge("hard-import", otherPath, path),
+                ]),
+            ];
+
+            const result = markReferencedRecords(records);
+
+            expect(result.map((r) => r.loadMechanism)).toEqual([
+                "referenced",
+                "convention-loaded",
+            ]);
+        });
+    });
+
     describe("when an edge does not count as a reference", () => {
         it("should ignore a glob-binding edge even when its target equals a record path", () => {
             const sourcePath = `${chance.word()}.md`;
