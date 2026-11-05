@@ -1,6 +1,6 @@
 ---
 name: spec-auditor
-description: Adversarially review feature specifications, implementation plans, GitHub issues, PRDs, or EARS-format specs before coding. Use when the user asks to audit, critique, stress-test, validate, review for ambiguity, find contradictions, identify gaps, harden acceptance criteria, prepare a spec for Codex, GitHub Copilot, Claude, or another coding agent, or produce a structured flaw list for a spec-improvement loop.
+description: Adversarially review feature specifications, implementation plans, GitHub issues, PRDs, or EARS-format specs before coding. Use when the user asks to audit, critique, stress-test, validate, review for ambiguity, find contradictions, identify gaps, harden acceptance criteria, prepare a spec for Codex, GitHub Copilot, Claude, or another coding agent, or produce a structured flaw list for a spec-improvement loop. For drafting, converting, or reviewing individual EARS criteria without auditing a whole spec, use to-ears.
 argument-hint: "Path to a spec, PRD, GitHub issue, or plan to audit (or paste the spec text); optionally request JSON output"
 allowed-tools: Read, Grep, Glob, Bash
 ---
@@ -24,15 +24,16 @@ Use this skill when:
 
 Do NOT use when:
 
-- The user wants to **draft or scaffold a new spec** from a feature idea — use `feature-to-plan`.
-- The user wants to convert an approved spec into GitHub sub-issues — use `plan-to-graph`.
+- The user wants to **draft or scaffold a new spec file or one new GitHub issue** from a feature idea — use `feature-to-plan`.
+- The user wants an existing GitHub issue rewritten in place and split — use `issue-refine-loop`.
+- The user wants to convert an approved spec or epic into GitHub sub-issues — use `plan-to-graph`.
 - The user wants to triage PR review comments or automated (Copilot) review feedback — use `triaging-pr-reviews`.
 
 ## Quick Start
 
 1. Locate the spec or planning artifact to audit. Accept markdown specs, PRDs, GitHub issues, task plans, or pasted text.
 2. If repository access is available, read nearby context: `AGENTS.md`, `README.md`, `CLAUDE.md`, `.github/copilot-instructions.md`, `.github/instructions/`, `CONTRIBUTING.md`, and relevant files referenced by the spec.
-3. If shell access and Python are available, optionally run `python3 ./scripts/spec_audit_lint.py <spec-file> --format markdown` from this skill's directory for structural findings. Exit code 1 means High findings were found (not a script error); exit code 0 means none. Treat script output as a supplement, not the complete audit.
+3. If shell access and Python are available, optionally run `python3 ./scripts/spec_audit_lint.py <spec-file> --format markdown` from this skill's directory for structural findings. Exit code 0 means no High findings — Medium and Low findings may still be present, so read the output rather than trusting the exit code alone. Exit code 1 means at least one High finding. Exit code 2 means the spec could not be read (missing, a directory, or denied) and nothing was audited. Treat script output as a supplement, not the complete audit.
 4. Load `./references/audit-rubric.md` for the adversarial review passes.
 5. Load `./references/output-contract.md` before writing the final report.
 6. Load `./references/platform-guidance.md` when the user wants the report to feed Codex, GitHub Copilot, Claude, or another coding agent.
@@ -106,7 +107,19 @@ When the user asks for machine-readable output, use the JSON schema in `./refere
 
 ## Optional Static Lint Script
 
-Use `./scripts/spec_audit_lint.py` only when the runtime can read local files and run Python. It performs deterministic checks for required sections, EARS-like acceptance criteria, prematurely completed checkboxes (drafts should use unchecked `[ ]`), TODO markers, weak language, Mermaid diagrams, and task structure.
+Use `./scripts/spec_audit_lint.py` only when the runtime can read local files and run Python. It performs deterministic checks for required sections, per-story acceptance criteria, EARS-like phrasing, prematurely completed checkboxes (drafts should use unchecked `[ ]`; an answered `OQ-n` question may be `[x]`), placeholder markers, weak language, Mermaid diagram types, task structure, and the criterion-to-task trace.
+
+What it does and does not treat as spec content:
+
+- Fenced code blocks are examples, not spec content. A heading, bullet, task, checkbox, or `TODO` inside a fence is ignored, so a section shown as an illustration never satisfies a required-section check. Mermaid diagrams are the exception: they are only recognized *because* they are fenced.
+- Heading levels matter, and a wrong level is reported rather than ignored: required document sections are level 2 (`## Tasks`), user stories and tasks level 3 (`### Story 1: <Title>`, `### Task N: <Title>`). A section, story, or task found at another level is named with the level it actually has.
+- `feature-to-plan` sanctions two title variations and both are accepted: `## Stakeholders` for `## Personas`, and `Acceptance` for `Acceptance Criteria` at whatever level the criteria sit. No other alternates are accepted.
+- Acceptance criteria are checked **per story**, so one well-covered story no longer hides a story that has none. Criteria are expected to nest one level under their story; criteria written at or above the story's own level are reported as a structure problem, because nothing distinguishes them from a separate section that merely follows the story.
+- EARS detection follows the EARS Contract owned by `to-ears`. A leading criterion ID (`AC-2.1:`) is stripped before the check. `During` counts as an alias for `While`. A bullet tagged `[non-EARS: <reason>]` is a declared exception: it is not flagged, but it still counts as a criterion. The weak-language list is the contract's vague-term list. A `[TBD: …]` marker is reported as an unresolved placeholder on purpose.
+- Open Questions in the contract's one-line format are held to its severity floors. An `assumption` below Medium is a Medium finding. A question that an inline `[TBD …]` points at, rated below High, is a Low finding, because that check is a heuristic.
+- When criteria use `AC-<story>.<n>` IDs, the script also checks the trace in both directions: duplicate IDs, criteria no task cites, tasks that cite an undefined ID, and criteria missing an ID while others have one. A spec with no IDs gets no trace findings.
+
+Finding ids (`SL-001`, ...) are run-local ordinals for referencing findings inside one lint report — unlike the `SA-NNN` ids your own audit emits, they are not stable across runs. The module docstring lists the script's known limitations.
 
 Examples:
 
