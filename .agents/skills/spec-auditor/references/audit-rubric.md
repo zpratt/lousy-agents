@@ -41,12 +41,19 @@ A good acceptance criterion is testable, bounded, and maps to a user-visible or 
 Check for:
 
 - Criteria that do not use an EARS-like trigger/condition/response structure
-- Subjective verbs: improve, optimize, support, handle, robust, seamless, intuitive, appropriate, fast, efficient, better
+- Vague terms (the EARS Contract list, which the static lint also uses): appropriate, as needed, better, easy, efficient, fast, handle, improve, intuitive, normally, optimize, quickly, robust, safe, seamless, secure, simple, sufficient, support, unacceptable, user-friendly
 - Missing actor, trigger, system response, or observable outcome
 - Criteria that describe implementation mechanics instead of required behavior
 - Criteria that bundle multiple independent behaviors into one bullet
 - Criteria with no negative/error condition
 - Criteria that cannot be verified by automated tests, commands, screenshots, logs, or explicit inspection
+- Criteria whose values, thresholds, or behaviors have no source — the spec invented them to look testable — with no `[inferred …]` / `[TBD …]` marking and no Open Question
+- Pattern misuse: `Where` used for a runtime mode or flag (that is a `While` state), a condition that decides applicability hidden in notes or prose instead of the criterion, or an allow rule whose deny path is assumed rather than specified
+- Generic subjects ("the system", "it") where several components could own the response
+- Criteria without stable IDs, or tasks and verification items that do not cite the criteria they satisfy
+- `[non-EARS: <reason>]` criteria whose reason does not hold up. The exception is for content no pattern fits, such as a data format, and never for a vague or untestable criterion. The lint exempts these bullets, so only this pass checks them.
+
+When the `to-ears` skill is installed, run its Review mode for this pass and fold its findings in here, with severities from this audit's scale. Its EARS Contract defines the criterion format these checks assume.
 
 Failure pattern: an agent satisfies the spirit in its own interpretation but not the author's intent.
 
