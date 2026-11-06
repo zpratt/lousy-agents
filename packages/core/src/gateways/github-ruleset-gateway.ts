@@ -5,7 +5,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { Octokit } from "@octokit/rest";
-import type { Endpoints } from "@octokit/types";
 import { z } from "zod";
 import type { Ruleset } from "../entities/copilot-setup.js";
 import type {
@@ -15,8 +14,11 @@ import type {
 
 const execFileAsync = promisify(execFile);
 
-type CreateRepoRulesetParameters =
-    Endpoints["POST /repos/{owner}/{repo}/rulesets"]["parameters"];
+// Derived from the client that makes the call, so the request type always matches the
+// @octokit/types version @octokit/rest ships with, not a separately pinned one.
+type CreateRepoRulesetParameters = NonNullable<
+    Parameters<Octokit["rest"]["repos"]["createRepoRuleset"]>[0]
+>;
 
 const RulesetRuleSchema = z.object({
     type: z.string(),
