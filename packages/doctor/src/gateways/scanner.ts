@@ -39,6 +39,23 @@ const DOCTOR_SKIPPED_DIRECTORY_NAMES = [
     "dist",
 ];
 
+/**
+ * True when `relativePath` is a fixture directory the walk met below the
+ * scan root. The root itself is not passed here.
+ *
+ * `tests/fixtures` is the parent and child, not every directory named
+ * `fixtures`, so `src/fixtures` stays in the scan. `__fixtures__` and
+ * `testdata` are names at any depth.
+ */
+function isFixtureDirectory(relativePath: string): boolean {
+    const segments = relativePath.split("/");
+    const name = segments[segments.length - 1];
+    if (name === "__fixtures__" || name === "testdata") {
+        return true;
+    }
+    return segments[segments.length - 2] === "tests" && name === "fixtures";
+}
+
 function isScannableFile(name: string): boolean {
     if (SCANNABLE_EXTENSIONLESS.has(name)) return true;
     const dot = name.lastIndexOf(".");
@@ -96,6 +113,7 @@ export async function scanRepositoryWithReport(
         includeFile: isScannableFile,
         revisit: "refuse-ancestors",
         skipDirectoryNames: DOCTOR_SKIPPED_DIRECTORY_NAMES,
+        skipDirectory: isFixtureDirectory,
         maxDirectories,
         ...(options.maxEntries === undefined
             ? {}

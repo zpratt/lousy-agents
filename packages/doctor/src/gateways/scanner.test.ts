@@ -1275,4 +1275,113 @@ describe("scanRepository", () => {
             });
         });
     });
+
+    describe("when a fixture directory is met during the walk", () => {
+        const keptClaude = `src/${CLAUDE_MD}`;
+        const keptAgents = `packages/foo/${AGENTS_MD}`;
+        const body = "# Instructions\n";
+        const sourceFixtures = `src/fixtures/${CLAUDE_MD}`;
+
+        it.each([
+            "tests/fixtures/case",
+            "packages/doctor/tests/fixtures/malformed-edge",
+            "pkg/__fixtures__/case",
+            "a/b/testdata",
+        ])(
+            "should leave instruction files under %s out of the inventory and keep ones outside it",
+            async (fixtureDir) => {
+                const fixtureClaude = `${fixtureDir}/${CLAUDE_MD}`;
+                const fixtureAgents = `${fixtureDir}/nested/${AGENTS_MD}`;
+                const files = {
+                    [keptClaude]: body,
+                    [keptAgents]: body,
+                    [fixtureClaude]: "@./missing.md\n",
+                    [fixtureAgents]: body,
+                };
+
+                await withTempRepo(files, async (repoRoot) => {
+                    const records = await scanRepository(repoRoot);
+                    const paths = records.map((record) => record.path);
+
+                    expect(paths).toContain(keptClaude);
+                    expect(paths).toContain(keptAgents);
+                    expect(paths).not.toContain(fixtureClaude);
+                    expect(paths).not.toContain(fixtureAgents);
+                });
+            },
+        );
+
+        it("should inventory a CLAUDE.md under a fixtures directory that is not tests/fixtures", async () => {
+            const files = { [sourceFixtures]: body };
+
+            await withTempRepo(files, async (repoRoot) => {
+                const records = await scanRepository(repoRoot);
+
+                expect(records.map((record) => record.path)).toContain(
+                    sourceFixtures,
+                );
+            });
+        });
+
+        describe("when the directory given as the root is a fixture directory", () => {
+            it("should inventory CLAUDE.md in that directory", async () => {
+                const fixtureRoot = "tests/fixtures/malformed-edge";
+                const files = {
+                    [`${fixtureRoot}/${CLAUDE_MD}`]:
+                        "@./nonexistent-target.md\n",
+                    [keptClaude]: body,
+                };
+
+                await withTempRepo(files, async (repoRoot) => {
+                    const records = await scanRepository(
+                        join(repoRoot, fixtureRoot),
+                    );
+
+                    expect(
+                        records.find((record) => record.path === CLAUDE_MD),
+                    ).toEqual(
+                        expect.objectContaining({
+                            path: CLAUDE_MD,
+                            harness: "claude",
+                            constructType: "instruction",
+                        }),
+                    );
+                    expect(
+                        records.some((record) => record.path === keptClaude),
+                    ).toBe(false);
+                });
+            });
+
+            it("should inventory files inside tests/fixtures when that directory is the root", async () => {
+                const nested = `case/${CLAUDE_MD}`;
+                const files = {
+                    [`tests/fixtures/${nested}`]: body,
+                    [keptClaude]: body,
+                };
+
+                await withTempRepo(files, async (repoRoot) => {
+                    const records = await scanRepository(
+                        join(repoRoot, "tests/fixtures"),
+                    );
+
+                    expect(records.map((record) => record.path)).toEqual([
+                        nested,
+                    ]);
+                });
+            });
+
+            it("should still report the intentional missing import in the malformed-edge fixture", async () => {
+                const records = await scanRepository(fixture("malformed-edge"));
+
+                expect(
+                    records.find((record) => record.path === CLAUDE_MD)?.edges,
+                ).toEqual([
+                    expect.objectContaining({
+                        malformed: true,
+                        reason: "missing-target",
+                    }),
+                ]);
+            });
+        });
+    });
 });

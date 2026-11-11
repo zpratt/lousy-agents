@@ -92,6 +92,13 @@ export interface RepositoryWalkOptions {
      */
     readonly maxEntries?: number;
     readonly skipDirectoryNames?: readonly string[];
+    /**
+     * When this returns true for a directory the walk meets, that directory
+     * is not entered. The path is repository-relative and uses `/`. The
+     * start directory is listed before this is consulted, so it is never
+     * skipped by this predicate.
+     */
+    readonly skipDirectory?: (relativePath: string) => boolean;
     readonly listDirectory?: DirectoryLister;
 }
 
@@ -139,6 +146,7 @@ interface WalkSettings {
     readonly maxDirectories: number;
     readonly maxEntries: number;
     readonly skipDirectoryNames: ReadonlySet<string>;
+    readonly skipDirectory: (relativePath: string) => boolean;
     readonly listDirectory: DirectoryLister;
 }
 
@@ -162,6 +170,7 @@ function resolveSettings(options: RepositoryWalkOptions): WalkSettings {
         skipDirectoryNames: new Set(
             options.skipDirectoryNames ?? DEFAULT_SKIPPED_DIRECTORY_NAMES,
         ),
+        skipDirectory: options.skipDirectory ?? (() => false),
         listDirectory: options.listDirectory ?? listWithinRoot,
     };
 }
@@ -298,7 +307,14 @@ class RepositoryWalk {
             join(directoryReal, name),
         );
         if (entry.status === "outside-root") {
-            if (this.wouldHaveCollected(entry.kind, name, depth)) {
+            if (
+                this.wouldHaveCollected(
+                    entry.kind,
+                    entryRelativePath,
+                    name,
+                    depth,
+                )
+            ) {
                 this.skippedOutsideRoot.push(entryRelativePath);
             }
             return;
@@ -315,10 +331,10 @@ class RepositoryWalk {
             );
             return;
         }
-        if (this.shouldDescend(name, depth)) {
+        if (this.shouldDescend(entryRelativePath, name, depth)) {
             await this.walkDirectory(entryRelativePath, depth + 1, ancestors);
         } else if (
-            this.isTooDeep(name, depth) &&
+            this.isTooDeep(entryRelativePath, name, depth) &&
             !this.isRevisit(entry.real, ancestors)
         ) {
             this.depthLimitReached = true;
@@ -327,13 +343,17 @@ class RepositoryWalk {
 
     private wouldHaveCollected(
         kind: OutsideRootKind,
+        relativePath: string,
         name: string,
         depth: number,
     ): boolean {
         if (kind === "file") {
             return this.settings.includeFile(name);
         }
-        return kind === "directory" && this.shouldDescend(name, depth);
+        return (
+            kind === "directory" &&
+            this.shouldDescend(relativePath, name, depth)
+        );
     }
 
     private collectFile(
@@ -347,19 +367,34 @@ class RepositoryWalk {
         }
     }
 
-    private shouldDescend(name: string, depth: number): boolean {
+    private isSkippedDirectory(relativePath: string, name: string): boolean {
         return (
-            this.settings.includeSubdirectories &&
-            depth < this.settings.maxDepth &&
-            !this.settings.skipDirectoryNames.has(name)
+            this.settings.skipDirectoryNames.has(name) ||
+            this.settings.skipDirectory(relativePath)
         );
     }
 
-    private isTooDeep(name: string, depth: number): boolean {
+    private shouldDescend(
+        relativePath: string,
+        name: string,
+        depth: number,
+    ): boolean {
+        return (
+            this.settings.includeSubdirectories &&
+            depth < this.settings.maxDepth &&
+            !this.isSkippedDirectory(relativePath, name)
+        );
+    }
+
+    private isTooDeep(
+        relativePath: string,
+        name: string,
+        depth: number,
+    ): boolean {
         return (
             this.settings.includeSubdirectories &&
             depth >= this.settings.maxDepth &&
-            !this.settings.skipDirectoryNames.has(name)
+            !this.isSkippedDirectory(relativePath, name)
         );
     }
 }
