@@ -1,3 +1,7 @@
+import {
+    AGENTIC_LOCATION_CATALOG,
+    isNestedInstructionFilename,
+} from "@lousy-agents/core/entities/agentic-location-catalog.js";
 import type { EdgeType, HarnessName } from "./edge-types.js";
 
 export interface CrossRefMechanism {
@@ -244,16 +248,35 @@ export function matchesPrimaryIndicator(
 const ALL_HARNESS_NAMES: readonly HarnessName[] = [...HARNESS_NAMES, "shared"];
 
 /**
- * Instruction filenames a harness loads in subdirectories as well as at the
- * repository root. Other bare primary indicators stay exact root paths.
- * Case-sensitive, matching the indicator spellings.
+ * Directory indicators that only load files with a catalog suffix, such as
+ * `.github/instructions/` and `*.instructions.md`. A nested instruction file
+ * in one of those directories is not that harness's file.
  */
-const NESTED_INSTRUCTION_FILENAMES: ReadonlySet<string> = new Set([
-    "CLAUDE.md",
-    "AGENTS.md",
-    "AGENTS.MD",
-    "agents.md",
-]);
+const SUFFIX_RESTRICTED_DIRECTORY_INDICATORS: ReadonlySet<string> = new Set(
+    AGENTIC_LOCATION_CATALOG.filter(
+        (entry) =>
+            entry.matchKind === "directory-prefix" &&
+            entry.fileSuffix !== undefined,
+    ).map((entry) => `${entry.path}/`),
+);
+
+function fileNameOf(normalized: string): string {
+    const slash = normalized.lastIndexOf("/");
+    return slash === -1 ? normalized : normalized.slice(slash + 1);
+}
+
+function matchesClaimingIndicator(
+    path: string,
+    indicators: readonly string[],
+): boolean {
+    const applicable = isNestedInstructionFilename(fileNameOf(path))
+        ? indicators.filter(
+              (indicator) =>
+                  !SUFFIX_RESTRICTED_DIRECTORY_INDICATORS.has(indicator),
+          )
+        : indicators;
+    return matchesPrimaryIndicator(path, applicable);
+}
 
 function soleHarness(matches: readonly HarnessName[]): HarnessName | null {
     if (matches.length >= 2) {
@@ -286,7 +309,7 @@ function matchesNestedInstructionFilename(
         return false;
     }
     const name = normalized.slice(slash + 1);
-    return NESTED_INSTRUCTION_FILENAMES.has(name) && indicators.includes(name);
+    return isNestedInstructionFilename(name) && indicators.includes(name);
 }
 
 /**
@@ -306,7 +329,7 @@ export function determineHarness(
 ): HarnessName | null {
     const normalized = repoRelativePath.replaceAll("\\", "/");
     const claimed = soleHarness(
-        harnessesMatching(normalized, footprints, matchesPrimaryIndicator),
+        harnessesMatching(normalized, footprints, matchesClaimingIndicator),
     );
     if (claimed !== null) {
         return claimed;

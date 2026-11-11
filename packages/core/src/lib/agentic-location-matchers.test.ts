@@ -583,6 +583,10 @@ describe("isExcludedBySuffix", () => {
         ".github/agents/any-name.md",
         "docs/notes.md",
         "CLAUDE.md",
+        ".github/instructions/CLAUDE.md",
+        ".github/instructions/sub/AGENTS.md",
+        ".github/instructions/AGENTS.MD",
+        ".github/instructions/agents.md",
     ])("should be false for %s", (path) => {
         expect(isExcludedBySuffix(path)).toBe(false);
     });

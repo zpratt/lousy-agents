@@ -1,3 +1,4 @@
+import { isNestedInstructionFilename } from "@lousy-agents/core/entities/agentic-location-catalog.js";
 import { readTextWithinRoot } from "@lousy-agents/core/gateways/file-system-utils.js";
 import type { FileIdentity } from "@lousy-agents/core/gateways/read-regular-file-no-follow.js";
 import {
@@ -98,8 +99,24 @@ function readOncePerRealFile(read: ReadMarkdownContent): ReadMarkdownContent {
  * harness's directory is not loaded when the catalog says that directory
  * accepts only files with a suffix the file lacks.
  */
+function fileNameOf(relPath: string): string {
+    const normalized = relPath.replaceAll("\\", "/");
+    const slash = normalized.lastIndexOf("/");
+    return slash === -1 ? normalized : normalized.slice(slash + 1);
+}
+
 function ownerOf(relPath: string): HarnessName | null {
-    return isExcludedBySuffix(relPath) ? null : determineHarness(relPath);
+    const harness = determineHarness(relPath);
+    if (harness === null) {
+        return null;
+    }
+    if (
+        isExcludedBySuffix(relPath) &&
+        !isNestedInstructionFilename(fileNameOf(relPath))
+    ) {
+        return null;
+    }
+    return harness;
 }
 
 async function readOrMarkUnread(

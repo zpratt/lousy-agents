@@ -248,6 +248,19 @@ describe("determineHarness", () => {
             expect(determineHarness(agentPath)).toBe("copilot");
             expect(determineHarness(skillPath)).toBe("claude");
         });
+
+        it.each([
+            [".github/instructions/CLAUDE.md", "claude"],
+            [".github/instructions/sub/CLAUDE.md", "claude"],
+            [".github/instructions/AGENTS.md", "shared"],
+            [".github/instructions/sub/AGENTS.MD", "shared"],
+            [".github/instructions/agents.md", "shared"],
+        ] as const)(
+            "should resolve %s to the %s harness, because Copilot does not load it",
+            (path, expected) => {
+                expect(determineHarness(path)).toBe(expected);
+            },
+        );
     });
 
     describe("when more than one harness claims the path", () => {

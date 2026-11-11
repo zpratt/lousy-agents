@@ -7,6 +7,7 @@ import {
     AGENTIC_LOCATION_CATALOG,
     type AgenticConstructType,
     type AgenticLocationEntry,
+    isNestedInstructionFilename,
     type LintDiscoveryTarget,
 } from "../entities/agentic-location-catalog.js";
 
@@ -79,6 +80,11 @@ export function isExcludedBySuffix(
     catalog: readonly AgenticLocationEntry[] = AGENTIC_LOCATION_CATALOG,
 ): boolean {
     const normalized = normalizeRepoRelativePath(path);
+    const slash = normalized.lastIndexOf("/");
+    const fileName = slash === -1 ? normalized : normalized.slice(slash + 1);
+    if (isNestedInstructionFilename(fileName)) {
+        return false;
+    }
     return (
         entriesMatchingPath(path, catalog).length === 0 &&
         catalog.some(

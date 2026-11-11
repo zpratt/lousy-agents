@@ -1,5 +1,5 @@
 import { realpath } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { basename, relative, resolve } from "node:path";
 import type { NoFollowFsPort } from "@lousy-agents/core/gateways/read-regular-file-no-follow.js";
 import {
     DEFAULT_MAX_WALK_DIRECTORIES,
@@ -41,26 +41,35 @@ const DOCTOR_SKIPPED_DIRECTORY_NAMES = [
 
 /**
  * True when `relativePath` is a fixture directory the walk met below the
- * scan root. The root itself is not passed here.
+ * scan root. The root itself is not passed here. When the relative path has
+ * no parent segment, `rootDirectoryName` is that parent, so a scan started
+ * in a directory named `tests` still skips its `fixtures` child.
  *
  * `tests/fixtures` is the parent and child, not every directory named
  * `fixtures`, so `src/fixtures` stays in the scan. `__fixtures__` and
  * `testdata` are names at any depth.
  */
-function isFixtureDirectory(relativePath: string): boolean {
+function isFixtureDirectory(
+    relativePath: string,
+    rootDirectoryName: string,
+): boolean {
     const segments = relativePath.split("/");
     const name = segments[segments.length - 1];
     if (name === "__fixtures__" || name === "testdata") {
         return true;
     }
-    return segments[segments.length - 2] === "tests" && name === "fixtures";
+    const parent =
+        segments.length >= 2
+            ? segments[segments.length - 2]
+            : rootDirectoryName;
+    return parent === "tests" && name === "fixtures";
 }
 
 function isScannableFile(name: string): boolean {
     if (SCANNABLE_EXTENSIONLESS.has(name)) return true;
     const dot = name.lastIndexOf(".");
     if (dot === -1) return false;
-    return SCANNABLE_EXTENSIONS.has(name.slice(dot));
+    return SCANNABLE_EXTENSIONS.has(name.slice(dot).toLowerCase());
 }
 
 export interface ScanOptions {
@@ -113,7 +122,8 @@ export async function scanRepositoryWithReport(
         includeFile: isScannableFile,
         revisit: "refuse-ancestors",
         skipDirectoryNames: DOCTOR_SKIPPED_DIRECTORY_NAMES,
-        skipDirectory: isFixtureDirectory,
+        skipDirectory: (relativePath) =>
+            isFixtureDirectory(relativePath, basename(absRoot)),
         maxDirectories,
         ...(options.maxEntries === undefined
             ? {}
