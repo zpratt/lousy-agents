@@ -1454,6 +1454,33 @@ describe("scanRepository", () => {
         const nestedAgents = "packages/foo/AGENTS.MD";
         const body = "# Agents\n";
 
+        it("should read an AGENTS.MD link and mark the file it points at as referenced", async () => {
+            const upper = `pkg/${rootAgents}`;
+            const target = CLAUDE_MD;
+            const files = {
+                [target]: "# Claude\n",
+                [upper]: `see [x](../${target})\n`,
+            };
+
+            await withTempRepo(files, async (repoRoot) => {
+                const records = await scanRepository(repoRoot);
+
+                expect(
+                    records.find((record) => record.path === upper)?.edges,
+                ).toEqual([
+                    expect.objectContaining({
+                        type: "soft-reference",
+                        target,
+                        malformed: false,
+                    }),
+                ]);
+                expect(
+                    records.find((record) => record.path === target)
+                        ?.loadMechanism,
+                ).toBe("referenced");
+            });
+        });
+
         it("should inventory the root and nested files as shared instructions", async () => {
             const files = {
                 [rootAgents]: body,

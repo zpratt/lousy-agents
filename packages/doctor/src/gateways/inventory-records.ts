@@ -54,7 +54,8 @@ interface InventorySource {
 }
 
 function isMarkdownFile(name: string): boolean {
-    return name.endsWith(".md") || name.endsWith(".mdc");
+    const lower = name.toLowerCase();
+    return lower.endsWith(".md") || lower.endsWith(".mdc");
 }
 
 function determineConstructType(relPath: string): ConstructType {
