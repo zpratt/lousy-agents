@@ -244,9 +244,59 @@ export function matchesPrimaryIndicator(
 const ALL_HARNESS_NAMES: readonly HarnessName[] = [...HARNESS_NAMES, "shared"];
 
 /**
+ * Instruction filenames a harness loads in subdirectories as well as at the
+ * repository root. Other bare primary indicators stay exact root paths.
+ * Case-sensitive, matching the indicator spellings.
+ */
+const NESTED_INSTRUCTION_FILENAMES: ReadonlySet<string> = new Set([
+    "CLAUDE.md",
+    "AGENTS.md",
+    "AGENTS.MD",
+    "agents.md",
+]);
+
+function soleHarness(matches: readonly HarnessName[]): HarnessName | null {
+    if (matches.length >= 2) {
+        return "shared";
+    }
+    return matches[0] ?? null;
+}
+
+function harnessesMatching(
+    path: string,
+    footprints: Readonly<Record<HarnessName, HarnessFootprint>>,
+    matches: (path: string, indicators: readonly string[]) => boolean,
+): HarnessName[] {
+    return ALL_HARNESS_NAMES.filter((harness) =>
+        matches(path, footprints[harness].primaryIndicators),
+    );
+}
+
+/**
+ * True when `normalized` is a nested instruction file whose filename is one
+ * of this harness's primary indicators. Root files are exact indicators and
+ * are not matched here.
+ */
+function matchesNestedInstructionFilename(
+    normalized: string,
+    indicators: readonly string[],
+): boolean {
+    const slash = normalized.lastIndexOf("/");
+    if (slash === -1) {
+        return false;
+    }
+    const name = normalized.slice(slash + 1);
+    return NESTED_INSTRUCTION_FILENAMES.has(name) && indicators.includes(name);
+}
+
+/**
  * Resolves which harness owns a repo-relative path from the harnesses'
  * primary indicators. A path claimed by more than one harness is shared; a
  * path claimed by none belongs to no harness.
+ *
+ * `CLAUDE.md` and `AGENTS.md` (and the `AGENTS.MD` and `agents.md` spellings)
+ * are also recognized in subdirectories when no indicator already claims the
+ * path, so a copy inside a directory another harness owns keeps that harness.
  */
 export function determineHarness(
     repoRelativePath: string,
@@ -254,13 +304,18 @@ export function determineHarness(
         Record<HarnessName, HarnessFootprint>
     > = HARNESS_FOOTPRINTS,
 ): HarnessName | null {
-    const matching = ALL_HARNESS_NAMES.filter((harness) =>
-        matchesPrimaryIndicator(
-            repoRelativePath,
-            footprints[harness].primaryIndicators,
+    const normalized = repoRelativePath.replaceAll("\\", "/");
+    const claimed = soleHarness(
+        harnessesMatching(normalized, footprints, matchesPrimaryIndicator),
+    );
+    if (claimed !== null) {
+        return claimed;
+    }
+    return soleHarness(
+        harnessesMatching(
+            normalized,
+            footprints,
+            matchesNestedInstructionFilename,
         ),
     );
-    if (matching.length === 0) return null;
-    if (matching.length >= 2) return "shared";
-    return matching[0];
 }

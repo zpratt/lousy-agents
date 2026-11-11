@@ -54,19 +54,35 @@ function makeId(criterionId: string, targetId: string): string {
     return `${criterionId}:${targetId}`;
 }
 
+function pathCoversRecord(
+    recordPath: string,
+    required: string,
+    matchBasename: boolean,
+): boolean {
+    if (recordPath === required) {
+        return true;
+    }
+    const prefix = required.endsWith("/") ? required : `${required}/`;
+    if (recordPath.startsWith(prefix)) {
+        return true;
+    }
+    return (
+        matchBasename &&
+        !required.includes("/") &&
+        recordPath.endsWith(`/${required}`)
+    );
+}
+
 function checkFileExists(
     criterion: Criterion,
     args: FileExistsArgs,
     ctx: EvaluationContext,
 ): Finding[] {
     const { harness, paths } = args;
+    const matchBasename = args.matchBasename === true;
 
     const anyMatch = ctx.records.some((r) =>
-        paths.some(
-            (p) =>
-                r.path === p ||
-                r.path.startsWith(p.endsWith("/") ? p : `${p}/`),
-        ),
+        paths.some((p) => pathCoversRecord(r.path, p, matchBasename)),
     );
 
     if (!anyMatch) {

@@ -22,6 +22,11 @@ export type CheckMethod =
 export interface FileExistsArgs {
     harness: HarnessName;
     paths: readonly string[];
+    /**
+     * When true, a path argument with no directory separator also matches a
+     * record whose filename is that argument, at any depth.
+     */
+    matchBasename?: boolean;
 }
 
 export interface EdgePresentArgs {

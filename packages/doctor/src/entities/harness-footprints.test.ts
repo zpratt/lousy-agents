@@ -207,6 +207,49 @@ describe("determineHarness", () => {
         expect(harness).toBeNull();
     });
 
+    describe("when CLAUDE.md or AGENTS.md is nested in a subdirectory", () => {
+        it.each([
+            ["src/CLAUDE.md", "claude"],
+            ["packages/foo/CLAUDE.md", "claude"],
+            ["src/AGENTS.md", "shared"],
+            ["packages/foo/AGENTS.md", "shared"],
+            ["a/b/c/AGENTS.MD", "shared"],
+            ["a/b/c/agents.md", "shared"],
+        ] as const)("should resolve %s to the %s harness", (path, expected) => {
+            const harness = determineHarness(path);
+
+            expect(harness).toBe(expected);
+        });
+
+        it("should normalize backslash separators in a nested path", () => {
+            const path = "packages\\foo\\CLAUDE.md";
+
+            const harness = determineHarness(path);
+
+            expect(harness).toBe("claude");
+        });
+
+        it.each([
+            "src/claude.md",
+            "src/GEMINI.md",
+            "src/HERMES.md",
+            "packages/foo/crush.json",
+            "docs/README.md",
+        ])("should not claim %s", (path) => {
+            const harness = determineHarness(path);
+
+            expect(harness).toBeNull();
+        });
+
+        it("should keep a directory indicator ahead of a nested instruction filename", () => {
+            const agentPath = ".github/agents/CLAUDE.md";
+            const skillPath = ".claude/skills/example/AGENTS.md";
+
+            expect(determineHarness(agentPath)).toBe("copilot");
+            expect(determineHarness(skillPath)).toBe("claude");
+        });
+    });
+
     describe("when more than one harness claims the path", () => {
         it("should resolve the path to the shared harness", () => {
             const contestedPath = `${chance.word()}.md`;

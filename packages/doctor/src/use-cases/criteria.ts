@@ -138,11 +138,12 @@ export const CRITERIA: readonly Criterion[] = [
         classification: "defect",
         category: "missing-required",
         description:
-            "Claude Code requires CLAUDE.md or .claude/ directory to load project instructions.",
+            "Claude Code requires a CLAUDE.md file, at the repository root or in a subdirectory, or a .claude/ directory to load project instructions.",
         checkMethod: "inventory.fileExists",
         checkArgs: {
             harness: "claude",
             paths: ["CLAUDE.md", ".claude/"],
+            matchBasename: true,
         },
     },
     {

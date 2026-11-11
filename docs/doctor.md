@@ -84,7 +84,7 @@ Doctor attributes each construct to a harness (`claude`, `copilot`, `codex`, `an
 
 | Construct type | Examples |
 | -------------- | -------- |
-| `instruction` | `CLAUDE.md`, `AGENTS.md`, `.github/copilot-instructions.md`, `.github/instructions/**/*.instructions.md` |
+| `instruction` | `CLAUDE.md` and `AGENTS.md` at the root or in subdirectories (`AGENTS.MD` and `agents.md` too), `.github/copilot-instructions.md`, `.github/instructions/**/*.instructions.md` |
 | `skill` | `.claude/skills/`, `.github/skills/`, `.agents/skills/`, `.pi/skills/` |
 | `agent` | `.github/agents/**/*.md`, `.claude/commands/` |
 | `subagent` | `.claude/agents/**/*.md` |
@@ -102,6 +102,7 @@ Paths come from the shared agentic location catalog in `@lousy-agents/core` (the
 
 **Filesystem notes:**
 
+- `CLAUDE.md` and `AGENTS.md` (also `AGENTS.MD` and `agents.md`) are inventoried at any directory depth, not only at the repository root. Copies under `node_modules`, `.git`, or `dist` stay out, because the walk skips those directories. A copy inside a directory another harness already claims, such as `.github/agents/CLAUDE.md`, keeps that harness. Lint still discovers only the root copies and `.claude/CLAUDE.md`.
 - Doctor follows in-repo symlinks when inventorying instruction files (common when teams symlink `AGENTS.md`).
 - Symlinks that escape the repository root are rejected.
 - A relative `@import` inside a symlinked file resolves from the **real target's directory**, not the symlink's. For `CLAUDE.md -> docs/agents/REAL.md` containing `@./guide.md`, the import is `docs/agents/guide.md`. This is how Claude Code resolves it (observed on Claude Code 2.1.316), and it is the same rule `lint` uses, through the same core resolver.
@@ -143,7 +144,7 @@ Advisories never fail the process on their own. Medium defects (for example miss
 | Criterion ID | Harness | Severity | Classification | Category | What it means |
 | ------------ | ------- | -------- | -------------- | -------- | ------------- |
 | `missing-copilot-instructions` | copilot | critical | defect | missing-required | `.github/copilot-instructions.md` is missing while Copilot constructs are present (for example `.github/instructions/`). Blocks CI. |
-| `missing-claude-md` | claude | high | defect | missing-required | Neither `CLAUDE.md` nor `.claude/` is present while the Claude harness is attributed. In practice Claude is usually detected only via those paths, so this finding is rare. |
+| `missing-claude-md` | claude | high | defect | missing-required | Neither a `CLAUDE.md` (at the root or in a subdirectory) nor `.claude/` is present while the Claude harness is attributed. In practice Claude is usually detected only via those paths, so this finding is rare. |
 | `missing-agents-md` | codex | high | defect | missing-required | Neither `AGENTS.md` nor `AGENTS.override.md` is present while Codex is attributed (for example via `.agents/skills/` or `.codex/`). Blocks CI. |
 | `malformed-claude-import` | claude | high | defect | malformed-reference | A Claude `@path` hard-import points to a file inside the repository that does not exist (edge reason `missing-target`). Blocks CI. Imports that resolve outside the working directory are not defects; see `external-claude-import`, and imports lint refuses to read are not defects either; see `unread-claude-import`. |
 | `unread-claude-import` | claude | medium | advisory | malformed-reference | A Claude `@path` hard-import points to a file inside the repository that lint and doctor do not read, for the same reasons lint's import expansion refuses it: a directory or other file that is not regular, such as a named pipe or a symbolic link that loops (edge reason `not-regular`), a file with more than one hard link (`hard-link`), a file over 1 MiB (`too-large`), or a file the system would not open or that changed while it was being read, such as when the process has run out of file descriptors or is denied access (`unreadable`). A target that could not be read is never reported as missing. Visible, never blocks CI. |
