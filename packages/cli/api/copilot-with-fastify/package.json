@@ -16,7 +16,7 @@
         "db:migrate": "tsx src/db/migrate.ts"
     },
     "dependencies": {
-        "@fastify/cors": "11.4.2",
+        "@fastify/cors": "11.4.3",
         "@fastify/sensible": "6.0.7",
         "fastify": "5.12.8",
         "kysely": "0.29.9",
