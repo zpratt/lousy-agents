@@ -321,6 +321,18 @@ const FORBIDDEN: readonly ForbiddenEdge[] = [
         specifier: "@lousy-agents/core/lib/helper.js",
         pair: "entities->adapters",
     },
+    {
+        importer: "packages/core/src/use-cases/imports-lint-by-name.ts",
+        importee: LINT_INDEX,
+        specifier: "@lousy-agents/lint",
+        pair: "use_cases->lint_api",
+    },
+    {
+        importer: "packages/doctor/src/entities/imports-doctor-by-name.ts",
+        importee: DOCTOR_INDEX,
+        specifier: "@lousy-agents/agentic-doctor",
+        pair: "entities->package_api",
+    },
 ];
 
 // Imports the architecture allows; they must never be reported.
@@ -352,6 +364,11 @@ const ALLOWED: readonly Edge[] = [
     { importer: DOCTOR_CLI, importee: DOCTOR_INDEX },
     { importer: ACTION_INDEX, importee: ACTION_RUN_LINT },
     { importer: ACTION_RUN_LINT, importee: LINT_INDEX },
+    {
+        importer: "packages/cli/src/commands/uses-doctor-by-name.ts",
+        importee: DOCTOR_INDEX,
+        specifier: "@lousy-agents/agentic-doctor",
+    },
 ];
 
 function edge(importer: string, importee: string, pair: string): ForbiddenEdge {
@@ -480,10 +497,37 @@ async function linkCompiler(root: string): Promise<void> {
             join(modules, name),
         );
     }
-    await symlink(
-        "../../packages/core",
-        join(modules, "@lousy-agents", "core"),
+    for (const [name, directory] of [
+        ["core", "core"],
+        ...DIST_EXPORTING_PACKAGES,
+    ]) {
+        await symlink(
+            `../../packages/${directory}`,
+            join(modules, "@lousy-agents", name),
+        );
+    }
+}
+
+/** Workspace packages that publish from `dist/`; their exports are copied as committed. */
+const DIST_EXPORTING_PACKAGES: ReadonlyArray<readonly [string, string]> = [
+    ["lint", "lint"],
+    ["agentic-doctor", "doctor"],
+];
+
+async function readRepositoryJson(path: string) {
+    return JSON.parse(await readFile(join(repositoryRoot, path), "utf8"));
+}
+
+async function repositoryCustomConditions(): Promise<unknown> {
+    const config = await readRepositoryJson("tsconfig.json");
+    return config.compilerOptions?.customConditions ?? [];
+}
+
+async function repositoryExports(directory: string): Promise<unknown> {
+    const manifest = await readRepositoryJson(
+        `packages/${directory}/package.json`,
     );
+    return manifest.exports;
 }
 
 async function writeWorkspaceFiles(root: string): Promise<void> {
@@ -510,6 +554,7 @@ async function writeWorkspaceFiles(root: string): Promise<void> {
                 strict: true,
                 noEmit: true,
                 skipLibCheck: true,
+                customConditions: await repositoryCustomConditions(),
             },
             include: ["packages/**/*.ts"],
         }),
@@ -523,6 +568,17 @@ async function writeWorkspaceFiles(root: string): Promise<void> {
             exports: { "./lib/*": "./src/lib/*" },
         }),
     );
+    for (const [name, directory] of DIST_EXPORTING_PACKAGES) {
+        await mkdir(join(root, "packages", directory), { recursive: true });
+        await writeFile(
+            join(root, "packages", directory, "package.json"),
+            JSON.stringify({
+                name: `@lousy-agents/${name}`,
+                type: "module",
+                exports: await repositoryExports(directory),
+            }),
+        );
+    }
     await writeFile(join(root, ".gitignore"), "node_modules\n");
 }
 
