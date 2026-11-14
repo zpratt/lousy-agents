@@ -351,12 +351,17 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
             ]);
         });
 
-        it("should report nothing for an instruction file path that links to a directory outside the repository", async () => {
+        it("should report a directory named AGENTS.md that links outside the repository, because the nested walk would have entered it", async () => {
             await linkOutside("AGENTS.md", "directory");
 
             const diagnostics = await discoveryDiagnostics();
 
-            expect(diagnostics).toEqual([]);
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    ruleId: SymlinkSkippedRuleId,
+                    message: expect.stringContaining("AGENTS.md"),
+                }),
+            ]);
         });
 
         it("should report nothing for a link to a file the walk would not have discovered anyway", async () => {
@@ -694,13 +699,20 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
             ]);
         });
 
-        it("should report nothing for a tree whose deepest directory is exactly at the limit", async () => {
+        it("should report the root walk's depth limit when a directory sits at the instruction walk's own limit", async () => {
             await writeNested(DEFAULT_MAX_WALK_DEPTH, "edge");
 
             const { files, diagnostics } = await discover();
 
             expect(files).toHaveLength(1);
-            expect(diagnostics).toEqual([]);
+            expect(diagnostics).toEqual([
+                {
+                    ruleId: DiscoveryLimitRuleId,
+                    message: expect.stringContaining(
+                        `${DEFAULT_MAX_WALK_DEPTH} directories deep`,
+                    ),
+                },
+            ]);
         });
 
         it("should report the directory limit and the depth limit together in one diagnostic", async () => {

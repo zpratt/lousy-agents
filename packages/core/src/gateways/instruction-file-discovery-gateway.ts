@@ -6,6 +6,7 @@
 import { realpath } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
 import type { AgenticLocationEntry } from "../entities/agentic-location-catalog.js";
+import { isNestedInstructionFilename } from "../entities/agentic-location-catalog.js";
 import {
     type DiscoveryLimitWording,
     describeDiscoveryLimits,
@@ -24,7 +25,10 @@ import {
     BUILD_OUTPUT_DIRECTORY_NAMES,
     isFixtureDirectory,
 } from "../lib/agentic-discovery-skips.js";
-import { instructionDiscoveryEntries } from "../lib/agentic-location-matchers.js";
+import {
+    formatForAdditionalInstructionFile,
+    instructionDiscoveryEntries,
+} from "../lib/agentic-location-matchers.js";
 import type { InstructionFileDiscoveryGateway } from "../use-cases/analyze-instruction-quality.js";
 import {
     inspectPathWithinRoot,
@@ -93,31 +97,72 @@ export class FileSystemInstructionFileDiscoveryGateway
         const findings = new DiscoveryFindings();
 
         const rootDirectoryName = basename(resolve(targetDir));
+        const seen = new Set<string>();
         for (const entry of instructionDiscoveryEntries()) {
             const format = entry.instructionFormat;
             if (format == null) {
                 continue;
             }
             if (entry.matchKind === "exact") {
-                findings.addExact(
-                    await discoverExactFile(root, entry.path, format),
-                );
+                const exact = await discoverExactFile(root, entry.path, format);
+                findings.addExact(exact);
+                if (exact.files.length > 0) {
+                    seen.add(entry.path);
+                }
                 continue;
             }
-            findings.addWalk(
-                await walkRepository(
-                    targetDir,
-                    this.walkOptions(entry, rootDirectoryName),
-                ),
-                (file) =>
-                    toDiscoveredFile(
-                        root,
-                        file.relativePath,
-                        { kind: "file", real: file.real },
-                        format,
-                    ),
+            const walked = await walkRepository(
+                targetDir,
+                this.walkOptions(entry, rootDirectoryName),
             );
+            findings.addWalk(walked, (file) =>
+                toDiscoveredFile(
+                    root,
+                    file.relativePath,
+                    { kind: "file", real: file.real },
+                    format,
+                ),
+            );
+            for (const file of walked.files) {
+                seen.add(file.relativePath);
+            }
         }
+
+        const additional = await walkRepository(targetDir, {
+            startRelativePath: "",
+            includeFile: (name) => isNestedInstructionFilename(name),
+            includeSubdirectories: true,
+            revisit: "once-per-real-directory",
+            skipDirectoryNames: [
+                ...DEFAULT_SKIPPED_DIRECTORY_NAMES,
+                ...BUILD_OUTPUT_DIRECTORY_NAMES,
+            ],
+            skipDirectory: (relativePath) =>
+                isFixtureDirectory(relativePath, rootDirectoryName),
+        });
+        findings.addWalk(
+            {
+                ...additional,
+                files: additional.files.filter((file) => {
+                    if (seen.has(file.relativePath)) {
+                        return false;
+                    }
+                    return (
+                        formatForAdditionalInstructionFile(
+                            file.relativePath,
+                        ) !== null
+                    );
+                }),
+            },
+            (file) =>
+                toDiscoveredFile(
+                    root,
+                    file.relativePath,
+                    { kind: "file", real: file.real },
+                    formatForAdditionalInstructionFile(file.relativePath) ??
+                        "agents-md",
+                ),
+        );
 
         findings.report(onDiagnostic);
         return findings.files;
@@ -167,11 +212,12 @@ class DiscoveryFindings {
         walked: RepositoryWalkResult,
         toDiscovered: (file: WalkedFile) => DiscoveredInstructionFile,
     ): void {
-        this.limits = walked.limits;
-        this.directoryLimitReached ||= walked.directoryLimitReached;
-        this.depthLimitReached ||= walked.depthLimitReached;
-        this.entryLimitReached ||= walked.entryLimitReached;
-        this.skippedOutsideRoot.push(...walked.skippedOutsideRoot);
+        this.recordLimits(walked);
+        for (const path of walked.skippedOutsideRoot) {
+            if (!this.skippedOutsideRoot.includes(path)) {
+                this.skippedOutsideRoot.push(path);
+            }
+        }
         this.files.push(...walked.files.map(toDiscovered));
     }
 
@@ -188,6 +234,33 @@ class DiscoveryFindings {
                 ruleId: DISCOVERY_SYMLINK_SKIPPED_RULE_ID,
                 message: describeSkippedSymlinks(this.skippedOutsideRoot),
             });
+        }
+    }
+
+    private recordLimits(walked: RepositoryWalkResult): void {
+        if (this.limits === undefined) {
+            this.limits = { ...walked.limits };
+        }
+        if (walked.directoryLimitReached) {
+            this.directoryLimitReached = true;
+            this.limits = {
+                ...this.limits,
+                maxDirectories: walked.limits.maxDirectories,
+            };
+        }
+        if (walked.depthLimitReached) {
+            this.depthLimitReached = true;
+            this.limits = {
+                ...this.limits,
+                maxDepth: walked.limits.maxDepth,
+            };
+        }
+        if (walked.entryLimitReached) {
+            this.entryLimitReached = true;
+            this.limits = {
+                ...this.limits,
+                maxEntries: walked.limits.maxEntries,
+            };
         }
     }
 
