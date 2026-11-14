@@ -27,6 +27,7 @@ const CLEAN_RUN: CoachRun = {
             // biome-ignore lint/style/useNamingConvention: coach's report format
             head: { analyzed_files: 1, files_outside_layers: 0 },
         },
+        diagnostics: [],
     }),
     stderr: "",
 };
@@ -237,6 +238,7 @@ describe("runArchitectureGate", () => {
                         // biome-ignore lint/style/useNamingConvention: coach's report format
                         head: { analyzed_files: 1, files_outside_layers: 0 },
                     },
+                    diagnostics: [],
                 }),
                 stderr: "",
             };

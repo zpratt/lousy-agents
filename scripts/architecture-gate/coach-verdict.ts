@@ -1,4 +1,5 @@
 import {
+    type CoachDiagnostic,
     type CoachReport,
     type CoachSignal,
     type LayerMembership,
@@ -55,7 +56,60 @@ function membershipMessages(membership: LayerMembership): string[] {
         return [];
     }
     return [
-        `${filesOutsideLayers} of ${analyzedFiles} files coach analyzed sit outside every declared layer, so imports to or from them are not checked: add each to a layer in the policy (\`mise run coach-baseline\` prints the count)`,
+        `${filesOutsideLayers} of ${analyzedFiles} files coach analyzed sit outside every declared layer, so imports to or from them are not checked. Coach does not name them: \`npx vitest run scripts/architecture-gate/project-policy.test.ts\` lists unmapped files under packages/*/src, and a new file outside it that a tsconfig.json includes needs a layer too`,
+    ];
+}
+
+const NON_LITERAL_IMPORT = "project_import_non_literal";
+
+interface KnownDynamicImport {
+    readonly path: string;
+    readonly expression: string;
+}
+
+/**
+ * Dynamic loads whose target layer rules cannot see, accepted one by one after
+ * review. agent-shell imports the project's own copy of the Copilot SDK from a
+ * path it resolves at run time, so that specifier cannot be a literal.
+ */
+const KNOWN_DYNAMIC_IMPORTS: readonly KnownDynamicImport[] = [
+    {
+        path: "packages/agent-shell/src/gateways/copilot-sdk-loader.ts",
+        expression: "sdkPath",
+    },
+];
+
+const SPECIFIER_EXPRESSION = /non-literal specifier \("((?:[^"\\]|\\.)*)"\)/;
+
+function isKnownDynamicImport(diagnostic: CoachDiagnostic): boolean {
+    const expression = SPECIFIER_EXPRESSION.exec(diagnostic.message)?.[1];
+    return KNOWN_DYNAMIC_IMPORTS.some(
+        (known) =>
+            known.path === diagnostic.path && known.expression === expression,
+    );
+}
+
+/**
+ * A load with a non-literal specifier names no target, so coach cannot say
+ * whether it crosses a layer and still exits 0. Only reviewed ones pass.
+ */
+function nonLiteralImportMessages(
+    diagnostics: readonly CoachDiagnostic[],
+): string[] {
+    const unreviewed = diagnostics.filter(
+        (diagnostic) =>
+            diagnostic.kind === NON_LITERAL_IMPORT &&
+            !isKnownDynamicImport(diagnostic),
+    );
+    if (unreviewed.length === 0) {
+        return [];
+    }
+    return [
+        `coach reported ${unreviewed.length} ${NON_LITERAL_IMPORT} diagnostic(s); layer rules cannot check an import whose specifier is not a string literal, so write it as a literal or add it to KNOWN_DYNAMIC_IMPORTS in scripts/architecture-gate/coach-verdict.ts after review:`,
+        ...unreviewed.map(
+            (diagnostic) =>
+                `  ${diagnostic.path ?? "(no path)"}: ${diagnostic.message}`,
+        ),
     ];
 }
 
@@ -63,6 +117,7 @@ function verdictForReport(report: CoachReport): GateVerdict {
     const messages = [
         ...violationMessages(report.signals),
         ...membershipMessages(report.layerMembership),
+        ...nonLiteralImportMessages(report.diagnostics),
     ];
     return { passed: messages.length === 0, messages };
 }
@@ -88,8 +143,9 @@ export function incompleteRunMessages(run: CoachRun): string[] {
 /**
  * Decides whether the architecture gate passes. It passes only when coach
  * exited 0 with a readable report that has no layer violation at any
- * lifecycle and no analyzed file outside every declared layer. Every other outcome fails, so a broken or unreadable run can
- * never look like a clean one.
+ * lifecycle, no analyzed file outside every declared layer, and no unreviewed
+ * import with a non-literal specifier. Every other outcome fails, so a broken
+ * or unreadable run can never look like a clean one.
  */
 export function evaluateCoachRun(run: CoachRun): GateVerdict {
     if (run.exitCode !== 0) {

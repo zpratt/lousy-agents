@@ -24,9 +24,16 @@ export interface LayerMembership {
     readonly filesOutsideLayers: number;
 }
 
+export interface CoachDiagnostic {
+    readonly kind: string;
+    readonly path?: string;
+    readonly message: string;
+}
+
 export interface CoachReport {
     readonly signals: readonly CoachSignal[];
     readonly layerMembership: LayerMembership;
+    readonly diagnostics: readonly CoachDiagnostic[];
 }
 
 const nonEmptyText = z
@@ -79,18 +86,42 @@ const fileCount = z
 
 const layerMembershipSchema = z.object(
     {
-        head: z.object(
-            {
-                // biome-ignore lint/style/useNamingConvention: coach's report format
-                analyzed_files: fileCount,
-                // biome-ignore lint/style/useNamingConvention: coach's report format
-                files_outside_layers: fileCount,
-            },
-            mustBeObject("layer_membership.head"),
-        ),
+        head: z
+            .object(
+                {
+                    // biome-ignore lint/style/useNamingConvention: coach's report format
+                    analyzed_files: fileCount,
+                    // biome-ignore lint/style/useNamingConvention: coach's report format
+                    files_outside_layers: fileCount,
+                },
+                mustBeObject("layer_membership.head"),
+            )
+            .refine(
+                (head) => head.files_outside_layers <= head.analyzed_files,
+                {
+                    error: "layer_membership.head.files_outside_layers cannot exceed analyzed_files",
+                },
+            ),
     },
     mustBeObject("layer_membership"),
 );
+
+const diagnosticSchema = z
+    .object(
+        {
+            kind: nonEmptyText,
+            path: optionalText,
+            message: z.string().catch(""),
+        },
+        mustBeObject("diagnostic"),
+    )
+    .transform(
+        (diagnostic): CoachDiagnostic => ({
+            kind: diagnostic.kind,
+            path: diagnostic.path,
+            message: diagnostic.message,
+        }),
+    );
 
 const reportSchema = z
     .object(
@@ -104,6 +135,9 @@ const reportSchema = z
             }),
             // biome-ignore lint/style/useNamingConvention: coach's report format
             layer_membership: layerMembershipSchema,
+            diagnostics: z.array(diagnosticSchema, {
+                error: "coach report diagnostics must be an array",
+            }),
         },
         { error: "coach report must be a JSON object" },
     )
@@ -115,6 +149,7 @@ const reportSchema = z
                 filesOutsideLayers:
                     report.layer_membership.head.files_outside_layers,
             },
+            diagnostics: report.diagnostics,
         }),
     );
 

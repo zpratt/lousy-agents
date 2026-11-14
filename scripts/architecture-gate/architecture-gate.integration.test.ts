@@ -296,6 +296,7 @@ const FORBIDDEN: readonly ForbiddenEdge[] = [
         CORE_ENTITY,
         "scaffold_templates->entities",
     ),
+    edge(TOOLING_CONFIG, SCAFFOLD_TEMPLATE, "tooling->scaffold_templates"),
     // Production code must not import build and test tooling
     edge(
         "packages/core/src/lib/imports-tooling.ts",
@@ -668,19 +669,35 @@ describe(`the architecture gate, against coach and the committed ${POLICY_PATH}`
 
     describe("when a committed file sits outside every declared layer", () => {
         it("should fail and say that imports to or from it are not checked", async () => {
-            // Arrange
             const root = await createRepository(ALLOWED, policyPath, [
                 "packages/core/src/unlayered/orphan.ts",
             ]);
             created.push(root);
 
-            // Act
             const verdict = await runGateIn(root);
 
-            // Assert
             expect(verdict.passed).toBe(false);
             expect(verdict.messages.join("\n")).toMatch(
                 /^1 of \d+ files coach analyzed sit outside every declared layer/m,
+            );
+        });
+    });
+
+    describe("when a committed file imports a specifier that is not a string literal", () => {
+        it("should fail and name the file, since layer rules cannot place the import", async () => {
+            const root = await createRepository(ALLOWED, policyPath);
+            created.push(root);
+            await appendFile(
+                join(root, CORE_ENTITY),
+                "export const load = (target: string) => import(target);\n",
+            );
+            await git(root, "commit", "--quiet", "--all", "--message", "load");
+
+            const verdict = await runGateIn(root);
+
+            expect(verdict.passed).toBe(false);
+            expect(verdict.messages.join("\n")).toContain(
+                `${CORE_ENTITY}: import() in ${CORE_ENTITY} takes a non-literal specifier ("target")`,
             );
         });
     });

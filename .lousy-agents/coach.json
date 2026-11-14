@@ -374,6 +374,10 @@
         {
             "from": "scaffold_templates",
             "to": "tooling"
+        },
+        {
+            "from": "tooling",
+            "to": "scaffold_templates"
         }
     ]
 }
