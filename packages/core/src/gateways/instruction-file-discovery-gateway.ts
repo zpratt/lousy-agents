@@ -5,7 +5,6 @@
 
 import { realpath, stat } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
-import type { AgenticLocationEntry } from "../entities/agentic-location-catalog.js";
 import { isNestedInstructionFilename } from "../entities/agentic-location-catalog.js";
 import {
     type DiscoveryLimitWording,
@@ -22,14 +21,14 @@ import {
     DISCOVERY_SYMLINK_SKIPPED_RULE_ID,
 } from "../entities/lint-rules.js";
 import {
-    BUILD_OUTPUT_DIRECTORY_NAMES,
-    isFixtureDirectory,
-} from "../lib/agentic-discovery-skips.js";
-import {
     formatForAdditionalInstructionFile,
     instructionDiscoveryEntries,
 } from "../lib/agentic-location-matchers.js";
 import type { InstructionFileDiscoveryGateway } from "../use-cases/analyze-instruction-quality.js";
+import {
+    collapseToFirstRealFile,
+    discoverInstructionLocations,
+} from "./agentic-artifact-discovery.js";
 import type { FileIdentity } from "./read-regular-file-no-follow.js";
 import {
     inspectPathWithinRoot,
@@ -37,11 +36,8 @@ import {
 } from "./real-path-within-root.js";
 import {
     DEFAULT_MAX_WALK_DIRECTORIES,
-    DEFAULT_SKIPPED_DIRECTORY_NAMES,
-    type RepositoryWalkOptions,
     type RepositoryWalkResult,
     type WalkedFile,
-    walkRepository,
 } from "./repository-walk.js";
 
 // Re-export port type for consumers
@@ -98,6 +94,17 @@ export class FileSystemInstructionFileDiscoveryGateway
         const findings = new DiscoveryFindings();
 
         const rootDirectoryName = basename(resolve(targetDir));
+        const locations = await discoverInstructionLocations(targetDir, {
+            rootDirectoryName,
+            maxDirectories: this.maxDirectories,
+            ...(this.maxEntries === undefined
+                ? {}
+                : { maxEntries: this.maxEntries }),
+        });
+        const catalogWalks = locations.filter(
+            (location) => location.role === "catalog",
+        );
+        let catalogIndex = 0;
         const seen = new Set<string>();
         const exactFiles: ExactFileIdentity[] = [];
         for (const entry of instructionDiscoveryEntries()) {
@@ -116,11 +123,13 @@ export class FileSystemInstructionFileDiscoveryGateway
                 }
                 continue;
             }
-            const walked = await walkRepository(
-                targetDir,
-                this.walkOptions(entry, rootDirectoryName),
-            );
-            findings.addWalk(walked, (file) =>
+            const walked = catalogWalks[catalogIndex]?.walked;
+            catalogIndex += 1;
+            if (walked === undefined) {
+                continue;
+            }
+            const files = collapseToFirstRealFile(walked.files);
+            findings.addWalk({ ...walked, files }, (file) =>
                 toDiscoveredFile(
                     root,
                     file.relativePath,
@@ -128,95 +137,54 @@ export class FileSystemInstructionFileDiscoveryGateway
                     format,
                 ),
             );
-            for (const file of walked.files) {
+            for (const file of files) {
                 seen.add(file.relativePath);
             }
         }
 
-        await this.discoverNestedInstructionFiles(
-            targetDir,
-            root,
-            rootDirectoryName,
-            seen,
-            exactFiles,
-            findings,
-        );
+        const nested = locations.find((location) => location.role === "nested");
+        if (nested !== undefined) {
+            this.recordNestedInstructionFiles(
+                root,
+                seen,
+                exactFiles,
+                findings,
+                nested.walked,
+            );
+        }
 
         findings.report(onDiagnostic);
         return findings.files;
     }
 
-    private walkOptions(
-        entry: AgenticLocationEntry,
-        rootDirectoryName: string,
-    ): RepositoryWalkOptions {
-        return {
-            startRelativePath: entry.path,
-            includeFile: (name) => name.endsWith(entry.fileSuffix ?? ".md"),
-            includeSubdirectories: entry.includeSubdirectories === true,
-            revisit: "once-per-real-directory",
-            maxDirectories: this.maxDirectories,
-            skipDirectoryNames: [
-                ...DEFAULT_SKIPPED_DIRECTORY_NAMES,
-                ...BUILD_OUTPUT_DIRECTORY_NAMES,
-            ],
-            skipDirectory: (relativePath) =>
-                isFixtureDirectory(relativePath, rootDirectoryName),
-            ...(this.maxEntries === undefined
-                ? {}
-                : { maxEntries: this.maxEntries }),
-        };
-    }
-
-    private nestedWalkOptions(
-        rootDirectoryName: string,
-    ): RepositoryWalkOptions {
-        return {
-            startRelativePath: "",
-            includeFile: (name) => isNestedInstructionFilename(name),
-            includeSubdirectories: true,
-            revisit: "once-per-real-directory",
-            maxDirectories: this.maxDirectories,
-            skipDirectoryNames: [
-                ...DEFAULT_SKIPPED_DIRECTORY_NAMES,
-                ...BUILD_OUTPUT_DIRECTORY_NAMES,
-            ],
-            skipDirectory: (relativePath) =>
-                isFixtureDirectory(relativePath, rootDirectoryName),
-            ...(this.maxEntries === undefined
-                ? {}
-                : { maxEntries: this.maxEntries }),
-        };
-    }
-
-    private async discoverNestedInstructionFiles(
-        targetDir: string,
+    private recordNestedInstructionFiles(
         root: DiscoveryRoot,
-        rootDirectoryName: string,
         seen: ReadonlySet<string>,
         exactFiles: readonly ExactFileIdentity[],
         findings: DiscoveryFindings,
-    ): Promise<void> {
-        const additional = await walkRepository(
-            targetDir,
-            this.nestedWalkOptions(rootDirectoryName),
+        additional: RepositoryWalkResult,
+    ): void {
+        const walkedPaths = new Set(
+            additional.files.map((file) => file.relativePath),
+        );
+        const candidates = additional.files.filter((file) => {
+            if (
+                seen.has(file.relativePath) ||
+                isExactFileAlias(file, exactFiles, walkedPaths)
+            ) {
+                return false;
+            }
+            return (
+                formatForAdditionalInstructionFile(file.relativePath) !== null
+            );
+        });
+        const files = collapseToFirstRealFile(candidates, (file) =>
+            isAtItsRealPath(root, file),
         );
         findings.addWalk(
             {
                 ...additional,
-                files: additional.files.filter((file) => {
-                    if (
-                        seen.has(file.relativePath) ||
-                        isExactFileAlias(file, exactFiles)
-                    ) {
-                        return false;
-                    }
-                    return (
-                        formatForAdditionalInstructionFile(
-                            file.relativePath,
-                        ) !== null
-                    );
-                }),
+                files,
                 skippedOutsideRoot: additional.skippedOutsideRoot.filter(
                     isAnalyzableNestedInstructionLinkPath,
                 ),
@@ -233,7 +201,7 @@ export class FileSystemInstructionFileDiscoveryGateway
         );
         if (
             additional.depthLimitedDirectories.some(
-                (path) => !isUnderInstructionCatalogDirectory(path),
+                isNestedFilenameAnalyzedBelow,
             )
         ) {
             findings.noteNestedFilenameDepth(additional.limits.maxDepth);
@@ -362,6 +330,15 @@ const NESTED_FILENAME_DEPTH_WORDING: DiscoveryLimitWording = {
 };
 
 /**
+ * True when the walked path is the file's own location rather than a path
+ * that reaches it through a symbolic link, so a file also visible through a
+ * catalog-owned link is reported where it lives.
+ */
+function isAtItsRealPath(root: DiscoveryRoot, file: WalkedFile): boolean {
+    return file.real === join(root.rootReal, ...file.relativePath.split("/"));
+}
+
+/**
  * True for a skipped link the nested walk would have analyzed: a nested
  * instruction filename at the root, or one no other catalog entry owns. A
  * link such as `.claude/skills/a/AGENTS.md` is owned by its skill directory,
@@ -402,27 +379,36 @@ function identityKey(identity: FileIdentity): string {
  * True when a nested-walk file is an exact catalog file already discovered
  * under another name: the same real path (a symbolic link to it or from it),
  * or the same inode under a name that differs only in case, as a
- * case-insensitive file system reports `agents.md` for `AGENTS.md`.
+ * case-insensitive file system reports `agents.md` for `AGENTS.md`. That
+ * second form is one directory entry only when the walk did not also list the
+ * catalog name: two entries listed by their own names are two files, even
+ * when they are hard links to one inode.
  */
 function isExactFileAlias(
     file: WalkedFile,
     exactFiles: readonly ExactFileIdentity[],
+    walkedPaths: ReadonlySet<string>,
 ): boolean {
     const walkedIdentity = identityKey(file.identity);
     return exactFiles.some(
         (exact) =>
             exact.real === file.real ||
             (exact.identity === walkedIdentity &&
-                exact.path.toLowerCase() === file.relativePath.toLowerCase()),
+                exact.path.toLowerCase() === file.relativePath.toLowerCase() &&
+                !walkedPaths.has(exact.path)),
     );
 }
 
-function isUnderInstructionCatalogDirectory(relativePath: string): boolean {
-    return instructionDiscoveryEntries().some(
-        (entry) =>
-            entry.matchKind === "directory-prefix" &&
-            (relativePath === entry.path ||
-                relativePath.startsWith(`${entry.path}/`)),
+/**
+ * True when a directory the nested walk did not enter could hold a
+ * CLAUDE.md or AGENTS.md that lint would analyze, so the depth limit may have
+ * hidden one. Under a skill, hook, or agent directory those names belong to
+ * the construct that owns the directory and are never analyzed as
+ * instructions; under `.github/instructions` they are.
+ */
+function isNestedFilenameAnalyzedBelow(directory: string): boolean {
+    return (
+        formatForAdditionalInstructionFile(`${directory}/CLAUDE.md`) !== null
     );
 }
 

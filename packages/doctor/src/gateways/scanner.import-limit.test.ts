@@ -159,4 +159,31 @@ describe("scanning a repository that holds symbolic links out of the repository"
 
         expect(scan).not.toHaveProperty("skippedOutsideRoot");
     });
+
+    it("should name an outside symlink that only the instruction catalog walk can see", async () => {
+        const segments = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+        const directory = join(
+            repoRoot,
+            ".github",
+            "instructions",
+            ...segments,
+        );
+        await mkdir(directory, { recursive: true });
+        await writeFile(join(outsideRoot, "secret.md"), "secret\n");
+        await symlink(
+            join(outsideRoot, "secret.md"),
+            join(directory, "leak.instructions.md"),
+        );
+
+        const scan = await scanRepositoryWithReport(repoRoot);
+
+        expect(scan.skippedOutsideRoot).toContain(
+            [
+                ".github",
+                "instructions",
+                ...segments,
+                "leak.instructions.md",
+            ].join("/"),
+        );
+    });
 });
