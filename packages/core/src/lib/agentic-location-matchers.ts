@@ -10,6 +10,7 @@ import {
     isNestedInstructionFilename,
     type LintDiscoveryTarget,
 } from "../entities/agentic-location-catalog.js";
+import type { InstructionFileFormat } from "../entities/instruction-quality.js";
 
 /**
  * Normalizes a repo-relative path for catalog matching.
@@ -199,4 +200,38 @@ export function instructionDiscoveryEntries(
     catalog: readonly AgenticLocationEntry[] = AGENTIC_LOCATION_CATALOG,
 ): AgenticLocationEntry[] {
     return catalog.filter((entry) => entry.instructionFormat != null);
+}
+
+/**
+ * Format for a `CLAUDE.md`, `AGENTS.md`, `AGENTS.MD`, or `agents.md` that the
+ * catalog's exact paths and suffix walks do not already load.
+ *
+ * A directory that loads every markdown file keeps the file (`null` here).
+ * A suffix-restricted directory such as `.github/instructions` does not load
+ * these names, so they stay Claude or shared instructions.
+ */
+export function formatForAdditionalInstructionFile(
+    path: string,
+    catalog: readonly AgenticLocationEntry[] = AGENTIC_LOCATION_CATALOG,
+): InstructionFileFormat | null {
+    const normalized = normalizeRepoRelativePath(path);
+    if (normalized === "") {
+        return null;
+    }
+    const slash = normalized.lastIndexOf("/");
+    const fileName = slash === -1 ? normalized : normalized.slice(slash + 1);
+    if (!isNestedInstructionFilename(fileName)) {
+        return null;
+    }
+    const best = bestMatchingEntry(normalized, catalog);
+    if (best?.matchKind === "exact") {
+        return null;
+    }
+    if (
+        best?.matchKind === "directory-prefix" &&
+        best.fileSuffix === undefined
+    ) {
+        return null;
+    }
+    return fileName === "CLAUDE.md" ? "claude-md" : "agents-md";
 }

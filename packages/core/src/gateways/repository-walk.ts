@@ -120,6 +120,12 @@ export interface RepositoryWalkResult {
      * limit, so files in it or under it, if any, are not in the result
      */
     readonly depthLimitReached: boolean;
+    /**
+     * Repository-relative directories the walk did not enter because they lie
+     * below the depth limit, in the order it met them. Empty when
+     * depthLimitReached is false.
+     */
+    readonly depthLimitedDirectories: readonly string[];
     /** True when the entry budget stopped the walk from examining more */
     readonly entryLimitReached: boolean;
     /**
@@ -208,6 +214,7 @@ class RepositoryWalk {
     private listedDirectories = 0;
     private limitReached = false;
     private depthLimitReached = false;
+    private readonly depthLimitedDirectories: string[] = [];
     private entriesExamined = 0;
     private entryLimitReached = false;
     private readonly skippedOutsideRoot: string[] = [];
@@ -224,6 +231,7 @@ class RepositoryWalk {
             files: this.files,
             directoryLimitReached: this.limitReached,
             depthLimitReached: this.depthLimitReached,
+            depthLimitedDirectories: this.depthLimitedDirectories,
             entryLimitReached: this.entryLimitReached,
             skippedOutsideRoot: this.skippedOutsideRoot,
             limits: {
@@ -338,6 +346,7 @@ class RepositoryWalk {
             !this.isRevisit(entry.real, ancestors)
         ) {
             this.depthLimitReached = true;
+            this.depthLimitedDirectories.push(entryRelativePath);
         }
     }
 
@@ -420,6 +429,7 @@ export async function walkRepository(
             files: [],
             directoryLimitReached: false,
             depthLimitReached: false,
+            depthLimitedDirectories: [],
             entryLimitReached: false,
             skippedOutsideRoot: [],
             limits: {
