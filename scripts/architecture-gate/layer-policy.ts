@@ -16,7 +16,7 @@ export interface ForbiddenImport {
     readonly to: string;
 }
 
-/** The layering rules that coach enforces, as committed in project.json. */
+/** The layering rules that coach enforces, as committed in .lousy-agents/coach.json. */
 export interface LayerPolicy {
     readonly layers: readonly Layer[];
     readonly forbiddenImports: readonly ForbiddenImport[];
@@ -141,7 +141,7 @@ const policySchema = z
     );
 
 /**
- * Reads the policy coach enforces from the parsed contents of project.json,
+ * Reads the policy coach enforces from the parsed contents of .lousy-agents/coach.json,
  * rejecting any document that would leave the gate checking nothing.
  */
 export function parseLayerPolicy(document: unknown): LayerPolicy {

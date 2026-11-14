@@ -39,11 +39,29 @@ function signalWithField(field: string, value: string) {
     return { ...signal(LAYER_VIOLATION, "a.ts"), [field]: value };
 }
 
-function report(signals: unknown, schemaVersion: unknown = "2") {
+function layerMembership(filesOutsideLayers: unknown) {
+    return {
+        head: {
+            revision: "0123456789abcdef0123456789abcdef01234567",
+            // biome-ignore lint/style/useNamingConvention: coach's report format
+            analyzed_files: 258,
+            // biome-ignore lint/style/useNamingConvention: coach's report format
+            files_outside_layers: filesOutsideLayers,
+        },
+    };
+}
+
+function report(
+    signals: unknown,
+    schemaVersion: unknown = "2",
+    membership: unknown = layerMembership(0),
+) {
     return JSON.stringify({
         // biome-ignore lint/style/useNamingConvention: coach's report format
         schema_version: schemaVersion,
         signals,
+        // biome-ignore lint/style/useNamingConvention: coach's report format
+        layer_membership: membership,
     });
 }
 
@@ -293,6 +311,42 @@ describe("evaluateCoachRun", () => {
         });
     });
 
+    describe("when coach reports files that no declared layer claims", () => {
+        it("should fail and say how many files the layer rules did not check", () => {
+            // Arrange
+            const outside = chance.integer({ min: 1, max: 40 });
+            const run = cleanRun(report([], "2", layerMembership(outside)));
+
+            // Act
+            const verdict = evaluateCoachRun(run);
+
+            // Assert
+            expect(verdict.passed).toBe(false);
+            expect(verdict.messages.join("\n")).toContain(
+                `${outside} of 258 files coach analyzed sit outside every declared layer`,
+            );
+        });
+
+        it("should report the files outside layers alongside any layer violation", () => {
+            // Arrange
+            const run = cleanRun(
+                report(
+                    [signal(LAYER_VIOLATION, "a.ts")],
+                    "2",
+                    layerMembership(2),
+                ),
+            );
+
+            // Act
+            const verdict = evaluateCoachRun(run);
+
+            // Assert
+            const text = verdict.messages.join("\n");
+            expect(text).toContain(LAYER_VIOLATION);
+            expect(text).toContain("2 of 258 files coach analyzed");
+        });
+    });
+
     describe("when coach exits 0 with output the gate cannot trust", () => {
         const untrustworthy: ReadonlyArray<readonly [string, string, RegExp]> =
             [
@@ -314,6 +368,27 @@ describe("evaluateCoachRun", () => {
                     "a report with no schema version",
                     JSON.stringify({ signals: [] }),
                     /schema_version must be "2"/,
+                ],
+                [
+                    "a report with no layer membership",
+                    // biome-ignore lint/style/useNamingConvention: coach's report format
+                    JSON.stringify({ schema_version: "2", signals: [] }),
+                    /layer_membership must be a JSON object/,
+                ],
+                [
+                    "a layer membership with no head revision",
+                    report([], "2", {}),
+                    /layer_membership\.head must be a JSON object/,
+                ],
+                [
+                    "a negative count of files outside layers",
+                    report([], "2", layerMembership(-1)),
+                    /files_outside_layers must be a whole number/,
+                ],
+                [
+                    "a count of files outside layers that is not a number",
+                    report([], "2", layerMembership("0")),
+                    /files_outside_layers must be a whole number/,
                 ],
                 [
                     "a report with no signals list",

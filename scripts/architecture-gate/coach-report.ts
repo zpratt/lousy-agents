@@ -18,8 +18,15 @@ export interface CoachSignal {
     readonly forbiddenPair?: string;
 }
 
+/** How many of the files coach analyzed at HEAD no declared layer claims. */
+export interface LayerMembership {
+    readonly analyzedFiles: number;
+    readonly filesOutsideLayers: number;
+}
+
 export interface CoachReport {
     readonly signals: readonly CoachSignal[];
+    readonly layerMembership: LayerMembership;
 }
 
 const nonEmptyText = z
@@ -60,6 +67,31 @@ const signalSchema = z
         }),
     );
 
+function mustBeWholeNumber(issue: { readonly path?: readonly PropertyKey[] }) {
+    const field = String(issue.path?.at(-1) ?? "value");
+    return `layer_membership.head.${field} must be a whole number of files`;
+}
+
+const fileCount = z
+    .number({ error: mustBeWholeNumber })
+    .int({ error: mustBeWholeNumber })
+    .nonnegative({ error: mustBeWholeNumber });
+
+const layerMembershipSchema = z.object(
+    {
+        head: z.object(
+            {
+                // biome-ignore lint/style/useNamingConvention: coach's report format
+                analyzed_files: fileCount,
+                // biome-ignore lint/style/useNamingConvention: coach's report format
+                files_outside_layers: fileCount,
+            },
+            mustBeObject("layer_membership.head"),
+        ),
+    },
+    mustBeObject("layer_membership"),
+);
+
 const reportSchema = z
     .object(
         {
@@ -70,10 +102,21 @@ const reportSchema = z
             signals: z.array(signalSchema, {
                 error: "coach report signals must be an array",
             }),
+            // biome-ignore lint/style/useNamingConvention: coach's report format
+            layer_membership: layerMembershipSchema,
         },
         { error: "coach report must be a JSON object" },
     )
-    .transform((report): CoachReport => ({ signals: report.signals }));
+    .transform(
+        (report): CoachReport => ({
+            signals: report.signals,
+            layerMembership: {
+                analyzedFiles: report.layer_membership.head.analyzed_files,
+                filesOutsideLayers:
+                    report.layer_membership.head.files_outside_layers,
+            },
+        }),
+    );
 
 function parseJson(stdout: string): unknown {
     if (stdout.trim() === "") {

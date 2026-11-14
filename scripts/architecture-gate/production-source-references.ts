@@ -7,7 +7,7 @@ const REFERENCE_TAG = /<reference/i;
 /**
  * The 1-based numbers of the lines that hold a triple-slash reference
  * directive's tag, `<reference`. A `/// <reference path="…" />` pulls a file
- * into the program as an import does, and coach 0.11.0 does not count it as
+ * into the program as an import does, and coach 0.12.0 does not count it as
  * one, so a layer rule would not see it. `types` and `lib` references are
  * refused as well, since telling them from `path` means reading attributes,
  * and no file here uses any. A line that only mentions the tag, in a string

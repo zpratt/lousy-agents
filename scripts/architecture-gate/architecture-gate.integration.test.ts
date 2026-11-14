@@ -15,6 +15,7 @@ import { delimiter, dirname, join, posix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { POLICY_PATH } from "./policy-path.js";
 import { runArchitectureGate } from "./run-gate.js";
 import { spawnCoach } from "./spawn-coach.js";
 
@@ -60,6 +61,8 @@ const LINT_DIRECTORY = "packages/lint/src/validate-directory.ts";
 const LINT_ERRORS = "packages/lint/src/lint-errors.ts";
 const DOCTOR_INDEX = "packages/doctor/src/index.ts";
 const CLI_COMMAND = "packages/cli/src/commands/use-doctor.ts";
+const SCAFFOLD_TEMPLATE = "packages/cli/api/copilot-with-fastify/src/app.ts";
+const TOOLING_CONFIG = "packages/doctor/vitest.config.ts";
 
 type ImportForm =
     | "value"
@@ -282,6 +285,34 @@ const FORBIDDEN: readonly ForbiddenEdge[] = [
         CORE_GATEWAY,
         "entities->adapters",
     ),
+    // Production code and the scaffold templates it writes stay apart
+    edge(
+        "packages/core/src/gateways/imports-template.ts",
+        SCAFFOLD_TEMPLATE,
+        "adapters->scaffold_templates",
+    ),
+    edge(
+        "packages/cli/api/copilot-with-fastify/src/imports-entity.ts",
+        CORE_ENTITY,
+        "scaffold_templates->entities",
+    ),
+    // Production code must not import build and test tooling
+    edge(
+        "packages/core/src/lib/imports-tooling.ts",
+        TOOLING_CONFIG,
+        "adapters->tooling",
+    ),
+    // Other packages reach lint through its package API only
+    edge(
+        "packages/cli/src/commands/imports-lint-errors.ts",
+        LINT_ERRORS,
+        "adapters->lint_errors",
+    ),
+    edge(
+        "packages/core/src/formatters/imports-validate-directory.ts",
+        LINT_DIRECTORY,
+        "formatters->lint_validate_directory",
+    ),
     // The same layers across packages, reached by package name
     {
         importer: "packages/doctor/src/entities/via-package-name.ts",
@@ -501,13 +532,18 @@ function modulePathsOf(edges: readonly Edge[]): string[] {
 async function createRepository(
     imports: readonly Edge[],
     policyPath: string,
+    extraModules: readonly string[] = [],
 ): Promise<string> {
     const root = await mkdtemp(
         join(await realpath(tmpdir()), "architecture-gate-"),
     );
     await writeWorkspaceFiles(root);
-    await cp(policyPath, join(root, "project.json"));
-    for (const path of modulePathsOf([...FORBIDDEN, ...ALLOWED])) {
+    await mkdir(dirname(join(root, POLICY_PATH)), { recursive: true });
+    await cp(policyPath, join(root, POLICY_PATH));
+    for (const path of [
+        ...modulePathsOf([...FORBIDDEN, ...ALLOWED]),
+        ...extraModules,
+    ]) {
         await writeModule(root, path, imports);
     }
     await linkCompiler(root);
@@ -561,8 +597,8 @@ async function runEntryIn(root: string, env: NodeJS.ProcessEnv = ENVIRONMENT) {
     }
 }
 
-describe("the architecture gate, against coach and the committed project.json", () => {
-    const policyPath = resolve(repositoryRoot, "project.json");
+describe(`the architecture gate, against coach and the committed ${POLICY_PATH}`, () => {
+    const policyPath = resolve(repositoryRoot, POLICY_PATH);
     const created: string[] = [];
     let violating: string;
     let compliant: string;
@@ -630,6 +666,25 @@ describe("the architecture gate, against coach and the committed project.json", 
         });
     });
 
+    describe("when a committed file sits outside every declared layer", () => {
+        it("should fail and say that imports to or from it are not checked", async () => {
+            // Arrange
+            const root = await createRepository(ALLOWED, policyPath, [
+                "packages/core/src/unlayered/orphan.ts",
+            ]);
+            created.push(root);
+
+            // Act
+            const verdict = await runGateIn(root);
+
+            // Assert
+            expect(verdict.passed).toBe(false);
+            expect(verdict.messages.join("\n")).toMatch(
+                /^1 of \d+ files coach analyzed sit outside every declared layer/m,
+            );
+        });
+    });
+
     describe("when the working tree has uncommitted changes", () => {
         const NoticeStart =
             "architecture gate: coach analyzed the committed HEAD only;";
@@ -651,7 +706,7 @@ describe("the architecture gate, against coach and the committed project.json", 
             // Assert
             expect(run.exitCode).toBe(0);
             expect(run.stderr).toContain(
-                `${NoticeStart} 1 uncommitted change under packages/ was not checked (${CORE_ENTITY}). Commit it to include it.`,
+                `${NoticeStart} 1 uncommitted change under packages/ was not checked (${CORE_ENTITY}). Commit it to include it, or run \`mise run coach-worktree\` to scan it first.`,
             );
         });
 

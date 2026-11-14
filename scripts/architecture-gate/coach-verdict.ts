@@ -1,4 +1,9 @@
-import { type CoachSignal, parseCoachReport } from "./coach-report.js";
+import {
+    type CoachReport,
+    type CoachSignal,
+    type LayerMembership,
+    parseCoachReport,
+} from "./coach-report.js";
 import { GateError } from "./gate-error.js";
 
 const LAYER_VIOLATION_RULE = "architecture.layer_violation";
@@ -27,17 +32,39 @@ function describeViolation(signal: CoachSignal): string {
     return `  ${signal.path} (the report names no import)`;
 }
 
-function verdictForSignals(signals: readonly CoachSignal[]): GateVerdict {
+function violationMessages(signals: readonly CoachSignal[]): string[] {
     const violations = signals.filter(
         (signal) => signal.ruleId === LAYER_VIOLATION_RULE,
     );
     if (violations.length === 0) {
-        return { passed: true, messages: [] };
+        return [];
     }
-    return failed(
+    return [
         `coach reported ${violations.length} ${LAYER_VIOLATION_RULE} signal(s):`,
         ...violations.map(describeViolation),
-    );
+    ];
+}
+
+/**
+ * Coach checks forbidden imports only between files a layer claims, so a file
+ * outside every layer is a hole in the check rather than a pass.
+ */
+function membershipMessages(membership: LayerMembership): string[] {
+    const { analyzedFiles, filesOutsideLayers } = membership;
+    if (filesOutsideLayers === 0) {
+        return [];
+    }
+    return [
+        `${filesOutsideLayers} of ${analyzedFiles} files coach analyzed sit outside every declared layer, so imports to or from them are not checked: add each to a layer in the policy (\`mise run coach-baseline\` prints the count)`,
+    ];
+}
+
+function verdictForReport(report: CoachReport): GateVerdict {
+    const messages = [
+        ...violationMessages(report.signals),
+        ...membershipMessages(report.layerMembership),
+    ];
+    return { passed: messages.length === 0, messages };
 }
 
 /** Coach's exit status when `--fail-on-incomplete-coverage` finds a gap. */
@@ -61,7 +88,7 @@ export function incompleteRunMessages(run: CoachRun): string[] {
 /**
  * Decides whether the architecture gate passes. It passes only when coach
  * exited 0 with a readable report that has no layer violation at any
- * lifecycle. Every other outcome fails, so a broken or unreadable run can
+ * lifecycle and no analyzed file outside every declared layer. Every other outcome fails, so a broken or unreadable run can
  * never look like a clean one.
  */
 export function evaluateCoachRun(run: CoachRun): GateVerdict {
@@ -69,7 +96,7 @@ export function evaluateCoachRun(run: CoachRun): GateVerdict {
         return failed(...incompleteRunMessages(run));
     }
     try {
-        return verdictForSignals(parseCoachReport(run.stdout).signals);
+        return verdictForReport(parseCoachReport(run.stdout));
     } catch (error) {
         if (error instanceof GateError) {
             return failed(error.message);
