@@ -622,7 +622,7 @@ describe("lint and doctor discovery", () => {
             );
         });
 
-        it.fails("should discover an instruction file exactly ten directories below .github/instructions in both tools", () => {
+        it("should discover an instruction file exactly ten directories below .github/instructions in both tools", () => {
             expect(analyzedPaths(full, root, "instruction")).toContain(
                 AT_LIMIT,
             );
@@ -646,7 +646,7 @@ describe("lint and doctor discovery", () => {
             expect(sortedPaths(inventory)).not.toContain(SKILL_DIST);
         });
 
-        it.fails("should discover the same agentic paths with lint and with doctor", () => {
+        it("should discover the same agentic paths with lint and with doctor", () => {
             const doctorPaths = sortedPaths(inventory).filter(
                 (path) => !INTENTIONAL_DOCTOR_ONLY.has(path),
             );
