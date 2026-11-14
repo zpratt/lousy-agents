@@ -73,7 +73,7 @@ Each task passes `--project-language typescript` and `--project-config .lousy-ag
 | `coach-check-project` | `--baseline --check-project`. Readiness only, not a scan. |
 | `coach-baseline` | Full `--baseline` project scan. |
 | `coach-branch` | Full `--base main` project scan. |
-| `coach-worktree` | `--worktree --base main`: the same comparison with each uncommitted `.ts`/`.tsx` file, `package.json` and `tsconfig*.json` read from disk. Experimental in 0.12.0 (hidden from `--help`). It must run from the repository root, and it still reads the policy from HEAD, so an uncommitted policy edit is reported as `worktree_changes_not_analyzed` and exits 3. |
+| `coach-worktree` | `--worktree --base main`: the same comparison with each uncommitted `.ts`/`.tsx` file, `package.json` and `tsconfig*.json` read from disk. Experimental in 0.12.0 (hidden from `--help`). It must run from the repository root, and it still reads the policy from HEAD, so an uncommitted policy edit is reported as `worktree_changes_not_analyzed` and exits 3. It needs git 2.44 or later: an older git cannot look into the `wisdom` submodule without fetching, so coach reports `worktree_scan_incomplete` and exits 3 on every run. |
 | `coach-top` | Same baseline analysis as `coach-baseline`, rendered with `--min-severity high --top 10`. |
 
 `coach-check-project` fills `checks.package_manager` (npm, pnpm, or Bun from the selected root's manifest or lockfile, then the binary on `PATH`). It exits 0 even when gaps exist. Read `status`, `checks`, and `gaps`. With no policy, `checks.project_shape` and `checks.package_manager` stay `not_checked`.
