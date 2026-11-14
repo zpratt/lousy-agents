@@ -158,7 +158,7 @@ describe("discoverAgentFiles", () => {
         const files = await discoverAgentFiles(testDir, {
             rootDirectoryName: "repo",
         });
-        const paths = files.map((file) => file.relativePath);
+        const paths = files.files.map((file) => file.relativePath);
 
         expect(paths).toContain(atLimit.join("/"));
         expect(paths).not.toContain(pastLimit.join("/"));

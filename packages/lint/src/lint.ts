@@ -133,6 +133,11 @@ interface UseCaseLintOutput {
     }>;
     readonly totalErrors: number;
     readonly totalWarnings: number;
+    readonly discoveryDiagnostics?: readonly {
+        filePath: string;
+        ruleId: string;
+        message: string;
+    }[];
 }
 
 /** Converts a use-case lint output to the unified LintOutput shape. */
@@ -155,6 +160,17 @@ function toLintOutput(
                 target,
             });
         }
+    }
+
+    for (const report of output.discoveryDiagnostics ?? []) {
+        diagnostics.push({
+            filePath: report.filePath,
+            line: 1,
+            severity: "warning",
+            message: report.message,
+            ruleId: report.ruleId,
+            target,
+        });
     }
 
     return {

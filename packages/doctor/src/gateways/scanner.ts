@@ -136,10 +136,9 @@ export async function scanRepositoryWithReport(
             ? {}
             : { maxEntries: options.maxEntries }),
     };
-    const deepConstructFiles = [
-        ...(await discoverAgentFiles(absRoot, catalogLimits)),
-        ...(await discoverSubagentFiles(absRoot, catalogLimits)),
-    ];
+    const agentWalk = await discoverAgentFiles(absRoot, catalogLimits);
+    const subagentWalk = await discoverSubagentFiles(absRoot, catalogLimits);
+    const deepConstructFiles = [...agentWalk.files, ...subagentWalk.files];
     const beyondRootDepth = [
         ...instructionWalks
             .filter((location) => location.role === "catalog")
@@ -161,15 +160,27 @@ export async function scanRepositoryWithReport(
     const depthLimitReached =
         walked.depthLimitReached ||
         catalogWalks.some((location) => location.walked.depthLimitReached);
+    const constructWalks = [agentWalk, subagentWalk];
     const directoryLimitReached =
         walked.directoryLimitReached ||
-        catalogWalks.some((location) => location.walked.directoryLimitReached);
+        catalogWalks.some(
+            (location) => location.walked.directoryLimitReached,
+        ) ||
+        constructWalks.some((walk) => walk.directoryLimitReached);
     const entryLimitReached =
         walked.entryLimitReached ||
-        catalogWalks.some((location) => location.walked.entryLimitReached);
+        catalogWalks.some((location) => location.walked.entryLimitReached) ||
+        constructWalks.some((walk) => walk.entryLimitReached);
     const skippedOutsideRoot = [...walked.skippedOutsideRoot];
     for (const location of catalogWalks) {
         for (const path of location.walked.skippedOutsideRoot) {
+            if (!skippedOutsideRoot.includes(path)) {
+                skippedOutsideRoot.push(path);
+            }
+        }
+    }
+    for (const walk of constructWalks) {
+        for (const path of walk.skippedOutsideRoot) {
             if (!skippedOutsideRoot.includes(path)) {
                 skippedOutsideRoot.push(path);
             }

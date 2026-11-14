@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { DISCOVERY_LIMIT_REACHED_RULE_ID } from "../entities/lint-rules.js";
 import { skillDirectoryRoots } from "../lib/agentic-location-matchers.js";
 import { FileSystemSkillLintGateway } from "./skill-lint-gateway.js";
 
@@ -23,6 +24,30 @@ describe("SkillLintGateway", () => {
     });
 
     describe("discoverSkills", () => {
+        it("should report a directory cap hit instead of dropping it", async () => {
+            await mkdir(join(testDir, ".github", "skills", "one"), {
+                recursive: true,
+            });
+            await writeFile(
+                join(testDir, ".github", "skills", "one", "SKILL.md"),
+                "# skill\n",
+            );
+            const diagnostics: { ruleId: string; message: string }[] = [];
+            const capped = new FileSystemSkillLintGateway({
+                maxDirectories: 1,
+            });
+
+            await capped.discoverSkills(testDir, (diagnostic) =>
+                diagnostics.push(diagnostic),
+            );
+
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    ruleId: DISCOVERY_LIMIT_REACHED_RULE_ID,
+                }),
+            ]);
+        });
+
         describe("given a directory with skill files", () => {
             it("should discover all SKILL.md files", async () => {
                 // Arrange

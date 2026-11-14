@@ -4,6 +4,7 @@
  */
 
 import { basename, join, resolve } from "node:path";
+import type { InstructionDiscoveryDiagnosticSink } from "../entities/instruction-quality.js";
 import type { ParsedFrontmatter } from "../entities/skill.js";
 import { parseFrontmatter } from "../lib/frontmatter.js";
 import type {
@@ -14,6 +15,7 @@ import {
     collapseToFirstRealFile,
     discoverSubagentFiles,
     omitSymlinkedPaths,
+    reportConstructLimits,
 } from "./agentic-artifact-discovery.js";
 import { readFileNoFollow } from "./file-system-utils.js";
 
@@ -24,16 +26,28 @@ const MAX_SUBAGENT_FILE_BYTES = 1_048_576;
  * File system implementation of the subagent lint gateway.
  */
 export class FileSystemSubagentLintGateway implements SubagentLintGateway {
+    constructor(
+        private readonly limits: {
+            readonly maxDirectories?: number;
+            readonly maxEntries?: number;
+        } = {},
+    ) {}
+
     async discoverSubagents(
         targetDir: string,
+        onDiagnostic?: InstructionDiscoveryDiagnosticSink,
     ): Promise<DiscoveredSubagentFile[]> {
+        const walk = await discoverSubagentFiles(targetDir, {
+            rootDirectoryName: basename(resolve(targetDir)),
+            ...this.limits,
+        });
+        reportConstructLimits(walk, onDiagnostic, {
+            subject: "Subagent discovery",
+            missing: "subagent files",
+            consequence: "were not analyzed",
+        });
         const found = collapseToFirstRealFile(
-            await omitSymlinkedPaths(
-                targetDir,
-                await discoverSubagentFiles(targetDir, {
-                    rootDirectoryName: basename(resolve(targetDir)),
-                }),
-            ),
+            await omitSymlinkedPaths(targetDir, walk.files),
         );
         return found.map((file) => {
             const name = file.relativePath.split("/").at(-1) ?? "";

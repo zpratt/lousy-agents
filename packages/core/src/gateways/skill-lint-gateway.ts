@@ -5,6 +5,7 @@
 
 import { basename, join, resolve } from "node:path";
 import { z } from "zod";
+import type { InstructionDiscoveryDiagnosticSink } from "../entities/instruction-quality.js";
 import type {
     DiscoveredSkillFile,
     ParsedFrontmatter,
@@ -14,6 +15,7 @@ import type { SkillLintGateway } from "../use-cases/lint-skill-frontmatter.js";
 import {
     discoverSkillFiles,
     omitSymlinkedPaths,
+    reportConstructLimits,
 } from "./agentic-artifact-discovery.js";
 import {
     isFsSafeViolation,
@@ -72,13 +74,27 @@ async function readLockedSkillNames(targetDir: string): Promise<Set<string>> {
  * File system implementation of the skill lint gateway.
  */
 export class FileSystemSkillLintGateway implements SkillLintGateway {
-    async discoverSkills(targetDir: string): Promise<DiscoveredSkillFile[]> {
-        const found = await omitSymlinkedPaths(
-            targetDir,
-            await discoverSkillFiles(targetDir, {
-                rootDirectoryName: basename(resolve(targetDir)),
-            }),
-        );
+    constructor(
+        private readonly limits: {
+            readonly maxDirectories?: number;
+            readonly maxEntries?: number;
+        } = {},
+    ) {}
+
+    async discoverSkills(
+        targetDir: string,
+        onDiagnostic?: InstructionDiscoveryDiagnosticSink,
+    ): Promise<DiscoveredSkillFile[]> {
+        const walk = await discoverSkillFiles(targetDir, {
+            rootDirectoryName: basename(resolve(targetDir)),
+            ...this.limits,
+        });
+        reportConstructLimits(walk, onDiagnostic, {
+            subject: "Skill discovery",
+            missing: "skill files",
+            consequence: "were not analyzed",
+        });
+        const found = await omitSymlinkedPaths(targetDir, walk.files);
         const skills: DiscoveredSkillFile[] = found.flatMap((file) => {
             const skillName = file.relativePath.split("/").at(-2) ?? "";
             if (
