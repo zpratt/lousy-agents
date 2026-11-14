@@ -5,7 +5,8 @@
  * avoid stack exhaustion on pathologically deep directory trees.
  */
 
-import { join, relative, resolve, sep } from "node:path";
+import { basename, join, relative, resolve, sep } from "node:path";
+import { isSkippedDiscoveryDirectory } from "../lib/agentic-discovery-skips.js";
 import {
     listDirectoryWithinRoot,
     pathExistsWithinRoot,
@@ -75,6 +76,15 @@ async function collectEntryFiles(
     }
 
     if (entry.isDirectory()) {
+        const relativePosix = entryPath.split(sep).join("/");
+        if (
+            isSkippedDiscoveryDirectory(
+                relativePosix,
+                basename(resolve(targetDir)),
+            )
+        ) {
+            return [];
+        }
         return walkMarkdownFiles(
             targetDir,
             resolvedRootDir,

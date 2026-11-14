@@ -596,11 +596,18 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
     });
 
     describe("when .github/instructions has a dist subdirectory", () => {
-        it("should discover the instruction files in it, because only node_modules and .git are skipped", async () => {
-            const directory = join(testDir, ".github", "instructions", "dist");
-            await mkdir(directory, { recursive: true });
+        it("should leave the instruction files in it undiscovered, the same as doctor", async () => {
+            const instructions = join(testDir, ".github", "instructions");
+            const distDirectory = join(instructions, "dist");
+            const keptDirectory = join(instructions, "kept");
+            await mkdir(distDirectory, { recursive: true });
+            await mkdir(keptDirectory, { recursive: true });
             await writeFile(
-                join(directory, "built.instructions.md"),
+                join(distDirectory, "built.instructions.md"),
+                chance.sentence(),
+            );
+            await writeFile(
+                join(keptDirectory, "source.instructions.md"),
                 chance.sentence(),
             );
 
@@ -610,8 +617,8 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
                 join(
                     ".github",
                     "instructions",
-                    "dist",
-                    "built.instructions.md",
+                    "kept",
+                    "source.instructions.md",
                 ),
             ]);
         });
