@@ -11,57 +11,44 @@ Yes. `lint` does not see the nested instruction files that [PR #1576](https://gi
 | Does lint miss nested `CLAUDE.md` / `AGENTS.md`? | Yes | `it.fails` "should discover a nested CLAUDE.md and a nested AGENTS.md when lint analyzes the repository". Doctor inventories `packages/foo/CLAUDE.md` (claude) and `packages/bar/AGENTS.md` (shared). Lint's report does not name either file. The same miss shows up when the scan root is a directory named `tests` (`src/CLAUDE.md` is kept by doctor and skipped by lint) and when the scan root is `tests/fixtures` (the root `CLAUDE.md` is seen by both; `case/CLAUDE.md` is seen only by doctor). |
 | Does lint lint test fixtures? | Yes, for files inside trees it already walks. Nested `CLAUDE.md` under `tests/fixtures` is not a false positive today, because lint never looks there. | `it.fails` "should leave fixture copies inside instruction, agent, and skill roots out of lint". Lint reports `.github/instructions/tests/fixtures/trap.instructions.md`, `.github/agents/testdata/trap.md`, and `.github/skills/__fixtures__/SKILL.md`. Doctor inventories none of them. A passing test locks the layouts both tools already ignore: `tests/fixtures`, `packages/bar/tests/fixtures`, `pkg/__fixtures__`, `testdata`, `node_modules`, and `dist` when the file is a `CLAUDE.md` outside a catalog walk. That passing test becomes a real guard once nested discovery is added. |
 | Does lint handle `.github/instructions/`? | Only `*.instructions.md`. `CLAUDE.md` and `AGENTS.md` there are invisible. | `it.fails` "should treat CLAUDE.md and AGENTS.md inside .github/instructions as Claude and shared instructions". Doctor attributes `.github/instructions/CLAUDE.md` to claude, `.github/instructions/AGENTS.md` to shared, and `.github/agents/CLAUDE.md` to copilot. Lint does not list the first two. A passing test locks the copilot attribution of `.github/agents/CLAUDE.md` and the exclusion of `.github/instructions/README.md`. |
-| Does lint handle all-caps `AGENTS.MD`? | No. `agents.md` is missed too. | `it.fails` "should discover root and nested AGENTS.MD and agents.md as agents-md instructions". Doctor inventories root `AGENTS.MD`, `packages/foo/AGENTS.MD`, and `agents.md` as shared. Lint's discovery list has none of them as `agents-md`. |
+| Does lint handle all-caps `AGENTS.MD`? | No. `agents.md` is missed too. | Separate repositories, so a case-insensitive volume does not collapse the spellings onto one file. `it.fails` "should discover root and nested AGENTS.MD as agents-md instructions" and `it.fails` "should discover root and nested agents.md as agents-md instructions". Doctor inventories each spelling as shared. Lint's `discoveredFiles` has neither. |
 
-The parity test is `it.fails` "should discover the same agentic paths with lint and with doctor". On one repository, with every lint target flag turned on, the two path sets differ by exactly the rows above plus the depth and `dist` gaps below. `.claude/commands/deploy.md` is excluded from that comparison on purpose (doctor inventories it, lint has no command rules).
+The parity test is `it.fails` "should discover the same agentic paths with lint and with doctor". It compares `filesAnalyzed` from `runLint` with doctor's inventory paths. `.claude/commands/deploy.md` and `.claude/skills/example/AGENTS.md` are excluded from that comparison on purpose. The command file is doctor-only until command rules exist. The skill-directory `AGENTS.md` is a file doctor inventories because it sits under a skill root; lint must not treat it as `agents-md`, and it is not a `SKILL.md`, so lint does not analyze it. Both of those are locked by passing tests.
 
 ## Where the tests live
 
 File: `packages/cli/src/commands/lint-doctor-discovery.acceptance.integration.test.ts`
 
-The harness follows `lint-claude-import.integration.test.ts`: `tsx` runs `packages/cli/src/index.ts` against a temporary repository. Lint is observed from its human report (`Discovered …` lines, `path (format)`, diagnostics, and `path: OK`). Doctor is observed from `doctor --format json --ci` inventory and findings. `CONSOLA_LEVEL=3` is set because a `VITEST` environment hides info and success lines, which would make a clean file look undiscovered.
+Doctor is observed from `doctor --format json --ci`: inventory paths, finding severity and classification, and the process exit code. Lint discovery is observed from `runLint`, the public API the CLI calls, on `filesAnalyzed` and `qualityResult.discoveredFiles[].format`. Exit codes and MCP diagnostics are observed from the CLI with `--format json`, which is a flat array of `LintDiagnostic` objects. That array does not carry `discoveredFiles` or `filesAnalyzed`. `docs/lint.md` says the JSON and rdjsonl formats emit diagnostics only, with no quality-result envelope. Wrapping that array so the fields appear would break every consumer that parses an array, including the GitHub Action's reviewdog path. The tests therefore do not assert those fields on CLI JSON. Format and the analyzed set are asserted on `runLint` with exact path equality, not as substrings of human output.
 
-The file is an integration test (`*.integration.test.ts`), so `mise run test-integration` runs it after the workspace build. Eleven tests use Vitest `it.fails`. The assertion is the desired behavior and fails today; Vitest records that as an expected failure, so `mise run ci` stays green. When a fix makes the assertion pass, `it.fails` fails the suite until it is changed to `it`. That change is the definition of done. Do not weaken the assertion to make `it.fails` go away.
+The file is an integration test (`*.integration.test.ts`), so `mise run test-integration` runs it after the workspace build. Twenty tests use Vitest `it.fails` (seventeen cases plus three reserved MCP server names). The assertion is the desired behavior and fails today; Vitest records that as an expected failure, so CI stays green. When a fix makes the assertion pass, `it.fails` fails the suite until it is changed to `it`. That change is the definition of done. Do not weaken the assertion to make `it.fails` go away. Doctor behavior that already passes, including the nested-instruction rules from #1576, is an ordinary `it`. A regression of that behavior fails CI. It is not buried inside `it.fails`.
 
 ### Acceptance tests that fail today
 
 | Test | What it proves | Observed result |
 | --- | --- | --- |
-| should discover a nested CLAUDE.md and a nested AGENTS.md when lint analyzes the repository | Nested instruction miss | Lint false, doctor true |
-| should discover root and nested AGENTS.MD and agents.md as agents-md instructions | Case spellings doctor already reads | Lint false, doctor harness `shared` |
-| should treat CLAUDE.md and AGENTS.md inside .github/instructions as Claude and shared instructions | Suffix directory must not swallow these names | Lint false; doctor claude / shared; `.github/agents/CLAUDE.md` stays copilot |
-| should leave fixture copies inside instruction, agent, and skill roots out of lint | False positives on walks lint already does | Lint reports all three; doctor reports none |
-| should keep CLAUDE.md under src/fixtures, test/fixtures, spec/fixtures, and tests/unit/fixtures | Accepted gap stays visible to both | Doctor true, lint false |
-| should discover an instruction file nine directories below .github/instructions in both tools | Depth is measured from different roots | Lint true, doctor false |
-| should leave a generated instruction file inside a dist directory out of both tools | `dist` skip is doctor's only | Lint true, doctor false |
-| should discover the same agentic paths with lint and with doctor | Parity of the fixture | See the path diff below |
-| should discover src/CLAUDE.md and skip fixtures when lint starts in tests | Scan root named `tests` | Lint sees neither; doctor sees only `src/CLAUDE.md` |
-| should discover the root and nested CLAUDE.md when lint is pointed at tests/fixtures | Pointing at a fixture still scans that tree | Lint sees the root file only; doctor sees both |
-| should surface the unreadable MCP config from lint and from doctor | Doctor drops malformed `.mcp.json` | Lint names the file; doctor inventory and findings do not |
+| should discover a nested CLAUDE.md and a nested AGENTS.md when lint analyzes the repository | Nested instruction miss, exact `claude-md` / `agents-md` | Lint `discoveredFiles` lacks both. Doctor inventory is a separate passing test |
+| should resolve an @ import written in a nested CLAUDE.md | `packages/foo/CLAUDE.md` contains `@./guide.md` | `effectiveDocuments` has no resolved import for that file |
+| should discover root and nested AGENTS.MD as agents-md instructions | `AGENTS.MD` only, its own temp repo | Lint format is not `agents-md`. Doctor harness `shared` is a passing test |
+| should discover root and nested agents.md as agents-md instructions | `agents.md` only, its own temp repo, including `packages/foo/agents.md` | Same split |
+| should treat CLAUDE.md and AGENTS.md inside .github/instructions as Claude and shared instructions | Includes `.github/instructions/nested/CLAUDE.md` | Lint does not record `claude-md` / `agents-md`. Doctor attribution is a passing test |
+| should leave fixture copies inside instruction, agent, and skill roots out of lint | False positives on walks lint already does | Those paths are in `filesAnalyzed`. Doctor exclusion is a passing test |
+| should keep CLAUDE.md under src/fixtures, test/fixtures, spec/fixtures, and tests/unit/fixtures | Accepted gap stays visible | Doctor inventory is a passing test. Lint does not analyze them |
+| should discover an instruction file exactly ten directories below .github/instructions in both tools | Catalog-relative depth 10. A root walk with `maxDepth` 10 cannot list this file | Lint analyzes it as `copilot-scoped`. Doctor does not inventory it |
+| should leave a generated instruction file inside a dist directory out of both tools | `dist` skip | Lint analyzes it. Doctor does not |
+| should leave a skill directory named dist out of both tools | `.github/skills/dist/SKILL.md` | Lint analyzes it. Doctor does not enter `dist` |
+| should discover the same agentic paths with lint and with doctor | Parity of `filesAnalyzed` and inventory, minus the two intentional doctor-only paths | The sets differ by the rows above |
+| should discover src/CLAUDE.md and skip fixtures when lint starts in tests | Scan root named `tests` | Lint sees neither. Doctor seeing only `src/CLAUDE.md` is a passing test |
+| should discover the root and nested CLAUDE.md when lint is pointed at tests/fixtures | Pointing at a fixture still scans that tree | Lint sees the root file only. Doctor seeing both is a passing test |
+| should fail doctor --ci when .mcp.json is not valid JSON | Finding names `.mcp.json`, severity high or critical, classification defect, exit 1 | No such finding. Exit is 0. An empty inventory row does not pass |
+| should fail doctor --ci when .vscode/mcp.json is not valid JSON | Same contract for `.vscode/mcp.json` | Same miss |
+| should fail doctor --ci when MCP JSON parses but fails the schema | `{"mcpServers":[]}` | Doctor drops it. No finding. Exit is 0 |
+| should fail doctor --ci when .mcp.json names the reserved server __proto__ | Reserved name | No finding. Exit is 0 |
+| should fail doctor --ci when .mcp.json names the reserved server constructor | Reserved name | No finding. Exit is 0 |
+| should fail doctor --ci when .mcp.json names the reserved server prototype | Reserved name | No finding. Exit is 0 |
+| should exit 1 when the only broken instruction file is a nested CLAUDE.md | `.lousy-agentsrc.json` sets `instruction/missing-structural-heading` to `error`. The only instruction file is `packages/foo/CLAUDE.md` | CLI `--format json` exits 0. The diagnostic is absent |
 
-Parity path diff (lint on the right, doctor on the left), with `.claude/commands/deploy.md` removed from both sides:
-
-Lint has, and doctor does not:
-
-- `.github/agents/testdata/trap.md`
-- `.github/instructions/1/2/3/4/5/6/7/8/9/deep.instructions.md`
-- `.github/instructions/dist/generated.instructions.md`
-- `.github/instructions/tests/fixtures/trap.instructions.md`
-- `.github/skills/__fixtures__/SKILL.md`
-
-Doctor has, and lint does not:
-
-- `.github/instructions/AGENTS.md`
-- `.github/instructions/CLAUDE.md`
-- `AGENTS.MD`
-- `agents.md`
-- `packages/bar/AGENTS.md`
-- `packages/foo/AGENTS.MD`
-- `packages/foo/CLAUDE.md`
-- `spec/fixtures/CLAUDE.md`
-- `src/fixtures/CLAUDE.md`
-- `test/fixtures/CLAUDE.md`
-- `tests/unit/fixtures/CLAUDE.md`
+A file one directory past the instruction cap, `.github/instructions/1/2/3/4/5/6/7/8/9/10/11/past-limit.instructions.md`, is in a passing test: neither tool analyzes it. Raising a single root `maxDepth` until depth 10 appears, without a catalog-relative filter, also admits depth 11 and fails that test. A root `maxDepth` of 10 never reaches depth 10, so the depth-10 test stays red.
 
 ### Acceptance tests that pass today
 
@@ -69,14 +56,27 @@ These lock behavior the corrective work must not regress.
 
 | Test | What it locks |
 | --- | --- |
-| should discover the root instruction files, skills, agents, hooks, and MCP configs in both tools | Root `CLAUDE.md`, `AGENTS.md`, `AGENTS.override.md`, `.claude/CLAUDE.md`, Copilot instructions, one-level `SKILL.md` roots including `.pi/prompts`, `.github/agents/reviewer.md`, a `preToolUse` hook, `.claude/settings.json` with a `hooks` object, and both MCP configs |
-| should leave tests/fixtures, __fixtures__, testdata, node_modules, dist, and a non-instruction README out of both tools | `CLAUDE.md` outside a catalog walk, plus `.github/instructions/README.md` and a `*.instructions.md` under `node_modules` |
+| should discover the root instruction files, skills, agents, hooks, and MCP configs in both tools | Root `CLAUDE.md`, `AGENTS.md`, `AGENTS.override.md`, `.claude/CLAUDE.md`, Copilot instructions, one-level `SKILL.md` roots including `.pi/prompts`, `.github/agents/reviewer.md` and `.github/agents/team/reviewer.md`, a `preToolUse` hook, `.claude/settings.json` with a `hooks` object, and both MCP configs |
+| should record .github/agents/CLAUDE.md as a copilot-agent instruction and as a copilot agent | Exact format `copilot-agent`, and doctor harness `copilot` |
+| should keep a nested agent file an agent and not an instruction | `.github/agents/team/reviewer.md` is in the agent `filesAnalyzed` and is absent from instruction `discoveredFiles` |
+| should inventory AGENTS.md inside a skill directory as a skill and not as an agents-md instruction | Doctor `constructType` is `skill`. Lint instruction format is absent. Lint does not put the file in skill `filesAnalyzed`, because a skill file is `SKILL.md` only. See the disagreement below |
+| should inventory nested CLAUDE.md and AGENTS.md | Doctor harnesses from #1576. A regression fails CI |
+| should attribute CLAUDE.md and AGENTS.md inside .github/instructions to claude and shared | Includes `.github/instructions/nested/CLAUDE.md`. `README.md` there stays out |
+| should leave fixture copies out of the doctor inventory | Doctor side of the fixture false-positive test |
+| should leave tests/fixtures, __fixtures__, testdata, node_modules, dist, a past-limit instruction, and a non-instruction README out of both tools | Includes the file eleven directories below `.github/instructions` |
+| should inventory CLAUDE.md under src/fixtures, test/fixtures, spec/fixtures, and tests/unit/fixtures | Doctor side of the accepted-gap test |
 | should leave subagents and MCP configs out of a default lint run | Flag-only rollout. A full flag set does see them |
-| should inventory a Claude command and leave it out of lint | `.claude/commands/` stays doctor-only until command rules exist |
+| should inventory a Claude command and leave it out of lint | Doctor inventories `.claude/commands/deploy.md`. Lint does not analyze it. The test does not assert `constructType` |
+| should inventory root and nested AGENTS.MD as shared instructions | Doctor side, own temp repo |
+| should inventory root and nested agents.md as shared instructions | Doctor side, own temp repo |
 | should discover src/CLAUDE.md and skip fixtures when doctor starts in tests | Doctor's parent-segment fixture rule |
 | should inventory the fixture tree when doctor is pointed at it | The scan root itself is never skipped |
 | should omit the locked skill from lint and still inventory it in doctor | `skills-lock.json` stays a lint-only filter |
 | should leave the hook file out of lint and inventory it in doctor | Copilot `preToolUse` heuristic stays a lint-only filter |
+| should report malformed .mcp.json from lint and ignore it on a default lint run | `mcpserver/invalid-json`, exit 1 with `--mcp-servers`. Default `lint` exits 0 and emits no `mcp-server` diagnostic |
+| should report malformed .vscode/mcp.json from lint | Same rule id, exact `filePath` |
+| should report MCP JSON that parses but fails the schema from lint | `{"mcpServers":[]}` is `mcpserver/invalid-config` |
+| should report a reserved MCP server name %s from lint | `__proto__`, `constructor`, and `prototype` are `mcpserver/invalid-config` |
 
 ## How discovery works today
 
@@ -114,7 +114,7 @@ The other lint targets do not use that walk:
 | `test/fixtures`, `spec/fixtures`, `tests/unit/fixtures`, `src/fixtures` | Invisible until nested discovery exists | Inventoried. Accepted gap from #1576 | Keep them visible. The failing acceptance test locks that |
 | `node_modules`, `.git` | Skipped by the shared walk | Skipped | Yes |
 | `dist` | Not skipped. `.github/instructions/dist/*.instructions.md` is linted | Skipped | No |
-| Depth | 10 from each catalog root | 10 from the repository root. Nine levels under `.github/instructions` are past doctor's cap | No |
+| Depth | 10 from each catalog root. A file whose parent is exactly 10 directories below `.github/instructions` is analyzed. One more directory is not | 10 from the repository root. That file's parent has 12 path segments and is never listed | No |
 | Directory aliases | One real directory, one file | Each logical path is a record. Real content is read once | Intentional for doctor's graph. Compare by real path when asserting parity of bytes, by logical path when asserting what a harness can load |
 | Symlinks | Instructions follow in-repo links. Skills, agents, subagents, and hooks skip every symlink | In-repo links are followed for every inventoried file | Intentional exception. Do not change it in the instruction fix |
 | `skills-lock.json` | Drops locked skills after discovery | Still inventories them | Intentional. Passing acceptance test |
@@ -157,13 +157,20 @@ One discovery implementation in `@lousy-agents/core`. Lint and doctor both ask i
 
 New gateway, `packages/core/src/gateways/agentic-artifact-discovery.ts`, plus a pure classifier next to the catalog matchers. The gateway is the only new filesystem walk. The classifier is pure and unit-tested.
 
-The walk is the existing `walkRepository`, called once from the repository root:
+The walk is the existing `walkRepository`. One invocation cannot serve both tools unchanged.
 
-- `skipDirectoryNames`: `node_modules`, `.git`, `dist`
-- `skipDirectory`: the fixture predicate moved out of `packages/doctor/src/gateways/scanner.ts` into core. Same rule: `tests`/`fixtures` as a parent and child, using the scan root's own name when the relative path has no parent; `__fixtures__` and `testdata` at any depth. The start directory is never skipped
-- `includeFile`: a file the classifier claims
-- Symlinks: the walk's current in-repo policy
-- Depth: a file is kept when its depth below the catalog root that owns it is within 10. A nested instruction file's root is the repository root. This keeps lint's deep `*.instructions.md` files and lets doctor see them too. A single global depth counted from the repository root fails the deep-file acceptance test
+__Revisit.__ `revisit` is one policy per walk. `refuse-ancestors` returns every logical path (doctor). `once-per-real-directory` returns one path per real directory (lint). A single call cannot do both. The shared result uses `refuse-ancestors` and returns every logical path together with the real-file identity. Lint collapses that list to one path per real file, keeping the first path in code-unit order. Doctor keeps every logical path.
+
+__Depth.__ `includeFile` receives only the file name. It cannot see the repo-relative path, so it cannot enforce a catalog-relative depth. Descent stops before a directory is listed: a child directory is entered only when the parent's listed depth is less than `maxDepth`. The repository root is listed at depth 0, and a directory with N path segments is listed at depth N. `.github/instructions` therefore sits at depth 2. A file whose parent is D directories below that catalog root has a parent with 2+D segments. Doctor's root walk with `maxDepth` 10 lists a directory only when it has at most 10 segments, which is D ≤ 8. The acceptance file at D = 10 (parent `.github/instructions/1/2/3/4/5/6/7/8/9/10`) is analyzed by lint, which starts its walk at `.github/instructions` so that parent is listed at depth 10, and is absent from doctor. The file at D = 11 is absent from both. A root walk whose `maxDepth` stays 10 cannot turn the D = 10 test green. A root walk deep enough to reach D = 10 without a later filter also reaches D = 11 and fails the passing past-limit test.
+
+Chosen mechanism: __per-catalog-root walks__, plus one repository-root walk for the nested instruction filenames only.
+
+- Each directory-prefix catalog entry is walked from that entry. `maxDepth` is the construct budget. Instructions use 10, so the catalog root is depth 0 and D = 10 is listed while D = 11 is not entered. Agents and subagents use 32, matching `markdown-file-discovery.ts`. The nested-filename walk starts at the repository root with `maxDepth` 10, which is doctor's current cap for `CLAUDE.md` and `AGENTS.md` outside a catalog root
+- `skipDirectoryNames` on every walk: `node_modules`, `.git`, `dist`
+- `skipDirectory`: the fixture predicate moved out of `packages/doctor/src/gateways/scanner.ts`. Same rule: `tests`/`fixtures` as a parent and child, using the scan root's own name when the relative path has no parent; `__fixtures__` and `testdata` at any depth. The start directory is never skipped
+- After the walk, the classifier drops paths it does not claim. `includeFile` may stay name-based (`*.md`, `*.instructions.md`) because the path rules run on `WalkedFile.relativePath`
+
+Alternative, if one traversal is preferred: one `refuse-ancestors` walk from the repository root with `maxDepth` at least `segmentCount(catalogRoot) + budget`. For instructions that is 2 + 10 = 12. For agents that is 2 + 32 = 34. Then drop any instruction file with D > 10 and any agent or subagent file with D > 32. That filter cannot live in `includeFile`. Lint still collapses logical paths to real files. The acceptance tests reject an implementation that skips the filter or uses a short root cap. Per-catalog-root walks are the ones to build, because a depth-34 root walk reopens the alias fan-out the entry budget exists to bound.
 
 The classifier, given a repo-relative path, returns either nothing or:
 
@@ -177,8 +184,8 @@ Rules, in order:
 2. A nested instruction filename (`CLAUDE.md`, `AGENTS.md`, `AGENTS.MD`, `agents.md` only) inside a suffix-restricted directory such as `.github/instructions/` is that instruction, not a Copilot scoped file. Format is `claude-md` or `agents-md`. Compare the filename to the set as written. Do not add `CLAUDE.MD` or a case-folded extension check
 3. A nested instruction filename inside a directory another catalog entry owns (`.github/agents/CLAUDE.md`, `.claude/skills/.../AGENTS.md`) keeps that entry
 4. Otherwise the best catalog match wins, as `bestMatchingEntry` does today
-5. Skills are only `<skill-root>/<name>/SKILL.md`. One level, exact `SKILL.md`. Do not treat `references/*.md` as a skill
-6. Agents and subagents are `.md` files under their catalog roots, any depth the walk allows, case-sensitive `.md`
+5. Skills are only `<skill-root>/<name>/SKILL.md`. One level, exact `SKILL.md`. Do not treat `references/*.md` or `.claude/skills/example/AGENTS.md` as a skill file lint analyzes. That `AGENTS.md` must also not become `agents-md`: the skill directory already owns it. Doctor already records `constructType: "skill"`. The passing test locks both sides. It does not ask lint to add the file to skill `filesAnalyzed`
+6. Agents and subagents are case-sensitive `.md` files under their catalog roots, up to 32 directories below that root. A nested `.github/agents/**/*.md` such as `.github/agents/team/reviewer.md` is an agent and not an instruction. Instruction dual-use stays the top-level files `.github/agents/*.md` only, so `.github/agents/CLAUDE.md` remains `copilot-agent` and the nested reviewer file has no instruction format
 7. Hook and MCP results are the catalog paths, not "any JSON under `.github/hooks`"
 8. `.claude/commands` and `.codex-plugin` stay out of the lint projection. Doctor may keep reading them through footprints until command and plugin rules exist. The shared result can carry them with `lintTarget: "none"` so doctor does not need a second walk later
 
@@ -195,22 +202,28 @@ Harness names stay in `packages/doctor/src/entities/harness-footprints.ts`. Doct
 
 Lint's `FileSystemInstructionFileDiscoveryGateway`, skill gateway, agent gateway, subagent gateway, hook gateway, and MCP gateway stop walking on their own for the paths the shared result covers. Each use case receives the slice it already knows how to validate. Instruction format comes from the classifier, so `.github/instructions/CLAUDE.md` is `claude-md` and participates in `@` expansion. The per-target gateways can stay as the ports the use cases call; their filesystem implementation reads the shared result instead of a private walk. That keeps the use-case layer stable.
 
-Doctor's `scanRepositoryWithReport` uses the same walk options and the same classifier for which files become inventory records. Edge parsing, archetype, and findings stay in doctor. MCP enumeration stays on `MCP_CONFIG_SOURCES`, and a JSON parse failure becomes a finding whose description names the file (the acceptance test allows either an inventory row or a finding). Do not invent a server record for a file that did not parse.
+Doctor's `scanRepositoryWithReport` uses the same walks and the same classifier for which files become inventory records. Edge parsing, archetype, and findings stay in doctor. MCP enumeration stays on `MCP_CONFIG_SOURCES`. A file that is not valid JSON, JSON that parses but fails the server schema (`{"mcpServers":[]}`), or a server named `__proto__`, `constructor`, or `prototype`, becomes one finding. The finding's description or `targetId` contains the repo-relative path (`.mcp.json` or `.vscode/mcp.json`). Severity is `high` or `critical` and classification is `defect`, so `doctor --format json --ci` exits 1. An inventory row with no server, and an exit of 0, do not satisfy the acceptance test. Do not invent a server record for a file that did not parse.
 
 `packages/mcp` instruction tools go through the instruction gateway, so they follow lint as soon as that gateway uses the shared result. No separate MCP change beyond that.
 
 ### Behavior users will see
 
-Not a breaking change for the CLI flags, exit-code rules, or rule ids.
+CLI flags do not change. These lint rule ids stay the same, including `instruction/missing-structural-heading`, `instruction/import-unresolved`, `mcpserver/invalid-json`, and `mcpserver/invalid-config`. No new lint rule id is required for nested discovery. Doctor's existing finding ids stay. The malformed-MCP case is a new doctor finding id; the acceptance test does not pin the id, it pins the path, the severity, the classification, and the exit code.
 
-Users will see:
+Exit codes:
 
-- `lint --instructions` warns on nested `CLAUDE.md` and `AGENTS.md`, on `AGENTS.MD` and `agents.md`, and on `CLAUDE.md` / `AGENTS.md` inside `.github/instructions/`. Those warnings are the same structural-heading and quality rules used for root files. A nested `CLAUDE.md` becomes a Claude entrypoint, so its `@` imports expand. Repositories whose nested files omit the recommended headings gain warnings. Warnings do not by themselves change the exit code
-- Lint stops reporting files under `tests/fixtures`, `__fixtures__`, `testdata`, and `dist`. A repository that kept a real instruction in a directory with one of those names loses those diagnostics. That is the intended match to doctor
-- `doctor` inventories the deep `*.instructions.md` files lint already scores, and can raise findings on them
-- `doctor` names a malformed `.mcp.json`. `doctor --ci` can start exiting 1 for a repository that today passes with a broken MCP file
+- At default severities, every instruction rule is `warn`. Newly discovered nested files add warnings. Lint's exit code stays 0, and the GitHub Action stays 0, because `packages/action/src/index.ts` sets exit 1 only when `hasErrors` is true
+- A project that sets an instruction rule to `error` in `lousy-agents` config, including `instruction/missing-structural-heading`, gets exit 1 from lint and from the Action as soon as a nested file violates that rule. The acceptance test configures that rule as `error` with only `packages/foo/CLAUDE.md` present and expects exit 1. Today that command exits 0
+- `doctor --format json --ci` exits 1 only for a finding whose severity is `critical` or `high` and whose classification is `defect`. A medium or advisory finding does not change the exit code. The new MCP finding is specified as high or critical and `defect`, so a repository whose only problem is a broken `.mcp.json` or `.vscode/mcp.json` goes from exit 0 to exit 1. That is the doctor exit change. Lint rule ids do not change with it
+- Default `lint`, with no `--mcp-servers`, still does not read MCP configs. A broken MCP file stays invisible to that command and does not change its exit code. `--mcp-servers` already exits 1 for invalid JSON, a schema failure, and a reserved server name. Those lint behaviors are passing tests
+
+Users will also see:
+
+- `lint --instructions` warns, at the default severity, on nested `CLAUDE.md` and `AGENTS.md`, on `AGENTS.MD` and `agents.md`, and on `CLAUDE.md` / `AGENTS.md` inside `.github/instructions/`. A nested `CLAUDE.md` becomes a Claude entrypoint, so `@./guide.md` beside it resolves. The import acceptance test locks that and nothing else
+- Lint stops reporting files under `tests/fixtures`, `__fixtures__`, `testdata`, and `dist`, including `.github/skills/dist/SKILL.md` and `.github/instructions/dist/generated.instructions.md`
+- Doctor inventories the instruction file exactly ten directories below `.github/instructions` and still ignores the file eleven directories below it
 - `src/fixtures`, `test/fixtures`, `spec/fixtures`, and `tests/unit/fixtures` stay in both reports. Do not add them to the skip list
-- Default flags, `skills-lock.json`, the hook heuristic, command files, and symlink handling for skills and agents stay as they are
+- Default flags, `skills-lock.json`, the hook heuristic, command files, and skip-all-symlinks for skills, agents, and hooks stay as they are
 
 ### Test strategy
 
@@ -220,11 +233,12 @@ For each slice, add or tighten a unit test that fails on current code, then make
 
 1. Core unit tests for the fixture predicate, including a scan root named `tests`, a root that is `tests/fixtures`, and `src/fixtures` staying visible
 2. Core unit tests for instruction format: nested paths, `AGENTS.MD`, `agents.md`, `.github/instructions/CLAUDE.md`, `.github/agents/CLAUDE.md`, `README.md` excluded
-3. Gateway test: one walk returns those files and does not return fixture or `dist` files
-4. Acceptance tests for the lint misses and the fixture false positives flip from `it.fails` to `it`
-5. Doctor uses the same walk. The deep-file acceptance test flips
-6. Doctor MCP parse failure emits a finding. That acceptance test flips
-7. The parity acceptance test flips last. It is green only when the two path sets match
+3. Gateway test: per-catalog-root walks return the depth-10 instruction file, do not return the depth-11 file, and do not return fixture or `dist` files. A unit test that the shared result contains two logical paths for one real file, and that the lint projection keeps one
+4. Acceptance tests for the lint misses, the fixture false positives, the depth-10 file, and the nested `@` import flip from `it.fails` to `it`
+5. Doctor uses the same walks. The depth-10 acceptance test flips. The past-limit test stays an ordinary `it`
+6. Skills, agents, subagents, hooks, and MCP read the shared result. The nested-agent test stays an ordinary `it`. The `dist` skill test has already flipped with the skip options
+7. Doctor MCP findings flip their `it.fails` tests
+8. The parity acceptance test flips last. It is green only when the two path sets match, still excluding the command file and the skill-directory `AGENTS.md`
 
 Do not add a case-folding test for `CLAUDE.MD` or `SKILL.MD`. Do not skip `test/fixtures`, `spec/fixtures`, or `tests/unit/fixtures`.
 
@@ -236,17 +250,18 @@ Update, in the same PR as the behavior they describe:
 - `docs/doctor.md` inventory table, the paragraph that says lint still sees only root copies, and the MCP section if a malformed file becomes a finding
 - `docs/product/harness-capability-matrix.md` only if a cell's support level changes
 
-Leave rule ids in place.
+Lint rule ids stay as they are. Doctor gains one finding id for a config that does not parse into servers. Do not rename `instruction/discovery-limit-reached` or `discovery-limit-reached`.
 
 ### How to split the work
 
-The acceptance tests and this plan are the first PR. Production changes follow in four PRs, each leaving the suite green by flipping only the `it.fails` tests that PR makes pass.
+The acceptance tests and this plan are the first PR. Production changes follow in five PRs, each leaving the suite green by flipping only the `it.fails` tests that PR makes pass.
 
-1. __Shared walk options.__ Move the fixture predicate and the `dist` skip into core. Pass them from doctor's scanner and from every lint walk that already exists (`instruction` directory walks, agent markdown walk, skill directory listing). No nested filenames yet. Turns green: "should leave fixture copies inside instruction, agent, and skill roots out of lint" and "should leave a generated instruction file inside a dist directory out of both tools".
-2. __Nested instructions.__ Classifier plus the instruction gateway. Lint discovers nested `CLAUDE.md` / `AGENTS.md` / `AGENTS.MD` / `agents.md`, including under `.github/instructions/` with the right format, at the scan-root cases, and still sees `src/fixtures`, `test/fixtures`, `spec/fixtures`, and `tests/unit/fixtures`. Doctor already does this; add the core unit test that pins the format so the two cannot drift. Turns green: the nested, case, `.github/instructions`, visible-fixture, and both scan-root lint tests.
-3. __One walk, one depth rule.__ Doctor's scanner and lint's instruction gateway call the shared gateway. Depth is relative to the owning catalog root, which makes doctor see the deep `*.instructions.md`. Turns green: the deep-file test and the parity test.
-4. __Malformed MCP.__ Doctor reports a finding that names the file. Turns green: "should surface the unreadable MCP config from lint and from doctor".
+1. __Shared skip options on the walks that already exist.__ Move the fixture predicate and the `dist` name skip into core. Pass them from doctor's scanner and from lint's instruction walk, agent markdown walk, and skill directory listing. No nested filenames yet. Turns green: "should leave fixture copies inside instruction, agent, and skill roots out of lint", "should leave a generated instruction file inside a dist directory out of both tools", and "should leave a skill directory named dist out of both tools".
+2. __Nested instructions.__ Classifier plus the instruction gateway, still on instruction paths only. Lint discovers nested `CLAUDE.md` / `AGENTS.md` / `AGENTS.MD` / `agents.md`, including `.github/instructions/nested/CLAUDE.md`, with the exact format, and expands `@./guide.md` from `packages/foo/CLAUDE.md`. Scan-root cases and the accepted fixture layouts stay visible. Turns green: the nested, import, case, `.github/instructions`, visible-fixture, and both scan-root lint tests, and the configured-error exit test.
+3. __Per-catalog-root instruction walks.__ Doctor and lint instruction discovery call the shared gateway. Instruction depth is 10 from the catalog root. The result is every logical path; lint collapses to one path per real file. Turns green: the depth-10 test. The past-limit test stays a passing `it`.
+4. __Other constructs on the shared result.__ Skills, agents, subagents, hooks, and MCP stop using private walkers and read the shared result. Post-filters stay: `skills-lock.json`, the hook content heuristic, flag-only `--subagents` and `--mcp-servers`, and skip-all-symlinks for skills, agents, and hooks. Agent and subagent depth is 32 from their catalog root. Nested `.github/agents/**/*.md` stays an agent, not an instruction. The passing tests for the nested agent, the skill-directory `AGENTS.md`, the lock file, the hook heuristic, and the default flags stay ordinary `it`s. Parity flips here if PR 3 left only those constructs apart.
+5. __Malformed MCP findings.__ Doctor emits the blocking finding for `.mcp.json`, `.vscode/mcp.json`, schema-invalid JSON, and the three reserved server names. Turns green: those `it.fails` tests.
 
-PR 3 is the large one. If the classifier from PR 2 already lives in core, PR 3 is a call-site change plus the depth rule, not a second design.
+PR 3 and PR 4 are the large ones. PR 4 exists so skills, agents, subagents, hooks, and MCP are not left on private walks after the instruction work. The parity test is green only when the path sets match. The MCP findings are not part of that path comparison.
 
-Out of this series: import expansion scope (#1517), command and plugin lint rules, lessons, case-folded extensions, symlink policy for skills and agents, `skills-lock.json`, the hook heuristic, and flag-only rollout.
+Out of this series: import expansion scope beyond making a nested `CLAUDE.md` an entrypoint (#1517 still covers transitive scope inside imported files), command and plugin lint rules, lessons, case-folded extensions, changing skip-all-symlinks for skills and agents, and promoting flag-only targets to default-on.
