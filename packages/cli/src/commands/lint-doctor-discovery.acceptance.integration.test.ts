@@ -1,5 +1,12 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import {
+    mkdir,
+    mkdtemp,
+    realpath,
+    rm,
+    symlink,
+    writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -349,6 +356,19 @@ function sortedPaths(inventory: readonly InventoryItem[]): string[] {
     return [...new Set(inventory.map((item) => item.path))].sort();
 }
 
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function textNamesRepoPath(text: string, relativePath: string): boolean {
+    if (text === relativePath) {
+        return true;
+    }
+    return new RegExp(
+        `(^|[^A-Za-z0-9._/-])${escapeRegExp(relativePath)}(?![A-Za-z0-9._/-])`,
+    ).test(text);
+}
+
 function blockingFinding(
     report: DoctorReport,
     relativePath: string,
@@ -357,8 +377,8 @@ function blockingFinding(
         (finding) =>
             (finding.severity === "high" || finding.severity === "critical") &&
             finding.classification === "defect" &&
-            (finding.description.includes(relativePath) ||
-                finding.targetId.includes(relativePath)),
+            (textNamesRepoPath(finding.description, relativePath) ||
+                textNamesRepoPath(finding.targetId, relativePath)),
     );
 }
 
@@ -368,6 +388,7 @@ describe("lint and doctor discovery", () => {
         let full: LintResult;
         let defaults: LintResult;
         let inventory: InventoryItem[];
+        let findings: readonly DoctorFinding[];
 
         beforeAll(async () => {
             root = await makeRoot("layout");
@@ -432,6 +453,7 @@ describe("lint and doctor discovery", () => {
             full = lintFull;
             defaults = lintDefault;
             inventory = doctor.report.inventory;
+            findings = doctor.report.findings;
         });
 
         afterAll(async () => {
@@ -633,6 +655,13 @@ describe("lint and doctor discovery", () => {
             );
 
             expect(lintPaths).toEqual(doctorPaths);
+        });
+
+        it("should not emit a blocking defect for a valid MCP config", () => {
+            const report = { findings };
+
+            expect(blockingFinding(report, MCP)).toBeUndefined();
+            expect(blockingFinding(report, MCP_VSCODE)).toBeUndefined();
         });
 
         it("should leave subagents and MCP configs out of a default lint run", () => {
@@ -1068,6 +1097,162 @@ describe("lint and doctor discovery", () => {
                         `{ "mcpServers": { "${name}": { "command": "true" } } }`,
                     ),
                 ).resolves.toBeUndefined();
+            },
+        );
+    });
+
+    describe("when a nested CLAUDE.md sits at the root walk's segment boundary", () => {
+        let root: string;
+        let full: LintResult;
+        let inventory: InventoryItem[];
+        const parentTen = "1/2/3/4/5/6/7/8/9/10/CLAUDE.md";
+        const parentEleven = "1/2/3/4/5/6/7/8/9/10/11/CLAUDE.md";
+
+        beforeAll(async () => {
+            root = await makeRoot("segment-cap");
+            await writeRepo(root, {
+                [parentTen]: INSTRUCTION,
+                [parentEleven]: INSTRUCTION,
+            });
+            const [lintFull, doctor] = await Promise.all([
+                runLint({
+                    directory: root,
+                    targets: { instructions: true },
+                    logger: silentLogger,
+                }),
+                runDoctor(root),
+            ]);
+            full = lintFull;
+            inventory = doctor.report.inventory;
+        });
+
+        afterAll(async () => {
+            if (root) {
+                await rm(root, { recursive: true, force: true });
+            }
+        });
+
+        it("should leave a CLAUDE.md whose parent has 11 segments out of both tools", () => {
+            expect(analyzedPaths(full, root, "instruction")).not.toContain(
+                parentEleven,
+            );
+            expect(sortedPaths(inventory)).not.toContain(parentEleven);
+        });
+
+        it.fails("should discover a CLAUDE.md whose parent has 10 segments as claude-md", () => {
+            expect(instructionFormat(full, root, parentTen)).toBe("claude-md");
+            expect(analyzedPaths(full, root, "instruction")).toContain(
+                parentTen,
+            );
+            expect(sortedPaths(inventory)).toContain(parentTen);
+        });
+    });
+
+    describe("when a nested CLAUDE.md has no lint config", () => {
+        let root: string;
+
+        beforeAll(async () => {
+            root = await makeRoot("default-warning");
+            await writeRepo(root, {
+                [NESTED_CLAUDE]: "# Nested only\n",
+            });
+        });
+
+        afterAll(async () => {
+            if (root) {
+                await rm(root, { recursive: true, force: true });
+            }
+        });
+
+        it.fails("should warn on a nested CLAUDE.md and still exit 0", async () => {
+            const result = await runCli(root, [
+                "lint",
+                "--instructions",
+                "--format",
+                "json",
+            ]);
+
+            expect(result.exitCode).toBe(0);
+            expect(parseDiagnostics(result.stdout)).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        filePath: absolutePath(root, NESTED_CLAUDE),
+                        ruleId: "instruction/missing-structural-heading",
+                        severity: "warning",
+                        target: "instruction",
+                    }),
+                ]),
+            );
+        });
+    });
+
+    describe("when an in-repo symlink points at an agentic file", () => {
+        const linkedSkill = ".github/skills/linked-skill/SKILL.md";
+
+        it.skipIf(process.platform === "win32")(
+            "should leave a symlinked skill out of lint and inventory it in doctor",
+            async () => {
+                const root = await makeRoot("symlink-skill");
+                try {
+                    await writeRepo(root, {
+                        "shared/linked-skill/SKILL.md":
+                            skillBody("linked-skill"),
+                    });
+                    await mkdir(absolutePath(root, ".github/skills"), {
+                        recursive: true,
+                    });
+                    await symlink(
+                        "../../shared/linked-skill",
+                        absolutePath(root, ".github/skills/linked-skill"),
+                    );
+                    const [lintFull, doctor] = await Promise.all([
+                        runLint({
+                            directory: root,
+                            targets: { skills: true },
+                            logger: silentLogger,
+                        }),
+                        runDoctor(root),
+                    ]);
+
+                    expect(
+                        analyzedPaths(lintFull, root, "skill"),
+                    ).not.toContain(linkedSkill);
+                    expect(sortedPaths(doctor.report.inventory)).toContain(
+                        linkedSkill,
+                    );
+                } finally {
+                    await rm(root, { recursive: true, force: true });
+                }
+            },
+        );
+
+        it.skipIf(process.platform === "win32")(
+            "should analyze an in-repo symlinked CLAUDE.md",
+            async () => {
+                const root = await makeRoot("symlink-claude");
+                try {
+                    await writeRepo(root, {
+                        "docs/real-claude.md": INSTRUCTION,
+                    });
+                    await symlink(
+                        "docs/real-claude.md",
+                        absolutePath(root, ROOT_CLAUDE),
+                    );
+                    const lintFull = await runLint({
+                        directory: root,
+                        targets: { instructions: true },
+                        logger: silentLogger,
+                    });
+
+                    expect(instructionFormat(lintFull, root, ROOT_CLAUDE)).toBe(
+                        "claude-md",
+                    );
+                    expect(
+                        analyzedPaths(lintFull, root, "instruction"),
+                    ).toContain(ROOT_CLAUDE);
+                } finally {
+                    await rm(root, { recursive: true, force: true });
+                }
             },
         );
     });
