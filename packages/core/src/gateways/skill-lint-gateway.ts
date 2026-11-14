@@ -3,12 +3,13 @@
  * Discovers skill files and parses YAML frontmatter.
  */
 
-import { join } from "node:path";
+import { basename, join, resolve, sep } from "node:path";
 import { z } from "zod";
 import type {
     DiscoveredSkillFile,
     ParsedFrontmatter,
 } from "../entities/skill.js";
+import { isSkippedDiscoveryDirectory } from "../lib/agentic-discovery-skips.js";
 import { skillDirectoryRoots } from "../lib/agentic-location-matchers.js";
 import { parseFrontmatter } from "../lib/frontmatter.js";
 import type { SkillLintGateway } from "../use-cases/lint-skill-frontmatter.js";
@@ -131,6 +132,19 @@ export class FileSystemSkillLintGateway implements SkillLintGateway {
                 entry.name.includes("..") ||
                 entry.name.includes("/") ||
                 entry.name.includes("\\")
+            ) {
+                continue;
+            }
+
+            const skillDirectory = [skillsDir, entry.name]
+                .join(sep)
+                .split(sep)
+                .join("/");
+            if (
+                isSkippedDiscoveryDirectory(
+                    skillDirectory,
+                    basename(resolve(targetDir)),
+                )
             ) {
                 continue;
             }

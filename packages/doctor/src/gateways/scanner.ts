@@ -7,6 +7,10 @@ import {
     type WalkedFile,
     walkRepository,
 } from "@lousy-agents/core/gateways/repository-walk.js";
+import {
+    BUILD_OUTPUT_DIRECTORY_NAMES,
+    isFixtureDirectory,
+} from "@lousy-agents/core/lib/agentic-discovery-skips.js";
 import { DEFAULT_MAX_EDGES } from "@lousy-agents/core/lib/instruction-import-expand.js";
 import type { InventoryRecord } from "../entities/edge-types.js";
 import { markReferencedRecords } from "../entities/inventory-references.js";
@@ -33,37 +37,11 @@ const SCANNABLE_EXTENSIONS = new Set([
 // Extensionless files that are known harness convention artifacts
 const SCANNABLE_EXTENSIONLESS = new Set([".cursorrules"]);
 
-/** Doctor also skips build output, which the shared walk does not. */
+/** Doctor also skips build output, which the shared walk's default list does not. */
 const DOCTOR_SKIPPED_DIRECTORY_NAMES = [
     ...DEFAULT_SKIPPED_DIRECTORY_NAMES,
-    "dist",
+    ...BUILD_OUTPUT_DIRECTORY_NAMES,
 ];
-
-/**
- * True when `relativePath` is a fixture directory the walk met below the
- * scan root. The root itself is not passed here. When the relative path has
- * no parent segment, `rootDirectoryName` is that parent, so a scan started
- * in a directory named `tests` still skips its `fixtures` child.
- *
- * `tests/fixtures` is the parent and child, not every directory named
- * `fixtures`, so `src/fixtures` stays in the scan. `__fixtures__` and
- * `testdata` are names at any depth.
- */
-function isFixtureDirectory(
-    relativePath: string,
-    rootDirectoryName: string,
-): boolean {
-    const segments = relativePath.split("/");
-    const name = segments[segments.length - 1];
-    if (name === "__fixtures__" || name === "testdata") {
-        return true;
-    }
-    const parent =
-        segments.length >= 2
-            ? segments[segments.length - 2]
-            : rootDirectoryName;
-    return parent === "tests" && name === "fixtures";
-}
 
 function isScannableFile(name: string): boolean {
     if (SCANNABLE_EXTENSIONLESS.has(name)) return true;

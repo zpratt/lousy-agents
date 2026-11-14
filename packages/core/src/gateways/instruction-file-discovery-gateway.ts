@@ -4,7 +4,7 @@
  */
 
 import { realpath } from "node:fs/promises";
-import { join, relative, resolve } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 import type { AgenticLocationEntry } from "../entities/agentic-location-catalog.js";
 import {
     type DiscoveryLimitWording,
@@ -20,6 +20,10 @@ import {
     DISCOVERY_LIMIT_REACHED_RULE_ID,
     DISCOVERY_SYMLINK_SKIPPED_RULE_ID,
 } from "../entities/lint-rules.js";
+import {
+    BUILD_OUTPUT_DIRECTORY_NAMES,
+    isFixtureDirectory,
+} from "../lib/agentic-discovery-skips.js";
 import { instructionDiscoveryEntries } from "../lib/agentic-location-matchers.js";
 import type { InstructionFileDiscoveryGateway } from "../use-cases/analyze-instruction-quality.js";
 import {
@@ -28,6 +32,7 @@ import {
 } from "./real-path-within-root.js";
 import {
     DEFAULT_MAX_WALK_DIRECTORIES,
+    DEFAULT_SKIPPED_DIRECTORY_NAMES,
     type RepositoryWalkOptions,
     type RepositoryWalkResult,
     type WalkedFile,
@@ -87,6 +92,7 @@ export class FileSystemInstructionFileDiscoveryGateway
         const root: DiscoveryRoot = { targetDir, rootReal };
         const findings = new DiscoveryFindings();
 
+        const rootDirectoryName = basename(resolve(targetDir));
         for (const entry of instructionDiscoveryEntries()) {
             const format = entry.instructionFormat;
             if (format == null) {
@@ -99,7 +105,10 @@ export class FileSystemInstructionFileDiscoveryGateway
                 continue;
             }
             findings.addWalk(
-                await walkRepository(targetDir, this.walkOptions(entry)),
+                await walkRepository(
+                    targetDir,
+                    this.walkOptions(entry, rootDirectoryName),
+                ),
                 (file) =>
                     toDiscoveredFile(
                         root,
@@ -114,13 +123,22 @@ export class FileSystemInstructionFileDiscoveryGateway
         return findings.files;
     }
 
-    private walkOptions(entry: AgenticLocationEntry): RepositoryWalkOptions {
+    private walkOptions(
+        entry: AgenticLocationEntry,
+        rootDirectoryName: string,
+    ): RepositoryWalkOptions {
         return {
             startRelativePath: entry.path,
             includeFile: (name) => name.endsWith(entry.fileSuffix ?? ".md"),
             includeSubdirectories: entry.includeSubdirectories === true,
             revisit: "once-per-real-directory",
             maxDirectories: this.maxDirectories,
+            skipDirectoryNames: [
+                ...DEFAULT_SKIPPED_DIRECTORY_NAMES,
+                ...BUILD_OUTPUT_DIRECTORY_NAMES,
+            ],
+            skipDirectory: (relativePath) =>
+                isFixtureDirectory(relativePath, rootDirectoryName),
             ...(this.maxEntries === undefined
                 ? {}
                 : { maxEntries: this.maxEntries }),

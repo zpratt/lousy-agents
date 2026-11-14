@@ -572,7 +572,7 @@ describe("lint and doctor discovery", () => {
             expect(doctorPaths.includes(FIXTURE_SKILL)).toBe(false);
         });
 
-        it.fails("should leave fixture copies inside instruction, agent, and skill roots out of lint", () => {
+        it("should leave fixture copies inside instruction, agent, and skill roots out of lint", () => {
             expect(analyzedPaths(full, root, "instruction")).not.toContain(
                 FIXTURE_INSTRUCTION,
             );
@@ -632,14 +632,14 @@ describe("lint and doctor discovery", () => {
             expect(sortedPaths(inventory)).toContain(AT_LIMIT);
         });
 
-        it.fails("should leave a generated instruction file inside a dist directory out of both tools", () => {
+        it("should leave a generated instruction file inside a dist directory out of both tools", () => {
             expect(analyzedPaths(full, root, "instruction")).not.toContain(
                 DIST_INSTRUCTION,
             );
             expect(sortedPaths(inventory)).not.toContain(DIST_INSTRUCTION);
         });
 
-        it.fails("should leave a skill directory named dist out of both tools", () => {
+        it("should leave a skill directory named dist out of both tools", () => {
             expect(analyzedPaths(full, root, "skill")).not.toContain(
                 SKILL_DIST,
             );
