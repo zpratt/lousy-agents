@@ -5,7 +5,6 @@
 
 import { realpath } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
-import type { AgenticLocationEntry } from "../entities/agentic-location-catalog.js";
 import { isNestedInstructionFilename } from "../entities/agentic-location-catalog.js";
 import {
     type DiscoveryLimitWording,
@@ -22,25 +21,22 @@ import {
     DISCOVERY_SYMLINK_SKIPPED_RULE_ID,
 } from "../entities/lint-rules.js";
 import {
-    BUILD_OUTPUT_DIRECTORY_NAMES,
-    isFixtureDirectory,
-} from "../lib/agentic-discovery-skips.js";
-import {
     formatForAdditionalInstructionFile,
     instructionDiscoveryEntries,
 } from "../lib/agentic-location-matchers.js";
 import type { InstructionFileDiscoveryGateway } from "../use-cases/analyze-instruction-quality.js";
+import {
+    collapseToFirstRealFile,
+    discoverInstructionLocations,
+} from "./agentic-artifact-discovery.js";
 import {
     inspectPathWithinRoot,
     type RealPathWithinRoot,
 } from "./real-path-within-root.js";
 import {
     DEFAULT_MAX_WALK_DIRECTORIES,
-    DEFAULT_SKIPPED_DIRECTORY_NAMES,
-    type RepositoryWalkOptions,
     type RepositoryWalkResult,
     type WalkedFile,
-    walkRepository,
 } from "./repository-walk.js";
 
 // Re-export port type for consumers
@@ -97,6 +93,17 @@ export class FileSystemInstructionFileDiscoveryGateway
         const findings = new DiscoveryFindings();
 
         const rootDirectoryName = basename(resolve(targetDir));
+        const locations = await discoverInstructionLocations(targetDir, {
+            rootDirectoryName,
+            maxDirectories: this.maxDirectories,
+            ...(this.maxEntries === undefined
+                ? {}
+                : { maxEntries: this.maxEntries }),
+        });
+        const catalogWalks = locations.filter(
+            (location) => location.role === "catalog",
+        );
+        let catalogIndex = 0;
         const seen = new Set<string>();
         for (const entry of instructionDiscoveryEntries()) {
             const format = entry.instructionFormat;
@@ -111,11 +118,13 @@ export class FileSystemInstructionFileDiscoveryGateway
                 }
                 continue;
             }
-            const walked = await walkRepository(
-                targetDir,
-                this.walkOptions(entry, rootDirectoryName),
-            );
-            findings.addWalk(walked, (file) =>
+            const walked = catalogWalks[catalogIndex]?.walked;
+            catalogIndex += 1;
+            if (walked === undefined) {
+                continue;
+            }
+            const files = collapseToFirstRealFile(walked.files);
+            findings.addWalk({ ...walked, files }, (file) =>
                 toDiscoveredFile(
                     root,
                     file.relativePath,
@@ -123,90 +132,46 @@ export class FileSystemInstructionFileDiscoveryGateway
                     format,
                 ),
             );
-            for (const file of walked.files) {
+            for (const file of files) {
                 seen.add(file.relativePath);
             }
         }
 
-        await this.discoverNestedInstructionFiles(
-            targetDir,
-            root,
-            rootDirectoryName,
-            seen,
-            findings,
-        );
+        const nested = locations.find((location) => location.role === "nested");
+        if (nested !== undefined) {
+            this.recordNestedInstructionFiles(
+                root,
+                seen,
+                findings,
+                nested.walked,
+            );
+        }
 
         findings.report(onDiagnostic);
         return findings.files;
     }
 
-    private walkOptions(
-        entry: AgenticLocationEntry,
-        rootDirectoryName: string,
-    ): RepositoryWalkOptions {
-        return {
-            startRelativePath: entry.path,
-            includeFile: (name) => name.endsWith(entry.fileSuffix ?? ".md"),
-            includeSubdirectories: entry.includeSubdirectories === true,
-            revisit: "once-per-real-directory",
-            maxDirectories: this.maxDirectories,
-            skipDirectoryNames: [
-                ...DEFAULT_SKIPPED_DIRECTORY_NAMES,
-                ...BUILD_OUTPUT_DIRECTORY_NAMES,
-            ],
-            skipDirectory: (relativePath) =>
-                isFixtureDirectory(relativePath, rootDirectoryName),
-            ...(this.maxEntries === undefined
-                ? {}
-                : { maxEntries: this.maxEntries }),
-        };
-    }
-
-    private nestedWalkOptions(
-        rootDirectoryName: string,
-    ): RepositoryWalkOptions {
-        return {
-            startRelativePath: "",
-            includeFile: (name) => isNestedInstructionFilename(name),
-            includeSubdirectories: true,
-            revisit: "once-per-real-directory",
-            maxDirectories: this.maxDirectories,
-            skipDirectoryNames: [
-                ...DEFAULT_SKIPPED_DIRECTORY_NAMES,
-                ...BUILD_OUTPUT_DIRECTORY_NAMES,
-            ],
-            skipDirectory: (relativePath) =>
-                isFixtureDirectory(relativePath, rootDirectoryName),
-            ...(this.maxEntries === undefined
-                ? {}
-                : { maxEntries: this.maxEntries }),
-        };
-    }
-
-    private async discoverNestedInstructionFiles(
-        targetDir: string,
+    private recordNestedInstructionFiles(
         root: DiscoveryRoot,
-        rootDirectoryName: string,
         seen: ReadonlySet<string>,
         findings: DiscoveryFindings,
-    ): Promise<void> {
-        const additional = await walkRepository(
-            targetDir,
-            this.nestedWalkOptions(rootDirectoryName),
+        additional: RepositoryWalkResult,
+    ): void {
+        const files = collapseToFirstRealFile(additional.files).filter(
+            (file) => {
+                if (seen.has(file.relativePath)) {
+                    return false;
+                }
+                return (
+                    formatForAdditionalInstructionFile(file.relativePath) !==
+                    null
+                );
+            },
         );
         findings.addWalk(
             {
                 ...additional,
-                files: additional.files.filter((file) => {
-                    if (seen.has(file.relativePath)) {
-                        return false;
-                    }
-                    return (
-                        formatForAdditionalInstructionFile(
-                            file.relativePath,
-                        ) !== null
-                    );
-                }),
+                files,
                 skippedOutsideRoot: additional.skippedOutsideRoot.filter(
                     isNestedInstructionLinkPath,
                 ),

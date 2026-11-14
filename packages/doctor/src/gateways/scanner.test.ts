@@ -841,6 +841,40 @@ describe("scanRepository", () => {
                 );
             });
 
+            it("should inventory an instruction file ten directories below .github/instructions", async () => {
+                const atLimit = [
+                    ".github/instructions",
+                    ...Array.from({ length: 10 }, (_, index) =>
+                        String(index + 1),
+                    ),
+                    "at-limit.instructions.md",
+                ].join("/");
+                const pastLimit = [
+                    ".github/instructions",
+                    ...Array.from({ length: 11 }, (_, index) =>
+                        String(index + 1),
+                    ),
+                    "past-limit.instructions.md",
+                ].join("/");
+
+                await withTempRepo(
+                    {
+                        [atLimit]: "# at limit\n",
+                        [pastLimit]: "# past limit\n",
+                    },
+                    async (repoRoot) => {
+                        const records = await scanRepository(repoRoot);
+
+                        expect(records.map((record) => record.path)).toContain(
+                            atLimit,
+                        );
+                        expect(
+                            records.map((record) => record.path),
+                        ).not.toContain(pastLimit);
+                    },
+                );
+            });
+
             it("should report no depth limit when the deepest directory is exactly at it", async () => {
                 await withTempRepo(
                     {

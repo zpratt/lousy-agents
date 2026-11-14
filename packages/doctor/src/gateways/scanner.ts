@@ -1,7 +1,9 @@
 import { realpath } from "node:fs/promises";
 import { basename, relative, resolve } from "node:path";
+import { discoverInstructionLocations } from "@lousy-agents/core/gateways/agentic-artifact-discovery.js";
 import type { NoFollowFsPort } from "@lousy-agents/core/gateways/read-regular-file-no-follow.js";
 import {
+    DEFAULT_MAX_WALK_DEPTH,
     DEFAULT_MAX_WALK_DIRECTORIES,
     DEFAULT_SKIPPED_DIRECTORY_NAMES,
     type WalkedFile,
@@ -61,6 +63,13 @@ export interface ScanOptions {
     readonly fs?: NoFollowFsPort;
 }
 
+function parentSegmentCount(relativePath: string): number {
+    const segments = relativePath
+        .split("/")
+        .filter((segment) => segment !== "");
+    return Math.max(0, segments.length - 1);
+}
+
 function toSourceFile(
     repoRoot: string,
     rootReal: string,
@@ -107,9 +116,32 @@ export async function scanRepositoryWithReport(
             ? {}
             : { maxEntries: options.maxEntries }),
     });
-    const files = walked.files.map((file) =>
+    const instructionWalks = await discoverInstructionLocations(absRoot, {
+        rootDirectoryName: basename(absRoot),
+        maxDirectories,
+        ...(options.maxEntries === undefined
+            ? {}
+            : { maxEntries: options.maxEntries }),
+    });
+    const knownPaths = new Set(walked.files.map((file) => file.relativePath));
+    const beyondRootDepth = instructionWalks
+        .filter((location) => location.role === "catalog")
+        .flatMap((location) => location.walked.files)
+        .filter(
+            (file) =>
+                !knownPaths.has(file.relativePath) &&
+                parentSegmentCount(file.relativePath) > DEFAULT_MAX_WALK_DEPTH,
+        );
+    const files = [...walked.files, ...beyondRootDepth].map((file) =>
         toSourceFile(absRoot, rootReal, file),
     );
+    const depthLimitReached =
+        walked.depthLimitReached ||
+        instructionWalks.some(
+            (location) =>
+                location.role === "catalog" &&
+                location.walked.depthLimitReached,
+        );
 
     const edgeContext: EdgeResolutionContext = {
         repoRoot: absRoot,
@@ -137,7 +169,7 @@ export async function scanRepositoryWithReport(
                   },
               }
             : {}),
-        ...(walked.depthLimitReached
+        ...(depthLimitReached
             ? { depthLimit: { maxDepth: walked.limits.maxDepth } }
             : {}),
         ...(walked.entryLimitReached
