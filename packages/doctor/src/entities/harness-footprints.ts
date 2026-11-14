@@ -1,3 +1,7 @@
+import {
+    AGENTIC_LOCATION_CATALOG,
+    isNestedInstructionFilename,
+} from "@lousy-agents/core/entities/agentic-location-catalog.js";
 import type { EdgeType, HarnessName } from "./edge-types.js";
 
 export interface CrossRefMechanism {
@@ -244,9 +248,78 @@ export function matchesPrimaryIndicator(
 const ALL_HARNESS_NAMES: readonly HarnessName[] = [...HARNESS_NAMES, "shared"];
 
 /**
+ * Directory indicators that only load files with a catalog suffix, such as
+ * `.github/instructions/` and `*.instructions.md`. A nested instruction file
+ * in one of those directories is not that harness's file.
+ */
+const SUFFIX_RESTRICTED_DIRECTORY_INDICATORS: ReadonlySet<string> = new Set(
+    AGENTIC_LOCATION_CATALOG.filter(
+        (entry) =>
+            entry.matchKind === "directory-prefix" &&
+            entry.fileSuffix !== undefined,
+    ).map((entry) => `${entry.path}/`),
+);
+
+function fileNameOf(normalized: string): string {
+    const slash = normalized.lastIndexOf("/");
+    return slash === -1 ? normalized : normalized.slice(slash + 1);
+}
+
+function matchesClaimingIndicator(
+    path: string,
+    indicators: readonly string[],
+): boolean {
+    const applicable = isNestedInstructionFilename(fileNameOf(path))
+        ? indicators.filter(
+              (indicator) =>
+                  !SUFFIX_RESTRICTED_DIRECTORY_INDICATORS.has(indicator),
+          )
+        : indicators;
+    return matchesPrimaryIndicator(path, applicable);
+}
+
+function soleHarness(matches: readonly HarnessName[]): HarnessName | null {
+    if (matches.length >= 2) {
+        return "shared";
+    }
+    return matches[0] ?? null;
+}
+
+function harnessesMatching(
+    path: string,
+    footprints: Readonly<Record<HarnessName, HarnessFootprint>>,
+    matches: (path: string, indicators: readonly string[]) => boolean,
+): HarnessName[] {
+    return ALL_HARNESS_NAMES.filter((harness) =>
+        matches(path, footprints[harness].primaryIndicators),
+    );
+}
+
+/**
+ * True when `normalized` is a nested instruction file whose filename is one
+ * of this harness's primary indicators. Root files are exact indicators and
+ * are not matched here.
+ */
+function matchesNestedInstructionFilename(
+    normalized: string,
+    indicators: readonly string[],
+): boolean {
+    const slash = normalized.lastIndexOf("/");
+    if (slash === -1) {
+        return false;
+    }
+    const name = normalized.slice(slash + 1);
+    return isNestedInstructionFilename(name) && indicators.includes(name);
+}
+
+/**
  * Resolves which harness owns a repo-relative path from the harnesses'
  * primary indicators. A path claimed by more than one harness is shared; a
  * path claimed by none belongs to no harness.
+ *
+ * `CLAUDE.md` and `AGENTS.md` (and the `AGENTS.MD` and `agents.md` spellings)
+ * are also recognized in subdirectories when no indicator already claims the
+ * path, so a copy inside a directory another harness owns keeps that harness.
  */
 export function determineHarness(
     repoRelativePath: string,
@@ -254,13 +327,18 @@ export function determineHarness(
         Record<HarnessName, HarnessFootprint>
     > = HARNESS_FOOTPRINTS,
 ): HarnessName | null {
-    const matching = ALL_HARNESS_NAMES.filter((harness) =>
-        matchesPrimaryIndicator(
-            repoRelativePath,
-            footprints[harness].primaryIndicators,
+    const normalized = repoRelativePath.replaceAll("\\", "/");
+    const claimed = soleHarness(
+        harnessesMatching(normalized, footprints, matchesClaimingIndicator),
+    );
+    if (claimed !== null) {
+        return claimed;
+    }
+    return soleHarness(
+        harnessesMatching(
+            normalized,
+            footprints,
+            matchesNestedInstructionFilename,
         ),
     );
-    if (matching.length === 0) return null;
-    if (matching.length >= 2) return "shared";
-    return matching[0];
 }

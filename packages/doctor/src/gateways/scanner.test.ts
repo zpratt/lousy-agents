@@ -1090,4 +1090,425 @@ describe("scanRepository", () => {
             });
         });
     });
+
+    describe("when CLAUDE.md and AGENTS.md live in subdirectories", () => {
+        const shallowDir = "src";
+        const deepDir = "packages/foo";
+        const shallowClaude = `${shallowDir}/${CLAUDE_MD}`;
+        const deepClaude = `${deepDir}/${CLAUDE_MD}`;
+        const shallowAgents = `${shallowDir}/${AGENTS_MD}`;
+        const deepAgents = `${deepDir}/${AGENTS_MD}`;
+        const claudeBody = "# Nested Claude\n";
+        const agentsBody = "# Nested Agents\n";
+
+        function instructionAt(
+            records: Awaited<ReturnType<typeof scanRepository>>,
+            path: string,
+        ) {
+            return records.find((record) => record.path === path);
+        }
+
+        function instructionShape(path: string, harness: "claude" | "shared") {
+            return expect.objectContaining({
+                id: `${harness}:${path}`,
+                path,
+                harness,
+                constructType: "instruction",
+                loadMechanism: "convention-loaded",
+            });
+        }
+
+        describe("when the repository has no instruction file at the root", () => {
+            it("should inventory CLAUDE.md at more than one directory depth as a claude instruction", async () => {
+                const readme = `${shallowDir}/README.md`;
+                const files = {
+                    [shallowClaude]: claudeBody,
+                    [deepClaude]: claudeBody,
+                    [readme]: "# Readme\n",
+                };
+
+                await withTempRepo(files, async (repoRoot) => {
+                    const records = await scanRepository(repoRoot);
+
+                    expect(instructionAt(records, shallowClaude)).toEqual(
+                        instructionShape(shallowClaude, "claude"),
+                    );
+                    expect(instructionAt(records, deepClaude)).toEqual(
+                        instructionShape(deepClaude, "claude"),
+                    );
+                    expect(records.map((record) => record.path)).not.toContain(
+                        readme,
+                    );
+                    expect(
+                        records.some((record) => record.path === CLAUDE_MD),
+                    ).toBe(false);
+                });
+            });
+
+            it("should inventory AGENTS.md at more than one directory depth as a shared instruction", async () => {
+                const files = {
+                    [shallowAgents]: agentsBody,
+                    [deepAgents]: agentsBody,
+                };
+
+                await withTempRepo(files, async (repoRoot) => {
+                    const records = await scanRepository(repoRoot);
+
+                    expect(instructionAt(records, shallowAgents)).toEqual(
+                        instructionShape(shallowAgents, "shared"),
+                    );
+                    expect(instructionAt(records, deepAgents)).toEqual(
+                        instructionShape(deepAgents, "shared"),
+                    );
+                    expect(
+                        records.some((record) => record.path === AGENTS_MD),
+                    ).toBe(false);
+                });
+            });
+        });
+
+        describe("when the repository also has root instruction files", () => {
+            it("should inventory the root files and the nested files together", async () => {
+                const files = {
+                    [CLAUDE_MD]: claudeBody,
+                    [AGENTS_MD]: agentsBody,
+                    [shallowClaude]: claudeBody,
+                    [deepClaude]: claudeBody,
+                    [shallowAgents]: agentsBody,
+                    [deepAgents]: agentsBody,
+                };
+
+                await withTempRepo(files, async (repoRoot) => {
+                    const records = await scanRepository(repoRoot);
+
+                    expect(instructionAt(records, CLAUDE_MD)).toEqual(
+                        instructionShape(CLAUDE_MD, "claude"),
+                    );
+                    expect(instructionAt(records, AGENTS_MD)).toEqual(
+                        instructionShape(AGENTS_MD, "shared"),
+                    );
+                    expect(instructionAt(records, shallowClaude)).toEqual(
+                        instructionShape(shallowClaude, "claude"),
+                    );
+                    expect(instructionAt(records, deepClaude)).toEqual(
+                        instructionShape(deepClaude, "claude"),
+                    );
+                    expect(instructionAt(records, shallowAgents)).toEqual(
+                        instructionShape(shallowAgents, "shared"),
+                    );
+                    expect(instructionAt(records, deepAgents)).toEqual(
+                        instructionShape(deepAgents, "shared"),
+                    );
+                });
+            });
+        });
+
+        describe("when a copy sits in a directory the scan skips", () => {
+            it.each([
+                "node_modules/pkg",
+                ".git",
+                "dist",
+                "packages/foo/node_modules/pkg",
+                "packages/foo/dist",
+            ])(
+                "should inventory a nested instruction file and leave copies under %s out of the inventory",
+                async (skipped) => {
+                    const skippedClaude = `${skipped}/${CLAUDE_MD}`;
+                    const skippedAgents = `${skipped}/${AGENTS_MD}`;
+                    const files = {
+                        [shallowClaude]: claudeBody,
+                        [skippedClaude]: claudeBody,
+                        [skippedAgents]: agentsBody,
+                    };
+
+                    await withTempRepo(files, async (repoRoot) => {
+                        const records = await scanRepository(repoRoot);
+                        const paths = records.map((record) => record.path);
+
+                        expect(paths).toContain(shallowClaude);
+                        expect(paths).not.toContain(skippedClaude);
+                        expect(paths).not.toContain(skippedAgents);
+                    });
+                },
+            );
+        });
+
+        describe("when the same filename sits inside a directory another harness owns", () => {
+            it("should keep CLAUDE.md under .github/agents as a copilot agent", async () => {
+                const agentPath = `.github/agents/${CLAUDE_MD}`;
+
+                await withTempRepo(
+                    { [agentPath]: claudeBody },
+                    async (repoRoot) => {
+                        const records = await scanRepository(repoRoot);
+
+                        expect(
+                            records.find((record) => record.path === agentPath),
+                        ).toEqual(
+                            expect.objectContaining({
+                                harness: "copilot",
+                                constructType: "agent",
+                            }),
+                        );
+                    },
+                );
+            });
+
+            it("should keep AGENTS.md under .claude/skills as a claude skill", async () => {
+                const skillPath = `.claude/skills/example/${AGENTS_MD}`;
+
+                await withTempRepo(
+                    { [skillPath]: agentsBody },
+                    async (repoRoot) => {
+                        const records = await scanRepository(repoRoot);
+
+                        expect(
+                            records.find((record) => record.path === skillPath),
+                        ).toEqual(
+                            expect.objectContaining({
+                                harness: "claude",
+                                constructType: "skill",
+                            }),
+                        );
+                    },
+                );
+            });
+        });
+    });
+
+    describe("when a fixture directory is met during the walk", () => {
+        const keptClaude = `src/${CLAUDE_MD}`;
+        const keptAgents = `packages/foo/${AGENTS_MD}`;
+        const body = "# Instructions\n";
+        const sourceFixtures = `src/fixtures/${CLAUDE_MD}`;
+
+        it.each([
+            "tests/fixtures/case",
+            "packages/doctor/tests/fixtures/malformed-edge",
+            "pkg/__fixtures__/case",
+            "a/b/testdata",
+        ])(
+            "should leave instruction files under %s out of the inventory and keep ones outside it",
+            async (fixtureDir) => {
+                const fixtureClaude = `${fixtureDir}/${CLAUDE_MD}`;
+                const fixtureAgents = `${fixtureDir}/nested/${AGENTS_MD}`;
+                const files = {
+                    [keptClaude]: body,
+                    [keptAgents]: body,
+                    [fixtureClaude]: "@./missing.md\n",
+                    [fixtureAgents]: body,
+                };
+
+                await withTempRepo(files, async (repoRoot) => {
+                    const records = await scanRepository(repoRoot);
+                    const paths = records.map((record) => record.path);
+
+                    expect(paths).toContain(keptClaude);
+                    expect(paths).toContain(keptAgents);
+                    expect(paths).not.toContain(fixtureClaude);
+                    expect(paths).not.toContain(fixtureAgents);
+                });
+            },
+        );
+
+        it("should inventory a CLAUDE.md under a fixtures directory that is not tests/fixtures", async () => {
+            const files = { [sourceFixtures]: body };
+
+            await withTempRepo(files, async (repoRoot) => {
+                const records = await scanRepository(repoRoot);
+
+                expect(records.map((record) => record.path)).toContain(
+                    sourceFixtures,
+                );
+            });
+        });
+
+        describe("when the directory given as the root is a fixture directory", () => {
+            it("should inventory CLAUDE.md in that directory", async () => {
+                const fixtureRoot = "tests/fixtures/malformed-edge";
+                const files = {
+                    [`${fixtureRoot}/${CLAUDE_MD}`]:
+                        "@./nonexistent-target.md\n",
+                    [keptClaude]: body,
+                };
+
+                await withTempRepo(files, async (repoRoot) => {
+                    const records = await scanRepository(
+                        join(repoRoot, fixtureRoot),
+                    );
+
+                    expect(
+                        records.find((record) => record.path === CLAUDE_MD),
+                    ).toEqual(
+                        expect.objectContaining({
+                            path: CLAUDE_MD,
+                            harness: "claude",
+                            constructType: "instruction",
+                        }),
+                    );
+                    expect(
+                        records.some((record) => record.path === keptClaude),
+                    ).toBe(false);
+                });
+            });
+
+            it("should inventory files inside tests/fixtures when that directory is the root", async () => {
+                const nested = `case/${CLAUDE_MD}`;
+                const files = {
+                    [`tests/fixtures/${nested}`]: body,
+                    [keptClaude]: body,
+                };
+
+                await withTempRepo(files, async (repoRoot) => {
+                    const records = await scanRepository(
+                        join(repoRoot, "tests/fixtures"),
+                    );
+
+                    expect(records.map((record) => record.path)).toEqual([
+                        nested,
+                    ]);
+                });
+            });
+
+            it("should still report the intentional missing import in the malformed-edge fixture", async () => {
+                const records = await scanRepository(fixture("malformed-edge"));
+
+                expect(
+                    records.find((record) => record.path === CLAUDE_MD)?.edges,
+                ).toEqual([
+                    expect.objectContaining({
+                        malformed: true,
+                        reason: "missing-target",
+                    }),
+                ]);
+            });
+
+            it("should leave fixtures out when the scan root is the tests directory", async () => {
+                const kept = `src/${CLAUDE_MD}`;
+                const fixtureClaude = `fixtures/malformed-edge/${CLAUDE_MD}`;
+                const files = {
+                    [`tests/${kept}`]: body,
+                    [`tests/${fixtureClaude}`]: "@./missing.md\n",
+                };
+
+                await withTempRepo(files, async (repoRoot) => {
+                    const records = await scanRepository(
+                        join(repoRoot, "tests"),
+                    );
+                    const paths = records.map((record) => record.path);
+
+                    expect(paths).toContain(kept);
+                    expect(paths).not.toContain(fixtureClaude);
+                });
+            });
+        });
+    });
+
+    describe("when CLAUDE.md or AGENTS.md sits in .github/instructions", () => {
+        const claudeInInstructions = `.github/instructions/${CLAUDE_MD}`;
+        const agentsInInstructions = `.github/instructions/${AGENTS_MD}`;
+        const readme = ".github/instructions/README.md";
+        const body = "# Instructions\n";
+
+        it("should inventory them as claude and shared instructions", async () => {
+            const files = {
+                [claudeInInstructions]: body,
+                [agentsInInstructions]: body,
+                [readme]: body,
+            };
+
+            await withTempRepo(files, async (repoRoot) => {
+                const records = await scanRepository(repoRoot);
+
+                expect(
+                    records.find(
+                        (record) => record.path === claudeInInstructions,
+                    ),
+                ).toEqual(
+                    expect.objectContaining({
+                        id: `claude:${claudeInInstructions}`,
+                        harness: "claude",
+                        constructType: "instruction",
+                    }),
+                );
+                expect(
+                    records.find(
+                        (record) => record.path === agentsInInstructions,
+                    ),
+                ).toEqual(
+                    expect.objectContaining({
+                        id: `shared:${agentsInInstructions}`,
+                        harness: "shared",
+                        constructType: "instruction",
+                    }),
+                );
+                expect(records.map((record) => record.path)).not.toContain(
+                    readme,
+                );
+            });
+        });
+    });
+
+    describe("when AGENTS.MD uses a capital MD extension", () => {
+        const rootAgents = "AGENTS.MD";
+        const nestedAgents = "packages/foo/AGENTS.MD";
+        const body = "# Agents\n";
+
+        it("should read an AGENTS.MD link and mark the file it points at as referenced", async () => {
+            const upper = `pkg/${rootAgents}`;
+            const target = CLAUDE_MD;
+            const files = {
+                [target]: "# Claude\n",
+                [upper]: `see [x](../${target})\n`,
+            };
+
+            await withTempRepo(files, async (repoRoot) => {
+                const records = await scanRepository(repoRoot);
+
+                expect(
+                    records.find((record) => record.path === upper)?.edges,
+                ).toEqual([
+                    expect.objectContaining({
+                        type: "soft-reference",
+                        target,
+                        malformed: false,
+                    }),
+                ]);
+                expect(
+                    records.find((record) => record.path === target)
+                        ?.loadMechanism,
+                ).toBe("referenced");
+            });
+        });
+
+        it("should inventory the root and nested files as shared instructions", async () => {
+            const files = {
+                [rootAgents]: body,
+                [nestedAgents]: body,
+            };
+
+            await withTempRepo(files, async (repoRoot) => {
+                const records = await scanRepository(repoRoot);
+
+                expect(
+                    records.find((record) => record.path === rootAgents),
+                ).toEqual(
+                    expect.objectContaining({
+                        id: `shared:${rootAgents}`,
+                        harness: "shared",
+                        constructType: "instruction",
+                    }),
+                );
+                expect(
+                    records.find((record) => record.path === nestedAgents),
+                ).toEqual(
+                    expect.objectContaining({
+                        id: `shared:${nestedAgents}`,
+                        harness: "shared",
+                        constructType: "instruction",
+                    }),
+                );
+            });
+        });
+    });
 });

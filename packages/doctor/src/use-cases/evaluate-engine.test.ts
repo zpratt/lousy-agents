@@ -70,6 +70,83 @@ describe("evaluate", () => {
         });
     });
 
+    describe("missing-claude-md criterion", () => {
+        it("should not produce a finding when the only CLAUDE.md is nested", () => {
+            const nested = "src/CLAUDE.md";
+            const records: InventoryRecord[] = [
+                makeRecord({
+                    harness: "claude",
+                    path: nested,
+                    id: `claude:${nested}`,
+                }),
+            ];
+
+            const findings = evaluate(CRITERIA, {
+                records,
+                classification: makeClassification("pure"),
+                intent: null,
+            });
+
+            expect(
+                findings.find(
+                    (finding) => finding.criterionId === "missing-claude-md",
+                ),
+            ).toBeUndefined();
+        });
+
+        it("should produce a finding when claude is present without any CLAUDE.md", () => {
+            const records: InventoryRecord[] = [
+                makeRecord({
+                    harness: "claude",
+                    path: "notes.md",
+                    id: "claude:notes.md",
+                }),
+            ];
+
+            const findings = evaluate(CRITERIA, {
+                records,
+                classification: makeClassification("pure"),
+                intent: null,
+            });
+
+            const finding = findings.find(
+                (candidate) => candidate.criterionId === "missing-claude-md",
+            );
+            expect(finding).toBeDefined();
+            expect(finding?.severity).toBe("high");
+        });
+    });
+
+    describe("missing-agents-md criterion", () => {
+        it("should produce a finding when codex is present and the only AGENTS.md is nested", () => {
+            const nested = "packages/foo/AGENTS.md";
+            const records: InventoryRecord[] = [
+                makeRecord({
+                    harness: "codex",
+                    path: ".codex/config.toml",
+                    id: "codex:.codex/config.toml",
+                }),
+                makeRecord({
+                    harness: "shared",
+                    path: nested,
+                    id: `shared:${nested}`,
+                }),
+            ];
+
+            const findings = evaluate(CRITERIA, {
+                records,
+                classification: makeClassification("accidental-sprawl"),
+                intent: null,
+            });
+
+            const finding = findings.find(
+                (candidate) => candidate.criterionId === "missing-agents-md",
+            );
+            expect(finding).toBeDefined();
+            expect(finding?.severity).toBe("high");
+        });
+    });
+
     describe("missing-intent-artifact criterion", () => {
         it("should produce a medium finding when records exist but intent is null", () => {
             const records: InventoryRecord[] = [

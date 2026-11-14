@@ -241,3 +241,20 @@ export const AGENTIC_LOCATION_CATALOG: readonly AgenticLocationEntry[] = [
         harnessHints: ["codex"],
     },
 ] as const;
+
+/**
+ * Instruction filenames loaded in subdirectories as well as at the repository
+ * root. Case-sensitive. Copilot does not load these from `.github/instructions`
+ * (that directory accepts only `*.instructions.md`), so they stay Claude or
+ * shared instructions wherever they sit.
+ */
+export const NESTED_INSTRUCTION_FILENAMES: ReadonlySet<string> = new Set([
+    "CLAUDE.md",
+    "AGENTS.md",
+    "AGENTS.MD",
+    "agents.md",
+]);
+
+export function isNestedInstructionFilename(fileName: string): boolean {
+    return NESTED_INSTRUCTION_FILENAMES.has(fileName);
+}

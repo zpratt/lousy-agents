@@ -43,8 +43,10 @@ The walk:
 
 Differences from doctor, which are on purpose:
 
+- **Nested `CLAUDE.md` and `AGENTS.md`**: doctor inventories those filenames at any depth (`AGENTS.MD` and `agents.md` included). Lint discovers only the root copies, plus `.claude/CLAUDE.md`
 - **Start and depth**: lint walks from each instruction location (depth 0 is `.github/instructions` itself), while doctor walks from the repository root (depth 0 is the root). A file nested nine directories below `.github/instructions` is at depth 9 for lint and at depth 11 for doctor, which does not enter it and reports the limit with its `discovery-limit-reached` finding
 - **Build output**: doctor also skips directories named `dist`, which lint does not, so `.github/instructions/dist/x.instructions.md` is linted but is not in the doctor inventory
+- **Fixture directories**: doctor does not enter `tests/fixtures`, `__fixtures__`, or `testdata` directories it meets while walking. Lint does not apply that exclusion
 - **Import scope**: doctor judges each `@` import written in a `claude`-harness file (such as `CLAUDE.md` or `.claude/CLAUDE.md`) with the same target classification lint uses, but it does not judge the imports inside a file only Claude reaches through such an import or through a shared harness file such as `AGENTS.md`, and it does not follow imports transitively or detect cycles. Lint expands imports transitively from every entrypoint and reports `instruction/import-cycle`. Widening doctor's scope is tracked in [#1517](https://github.com/zpratt/lousy-agents/issues/1517).
 - **Import cap**: both tools stop at 256 `@` tokens, but doctor counts them per file, while lint counts them across the whole expansion of each entrypoint, in every file it reaches. The number is the same; the scope is not.
 - **Skipped symbolic links**: doctor's `discovery-symlink-skipped` covers every symbolic link in the repository that would have been scanned and points outside it, which is wider than lint's `instruction/discovery-symlink-skipped`, limited to instruction locations.
