@@ -823,6 +823,73 @@ describe("scanRepository", () => {
                     "/",
                 );
 
+            it("should inventory an agent file within 32 directories of .github/agents that the root walk cannot reach", async () => {
+                const segments = [
+                    ".github",
+                    "agents",
+                    ...Array.from({ length: 11 }, (_, index) =>
+                        String(index + 1),
+                    ),
+                    "reviewer.md",
+                ];
+                const agentPath = segments.join("/");
+
+                await withTempRepo(
+                    { [agentPath]: "# agent\n" },
+                    async (repoRoot) => {
+                        const records = await scanRepository(repoRoot);
+
+                        expect(records.map((record) => record.path)).toContain(
+                            agentPath,
+                        );
+                    },
+                );
+            });
+
+            describe.each([
+                [".github", ".github/agents"],
+                [".claude", ".claude/agents"],
+            ])("below %s agents", (_harnessDirectory, agentRoot) => {
+                const agentPathAt = (levels: number) =>
+                    [
+                        ...agentRoot.split("/"),
+                        ...Array.from({ length: levels }, (_, index) =>
+                            String(index + 1),
+                        ),
+                        "reviewer.md",
+                    ].join("/");
+
+                it("should inventory an agent exactly 32 directories below its root", async () => {
+                    const atLimit = agentPathAt(32);
+
+                    await withTempRepo(
+                        { [atLimit]: "# agent\n" },
+                        async (repoRoot) => {
+                            const records = await scanRepository(repoRoot);
+
+                            expect(
+                                records.map((record) => record.path),
+                            ).toContain(atLimit);
+                        },
+                    );
+                });
+
+                it("should leave out an agent 33 directories below its root", async () => {
+                    const pastLimit = agentPathAt(33);
+
+                    await withTempRepo(
+                        { [pastLimit]: "# agent\n" },
+                        async (repoRoot) => {
+                            const records = await scanRepository(repoRoot);
+
+                            expect(
+                                records.map((record) => record.path),
+                            ).not.toContain(pastLimit);
+                        },
+                    );
+                });
+            });
+
             it("should report a directory limit reached only by the instruction catalog walk", async () => {
                 const deep = [
                     ".github",
@@ -1607,6 +1674,30 @@ describe("scanRepository", () => {
                     }),
                 );
             });
+        });
+    });
+
+    describe("when .claude is a symbolic link to a directory outside the repository", () => {
+        it("should name only .claude as skipped, not the subagent directory below it", async () => {
+            const outside = join(
+                await realpath(tmpdir()),
+                `doctor-outside-${chance.guid()}`,
+            );
+            await mkdir(join(outside, "agents"), { recursive: true });
+            try {
+                await withTempRepo(
+                    { [CLAUDE_MD]: "# Claude\n" },
+                    async (repoRoot) => {
+                        await symlink(outside, join(repoRoot, ".claude"));
+
+                        const report = await scanRepositoryWithReport(repoRoot);
+
+                        expect(report.skippedOutsideRoot).toEqual([".claude"]);
+                    },
+                );
+            } finally {
+                await rm(outside, { recursive: true, force: true });
+            }
         });
     });
 
