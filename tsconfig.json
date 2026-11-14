@@ -12,7 +12,8 @@
         "isolatedModules": true,
         "declaration": true,
         "declarationMap": true,
-        "sourceMap": true
+        "sourceMap": true,
+        "customConditions": ["lousy-agents-source"]
     },
     "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }

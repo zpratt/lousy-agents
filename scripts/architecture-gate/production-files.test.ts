@@ -80,7 +80,7 @@ describe("isScriptCoachDoesNotRead", () => {
             "packages/core/src/lib/x.ts.js",
         ],
     ])(
-        "should flag %s under a package's src, which coach 0.11.0 does not analyze",
+        "should flag %s under a package's src, which coach 0.12.0 does not analyze",
         (_label, path) => {
             // Act / Assert
             expect(isScriptCoachDoesNotRead(path)).toBe(true);

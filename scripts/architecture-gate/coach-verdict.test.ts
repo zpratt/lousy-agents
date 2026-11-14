@@ -39,11 +39,47 @@ function signalWithField(field: string, value: string) {
     return { ...signal(LAYER_VIOLATION, "a.ts"), [field]: value };
 }
 
-function report(signals: unknown, schemaVersion: unknown = "2") {
+const ANALYZED_FILES = 258;
+
+function layerMembership(
+    filesOutsideLayers: unknown,
+    analyzedFiles: unknown = ANALYZED_FILES,
+) {
+    return {
+        head: {
+            revision: "0123456789abcdef0123456789abcdef01234567",
+            // biome-ignore lint/style/useNamingConvention: coach's report format
+            analyzed_files: analyzedFiles,
+            // biome-ignore lint/style/useNamingConvention: coach's report format
+            files_outside_layers: filesOutsideLayers,
+        },
+    };
+}
+
+const SDK_LOADER = "packages/agent-shell/src/gateways/copilot-sdk-loader.ts";
+
+function nonLiteralImport(path: string, expression: string) {
+    return {
+        path,
+        kind: "project_import_non_literal",
+        message: `import() in ${path} takes a non-literal specifier ("${expression}"), so layer rules did not evaluate it and cannot tell whether it crosses a layer; the layer verdict is incomplete`,
+    };
+}
+
+interface ReportOptions {
+    readonly schemaVersion?: unknown;
+    readonly membership?: unknown;
+    readonly diagnostics?: unknown;
+}
+
+function report(signals: unknown, options: ReportOptions = {}) {
     return JSON.stringify({
         // biome-ignore lint/style/useNamingConvention: coach's report format
-        schema_version: schemaVersion,
+        schema_version: options.schemaVersion ?? "2",
         signals,
+        // biome-ignore lint/style/useNamingConvention: coach's report format
+        layer_membership: options.membership ?? layerMembership(0),
+        diagnostics: options.diagnostics ?? [],
     });
 }
 
@@ -293,6 +329,116 @@ describe("evaluateCoachRun", () => {
         });
     });
 
+    describe("when coach reports files that no declared layer claims", () => {
+        it.each([1, chance.integer({ min: 2, max: ANALYZED_FILES })])(
+            "should fail and say that %i file(s) went unchecked",
+            (outside) => {
+                const run = cleanRun(
+                    report([], { membership: layerMembership(outside) }),
+                );
+
+                const verdict = evaluateCoachRun(run);
+
+                expect(verdict.passed).toBe(false);
+                expect(verdict.messages.join("\n")).toContain(
+                    `${outside} of ${ANALYZED_FILES} files coach analyzed sit outside every declared layer`,
+                );
+            },
+        );
+
+        it("should say coach does not name the files and point to the test that lists them", () => {
+            const run = cleanRun(
+                report([], { membership: layerMembership(1) }),
+            );
+
+            const verdict = evaluateCoachRun(run);
+
+            expect(verdict.messages.join("\n")).toContain(
+                "scripts/architecture-gate/project-policy.test.ts",
+            );
+        });
+
+        it("should report the files outside layers alongside any layer violation", () => {
+            const run = cleanRun(
+                report([signal(LAYER_VIOLATION, "a.ts")], {
+                    membership: layerMembership(2),
+                }),
+            );
+
+            const verdict = evaluateCoachRun(run);
+
+            const text = verdict.messages.join("\n");
+            expect(text).toContain(LAYER_VIOLATION);
+            expect(text).toContain(
+                `2 of ${ANALYZED_FILES} files coach analyzed`,
+            );
+        });
+    });
+
+    describe("when coach reports an import whose specifier is not a string literal", () => {
+        it("should fail and name the file and the expression", () => {
+            const path = "packages/core/src/entities/loads-anything.ts";
+            const run = cleanRun(
+                report([], {
+                    diagnostics: [nonLiteralImport(path, "target")],
+                }),
+            );
+
+            const verdict = evaluateCoachRun(run);
+
+            expect(verdict.passed).toBe(false);
+            const text = verdict.messages.join("\n");
+            expect(text).toContain(path);
+            expect(text).toContain('"target"');
+        });
+
+        it("should pass for the Copilot SDK loader's known dynamic import", () => {
+            const run = cleanRun(
+                report([], {
+                    diagnostics: [nonLiteralImport(SDK_LOADER, "sdkPath")],
+                }),
+            );
+
+            const verdict = evaluateCoachRun(run);
+
+            expect(verdict).toEqual({ passed: true, messages: [] });
+        });
+
+        it("should fail for a second dynamic import in the Copilot SDK loader", () => {
+            const run = cleanRun(
+                report([], {
+                    diagnostics: [
+                        nonLiteralImport(SDK_LOADER, "sdkPath"),
+                        nonLiteralImport(SDK_LOADER, "otherPath"),
+                    ],
+                }),
+            );
+
+            const verdict = evaluateCoachRun(run);
+
+            expect(verdict.passed).toBe(false);
+            expect(verdict.messages.join("\n")).toContain('"otherPath"');
+        });
+
+        it("should ignore diagnostics of other kinds", () => {
+            const run = cleanRun(
+                report([], {
+                    diagnostics: [
+                        {
+                            kind: "project_external_imports_not_evaluated",
+                            message:
+                                "213 import edges to external packages were not evaluated by layer rules",
+                        },
+                    ],
+                }),
+            );
+
+            const verdict = evaluateCoachRun(run);
+
+            expect(verdict.passed).toBe(true);
+        });
+    });
+
     describe("when coach exits 0 with output the gate cannot trust", () => {
         const untrustworthy: ReadonlyArray<readonly [string, string, RegExp]> =
             [
@@ -302,18 +448,70 @@ describe("evaluateCoachRun", () => {
                 ["a JSON array", "[]", /report must be a JSON object/],
                 [
                     "an unexpected schema version",
-                    report([], "3"),
+                    report([], { schemaVersion: "3" }),
                     /schema_version must be "2"/,
                 ],
                 [
                     "a numeric schema version, not the string coach writes",
-                    report([], 2),
+                    report([], { schemaVersion: 2 }),
                     /schema_version must be "2"/,
                 ],
                 [
                     "a report with no schema version",
                     JSON.stringify({ signals: [] }),
                     /schema_version must be "2"/,
+                ],
+                [
+                    "a report with no diagnostics list",
+                    JSON.stringify({
+                        // biome-ignore lint/style/useNamingConvention: coach's report format
+                        schema_version: "2",
+                        signals: [],
+                        // biome-ignore lint/style/useNamingConvention: coach's report format
+                        layer_membership: layerMembership(0),
+                    }),
+                    /diagnostics must be an array/,
+                ],
+                [
+                    "a diagnostic with no kind",
+                    report([], { diagnostics: [{ path: "a.ts" }] }),
+                    /diagnostics\[0\]\.kind must be a non-empty string/,
+                ],
+                [
+                    "a report with no layer membership",
+                    // biome-ignore lint/style/useNamingConvention: coach's report format
+                    JSON.stringify({ schema_version: "2", signals: [] }),
+                    /layer_membership must be a JSON object/,
+                ],
+                [
+                    "a layer membership with no head revision",
+                    report([], { membership: {} }),
+                    /layer_membership\.head must be a JSON object/,
+                ],
+                [
+                    "a negative count of files outside layers",
+                    report([], { membership: layerMembership(-1) }),
+                    /files_outside_layers must be a whole number/,
+                ],
+                [
+                    "a count of files outside layers that is not a number",
+                    report([], { membership: layerMembership("0") }),
+                    /files_outside_layers must be a whole number/,
+                ],
+                [
+                    "a negative count of analyzed files",
+                    report([], { membership: layerMembership(0, -1) }),
+                    /analyzed_files must be a whole number/,
+                ],
+                [
+                    "a count of analyzed files that is not a number",
+                    report([], { membership: layerMembership(0, "258") }),
+                    /analyzed_files must be a whole number/,
+                ],
+                [
+                    "more files outside layers than files analyzed",
+                    report([], { membership: layerMembership(3, 2) }),
+                    /files_outside_layers cannot exceed analyzed_files/,
                 ],
                 [
                     "a report with no signals list",

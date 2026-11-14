@@ -33,7 +33,7 @@ export type RunCoach = (args: readonly string[]) => Promise<CoachRun>;
  * `npm run lint:architecture` runs whichever coach is on `PATH`, so the gate
  * checks before it trusts a scan.
  */
-export const REQUIRED_COACH_VERSION = "0.11.0";
+export const REQUIRED_COACH_VERSION = "0.12.0";
 
 /** Coach reads `--version` only as its first argument; it has no JSON form. */
 export const COACH_VERSION_ARGUMENTS: readonly string[] = ["--version"];

@@ -18,8 +18,17 @@ const chance = new Chance();
 
 const CLEAN_RUN: CoachRun = {
     exitCode: 0,
-    // biome-ignore lint/style/useNamingConvention: coach's report format
-    stdout: JSON.stringify({ schema_version: "2", signals: [] }),
+    stdout: JSON.stringify({
+        // biome-ignore lint/style/useNamingConvention: coach's report format
+        schema_version: "2",
+        signals: [],
+        // biome-ignore lint/style/useNamingConvention: coach's report format
+        layer_membership: {
+            // biome-ignore lint/style/useNamingConvention: coach's report format
+            head: { analyzed_files: 1, files_outside_layers: 0 },
+        },
+        diagnostics: [],
+    }),
     stderr: "",
 };
 
@@ -49,7 +58,7 @@ const REPOSITORY_ROOT = resolve(
     "../..",
 );
 
-const PINNED_VERSION = "0.11.0";
+const PINNED_VERSION = "0.12.0";
 const VERSION_RUN: CoachRun = {
     exitCode: 0,
     stdout: `${PINNED_VERSION}\n`,
@@ -102,9 +111,9 @@ describe("runArchitectureGate", () => {
         });
 
         it.each([
-            ["no line break", "0.11.0"],
-            ["a carriage return and a line feed", "0.11.0\r\n"],
-            ["spaces around it", "  0.11.0 \n"],
+            ["no line break", "0.12.0"],
+            ["a carriage return and a line feed", "0.12.0\r\n"],
+            ["spaces around it", "  0.12.0 \n"],
         ])("should accept a version printed with %s", async (_what, stdout) => {
             // Act
             const verdict = await runArchitectureGate(
@@ -118,15 +127,15 @@ describe("runArchitectureGate", () => {
 
     describe("when coach is not the pinned version", () => {
         it.each([
-            ["an older release", "0.10.0\n"],
-            ["a newer release", "0.11.1\n"],
-            ["a pre-release of the pinned one", "0.11.0-rc1\n"],
+            ["an older release", "0.11.0\n"],
+            ["a newer release", "0.12.1\n"],
+            ["a pre-release of the pinned one", "0.12.0-rc1\n"],
             ["a build that is not a release", "dev\n"],
-            ["a v prefix", "v0.11.0\n"],
+            ["a v prefix", "v0.12.0\n"],
             ["nothing at all", ""],
             ["only a line break", "\n"],
-            ["the version on two lines", "0.11.0\n0.11.0\n"],
-            ["the version among other words", "coach 0.11.0\n"],
+            ["the version on two lines", "0.12.0\n0.12.0\n"],
+            ["the version among other words", "coach 0.12.0\n"],
         ])(
             "should fail without scanning when it prints %s",
             async (_what, stdout) => {
@@ -156,12 +165,12 @@ describe("runArchitectureGate", () => {
             const verdict = await runArchitectureGate(
                 coachAnswering(CLEAN_RUN, {
                     ...VERSION_RUN,
-                    stdout: "0.10.0\n",
+                    stdout: "0.11.0\n",
                 }),
             );
 
             // Assert
-            expect(verdict.messages.join("\n")).toContain('"0.10.0"');
+            expect(verdict.messages.join("\n")).toContain('"0.11.0"');
         });
 
         it.each([
@@ -224,6 +233,12 @@ describe("runArchitectureGate", () => {
                             machine_evidence: {},
                         },
                     ],
+                    // biome-ignore lint/style/useNamingConvention: coach's report format
+                    layer_membership: {
+                        // biome-ignore lint/style/useNamingConvention: coach's report format
+                        head: { analyzed_files: 1, files_outside_layers: 0 },
+                    },
+                    diagnostics: [],
                 }),
                 stderr: "",
             };

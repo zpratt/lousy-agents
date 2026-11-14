@@ -108,7 +108,7 @@ describe("the tracked source files under packages/*/src", () => {
                     readFileSync(resolve(repositoryRoot, path), "utf8"),
                 ).map(
                     (line) =>
-                        `${path}:${line} has a triple-slash reference directive: triple-slash reference directives are not allowed in production source, because coach 0.11.0 does not count them`,
+                        `${path}:${line} has a triple-slash reference directive: triple-slash reference directives are not allowed in production source, because coach 0.12.0 does not count them`,
                 ),
             );
 
