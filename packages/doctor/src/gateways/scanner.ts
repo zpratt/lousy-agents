@@ -1,7 +1,9 @@
 import { realpath } from "node:fs/promises";
 import { basename, relative, resolve } from "node:path";
+import { discoverInstructionLocations } from "@lousy-agents/core/gateways/agentic-artifact-discovery.js";
 import type { NoFollowFsPort } from "@lousy-agents/core/gateways/read-regular-file-no-follow.js";
 import {
+    DEFAULT_MAX_WALK_DEPTH,
     DEFAULT_MAX_WALK_DIRECTORIES,
     DEFAULT_SKIPPED_DIRECTORY_NAMES,
     type WalkedFile,
@@ -61,6 +63,13 @@ export interface ScanOptions {
     readonly fs?: NoFollowFsPort;
 }
 
+function parentSegmentCount(relativePath: string): number {
+    const segments = relativePath
+        .split("/")
+        .filter((segment) => segment !== "");
+    return Math.max(0, segments.length - 1);
+}
+
 function toSourceFile(
     repoRoot: string,
     rootReal: string,
@@ -107,9 +116,48 @@ export async function scanRepositoryWithReport(
             ? {}
             : { maxEntries: options.maxEntries }),
     });
-    const files = walked.files.map((file) =>
+    const instructionWalks = await discoverInstructionLocations(absRoot, {
+        rootDirectoryName: basename(absRoot),
+        maxDirectories,
+        includeNestedWalk: false,
+        ...(options.maxEntries === undefined
+            ? {}
+            : { maxEntries: options.maxEntries }),
+    });
+    const knownPaths = new Set(walked.files.map((file) => file.relativePath));
+    const beyondRootDepth = instructionWalks
+        .filter((location) => location.role === "catalog")
+        .flatMap((location) => location.walked.files)
+        .filter(
+            (file) =>
+                !knownPaths.has(file.relativePath) &&
+                parentSegmentCount(file.relativePath) > DEFAULT_MAX_WALK_DEPTH,
+        );
+    // Files the root walk cannot reach are appended after its list, in the
+    // catalog walk's order. They are not interleaved into that walk's order.
+    const files = [...walked.files, ...beyondRootDepth].map((file) =>
         toSourceFile(absRoot, rootReal, file),
     );
+    const catalogWalks = instructionWalks.filter(
+        (location) => location.role === "catalog",
+    );
+    const depthLimitReached =
+        walked.depthLimitReached ||
+        catalogWalks.some((location) => location.walked.depthLimitReached);
+    const directoryLimitReached =
+        walked.directoryLimitReached ||
+        catalogWalks.some((location) => location.walked.directoryLimitReached);
+    const entryLimitReached =
+        walked.entryLimitReached ||
+        catalogWalks.some((location) => location.walked.entryLimitReached);
+    const skippedOutsideRoot = [...walked.skippedOutsideRoot];
+    for (const location of catalogWalks) {
+        for (const path of location.walked.skippedOutsideRoot) {
+            if (!skippedOutsideRoot.includes(path)) {
+                skippedOutsideRoot.push(path);
+            }
+        }
+    }
 
     const edgeContext: EdgeResolutionContext = {
         repoRoot: absRoot,
@@ -130,22 +178,20 @@ export async function scanRepositoryWithReport(
             ...markReferencedRecords(fileRecords),
             ...mcpServerRecords(mcpServers),
         ],
-        ...(walked.directoryLimitReached
+        ...(directoryLimitReached
             ? {
                   directoryLimit: {
                       maxDirectories: walked.limits.maxDirectories,
                   },
               }
             : {}),
-        ...(walked.depthLimitReached
+        ...(depthLimitReached
             ? { depthLimit: { maxDepth: walked.limits.maxDepth } }
             : {}),
-        ...(walked.entryLimitReached
+        ...(entryLimitReached
             ? { entryLimit: { maxEntries: walked.limits.maxEntries } }
             : {}),
-        ...(walked.skippedOutsideRoot.length > 0
-            ? { skippedOutsideRoot: walked.skippedOutsideRoot }
-            : {}),
+        ...(skippedOutsideRoot.length > 0 ? { skippedOutsideRoot } : {}),
         ...(filesOverImportLimit.length > 0
             ? {
                   importLimit: {
