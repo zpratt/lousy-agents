@@ -3,7 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+    AGENT_CATALOG_DEPTH,
     collapseToFirstRealFile,
+    discoverAgentFiles,
     discoverInstructionLocations,
 } from "./agentic-artifact-discovery.js";
 import type { WalkedFile } from "./repository-walk.js";
@@ -113,6 +115,53 @@ describe("discoverInstructionLocations", () => {
         });
 
         expect(walks.every((walk) => walk.role === "catalog")).toBe(true);
+    });
+});
+
+describe("discoverAgentFiles", () => {
+    let testDir = "";
+
+    afterEach(async () => {
+        await rm(testDir, { recursive: true, force: true });
+    });
+
+    it("should return an agent 32 directories below .github/agents and not one 33 below", async () => {
+        testDir = join(
+            tmpdir(),
+            `agent-depth-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        );
+        const atLimit = [
+            ".github",
+            "agents",
+            ...Array.from({ length: AGENT_CATALOG_DEPTH }, (_, index) =>
+                String(index + 1),
+            ),
+            "reviewer.md",
+        ];
+        const pastLimit = [
+            ".github",
+            "agents",
+            ...Array.from({ length: AGENT_CATALOG_DEPTH + 1 }, (_, index) =>
+                String(index + 1),
+            ),
+            "reviewer.md",
+        ];
+        await mkdir(join(testDir, ...atLimit.slice(0, -1)), {
+            recursive: true,
+        });
+        await mkdir(join(testDir, ...pastLimit.slice(0, -1)), {
+            recursive: true,
+        });
+        await writeFile(join(testDir, ...atLimit), "# agent\n");
+        await writeFile(join(testDir, ...pastLimit), "# agent\n");
+
+        const files = await discoverAgentFiles(testDir, {
+            rootDirectoryName: "repo",
+        });
+        const paths = files.map((file) => file.relativePath);
+
+        expect(paths).toContain(atLimit.join("/"));
+        expect(paths).not.toContain(pastLimit.join("/"));
     });
 });
 

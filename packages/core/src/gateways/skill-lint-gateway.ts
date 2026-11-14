@@ -3,19 +3,20 @@
  * Discovers skill files and parses YAML frontmatter.
  */
 
-import { basename, join, resolve, sep } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { z } from "zod";
 import type {
     DiscoveredSkillFile,
     ParsedFrontmatter,
 } from "../entities/skill.js";
-import { isSkippedDiscoveryDirectory } from "../lib/agentic-discovery-skips.js";
-import { skillDirectoryRoots } from "../lib/agentic-location-matchers.js";
 import { parseFrontmatter } from "../lib/frontmatter.js";
 import type { SkillLintGateway } from "../use-cases/lint-skill-frontmatter.js";
 import {
+    discoverSkillFiles,
+    omitSymlinkedPaths,
+} from "./agentic-artifact-discovery.js";
+import {
     isFsSafeViolation,
-    listDirectoryWithinRoot,
     pathExistsWithinRoot,
     readFileNoFollow,
     readTextWithinRoot,
@@ -23,11 +24,6 @@ import {
 
 /** Maximum skill file size: 1 MB */
 const MAX_SKILL_FILE_BYTES = 1_048_576;
-
-/** Catalog skill roots converted to OS-native relative paths. */
-const SKILL_DIRECTORIES = skillDirectoryRoots().map((root) =>
-    join(...root.split("/")),
-);
 
 /** Maximum lock file size: 256 KB */
 const MAX_LOCK_FILE_BYTES = 262_144;
@@ -77,15 +73,28 @@ async function readLockedSkillNames(targetDir: string): Promise<Set<string>> {
  */
 export class FileSystemSkillLintGateway implements SkillLintGateway {
     async discoverSkills(targetDir: string): Promise<DiscoveredSkillFile[]> {
-        const skills: DiscoveredSkillFile[] = [];
-
-        for (const relativeDir of SKILL_DIRECTORIES) {
-            const discovered = await this.discoverSkillsInDir(
-                targetDir,
-                relativeDir,
-            );
-            skills.push(...discovered);
-        }
+        const found = await omitSymlinkedPaths(
+            targetDir,
+            await discoverSkillFiles(targetDir, {
+                rootDirectoryName: basename(resolve(targetDir)),
+            }),
+        );
+        const skills: DiscoveredSkillFile[] = found.flatMap((file) => {
+            const skillName = file.relativePath.split("/").at(-2) ?? "";
+            if (
+                skillName.includes("..") ||
+                skillName.includes("/") ||
+                skillName.includes("\\")
+            ) {
+                return [];
+            }
+            return [
+                {
+                    filePath: join(targetDir, ...file.relativePath.split("/")),
+                    skillName,
+                },
+            ];
+        });
 
         const lockedNames = await readLockedSkillNames(targetDir);
         if (lockedNames.size === 0) {
@@ -93,81 +102,6 @@ export class FileSystemSkillLintGateway implements SkillLintGateway {
         }
 
         return skills.filter((skill) => !lockedNames.has(skill.skillName));
-    }
-
-    private async discoverSkillsInDir(
-        targetDir: string,
-        skillsDir: string,
-    ): Promise<DiscoveredSkillFile[]> {
-        try {
-            if (!(await pathExistsWithinRoot(targetDir, skillsDir))) {
-                return [];
-            }
-        } catch {
-            return [];
-        }
-
-        let entries: Awaited<ReturnType<typeof listDirectoryWithinRoot>>;
-        try {
-            entries = await listDirectoryWithinRoot(targetDir, skillsDir);
-        } catch (error: unknown) {
-            if (
-                error instanceof Error &&
-                "code" in error &&
-                (error.code === "ENOENT" || error.code === "ENOTDIR")
-            ) {
-                return [];
-            }
-            throw error;
-        }
-
-        const skills: DiscoveredSkillFile[] = [];
-
-        for (const entry of entries) {
-            if (!entry.isDirectory()) {
-                continue;
-            }
-
-            if (
-                entry.name.includes("..") ||
-                entry.name.includes("/") ||
-                entry.name.includes("\\")
-            ) {
-                continue;
-            }
-
-            const skillDirectory = [skillsDir, entry.name]
-                .join(sep)
-                .split(sep)
-                .join("/");
-            if (
-                isSkippedDiscoveryDirectory(
-                    skillDirectory,
-                    basename(resolve(targetDir)),
-                )
-            ) {
-                continue;
-            }
-
-            const skillRelativePath = join(skillsDir, entry.name, "SKILL.md");
-            let hasSkillFile = false;
-            try {
-                hasSkillFile = await pathExistsWithinRoot(
-                    targetDir,
-                    skillRelativePath,
-                );
-            } catch {
-                hasSkillFile = false;
-            }
-            if (hasSkillFile) {
-                skills.push({
-                    filePath: join(targetDir, skillRelativePath),
-                    skillName: entry.name,
-                });
-            }
-        }
-
-        return skills;
     }
 
     async readSkillFileContent(filePath: string): Promise<string> {

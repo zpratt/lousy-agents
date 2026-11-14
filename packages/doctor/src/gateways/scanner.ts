@@ -1,6 +1,10 @@
 import { realpath } from "node:fs/promises";
 import { basename, relative, resolve } from "node:path";
-import { discoverInstructionLocations } from "@lousy-agents/core/gateways/agentic-artifact-discovery.js";
+import {
+    discoverAgentFiles,
+    discoverInstructionLocations,
+    discoverSubagentFiles,
+} from "@lousy-agents/core/gateways/agentic-artifact-discovery.js";
 import type { NoFollowFsPort } from "@lousy-agents/core/gateways/read-regular-file-no-follow.js";
 import {
     DEFAULT_MAX_WALK_DEPTH,
@@ -125,14 +129,27 @@ export async function scanRepositoryWithReport(
             : { maxEntries: options.maxEntries }),
     });
     const knownPaths = new Set(walked.files.map((file) => file.relativePath));
-    const beyondRootDepth = instructionWalks
-        .filter((location) => location.role === "catalog")
-        .flatMap((location) => location.walked.files)
-        .filter(
-            (file) =>
-                !knownPaths.has(file.relativePath) &&
-                parentSegmentCount(file.relativePath) > DEFAULT_MAX_WALK_DEPTH,
-        );
+    const catalogLimits = {
+        rootDirectoryName: basename(absRoot),
+        maxDirectories,
+        ...(options.maxEntries === undefined
+            ? {}
+            : { maxEntries: options.maxEntries }),
+    };
+    const deepConstructFiles = [
+        ...(await discoverAgentFiles(absRoot, catalogLimits)),
+        ...(await discoverSubagentFiles(absRoot, catalogLimits)),
+    ];
+    const beyondRootDepth = [
+        ...instructionWalks
+            .filter((location) => location.role === "catalog")
+            .flatMap((location) => location.walked.files),
+        ...deepConstructFiles,
+    ].filter(
+        (file) =>
+            !knownPaths.has(file.relativePath) &&
+            parentSegmentCount(file.relativePath) > DEFAULT_MAX_WALK_DEPTH,
+    );
     // Files the root walk cannot reach are appended after its list, in the
     // catalog walk's order. They are not interleaved into that walk's order.
     const files = [...walked.files, ...beyondRootDepth].map((file) =>

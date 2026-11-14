@@ -823,6 +823,29 @@ describe("scanRepository", () => {
                     "/",
                 );
 
+            it("should inventory an agent file within 32 directories of .github/agents that the root walk cannot reach", async () => {
+                const segments = [
+                    ".github",
+                    "agents",
+                    ...Array.from({ length: 11 }, (_, index) =>
+                        String(index + 1),
+                    ),
+                    "reviewer.md",
+                ];
+                const agentPath = segments.join("/");
+
+                await withTempRepo(
+                    { [agentPath]: "# agent\n" },
+                    async (repoRoot) => {
+                        const records = await scanRepository(repoRoot);
+
+                        expect(records.map((record) => record.path)).toContain(
+                            agentPath,
+                        );
+                    },
+                );
+            });
+
             it("should report a directory limit reached only by the instruction catalog walk", async () => {
                 const deep = [
                     ".github",
