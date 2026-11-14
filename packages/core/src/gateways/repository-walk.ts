@@ -10,7 +10,7 @@
  * directories it lists.
  */
 
-import { realpath } from "node:fs/promises";
+import { lstat, realpath } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { compareCodeUnits } from "../entities/code-unit-order.js";
 import { listDirectoryWithinRoot } from "./file-system-utils.js";
@@ -56,6 +56,17 @@ export type DirectoryRevisitPolicy =
     | "once-per-real-directory"
     | "refuse-ancestors";
 
+/**
+ * What the walk does with a symbolic link it meets as an entry.
+ *
+ * - `follow-within-root`: follow it while its real target stays inside the
+ *   repository.
+ * - `skip`: treat it as absent. The walk never lists a linked file and never
+ *   enters a linked directory, so a link cannot spend the directory or entry
+ *   budget on a tree the caller discards.
+ */
+export type SymbolicLinkPolicy = "follow-within-root" | "skip";
+
 export interface DirectoryEntryName {
     readonly name: string;
 }
@@ -78,6 +89,8 @@ export interface RepositoryWalkOptions {
     readonly includeSubdirectories?: boolean;
     /** Default "once-per-real-directory" */
     readonly revisit?: DirectoryRevisitPolicy;
+    /** Default "follow-within-root". Applies to entries, not the start directory */
+    readonly symbolicLinks?: SymbolicLinkPolicy;
     /** Descend into a child directory only while depth < maxDepth. Default 10 */
     readonly maxDepth?: number;
     /**
@@ -148,6 +161,7 @@ interface WalkSettings {
     readonly includeFile: (fileName: string) => boolean;
     readonly includeSubdirectories: boolean;
     readonly revisit: DirectoryRevisitPolicy;
+    readonly symbolicLinks: SymbolicLinkPolicy;
     readonly maxDepth: number;
     readonly maxDirectories: number;
     readonly maxEntries: number;
@@ -170,6 +184,7 @@ function resolveSettings(options: RepositoryWalkOptions): WalkSettings {
         includeFile: options.includeFile,
         includeSubdirectories: options.includeSubdirectories ?? true,
         revisit: options.revisit ?? "once-per-real-directory",
+        symbolicLinks: options.symbolicLinks ?? "follow-within-root",
         maxDepth: options.maxDepth ?? DEFAULT_MAX_WALK_DEPTH,
         maxDirectories: options.maxDirectories ?? DEFAULT_MAX_WALK_DIRECTORIES,
         maxEntries: options.maxEntries ?? DEFAULT_MAX_WALK_ENTRIES,
@@ -198,6 +213,14 @@ function isUnsafeEntryName(name: string): boolean {
 /** Joins a repository-relative directory and an entry without a leading "/". */
 function joinRelative(directory: string, name: string): string {
     return directory === "" ? name : `${directory}/${name}`;
+}
+
+async function isSymbolicLink(absolutePath: string): Promise<boolean> {
+    try {
+        return (await lstat(absolutePath)).isSymbolicLink();
+    } catch {
+        return false;
+    }
 }
 
 function segmentsOf(relativePath: string): string[] {
@@ -310,6 +333,12 @@ class RepositoryWalk {
         depth: number,
         ancestors: readonly string[],
     ): Promise<void> {
+        if (
+            this.settings.symbolicLinks === "skip" &&
+            (await isSymbolicLink(join(directoryReal, name)))
+        ) {
+            return;
+        }
         const entry = await inspectPathWithinRoot(
             this.rootReal,
             join(directoryReal, name),

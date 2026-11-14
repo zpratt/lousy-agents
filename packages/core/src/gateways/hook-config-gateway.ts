@@ -7,6 +7,7 @@ import { join } from "node:path";
 import type { DiscoveredHookFile, HookPlatform } from "../entities/hook.js";
 import { hookConfigPaths } from "../lib/agentic-location-matchers.js";
 import type { HookConfigLintGateway } from "../use-cases/lint-hook-config.js";
+import { discoverExactRegularFiles } from "./agentic-artifact-discovery.js";
 import { readFileNoFollow, resolveSafePath } from "./file-system-utils.js";
 
 /** Maximum hook config file size: 1 MB */
@@ -21,6 +22,7 @@ const CLAUDE_HOOK_PATTERN = /"hooks"\s*:/;
 /** Catalog hook config paths converted to OS-native relative paths. */
 const HOOK_CONFIG_PATHS = hookConfigPaths().map((entry) => ({
     relativePath: join(...entry.relativePath.split("/")),
+    posixPath: entry.relativePath,
     platform: entry.platform,
 }));
 
@@ -56,8 +58,17 @@ function hasHooksSection(parsed: unknown): boolean {
 export class FileSystemHookConfigGateway implements HookConfigLintGateway {
     async discoverHookFiles(targetDir: string): Promise<DiscoveredHookFile[]> {
         const discovered: DiscoveredHookFile[] = [];
+        const present = new Set(
+            await discoverExactRegularFiles(
+                targetDir,
+                HOOK_CONFIG_PATHS.map((config) => config.posixPath),
+            ),
+        );
 
         for (const config of HOOK_CONFIG_PATHS) {
+            if (!present.has(config.posixPath)) {
+                continue;
+            }
             let safePath: string;
             try {
                 safePath = await resolveSafePath(
