@@ -128,40 +128,12 @@ export class FileSystemInstructionFileDiscoveryGateway
             }
         }
 
-        const additional = await walkRepository(targetDir, {
-            startRelativePath: "",
-            includeFile: (name) => isNestedInstructionFilename(name),
-            includeSubdirectories: true,
-            revisit: "once-per-real-directory",
-            skipDirectoryNames: [
-                ...DEFAULT_SKIPPED_DIRECTORY_NAMES,
-                ...BUILD_OUTPUT_DIRECTORY_NAMES,
-            ],
-            skipDirectory: (relativePath) =>
-                isFixtureDirectory(relativePath, rootDirectoryName),
-        });
-        findings.addWalk(
-            {
-                ...additional,
-                files: additional.files.filter((file) => {
-                    if (seen.has(file.relativePath)) {
-                        return false;
-                    }
-                    return (
-                        formatForAdditionalInstructionFile(
-                            file.relativePath,
-                        ) !== null
-                    );
-                }),
-            },
-            (file) =>
-                toDiscoveredFile(
-                    root,
-                    file.relativePath,
-                    { kind: "file", real: file.real },
-                    formatForAdditionalInstructionFile(file.relativePath) ??
-                        "agents-md",
-                ),
+        await this.discoverNestedInstructionFiles(
+            targetDir,
+            root,
+            rootDirectoryName,
+            seen,
+            findings,
         );
 
         findings.report(onDiagnostic);
@@ -189,6 +161,74 @@ export class FileSystemInstructionFileDiscoveryGateway
                 : { maxEntries: this.maxEntries }),
         };
     }
+
+    private nestedWalkOptions(
+        rootDirectoryName: string,
+    ): RepositoryWalkOptions {
+        return {
+            startRelativePath: "",
+            includeFile: (name) => isNestedInstructionFilename(name),
+            includeSubdirectories: true,
+            revisit: "once-per-real-directory",
+            maxDirectories: this.maxDirectories,
+            skipDirectoryNames: [
+                ...DEFAULT_SKIPPED_DIRECTORY_NAMES,
+                ...BUILD_OUTPUT_DIRECTORY_NAMES,
+            ],
+            skipDirectory: (relativePath) =>
+                isFixtureDirectory(relativePath, rootDirectoryName),
+            ...(this.maxEntries === undefined
+                ? {}
+                : { maxEntries: this.maxEntries }),
+        };
+    }
+
+    private async discoverNestedInstructionFiles(
+        targetDir: string,
+        root: DiscoveryRoot,
+        rootDirectoryName: string,
+        seen: ReadonlySet<string>,
+        findings: DiscoveryFindings,
+    ): Promise<void> {
+        const additional = await walkRepository(
+            targetDir,
+            this.nestedWalkOptions(rootDirectoryName),
+        );
+        findings.addWalk(
+            {
+                ...additional,
+                files: additional.files.filter((file) => {
+                    if (seen.has(file.relativePath)) {
+                        return false;
+                    }
+                    return (
+                        formatForAdditionalInstructionFile(
+                            file.relativePath,
+                        ) !== null
+                    );
+                }),
+                skippedOutsideRoot: additional.skippedOutsideRoot.filter(
+                    isNestedInstructionLinkPath,
+                ),
+                depthLimitReached: false,
+            },
+            (file) =>
+                toDiscoveredFile(
+                    root,
+                    file.relativePath,
+                    { kind: "file", real: file.real },
+                    formatForAdditionalInstructionFile(file.relativePath) ??
+                        "agents-md",
+                ),
+        );
+        if (
+            additional.depthLimitedDirectories.some(
+                (path) => !isUnderInstructionCatalogDirectory(path),
+            )
+        ) {
+            findings.noteNestedFilenameDepth(additional.limits.maxDepth);
+        }
+    }
 }
 
 /**
@@ -200,6 +240,7 @@ class DiscoveryFindings {
     private readonly skippedOutsideRoot: string[] = [];
     private directoryLimitReached = false;
     private depthLimitReached = false;
+    private nestedFilenameDepth: number | undefined;
     private entryLimitReached = false;
     private limits: RepositoryWalkResult["limits"] | undefined;
 
@@ -219,6 +260,10 @@ class DiscoveryFindings {
             }
         }
         this.files.push(...walked.files.map(toDiscovered));
+    }
+
+    noteNestedFilenameDepth(maxDepth: number): void {
+        this.nestedFilenameDepth = maxDepth;
     }
 
     report(onDiagnostic?: InstructionDiscoveryDiagnosticSink): void {
@@ -268,7 +313,7 @@ class DiscoveryFindings {
         if (this.limits === undefined) {
             return [];
         }
-        return describeDiscoveryLimits(
+        const sentences = describeDiscoveryLimits(
             {
                 ...(this.directoryLimitReached
                     ? { maxDirectories: this.limits.maxDirectories }
@@ -282,6 +327,15 @@ class DiscoveryFindings {
             },
             DISCOVERY_WORDING,
         );
+        if (this.nestedFilenameDepth !== undefined) {
+            sentences.push(
+                ...describeDiscoveryLimits(
+                    { maxDepth: this.nestedFilenameDepth },
+                    NESTED_FILENAME_DEPTH_WORDING,
+                ),
+            );
+        }
+        return sentences;
     }
 }
 
@@ -290,6 +344,27 @@ const DISCOVERY_WORDING: DiscoveryLimitWording = {
     missing: "instruction files",
     consequence: "were not analyzed",
 };
+
+const NESTED_FILENAME_DEPTH_WORDING: DiscoveryLimitWording = {
+    subject: "Instruction file discovery",
+    missing: "CLAUDE.md, AGENTS.md, AGENTS.MD, and agents.md files",
+    consequence: "may not have been analyzed",
+};
+
+function isNestedInstructionLinkPath(relativePath: string): boolean {
+    const slash = relativePath.lastIndexOf("/");
+    const name = slash === -1 ? relativePath : relativePath.slice(slash + 1);
+    return isNestedInstructionFilename(name);
+}
+
+function isUnderInstructionCatalogDirectory(relativePath: string): boolean {
+    return instructionDiscoveryEntries().some(
+        (entry) =>
+            entry.matchKind === "directory-prefix" &&
+            (relativePath === entry.path ||
+                relativePath.startsWith(`${entry.path}/`)),
+    );
+}
 
 interface ExactDiscovery {
     readonly files: DiscoveredInstructionFile[];
