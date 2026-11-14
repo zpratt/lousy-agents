@@ -38,6 +38,8 @@ export async function discoverInstructionLocations(
         readonly rootDirectoryName: string;
         readonly maxDirectories?: number;
         readonly maxEntries?: number;
+        /** When false, the repository-root filename walk is not run. */
+        readonly includeNestedWalk?: boolean;
     },
 ): Promise<InstructionLocationWalk[]> {
     const walks: InstructionLocationWalk[] = [];
@@ -57,30 +59,34 @@ export async function discoverInstructionLocations(
             ),
         });
     }
-    walks.push({
-        role: "nested",
-        format: null,
-        walked: await walkRepository(targetDir, {
-            ...instructionWalkOptions(
-                {
-                    path: "",
-                    matchKind: "directory-prefix",
-                    includeSubdirectories: true,
-                    fileSuffix: undefined,
-                },
-                options,
-            ),
-            startRelativePath: "",
-            includeFile: (name) => isNestedInstructionFilename(name),
-            includeSubdirectories: true,
-        }),
-    });
+    if (options.includeNestedWalk !== false) {
+        walks.push({
+            role: "nested",
+            format: null,
+            walked: await walkRepository(targetDir, {
+                ...instructionWalkOptions(
+                    {
+                        path: "",
+                        matchKind: "directory-prefix",
+                        includeSubdirectories: true,
+                        fileSuffix: undefined,
+                    },
+                    options,
+                ),
+                startRelativePath: "",
+                includeFile: (name) => isNestedInstructionFilename(name),
+                includeSubdirectories: true,
+            }),
+        });
+    }
     return walks;
 }
 
 /**
- * One logical path per real file. The path kept is the first in UTF-16
- * code-unit order, which is the path a name-ordered walk meets first.
+ * One logical path per real file. The path kept is the full relative path
+ * that sorts first by UTF-16 code unit. That is not the directory a
+ * name-ordered walk meets first: `b-extra/file` sorts before `b/file`
+ * because `-` comes before `/`.
  */
 export function collapseToFirstRealFile(
     files: readonly WalkedFile[],

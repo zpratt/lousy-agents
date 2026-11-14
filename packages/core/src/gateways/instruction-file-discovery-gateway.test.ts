@@ -5,6 +5,7 @@ import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { InstructionDiscoveryDiagnostic } from "../entities/instruction-quality.js";
 import { instructionDiscoveryEntries } from "../lib/agentic-location-matchers.js";
+import { createClaudeInstructionImportExpander } from "./claude-instruction-import-expander.js";
 import { FileSystemInstructionFileDiscoveryGateway } from "./instruction-file-discovery-gateway.js";
 import { DEFAULT_MAX_WALK_DEPTH } from "./repository-walk.js";
 
@@ -916,6 +917,38 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
                     message: expect.stringContaining("0 directories"),
                 }),
             ]);
+        });
+    });
+
+    describe("when pkg/CLAUDE.md is a symlink to .github/agents/CLAUDE.md", () => {
+        it("should keep the Claude path and expand its @ import", async () => {
+            const agents = join(testDir, ".github", "agents");
+            await mkdir(agents, { recursive: true });
+            await writeFile(join(agents, "CLAUDE.md"), "@./missing-guide.md\n");
+            const pkg = join(testDir, "pkg");
+            await mkdir(pkg);
+            await symlink(join(agents, "CLAUDE.md"), join(pkg, "CLAUDE.md"));
+
+            const files = await gateway.discoverInstructionFiles(testDir);
+            const claude = files.find((file) =>
+                file.filePath.endsWith(`${join("pkg", "CLAUDE.md")}`),
+            );
+
+            expect(claude).toMatchObject({ format: "claude-md" });
+            const expanded =
+                await createClaudeInstructionImportExpander().expandClaudeEntrypoint(
+                    {
+                        repoRoot: testDir,
+                        absoluteFilePath:
+                            claude?.contentPath ?? claude?.filePath ?? "",
+                    },
+                );
+            expect(
+                expanded.expansionDiagnostics.some(
+                    (diagnostic) =>
+                        diagnostic.ruleId === "instruction/import-unresolved",
+                ),
+            ).toBe(true);
         });
     });
 });

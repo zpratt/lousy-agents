@@ -81,6 +81,39 @@ describe("discoverInstructionLocations", () => {
             ".github/instructions/b-alias/x.instructions.md",
         ]);
     });
+
+    it("should keep b-extra rather than b when those aliases name one instruction file", async () => {
+        const root = await makeRepo();
+        const shared = join(root, ".github", "shared");
+        await mkdir(shared, { recursive: true });
+        await writeFile(join(shared, "x.instructions.md"), "# shared\n");
+        const instructions = join(root, ".github", "instructions");
+        await mkdir(instructions, { recursive: true });
+        await symlink(shared, join(instructions, "b"));
+        await symlink(shared, join(instructions, "b-extra"));
+
+        const walks = await discoverInstructionLocations(root, {
+            rootDirectoryName: "repo",
+        });
+        const files =
+            walks.find((walk) => walk.format === "copilot-scoped")?.walked
+                .files ?? [];
+
+        expect(
+            collapseToFirstRealFile(files).map((file) => file.relativePath),
+        ).toEqual([".github/instructions/b-extra/x.instructions.md"]);
+    });
+
+    it("should skip the nested root walk when the caller asks for catalog walks only", async () => {
+        const root = await makeRepo();
+
+        const walks = await discoverInstructionLocations(root, {
+            rootDirectoryName: "repo",
+            includeNestedWalk: false,
+        });
+
+        expect(walks.every((walk) => walk.role === "catalog")).toBe(true);
+    });
 });
 
 describe("collapseToFirstRealFile", () => {

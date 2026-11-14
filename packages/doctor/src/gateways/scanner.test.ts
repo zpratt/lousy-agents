@@ -823,6 +823,70 @@ describe("scanRepository", () => {
                     "/",
                 );
 
+            it("should report a directory limit reached only by the instruction catalog walk", async () => {
+                const deep = [
+                    ".github",
+                    "instructions",
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                    "6",
+                    "7",
+                    "8",
+                ];
+                await withTempRepo({}, async (repoRoot) => {
+                    await mkdir(join(repoRoot, ...deep), { recursive: true });
+                    for (const name of ["9", "9a", "9b"]) {
+                        await mkdir(join(repoRoot, ...deep, name));
+                    }
+
+                    const report = await scanRepositoryWithReport(repoRoot, {
+                        maxDirectories: 11,
+                    });
+
+                    expect(report.directoryLimit).toEqual({
+                        maxDirectories: 11,
+                    });
+                });
+            });
+
+            it("should report an entry limit reached only by the instruction catalog walk", async () => {
+                const deep = [
+                    ".github",
+                    "instructions",
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                    "6",
+                    "7",
+                    "8",
+                    "9",
+                ];
+                await withTempRepo({}, async (repoRoot) => {
+                    await mkdir(join(repoRoot, ...deep), { recursive: true });
+                    for (let index = 0; index < 10; index += 1) {
+                        await writeFile(
+                            join(
+                                repoRoot,
+                                ...deep,
+                                `f${index}.instructions.md`,
+                            ),
+                            "# deep\n",
+                        );
+                    }
+
+                    const report = await scanRepositoryWithReport(repoRoot, {
+                        maxEntries: 13,
+                    });
+
+                    expect(report.entryLimit).toEqual({ maxEntries: 13 });
+                });
+            });
+
             it("should report the depth limit when a directory lies below it", async () => {
                 await withTempRepo(
                     {

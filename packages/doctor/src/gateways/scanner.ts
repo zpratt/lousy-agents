@@ -119,6 +119,7 @@ export async function scanRepositoryWithReport(
     const instructionWalks = await discoverInstructionLocations(absRoot, {
         rootDirectoryName: basename(absRoot),
         maxDirectories,
+        includeNestedWalk: false,
         ...(options.maxEntries === undefined
             ? {}
             : { maxEntries: options.maxEntries }),
@@ -132,16 +133,31 @@ export async function scanRepositoryWithReport(
                 !knownPaths.has(file.relativePath) &&
                 parentSegmentCount(file.relativePath) > DEFAULT_MAX_WALK_DEPTH,
         );
+    // Files the root walk cannot reach are appended after its list, in the
+    // catalog walk's order. They are not interleaved into that walk's order.
     const files = [...walked.files, ...beyondRootDepth].map((file) =>
         toSourceFile(absRoot, rootReal, file),
     );
+    const catalogWalks = instructionWalks.filter(
+        (location) => location.role === "catalog",
+    );
     const depthLimitReached =
         walked.depthLimitReached ||
-        instructionWalks.some(
-            (location) =>
-                location.role === "catalog" &&
-                location.walked.depthLimitReached,
-        );
+        catalogWalks.some((location) => location.walked.depthLimitReached);
+    const directoryLimitReached =
+        walked.directoryLimitReached ||
+        catalogWalks.some((location) => location.walked.directoryLimitReached);
+    const entryLimitReached =
+        walked.entryLimitReached ||
+        catalogWalks.some((location) => location.walked.entryLimitReached);
+    const skippedOutsideRoot = [...walked.skippedOutsideRoot];
+    for (const location of catalogWalks) {
+        for (const path of location.walked.skippedOutsideRoot) {
+            if (!skippedOutsideRoot.includes(path)) {
+                skippedOutsideRoot.push(path);
+            }
+        }
+    }
 
     const edgeContext: EdgeResolutionContext = {
         repoRoot: absRoot,
@@ -162,7 +178,7 @@ export async function scanRepositoryWithReport(
             ...markReferencedRecords(fileRecords),
             ...mcpServerRecords(mcpServers),
         ],
-        ...(walked.directoryLimitReached
+        ...(directoryLimitReached
             ? {
                   directoryLimit: {
                       maxDirectories: walked.limits.maxDirectories,
@@ -172,12 +188,10 @@ export async function scanRepositoryWithReport(
         ...(depthLimitReached
             ? { depthLimit: { maxDepth: walked.limits.maxDepth } }
             : {}),
-        ...(walked.entryLimitReached
+        ...(entryLimitReached
             ? { entryLimit: { maxEntries: walked.limits.maxEntries } }
             : {}),
-        ...(walked.skippedOutsideRoot.length > 0
-            ? { skippedOutsideRoot: walked.skippedOutsideRoot }
-            : {}),
+        ...(skippedOutsideRoot.length > 0 ? { skippedOutsideRoot } : {}),
         ...(filesOverImportLimit.length > 0
             ? {
                   importLimit: {

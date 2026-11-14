@@ -157,17 +157,15 @@ export class FileSystemInstructionFileDiscoveryGateway
         findings: DiscoveryFindings,
         additional: RepositoryWalkResult,
     ): void {
-        const files = collapseToFirstRealFile(additional.files).filter(
-            (file) => {
-                if (seen.has(file.relativePath)) {
-                    return false;
-                }
-                return (
-                    formatForAdditionalInstructionFile(file.relativePath) !==
-                    null
-                );
-            },
-        );
+        const candidates = additional.files.filter((file) => {
+            if (seen.has(file.relativePath)) {
+                return false;
+            }
+            return (
+                formatForAdditionalInstructionFile(file.relativePath) !== null
+            );
+        });
+        const files = collapseToFirstRealFile(candidates);
         findings.addWalk(
             {
                 ...additional,
