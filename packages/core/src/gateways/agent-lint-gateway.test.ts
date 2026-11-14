@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { DISCOVERY_LIMIT_REACHED_RULE_ID } from "../entities/lint-rules.js";
 import { agentDirectoryRoots } from "../lib/agentic-location-matchers.js";
 import { FileSystemAgentLintGateway } from "./agent-lint-gateway.js";
 
@@ -23,6 +24,29 @@ describe("FileSystemAgentLintGateway", () => {
     });
 
     describe("discoverAgents", () => {
+        it("should report a directory cap hit instead of dropping it", async () => {
+            const agentsDir = join(testDir, ".github", "agents");
+            await mkdir(join(agentsDir, "one"), { recursive: true });
+            await mkdir(join(agentsDir, "two"), { recursive: true });
+            await writeFile(join(agentsDir, "one", "a.md"), "# a\n");
+            await writeFile(join(agentsDir, "two", "b.md"), "# b\n");
+            const diagnostics: { ruleId: string; message: string }[] = [];
+            const capped = new FileSystemAgentLintGateway({
+                maxDirectories: 1,
+            });
+
+            await capped.discoverAgents(testDir, (diagnostic) =>
+                diagnostics.push(diagnostic),
+            );
+
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    ruleId: DISCOVERY_LIMIT_REACHED_RULE_ID,
+                    message: expect.stringContaining("1 directories"),
+                }),
+            ]);
+        });
+
         describe("when .github/agents/ does not exist", () => {
             it("should return an empty array", async () => {
                 // Act

@@ -67,7 +67,13 @@ export interface SubagentLintResult {
  * Port for subagent lint gateway operations.
  */
 export interface SubagentLintGateway {
-    discoverSubagents(targetDir: string): Promise<DiscoveredSubagentFile[]>;
+    discoverSubagents(
+        targetDir: string,
+        onDiagnostic?: (diagnostic: {
+            ruleId: string;
+            message: string;
+        }) => void,
+    ): Promise<DiscoveredSubagentFile[]>;
     readSubagentFileContent(filePath: string): Promise<string>;
     parseFrontmatter(content: string): ParsedFrontmatter | null;
 }
@@ -87,6 +93,11 @@ export interface LintSubagentFrontmatterOutput {
     totalSubagents: number;
     totalErrors: number;
     totalWarnings: number;
+    discoveryDiagnostics?: readonly {
+        filePath: string;
+        ruleId: string;
+        message: string;
+    }[];
 }
 
 /**
@@ -102,7 +113,20 @@ export class LintSubagentFrontmatterUseCase {
             throw new Error("Target directory is required");
         }
 
-        const subagents = await this.gateway.discoverSubagents(input.targetDir);
+        const discoveryDiagnostics: {
+            filePath: string;
+            ruleId: string;
+            message: string;
+        }[] = [];
+        const subagents = await this.gateway.discoverSubagents(
+            input.targetDir,
+            (diagnostic) =>
+                discoveryDiagnostics.push({
+                    filePath: input.targetDir,
+                    ruleId: diagnostic.ruleId,
+                    message: diagnostic.message,
+                }),
+        );
 
         const results: SubagentLintResult[] = [];
 
@@ -131,7 +155,10 @@ export class LintSubagentFrontmatterUseCase {
             results,
             totalSubagents: subagents.length,
             totalErrors,
-            totalWarnings,
+            totalWarnings: totalWarnings + discoveryDiagnostics.length,
+            ...(discoveryDiagnostics.length > 0
+                ? { discoveryDiagnostics }
+                : {}),
         };
     }
 

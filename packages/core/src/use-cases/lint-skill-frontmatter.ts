@@ -43,7 +43,13 @@ const RECOMMENDED_FIELD_RULE_IDS: Record<
 } as const;
 
 export interface SkillLintGateway {
-    discoverSkills(targetDir: string): Promise<DiscoveredSkillFile[]>;
+    discoverSkills(
+        targetDir: string,
+        onDiagnostic?: (diagnostic: {
+            ruleId: string;
+            message: string;
+        }) => void,
+    ): Promise<DiscoveredSkillFile[]>;
     readSkillFileContent(filePath: string): Promise<string>;
     parseFrontmatter(content: string): ParsedFrontmatter | null;
 }
@@ -57,6 +63,11 @@ export interface LintSkillFrontmatterOutput {
     totalSkills: number;
     totalErrors: number;
     totalWarnings: number;
+    discoveryDiagnostics?: readonly {
+        filePath: string;
+        ruleId: string;
+        message: string;
+    }[];
 }
 
 export class LintSkillFrontmatterUseCase {
@@ -69,7 +80,20 @@ export class LintSkillFrontmatterUseCase {
             throw new Error("Target directory is required");
         }
 
-        const skills = await this.gateway.discoverSkills(input.targetDir);
+        const discoveryDiagnostics: {
+            filePath: string;
+            ruleId: string;
+            message: string;
+        }[] = [];
+        const skills = await this.gateway.discoverSkills(
+            input.targetDir,
+            (diagnostic) =>
+                discoveryDiagnostics.push({
+                    filePath: input.targetDir,
+                    ruleId: diagnostic.ruleId,
+                    message: diagnostic.message,
+                }),
+        );
 
         const results: SkillLintResult[] = [];
 
@@ -98,7 +122,10 @@ export class LintSkillFrontmatterUseCase {
             results,
             totalSkills: skills.length,
             totalErrors,
-            totalWarnings,
+            totalWarnings: totalWarnings + discoveryDiagnostics.length,
+            ...(discoveryDiagnostics.length > 0
+                ? { discoveryDiagnostics }
+                : {}),
         };
     }
 
