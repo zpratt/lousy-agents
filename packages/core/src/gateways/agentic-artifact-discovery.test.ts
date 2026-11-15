@@ -185,4 +185,31 @@ describe("collapseToFirstRealFile", () => {
             collapseToFirstRealFile(files).map((file) => file.relativePath),
         ).toEqual([".github/instructions/a-alias/x.instructions.md"]);
     });
+
+    describe("when two real files are hard links to one inode", () => {
+        it("should keep both paths, because each is a file a harness loads", () => {
+            const sharedInode = { dev: 1, ino: 2 };
+            const firstPath = "lib/CLAUDE.md";
+            const secondPath = "pkg/CLAUDE.md";
+            const files: WalkedFile[] = [
+                {
+                    relativePath: secondPath,
+                    real: `/repo/${secondPath}`,
+                    identity: sharedInode,
+                },
+                {
+                    relativePath: firstPath,
+                    real: `/repo/${firstPath}`,
+                    identity: sharedInode,
+                },
+            ];
+
+            const kept = collapseToFirstRealFile(files);
+
+            expect(kept.map((file) => file.relativePath)).toEqual([
+                firstPath,
+                secondPath,
+            ]);
+        });
+    });
 });
