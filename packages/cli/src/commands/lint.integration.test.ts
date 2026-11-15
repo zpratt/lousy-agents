@@ -38,14 +38,14 @@ describe("Lint command end-to-end", () => {
         await mkdir(projectDir, { recursive: true });
     });
 
+    afterEach(() => {
+        process.exitCode = undefined;
+    });
+
     afterAll(async () => {
         if (projectDir) {
             await rm(projectDir, { recursive: true, force: true });
         }
-    });
-
-    afterEach(() => {
-        process.exitCode = undefined;
     });
 
     describe("given a repository with no skills directory", () => {

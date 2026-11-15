@@ -164,12 +164,9 @@ describe("readProjectFileSafe", () => {
 
             const result = await readSafe(tempDir, "large.txt");
 
+            const content = "content" in result ? result.content : "";
             expect("content" in result && result.truncated).toBe(true);
-            if ("content" in result) {
-                expect(Buffer.byteLength(result.content)).toBeLessThanOrEqual(
-                    102_400 + 3,
-                );
-            }
+            expect(Buffer.byteLength(content)).toBeLessThanOrEqual(102_400 + 3);
         });
 
         it("does not split multi-byte UTF-8 sequences at the boundary", async () => {
@@ -183,13 +180,12 @@ describe("readProjectFileSafe", () => {
 
             const result = await readSafe(tempDir, "multibyte.txt");
 
+            const content = "content" in result ? result.content : "";
             expect("content" in result && result.truncated).toBe(true);
-            if ("content" in result) {
-                const bytes = Buffer.byteLength(result.content, "utf-8");
-                expect(bytes).toBeLessThanOrEqual(102_400);
-                // Must not contain U+FFFD replacement character
-                expect(result.content).not.toContain("\uFFFD");
-            }
+            expect(Buffer.byteLength(content, "utf-8")).toBeLessThanOrEqual(
+                102_400,
+            );
+            expect(content).not.toContain("\uFFFD");
         });
     });
 
