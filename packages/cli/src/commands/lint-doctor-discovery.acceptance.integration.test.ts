@@ -518,7 +518,7 @@ describe("lint and doctor discovery", () => {
             expect(constructOf(inventory, NESTED_AGENTS)).toBe("instruction");
         });
 
-        it.fails("should discover a nested CLAUDE.md and a nested AGENTS.md when lint analyzes the repository", () => {
+        it("should discover a nested CLAUDE.md and a nested AGENTS.md when lint analyzes the repository", () => {
             expect(instructionFormat(full, root, NESTED_CLAUDE)).toBe(
                 "claude-md",
             );
@@ -530,7 +530,7 @@ describe("lint and doctor discovery", () => {
             );
         });
 
-        it.fails("should resolve an @ import written in a nested CLAUDE.md", () => {
+        it("should resolve an @ import written in a nested CLAUDE.md", () => {
             expect(resolvedImports(full, root, NESTED_CLAUDE)).toEqual([
                 NESTED_GUIDE,
             ]);
@@ -545,7 +545,7 @@ describe("lint and doctor discovery", () => {
             expect(constructOf(inventory, INSTRUCTIONS_README)).toBeUndefined();
         });
 
-        it.fails("should treat CLAUDE.md and AGENTS.md inside .github/instructions as Claude and shared instructions", () => {
+        it("should treat CLAUDE.md and AGENTS.md inside .github/instructions as Claude and shared instructions", () => {
             expect(instructionFormat(full, root, INSTRUCTIONS_CLAUDE)).toBe(
                 "claude-md",
             );
@@ -611,7 +611,7 @@ describe("lint and doctor discovery", () => {
             );
         });
 
-        it.fails("should keep CLAUDE.md under src/fixtures, test/fixtures, spec/fixtures, and tests/unit/fixtures", () => {
+        it("should keep CLAUDE.md under src/fixtures, test/fixtures, spec/fixtures, and tests/unit/fixtures", () => {
             expect(analyzedPaths(full, root, "instruction")).toEqual(
                 expect.arrayContaining(
                     VISIBLE_FIXTURE_LAYOUTS.map((path) => path),
@@ -717,7 +717,7 @@ describe("lint and doctor discovery", () => {
             expect(harnessOf(inventory, nestedCaps)).toBe("shared");
         });
 
-        it.fails("should discover root and nested AGENTS.MD as agents-md instructions", () => {
+        it("should discover root and nested AGENTS.MD as agents-md instructions", () => {
             expect(instructionFormat(full, root, rootCaps)).toBe("agents-md");
             expect(instructionFormat(full, root, nestedCaps)).toBe("agents-md");
             expect(analyzedPaths(full, root, "instruction")).toEqual(
@@ -762,7 +762,7 @@ describe("lint and doctor discovery", () => {
             expect(harnessOf(inventory, nestedLower)).toBe("shared");
         });
 
-        it.fails("should discover root and nested agents.md as agents-md instructions", () => {
+        it("should discover root and nested agents.md as agents-md instructions", () => {
             expect(instructionFormat(full, root, rootLower)).toBe("agents-md");
             expect(instructionFormat(full, root, nestedLower)).toBe(
                 "agents-md",
@@ -810,7 +810,7 @@ describe("lint and doctor discovery", () => {
             expect(sortedPaths(inventory)).toEqual([kept]);
         });
 
-        it.fails("should discover src/CLAUDE.md and skip fixtures when lint starts in tests", () => {
+        it("should discover src/CLAUDE.md and skip fixtures when lint starts in tests", () => {
             expect(instructionFormat(full, root, kept)).toBe("claude-md");
             expect(analyzedPaths(full, root, "instruction")).not.toContain(
                 skipped,
@@ -858,7 +858,7 @@ describe("lint and doctor discovery", () => {
             expect(sortedPaths(inventory)).toEqual([rootClaude, nested]);
         });
 
-        it.fails("should discover the root and nested CLAUDE.md when lint is pointed at tests/fixtures", () => {
+        it("should discover the root and nested CLAUDE.md when lint is pointed at tests/fixtures", () => {
             expect(instructionFormat(full, root, rootClaude)).toBe("claude-md");
             expect(instructionFormat(full, root, nested)).toBe("claude-md");
         });
@@ -1139,7 +1139,7 @@ describe("lint and doctor discovery", () => {
             expect(sortedPaths(inventory)).not.toContain(parentEleven);
         });
 
-        it.fails("should discover a CLAUDE.md whose parent has 10 segments as claude-md", () => {
+        it("should discover a CLAUDE.md whose parent has 10 segments as claude-md", () => {
             expect(instructionFormat(full, root, parentTen)).toBe("claude-md");
             expect(analyzedPaths(full, root, "instruction")).toContain(
                 parentTen,
@@ -1164,7 +1164,7 @@ describe("lint and doctor discovery", () => {
             }
         });
 
-        it.fails("should warn on a nested CLAUDE.md and still exit 0", async () => {
+        it("should warn on a nested CLAUDE.md and still exit 0", async () => {
             const result = await runCli(root, [
                 "lint",
                 "--instructions",
@@ -1264,7 +1264,7 @@ describe("lint and doctor discovery", () => {
             root = await makeRoot("error-severity");
             await writeRepo(root, {
                 [NESTED_CLAUDE]: "# Nested only\n",
-                ".lousy-agentsrc.json": JSON.stringify({
+                "lousy-agents.config.json": JSON.stringify({
                     lint: {
                         rules: {
                             instructions: {
@@ -1283,7 +1283,7 @@ describe("lint and doctor discovery", () => {
             }
         });
 
-        it.fails("should exit 1 when the only broken instruction file is a nested CLAUDE.md", async () => {
+        it("should exit 1 when the only broken instruction file is a nested CLAUDE.md", async () => {
             const result = await runCli(root, [
                 "lint",
                 "--instructions",
