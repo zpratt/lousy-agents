@@ -47,16 +47,18 @@ describe("readIntentArtifact", () => {
             const result = await readIntentArtifact(repoRoot);
 
             // Assert
-            expect(result.found).toBe(true);
-            expect(result.report).toEqual({
-                status: "loaded",
-                checkedPath,
-            });
-            if (result.found) {
-                expect(result.artifact.desiredCapabilities).toEqual(
-                    intent.desiredCapabilities,
-                );
-            }
+            expect(result).toEqual(
+                expect.objectContaining({
+                    found: true,
+                    report: {
+                        status: "loaded",
+                        checkedPath,
+                    },
+                    artifact: expect.objectContaining({
+                        desiredCapabilities: intent.desiredCapabilities,
+                    }),
+                }),
+            );
         });
     });
 

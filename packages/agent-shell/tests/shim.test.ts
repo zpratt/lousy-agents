@@ -399,10 +399,10 @@ describe("resolveMode", () => {
             const mode = resolveMode(args, {});
 
             // Assert
-            expect(mode.type).toBe("policy-init");
-            if (mode.type === "policy-init") {
-                expect(mode.model).toBe("gpt-4.1");
-            }
+            expect(mode).toMatchObject({
+                type: "policy-init",
+                model: "gpt-4.1",
+            });
         });
     });
 
@@ -415,10 +415,10 @@ describe("resolveMode", () => {
             const mode = resolveMode(args, {});
 
             // Assert
-            expect(mode.type).toBe("policy-init");
-            if (mode.type === "policy-init") {
-                expect(mode.model).toBeUndefined();
-            }
+            expect(mode).toMatchObject({
+                type: "policy-init",
+                model: undefined,
+            });
         });
 
         it("should ignore a model containing path traversal", () => {
@@ -429,10 +429,10 @@ describe("resolveMode", () => {
             const mode = resolveMode(args, {});
 
             // Assert
-            expect(mode.type).toBe("policy-init");
-            if (mode.type === "policy-init") {
-                expect(mode.model).toBeUndefined();
-            }
+            expect(mode).toMatchObject({
+                type: "policy-init",
+                model: undefined,
+            });
         });
     });
 
@@ -445,10 +445,10 @@ describe("resolveMode", () => {
             const mode = resolveMode(args, {});
 
             // Assert
-            expect(mode.type).toBe("policy-init");
-            if (mode.type === "policy-init") {
-                expect(mode.model).toBeUndefined();
-            }
+            expect(mode).toMatchObject({
+                type: "policy-init",
+                model: undefined,
+            });
         });
     });
 
@@ -505,11 +505,11 @@ describe("resolveMode", () => {
             const mode = resolveMode(args, {});
 
             // Assert
-            expect(mode.type).toBe("init");
-            if (mode.type === "init") {
-                expect(mode.flightRecorder).toBe(true);
-                expect(mode.policy).toBe(false);
-            }
+            expect(mode).toMatchObject({
+                type: "init",
+                flightRecorder: true,
+                policy: false,
+            });
         });
 
         it("should parse --policy flag", () => {
@@ -520,10 +520,10 @@ describe("resolveMode", () => {
             const mode = resolveMode(args, {});
 
             // Assert
-            expect(mode.type).toBe("init");
-            if (mode.type === "init") {
-                expect(mode.policy).toBe(true);
-            }
+            expect(mode).toMatchObject({
+                type: "init",
+                policy: true,
+            });
         });
 
         it("should parse --no-flight-recorder flag", () => {
@@ -534,10 +534,10 @@ describe("resolveMode", () => {
             const mode = resolveMode(args, {});
 
             // Assert
-            expect(mode.type).toBe("init");
-            if (mode.type === "init") {
-                expect(mode.noFlightRecorder).toBe(true);
-            }
+            expect(mode).toMatchObject({
+                type: "init",
+                noFlightRecorder: true,
+            });
         });
 
         it("should parse --no-policy flag", () => {
@@ -548,10 +548,10 @@ describe("resolveMode", () => {
             const mode = resolveMode(args, {});
 
             // Assert
-            expect(mode.type).toBe("init");
-            if (mode.type === "init") {
-                expect(mode.noPolicy).toBe(true);
-            }
+            expect(mode).toMatchObject({
+                type: "init",
+                noPolicy: true,
+            });
         });
 
         it("should parse multiple flags together", () => {
@@ -562,11 +562,11 @@ describe("resolveMode", () => {
             const mode = resolveMode(args, {});
 
             // Assert
-            expect(mode.type).toBe("init");
-            if (mode.type === "init") {
-                expect(mode.flightRecorder).toBe(true);
-                expect(mode.policy).toBe(true);
-            }
+            expect(mode).toMatchObject({
+                type: "init",
+                flightRecorder: true,
+                policy: true,
+            });
         });
 
         it("should take precedence over AGENTSHELL_PASSTHROUGH=1", () => {
@@ -590,14 +590,11 @@ describe("resolveMode", () => {
             const mode = resolveMode(args, {});
 
             // Assert
-            expect(mode.type).toBe("init");
-            if (mode.type === "init") {
-                expect(mode.unknownArgs).toEqual([
-                    "--flightrecorder",
-                    "--unknown",
-                ]);
-                expect(mode.flightRecorder).toBe(false);
-            }
+            expect(mode).toMatchObject({
+                type: "init",
+                unknownArgs: ["--flightrecorder", "--unknown"],
+                flightRecorder: false,
+            });
         });
 
         it("should separate known and unknown flags", () => {
@@ -608,11 +605,11 @@ describe("resolveMode", () => {
             const mode = resolveMode(args, {});
 
             // Assert
-            expect(mode.type).toBe("init");
-            if (mode.type === "init") {
-                expect(mode.policy).toBe(true);
-                expect(mode.unknownArgs).toEqual(["--typo"]);
-            }
+            expect(mode).toMatchObject({
+                type: "init",
+                policy: true,
+                unknownArgs: ["--typo"],
+            });
         });
     });
 });
