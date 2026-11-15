@@ -399,7 +399,7 @@ describe("lint command", () => {
         });
     });
 
-    describe("when running with no flags", () => {
+    describe("when running with no flags and an invalid subagent exists", () => {
         it("should not run the flag-only subagents or mcpServers targets", async () => {
             // Arrange — invalid subagent that would fail lint if the target ran
             const subagentsDir = join(testDir, ".claude", "agents");

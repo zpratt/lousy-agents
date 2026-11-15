@@ -146,17 +146,21 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
                 timeout: COMMAND_TIMEOUT_MS,
             });
 
-            execFileSync("npm", ["run", "lint"], {
-                cwd: outputDir,
-                stdio: "pipe",
-                timeout: COMMAND_TIMEOUT_MS,
-            });
+            expect(() =>
+                execFileSync("npm", ["run", "lint"], {
+                    cwd: outputDir,
+                    stdio: "pipe",
+                    timeout: COMMAND_TIMEOUT_MS,
+                }),
+            ).not.toThrow();
 
-            execFileSync("npm", ["test"], {
-                cwd: outputDir,
-                stdio: "pipe",
-                timeout: COMMAND_TIMEOUT_MS,
-            });
+            expect(() =>
+                execFileSync("npm", ["test"], {
+                    cwd: outputDir,
+                    stdio: "pipe",
+                    timeout: COMMAND_TIMEOUT_MS,
+                }),
+            ).not.toThrow();
         });
 
         it("should scaffold a webapp project from the unpacked package", async () => {
@@ -255,23 +259,29 @@ describe.skipIf(!distExists)("Bundled CLI init template resolution", () => {
                 timeout: COMMAND_TIMEOUT_MS,
             });
 
-            execFileSync("npm", ["run", "lint"], {
-                cwd: outputDir,
-                stdio: "pipe",
-                timeout: COMMAND_TIMEOUT_MS,
-            });
+            expect(() =>
+                execFileSync("npm", ["run", "lint"], {
+                    cwd: outputDir,
+                    stdio: "pipe",
+                    timeout: COMMAND_TIMEOUT_MS,
+                }),
+            ).not.toThrow();
 
-            execFileSync("npm", ["test"], {
-                cwd: outputDir,
-                stdio: "pipe",
-                timeout: COMMAND_TIMEOUT_MS,
-            });
+            expect(() =>
+                execFileSync("npm", ["test"], {
+                    cwd: outputDir,
+                    stdio: "pipe",
+                    timeout: COMMAND_TIMEOUT_MS,
+                }),
+            ).not.toThrow();
 
-            execFileSync("npm", ["run", "test:integration"], {
-                cwd: outputDir,
-                stdio: "pipe",
-                timeout: COMMAND_TIMEOUT_MS,
-            });
+            expect(() =>
+                execFileSync("npm", ["run", "test:integration"], {
+                    cwd: outputDir,
+                    stdio: "pipe",
+                    timeout: COMMAND_TIMEOUT_MS,
+                }),
+            ).not.toThrow();
         });
     });
 });

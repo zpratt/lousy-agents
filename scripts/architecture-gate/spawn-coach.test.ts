@@ -143,7 +143,9 @@ setInterval(() => {
                 parent.kill("SIGKILL");
 
                 // Assert
-                await waitForFile(coach.stoppedFile, 3000);
+                await expect(
+                    waitForFile(coach.stoppedFile, 3000),
+                ).resolves.toBeUndefined();
             } finally {
                 parent.kill("SIGKILL");
             }
