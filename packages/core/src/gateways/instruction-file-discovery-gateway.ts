@@ -3,7 +3,7 @@
  * Supports GitHub Copilot, Claude Code, and community agent instruction formats.
  */
 
-import { realpath } from "node:fs/promises";
+import { realpath, stat } from "node:fs/promises";
 import { basename, join, relative, resolve } from "node:path";
 import type { AgenticLocationEntry } from "../entities/agentic-location-catalog.js";
 import { isNestedInstructionFilename } from "../entities/agentic-location-catalog.js";
@@ -30,6 +30,7 @@ import {
     instructionDiscoveryEntries,
 } from "../lib/agentic-location-matchers.js";
 import type { InstructionFileDiscoveryGateway } from "../use-cases/analyze-instruction-quality.js";
+import type { FileIdentity } from "./read-regular-file-no-follow.js";
 import {
     inspectPathWithinRoot,
     type RealPathWithinRoot,
@@ -98,6 +99,7 @@ export class FileSystemInstructionFileDiscoveryGateway
 
         const rootDirectoryName = basename(resolve(targetDir));
         const seen = new Set<string>();
+        const exactFiles: ExactFileIdentity[] = [];
         for (const entry of instructionDiscoveryEntries()) {
             const format = entry.instructionFormat;
             if (format == null) {
@@ -106,8 +108,11 @@ export class FileSystemInstructionFileDiscoveryGateway
             if (entry.matchKind === "exact") {
                 const exact = await discoverExactFile(root, entry.path, format);
                 findings.addExact(exact);
-                if (exact.files.length > 0) {
+                if (exact.real !== undefined) {
                     seen.add(entry.path);
+                    exactFiles.push(
+                        await exactFileIdentity(entry.path, exact.real),
+                    );
                 }
                 continue;
             }
@@ -133,6 +138,7 @@ export class FileSystemInstructionFileDiscoveryGateway
             root,
             rootDirectoryName,
             seen,
+            exactFiles,
             findings,
         );
 
@@ -188,6 +194,7 @@ export class FileSystemInstructionFileDiscoveryGateway
         root: DiscoveryRoot,
         rootDirectoryName: string,
         seen: ReadonlySet<string>,
+        exactFiles: readonly ExactFileIdentity[],
         findings: DiscoveryFindings,
     ): Promise<void> {
         const additional = await walkRepository(
@@ -198,7 +205,10 @@ export class FileSystemInstructionFileDiscoveryGateway
             {
                 ...additional,
                 files: additional.files.filter((file) => {
-                    if (seen.has(file.relativePath)) {
+                    if (
+                        seen.has(file.relativePath) ||
+                        isExactFileAlias(file, exactFiles)
+                    ) {
                         return false;
                     }
                     return (
@@ -208,7 +218,7 @@ export class FileSystemInstructionFileDiscoveryGateway
                     );
                 }),
                 skippedOutsideRoot: additional.skippedOutsideRoot.filter(
-                    isNestedInstructionLinkPath,
+                    isAnalyzableNestedInstructionLinkPath,
                 ),
                 depthLimitReached: false,
             },
@@ -351,10 +361,60 @@ const NESTED_FILENAME_DEPTH_WORDING: DiscoveryLimitWording = {
     consequence: "may not have been analyzed",
 };
 
-function isNestedInstructionLinkPath(relativePath: string): boolean {
+/**
+ * True for a skipped link the nested walk would have analyzed: a nested
+ * instruction filename at the root, or one no other catalog entry owns. A
+ * link such as `.claude/skills/a/AGENTS.md` is owned by its skill directory,
+ * so lint would not analyze it as an instruction even inside the repository.
+ */
+function isAnalyzableNestedInstructionLinkPath(relativePath: string): boolean {
     const slash = relativePath.lastIndexOf("/");
-    const name = slash === -1 ? relativePath : relativePath.slice(slash + 1);
-    return isNestedInstructionFilename(name);
+    if (slash === -1) {
+        return isNestedInstructionFilename(relativePath);
+    }
+    return formatForAdditionalInstructionFile(relativePath) !== null;
+}
+
+/** An exact catalog file that discovery found, and the real file behind it */
+interface ExactFileIdentity {
+    readonly path: string;
+    readonly real: string;
+    readonly identity: string | null;
+}
+
+async function exactFileIdentity(
+    path: string,
+    real: string,
+): Promise<ExactFileIdentity> {
+    const stats = await stat(real).catch(() => null);
+    return {
+        path,
+        real,
+        identity: stats === null ? null : identityKey(stats),
+    };
+}
+
+function identityKey(identity: FileIdentity): string {
+    return `${identity.dev}:${identity.ino}`;
+}
+
+/**
+ * True when a nested-walk file is an exact catalog file already discovered
+ * under another name: the same real path (a symbolic link to it or from it),
+ * or the same inode under a name that differs only in case, as a
+ * case-insensitive file system reports `agents.md` for `AGENTS.md`.
+ */
+function isExactFileAlias(
+    file: WalkedFile,
+    exactFiles: readonly ExactFileIdentity[],
+): boolean {
+    const walkedIdentity = identityKey(file.identity);
+    return exactFiles.some(
+        (exact) =>
+            exact.real === file.real ||
+            (exact.identity === walkedIdentity &&
+                exact.path.toLowerCase() === file.relativePath.toLowerCase()),
+    );
 }
 
 function isUnderInstructionCatalogDirectory(relativePath: string): boolean {
@@ -368,6 +428,8 @@ function isUnderInstructionCatalogDirectory(relativePath: string): boolean {
 
 interface ExactDiscovery {
     readonly files: DiscoveredInstructionFile[];
+    /** Real path of the file, when one was discovered */
+    readonly real?: string;
     /** The path itself when it is a link to a file outside the repository */
     readonly skippedOutsideRoot: string[];
 }
@@ -391,6 +453,7 @@ async function discoverExactFile(
             files: [
                 toDiscoveredFile(root, relativePosixPath, inspected, format),
             ],
+            real: inspected.real,
             skippedOutsideRoot: [],
         };
     }

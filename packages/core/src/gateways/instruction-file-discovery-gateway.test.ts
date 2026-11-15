@@ -1,4 +1,4 @@
-import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { link, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import Chance from "chance";
@@ -364,6 +364,35 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
             ]);
         });
 
+        it("should report nothing for an AGENTS.md link inside a skill directory, because the skill owns that path and lint never analyzes it", async () => {
+            await linkOutside(".claude/skills/example/AGENTS.md");
+
+            const diagnostics = await discoveryDiagnostics();
+
+            expect(diagnostics).toEqual([]);
+        });
+
+        it("should report nothing for a CLAUDE.md link inside a subagent directory, because the subagent catalog owns that path", async () => {
+            await linkOutside(".claude/agents/team/CLAUDE.md");
+
+            const diagnostics = await discoveryDiagnostics();
+
+            expect(diagnostics).toEqual([]);
+        });
+
+        it("should still report a nested CLAUDE.md link that lint would have analyzed", async () => {
+            await linkOutside("packages/foo/CLAUDE.md");
+
+            const diagnostics = await discoveryDiagnostics();
+
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    ruleId: SymlinkSkippedRuleId,
+                    message: expect.stringContaining("packages/foo/CLAUDE.md."),
+                }),
+            ]);
+        });
+
         it("should report nothing for a vendor directory symlink that points outside the repository", async () => {
             await linkOutside("vendor/docs", "directory");
 
@@ -604,6 +633,55 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
             expect(files.map((f) => relative(testDir, f.filePath))).toEqual([
                 join(".github", "instructions", "a-alias", "x.instructions.md"),
             ]);
+        });
+    });
+
+    describe("when one root agents file is reachable under two names", () => {
+        describe("when AGENTS.md and agents.md are two names for one file, as on a case-insensitive file system", () => {
+            it("should discover it once, under the catalog name AGENTS.md", async () => {
+                await writeFile(join(testDir, "agents.md"), chance.sentence());
+                await link(
+                    join(testDir, "agents.md"),
+                    join(testDir, "AGENTS.md"),
+                );
+
+                const files = await gateway.discoverInstructionFiles(testDir);
+
+                expect(files.map((f) => relative(testDir, f.filePath))).toEqual(
+                    ["AGENTS.md"],
+                );
+            });
+        });
+
+        describe("when the root AGENTS.md is a symbolic link to docs/AGENTS.md", () => {
+            it("should discover it once, under the root path a harness loads", async () => {
+                const docs = join(testDir, "docs");
+                await mkdir(docs, { recursive: true });
+                await writeFile(join(docs, "AGENTS.md"), chance.sentence());
+                await symlink(
+                    join(docs, "AGENTS.md"),
+                    join(testDir, "AGENTS.md"),
+                );
+
+                const files = await gateway.discoverInstructionFiles(testDir);
+
+                expect(files.map((f) => relative(testDir, f.filePath))).toEqual(
+                    ["AGENTS.md"],
+                );
+            });
+        });
+
+        describe("when AGENTS.md and agents.md are two separate files", () => {
+            it("should discover both, because each is its own instruction file", async () => {
+                await writeFile(join(testDir, "AGENTS.md"), chance.sentence());
+                await writeFile(join(testDir, "agents.md"), chance.sentence());
+
+                const files = await gateway.discoverInstructionFiles(testDir);
+
+                expect(
+                    files.map((f) => relative(testDir, f.filePath)).sort(),
+                ).toEqual(["AGENTS.md", "agents.md"]);
+            });
         });
     });
 
