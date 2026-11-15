@@ -137,14 +137,14 @@ describe("readFileNoFollow", () => {
                     return;
                 }
 
-                try {
-                    await readFileNoFollow(linkFile, 1_048_576);
-                } catch (error: unknown) {
-                    const message = (error as Error).message;
-                    expect(message).not.toContain("\x1b");
-                    return;
-                }
-                expect.unreachable("expected an error to be thrown");
+                const error = await readFileNoFollow(linkFile, 1_048_576).catch(
+                    (caught: unknown) => caught,
+                );
+
+                expect(error).toBeInstanceOf(Error);
+                expect(error).toMatchObject({
+                    message: expect.not.stringContaining("\x1b"),
+                });
             },
         );
     });

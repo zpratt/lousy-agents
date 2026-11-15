@@ -136,13 +136,17 @@ describe("runDoctor", () => {
                 ports,
             );
 
-            expect(run.kind).toBe("evaluated");
-            if (run.kind === "evaluated") {
-                expect(run.intentLoad).toEqual(loaded.report);
-                expect(run.findings.map((f) => f.criterionId)).toContain(
-                    "invalid-intent-artifact",
-                );
-            }
+            expect(run).toEqual(
+                expect.objectContaining({
+                    kind: "evaluated",
+                    intentLoad: loaded.report,
+                    findings: expect.arrayContaining([
+                        expect.objectContaining({
+                            criterionId: "invalid-intent-artifact",
+                        }),
+                    ]),
+                }),
+            );
         });
 
         it("should pass the snapshot reference through", async () => {
@@ -204,12 +208,16 @@ describe("runDoctor", () => {
                 ports,
             );
 
-            expect(run.kind).toBe("evaluated");
-            if (run.kind === "evaluated") {
-                expect(run.findings.map((f) => f.criterionId)).not.toContain(
-                    "discovery-limit-reached",
-                );
-            }
+            expect(run).toEqual(
+                expect.objectContaining({
+                    kind: "evaluated",
+                    findings: expect.not.arrayContaining([
+                        expect.objectContaining({
+                            criterionId: "discovery-limit-reached",
+                        }),
+                    ]),
+                }),
+            );
         });
 
         it("should still evaluate the records it found", async () => {
@@ -229,12 +237,16 @@ describe("runDoctor", () => {
                 ports,
             );
 
-            expect(run.kind).toBe("evaluated");
-            if (run.kind === "evaluated") {
-                expect(run.findings.map((f) => f.criterionId)).toContain(
-                    "invalid-intent-artifact",
-                );
-            }
+            expect(run).toEqual(
+                expect.objectContaining({
+                    kind: "evaluated",
+                    findings: expect.arrayContaining([
+                        expect.objectContaining({
+                            criterionId: "invalid-intent-artifact",
+                        }),
+                    ]),
+                }),
+            );
         });
     });
 
