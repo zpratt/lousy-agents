@@ -120,14 +120,15 @@ describe("validateDirectory", () => {
     describe("error message sanitization", () => {
         it("does not reflect raw control characters in the error message", async () => {
             const ansiPath = "/tmp/\x1b[2Jevil";
-            try {
-                await validateDirectory(ansiPath);
-            } catch (error: unknown) {
-                const message = (error as Error).message;
-                expect(message).not.toContain("\x1b");
-                return;
-            }
-            expect.unreachable("expected an error to be thrown");
+
+            const error = await validateDirectory(ansiPath).catch(
+                (caught: unknown) => caught,
+            );
+
+            expect(error).toBeInstanceOf(Error);
+            expect(error).toMatchObject({
+                message: expect.not.stringContaining("\x1b"),
+            });
         });
     });
 

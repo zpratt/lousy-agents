@@ -142,10 +142,11 @@ describe("parseFrontmatterWithError", () => {
             const content =
                 "---\nslug: my-lesson\ntitle: A lesson\n---\n# Body\n";
             const result = parseFrontmatterWithError(content);
-            expect(result.ok).toBe(true);
-            if (result.ok) {
-                expect(result.data.data.slug).toBe("my-lesson");
-            }
+
+            expect(result).toMatchObject({
+                ok: true,
+                data: { data: { slug: "my-lesson" } },
+            });
         });
     });
 
@@ -153,10 +154,8 @@ describe("parseFrontmatterWithError", () => {
         it("should return ok: false with reason: missing", () => {
             const content = "# Just a heading\n";
             const result = parseFrontmatterWithError(content);
-            expect(result.ok).toBe(false);
-            if (!result.ok) {
-                expect(result.reason).toBe("missing");
-            }
+
+            expect(result).toEqual({ ok: false, reason: "missing" });
         });
     });
 
@@ -164,10 +163,8 @@ describe("parseFrontmatterWithError", () => {
         it("should return ok: false with reason: missing", () => {
             const content = "---\nslug: my-lesson\n";
             const result = parseFrontmatterWithError(content);
-            expect(result.ok).toBe(false);
-            if (!result.ok) {
-                expect(result.reason).toBe("missing");
-            }
+
+            expect(result).toEqual({ ok: false, reason: "missing" });
         });
     });
 
@@ -175,13 +172,12 @@ describe("parseFrontmatterWithError", () => {
         it("should return ok: false with reason: invalid and a detail message", () => {
             const content = "---\n: invalid:\n  - :\n---\n";
             const result = parseFrontmatterWithError(content);
-            expect(result.ok).toBe(false);
-            if (!result.ok) {
-                expect(result.reason).toBe("invalid");
-                if (result.reason === "invalid") {
-                    expect(result.detail).toBeTruthy();
-                }
-            }
+
+            expect(result).toEqual({
+                ok: false,
+                reason: "invalid",
+                detail: expect.stringMatching(/./s),
+            });
         });
     });
 });
