@@ -15,7 +15,6 @@ import {
     isFixtureDirectory,
 } from "../lib/agentic-discovery-skips.js";
 import { instructionDiscoveryEntries } from "../lib/agentic-location-matchers.js";
-import type { FileIdentity } from "./read-regular-file-no-follow.js";
 import {
     DEFAULT_MAX_WALK_DEPTH,
     DEFAULT_MAX_WALK_DIRECTORIES,
@@ -83,8 +82,10 @@ export async function discoverInstructionLocations(
 }
 
 /**
- * One logical path per real file. The path kept is the full relative path
- * that sorts first by UTF-16 code unit. That is not the directory a
+ * One logical path per real file. Paths are the same file when their
+ * symlink-free real paths match, so symbolic-link aliases collapse while two
+ * hard links to one inode stay separate files. The path kept is the full
+ * relative path that sorts first by UTF-16 code unit. That is not the directory a
  * name-ordered walk meets first: `b-extra/file` sorts before `b/file`
  * because `-` comes before `/`.
  */
@@ -97,18 +98,13 @@ export function collapseToFirstRealFile(
     const seen = new Set<string>();
     const kept: WalkedFile[] = [];
     for (const file of sorted) {
-        const key = identityKey(file.identity);
-        if (seen.has(key)) {
+        if (seen.has(file.real)) {
             continue;
         }
-        seen.add(key);
+        seen.add(file.real);
         kept.push(file);
     }
     return kept;
-}
-
-function identityKey(identity: FileIdentity): string {
-    return `${identity.dev}:${identity.ino}`;
 }
 
 function instructionWalkOptions(

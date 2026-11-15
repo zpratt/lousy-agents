@@ -686,6 +686,23 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
         });
     });
 
+    describe("when two CLAUDE.md files in different directories are hard links to one inode", () => {
+        it("should discover both paths, because Claude Code loads each one", async () => {
+            const firstPath = join("lib", "CLAUDE.md");
+            const secondPath = join("pkg", "CLAUDE.md");
+            await mkdir(join(testDir, "lib"), { recursive: true });
+            await mkdir(join(testDir, "pkg"), { recursive: true });
+            await writeFile(join(testDir, secondPath), chance.sentence());
+            await link(join(testDir, secondPath), join(testDir, firstPath));
+
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            expect(files.map((f) => relative(testDir, f.filePath))).toEqual(
+                expect.arrayContaining([firstPath, secondPath]),
+            );
+        });
+    });
+
     describe("when .github/instructions has a dist subdirectory", () => {
         it("should leave the instruction files in it undiscovered, the same as doctor", async () => {
             const directory = join(testDir, ".github", "instructions", "dist");
