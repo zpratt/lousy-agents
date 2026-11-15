@@ -15,6 +15,7 @@ import { delimiter, dirname, join, posix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { POLICY_PATH } from "./policy-path.js";
 import { runArchitectureGate } from "./run-gate.js";
 import { spawnCoach } from "./spawn-coach.js";
 
@@ -60,6 +61,8 @@ const LINT_DIRECTORY = "packages/lint/src/validate-directory.ts";
 const LINT_ERRORS = "packages/lint/src/lint-errors.ts";
 const DOCTOR_INDEX = "packages/doctor/src/index.ts";
 const CLI_COMMAND = "packages/cli/src/commands/use-doctor.ts";
+const SCAFFOLD_TEMPLATE = "packages/cli/api/copilot-with-fastify/src/app.ts";
+const TOOLING_CONFIG = "packages/doctor/vitest.config.ts";
 
 type ImportForm =
     | "value"
@@ -282,12 +285,53 @@ const FORBIDDEN: readonly ForbiddenEdge[] = [
         CORE_GATEWAY,
         "entities->adapters",
     ),
+    // Production code and the scaffold templates it writes stay apart
+    edge(
+        "packages/core/src/gateways/imports-template.ts",
+        SCAFFOLD_TEMPLATE,
+        "adapters->scaffold_templates",
+    ),
+    edge(
+        "packages/cli/api/copilot-with-fastify/src/imports-entity.ts",
+        CORE_ENTITY,
+        "scaffold_templates->entities",
+    ),
+    edge(TOOLING_CONFIG, SCAFFOLD_TEMPLATE, "tooling->scaffold_templates"),
+    // Production code must not import build and test tooling
+    edge(
+        "packages/core/src/lib/imports-tooling.ts",
+        TOOLING_CONFIG,
+        "adapters->tooling",
+    ),
+    // Other packages reach lint through its package API only
+    edge(
+        "packages/cli/src/commands/imports-lint-errors.ts",
+        LINT_ERRORS,
+        "adapters->lint_errors",
+    ),
+    edge(
+        "packages/core/src/formatters/imports-validate-directory.ts",
+        LINT_DIRECTORY,
+        "formatters->lint_validate_directory",
+    ),
     // The same layers across packages, reached by package name
     {
         importer: "packages/doctor/src/entities/via-package-name.ts",
         importee: CORE_LIB,
         specifier: "@lousy-agents/core/lib/helper.js",
         pair: "entities->adapters",
+    },
+    {
+        importer: "packages/core/src/use-cases/imports-lint-by-name.ts",
+        importee: LINT_INDEX,
+        specifier: "@lousy-agents/lint",
+        pair: "use_cases->lint_api",
+    },
+    {
+        importer: "packages/doctor/src/entities/imports-doctor-by-name.ts",
+        importee: DOCTOR_INDEX,
+        specifier: "@lousy-agents/agentic-doctor",
+        pair: "entities->package_api",
     },
 ];
 
@@ -320,6 +364,11 @@ const ALLOWED: readonly Edge[] = [
     { importer: DOCTOR_CLI, importee: DOCTOR_INDEX },
     { importer: ACTION_INDEX, importee: ACTION_RUN_LINT },
     { importer: ACTION_RUN_LINT, importee: LINT_INDEX },
+    {
+        importer: "packages/cli/src/commands/uses-doctor-by-name.ts",
+        importee: DOCTOR_INDEX,
+        specifier: "@lousy-agents/agentic-doctor",
+    },
 ];
 
 function edge(importer: string, importee: string, pair: string): ForbiddenEdge {
@@ -448,10 +497,37 @@ async function linkCompiler(root: string): Promise<void> {
             join(modules, name),
         );
     }
-    await symlink(
-        "../../packages/core",
-        join(modules, "@lousy-agents", "core"),
+    for (const [name, directory] of [
+        ["core", "core"],
+        ...DIST_EXPORTING_PACKAGES,
+    ]) {
+        await symlink(
+            `../../packages/${directory}`,
+            join(modules, "@lousy-agents", name),
+        );
+    }
+}
+
+/** Workspace packages that publish from `dist/`; their exports are copied as committed. */
+const DIST_EXPORTING_PACKAGES: ReadonlyArray<readonly [string, string]> = [
+    ["lint", "lint"],
+    ["agentic-doctor", "doctor"],
+];
+
+async function readRepositoryJson(path: string) {
+    return JSON.parse(await readFile(join(repositoryRoot, path), "utf8"));
+}
+
+async function repositoryCustomConditions(): Promise<unknown> {
+    const config = await readRepositoryJson("tsconfig.json");
+    return config.compilerOptions?.customConditions ?? [];
+}
+
+async function repositoryExports(directory: string): Promise<unknown> {
+    const manifest = await readRepositoryJson(
+        `packages/${directory}/package.json`,
     );
+    return manifest.exports;
 }
 
 async function writeWorkspaceFiles(root: string): Promise<void> {
@@ -478,6 +554,7 @@ async function writeWorkspaceFiles(root: string): Promise<void> {
                 strict: true,
                 noEmit: true,
                 skipLibCheck: true,
+                customConditions: await repositoryCustomConditions(),
             },
             include: ["packages/**/*.ts"],
         }),
@@ -491,6 +568,17 @@ async function writeWorkspaceFiles(root: string): Promise<void> {
             exports: { "./lib/*": "./src/lib/*" },
         }),
     );
+    for (const [name, directory] of DIST_EXPORTING_PACKAGES) {
+        await mkdir(join(root, "packages", directory), { recursive: true });
+        await writeFile(
+            join(root, "packages", directory, "package.json"),
+            JSON.stringify({
+                name: `@lousy-agents/${name}`,
+                type: "module",
+                exports: await repositoryExports(directory),
+            }),
+        );
+    }
     await writeFile(join(root, ".gitignore"), "node_modules\n");
 }
 
@@ -501,13 +589,18 @@ function modulePathsOf(edges: readonly Edge[]): string[] {
 async function createRepository(
     imports: readonly Edge[],
     policyPath: string,
+    extraModules: readonly string[] = [],
 ): Promise<string> {
     const root = await mkdtemp(
         join(await realpath(tmpdir()), "architecture-gate-"),
     );
     await writeWorkspaceFiles(root);
-    await cp(policyPath, join(root, "project.json"));
-    for (const path of modulePathsOf([...FORBIDDEN, ...ALLOWED])) {
+    await mkdir(dirname(join(root, POLICY_PATH)), { recursive: true });
+    await cp(policyPath, join(root, POLICY_PATH));
+    for (const path of [
+        ...modulePathsOf([...FORBIDDEN, ...ALLOWED]),
+        ...extraModules,
+    ]) {
         await writeModule(root, path, imports);
     }
     await linkCompiler(root);
@@ -561,8 +654,8 @@ async function runEntryIn(root: string, env: NodeJS.ProcessEnv = ENVIRONMENT) {
     }
 }
 
-describe("the architecture gate, against coach and the committed project.json", () => {
-    const policyPath = resolve(repositoryRoot, "project.json");
+describe(`the architecture gate, against coach and the committed ${POLICY_PATH}`, () => {
+    const policyPath = resolve(repositoryRoot, POLICY_PATH);
     const created: string[] = [];
     let violating: string;
     let compliant: string;
@@ -630,6 +723,41 @@ describe("the architecture gate, against coach and the committed project.json", 
         });
     });
 
+    describe("when a committed file sits outside every declared layer", () => {
+        it("should fail and say that imports to or from it are not checked", async () => {
+            const root = await createRepository(ALLOWED, policyPath, [
+                "packages/core/src/unlayered/orphan.ts",
+            ]);
+            created.push(root);
+
+            const verdict = await runGateIn(root);
+
+            expect(verdict.passed).toBe(false);
+            expect(verdict.messages.join("\n")).toMatch(
+                /^1 of \d+ files coach analyzed sit outside every declared layer/m,
+            );
+        });
+    });
+
+    describe("when a committed file imports a specifier that is not a string literal", () => {
+        it("should fail and name the file, since layer rules cannot place the import", async () => {
+            const root = await createRepository(ALLOWED, policyPath);
+            created.push(root);
+            await appendFile(
+                join(root, CORE_ENTITY),
+                "export const load = (target: string) => import(target);\n",
+            );
+            await git(root, "commit", "--quiet", "--all", "--message", "load");
+
+            const verdict = await runGateIn(root);
+
+            expect(verdict.passed).toBe(false);
+            expect(verdict.messages.join("\n")).toContain(
+                `${CORE_ENTITY}: import() in ${CORE_ENTITY} takes a non-literal specifier ("target")`,
+            );
+        });
+    });
+
     describe("when the working tree has uncommitted changes", () => {
         const NoticeStart =
             "architecture gate: coach analyzed the committed HEAD only;";
@@ -651,7 +779,7 @@ describe("the architecture gate, against coach and the committed project.json", 
             // Assert
             expect(run.exitCode).toBe(0);
             expect(run.stderr).toContain(
-                `${NoticeStart} 1 uncommitted change under packages/ was not checked (${CORE_ENTITY}). Commit it to include it.`,
+                `${NoticeStart} 1 uncommitted change under packages/ was not checked (${CORE_ENTITY}). Commit it to include it, or run \`mise run coach-worktree\` to scan it first.`,
             );
         });
 

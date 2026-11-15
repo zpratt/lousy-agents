@@ -44,6 +44,7 @@ export function describeUncommittedChanges(
         `architecture gate: coach analyzed the committed HEAD only; ` +
         `${paths.length} uncommitted ${single ? "change" : "changes"} under packages/ ` +
         `${single ? "was" : "were"} not checked (${named}${remainder}). ` +
-        `Commit ${single ? "it" : "them"} to include ${single ? "it" : "them"}.`
+        `Commit ${single ? "it" : "them"} to include ${single ? "it" : "them"}, ` +
+        `or run \`mise run coach-worktree\` to scan ${single ? "it" : "them"} first.`
     );
 }

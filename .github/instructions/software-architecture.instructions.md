@@ -31,6 +31,7 @@ packages/
 ├── mcp/src/
 │   ├── tools/                 # Layer 3: MCP tool handlers
 │   ├── lib/                   # Layer 3: MCP-specific helpers
+│   ├── package-version.ts     # Layer 3: Reads the package version
 │   ├── server.ts              # Layer 4: MCP server setup
 │   ├── mcp-server.ts          # Layer 4: MCP process entry point
 │   └── index.ts               # Package API: re-exports createMcpServer
@@ -39,6 +40,7 @@ packages/
 │   ├── use-cases/             # Layer 2: Command handlers and orchestration
 │   ├── gateways/              # Layer 3: External system adapters (telemetry, git, filesystem)
 │   ├── lib/                   # Layer 3: Shared utilities (sanitization, path validation)
+│   ├── types/copilot-sdk.d.ts # Layer 3: Types for the Copilot SDK the gateways load
 │   └── index.ts               # Layer 4: Composition root
 ├── doctor/src/
 │   ├── entities/              # Layer 1: Findings, criteria and inventory types
@@ -56,7 +58,10 @@ packages/
 └── action/src/
     ├── index.ts               # Layer 4: GitHub Action entry and wiring
     ├── run-lint.ts            # Layer 3: Runs lint for the Action
-    └── validate-inputs.ts     # Layer 3: Reads and validates Action inputs
+    ├── validate-inputs.ts     # Layer 3: Reads and validates Action inputs
+    ├── annotations.ts         # Layer 3: Action adapters, with run-level-diagnostics.ts and runner-temp-path.ts
+    ├── workflow-commands.ts   # Layer 3: Output adapter (formatters layer)
+    └── summary-markdown.ts    # Layer 3: Output adapter (formatters layer)
 ```
 
 ## Layer 1: Entities
@@ -408,24 +413,26 @@ Both patterns achieve the same goal: explicit dependency injection and testabili
 
 ## Enforcement
 
-`project.json` at the repository root states these rules for coach: which directories and files belong to which layer, and which layers must not import which. `mise run architecture` (part of `mise run lint`) fails on any `architecture.layer_violation` coach reports in the committed code, whether new or already there, when coach reports incomplete coverage (exit 3), and unless `coach --version` prints exactly the release `mise.toml` pins (0.11.0). A specifier that is not a string literal is reported by coach as a `project_import_non_literal` diagnostic and does not fail the gate (see the table below). Of the findings coach reports, only the rule id `architecture.layer_violation`, matched exactly, fails the build. A rule coach adds later, including any other `architecture.*` rule, stays advisory until the gate names it. The file-local rules (cognitive complexity, nesting, branch density) stay advisory too.
+`.lousy-agents/coach.json` states these rules for coach: which directories and files belong to which layer, and which layers must not import which. `mise run architecture` (part of `mise run lint`) fails on any `architecture.layer_violation` coach reports in the committed code, whether new or already there, when any file coach analyzed sits outside every declared layer (coach checks no import to or from such a file), when coach reports incomplete coverage (exit 3), and unless `coach --version` prints exactly the release `mise.toml` pins (0.12.0). It also fails on each `project_import_non_literal` diagnostic, an `import()` or `require()` whose specifier is not a string literal, because coach cannot tell which layer it reaches and still exits 0. The one reviewed exception is `import(sdkPath)` in `packages/agent-shell/src/gateways/copilot-sdk-loader.ts`, listed in `KNOWN_DYNAMIC_IMPORTS` in `scripts/architecture-gate/coach-verdict.ts`. Of the findings coach reports, only the rule id `architecture.layer_violation`, matched exactly, fails the build. A rule coach adds later, including any other `architecture.*` rule, stays advisory until the gate names it. The file-local rules (cognitive complexity, nesting, branch density) stay advisory too.
 
-Coach reads committed Git objects, so commit before you run the gate. When there are uncommitted changes under `packages/`, the gate prints a notice on stderr that coach analyzed `HEAD` only and names the first few changed files. The notice is informational and never changes the exit code.
+Coach reads committed Git objects, so commit before you run the gate. When there are uncommitted changes under `packages/`, the gate prints a notice on stderr that coach analyzed `HEAD` only and names the first few changed files. The notice is informational and never changes the exit code. `mise run coach-worktree` scans uncommitted changes before you commit (advisory; coach's experimental `--worktree` mode, which still reads the policy from `HEAD`).
 
-The layers in `project.json` are:
+The layers in `.lousy-agents/coach.json` are:
 
 | Layer | What it holds | Must not import |
 | ----- | ------------- | --------------- |
 | `entities` | `entities/` in core, agent-shell and doctor | use cases, adapters, formatters, composition roots, package APIs, lint's own files, core's barrel |
 | `use_cases` | `use-cases/` in the same packages | adapters, formatters, composition roots, package APIs, lint's own files, core's barrel |
-| `adapters` | `gateways/`, `lib/`, CLI `commands/`, MCP `tools/`, the Action's `run-lint.ts` and `validate-inputs.ts` | composition roots, core's barrel |
-| `formatters` | `formatters/` in core and doctor | composition roots, core's barrel |
+| `adapters` | `gateways/`, `lib/`, CLI `commands/`, MCP `tools/` and `package-version.ts`, the Action's `run-lint.ts`, `validate-inputs.ts`, `annotations.ts`, `run-level-diagnostics.ts` and `runner-temp-path.ts`, agent-shell's `types/copilot-sdk.d.ts` | composition roots, core's barrel, lint's `validate-directory.ts` and `lint-errors.ts` (use lint's package API) |
+| `formatters` | `formatters/` in core and doctor, the Action's `workflow-commands.ts` and `summary-markdown.ts` | composition roots, core's barrel, lint's `validate-directory.ts` and `lint-errors.ts` (use lint's package API) |
 | `composition_root` | Each package's wiring: `index.ts` in cli, agent-shell and the Action, MCP `server.ts` and `mcp-server.ts`, doctor `cli/`, lint's `lint.ts` | (may import anything) |
 | `package_api` | Barrels other packages import: doctor and MCP `index.ts` | (may import anything) |
 | `core_barrel` | Core's `index.ts`, an empty barrel. Entities, use cases, adapters and formatters may not import it; import core modules by subpath | (may import anything) |
 | `lint_api`, `lint_validate_directory`, `lint_errors` | Lint's `index.ts`, `validate-directory.ts` and `lint-errors.ts` | core gateways, lib or use cases; `lint_api` also not `validate-directory.ts`; `lint_errors` also not any other lint file |
+| `scaffold_templates` | The template projects the CLI writes for users: `packages/cli/api`, `packages/cli/cli`, `packages/cli/ui` | any other layer. No other layer may import a template either, so a template stays self-contained |
+| `tooling` | The architecture gate under `scripts/`, the semgrep fixtures, and the root and package `vitest`/`rspack` configs | scaffold templates. No production layer and no template may import it |
 
-Add every new production file under `packages/*/src` to a layer. A test fails when a file belongs to none, to two, or when a prefix is nested inside another or matches nothing, because coach says nothing about a file that no layer claims.
+Add every new production file under `packages/*/src` to a layer. A test fails when a file belongs to none, to two, or when a prefix is nested inside another or matches no tracked TypeScript file, because coach says nothing about a file that no layer claims. The gate also fails when coach's own count of analyzed files outside every layer is above zero, which covers files outside `packages/*/src` that coach reads through a `tsconfig.json`.
 
 ### What checks what
 
@@ -433,16 +440,17 @@ The layer rules cover imports between this repository's own files. The table say
 
 | Import | Checked by |
 | ------ | ---------- |
-| Between repository files, written as a value, as `import type`, `export type … from`, an import or re-export whose every binding is an inline `type`, or as a string-literal `import()` or `require()` | `mise run architecture` (coach 0.11.0, which reads imports through tsc) |
+| Between repository files, written as a value, as `import type`, `export type … from`, an import or re-export whose every binding is an inline `type`, or as a string-literal `import()` or `require()` | `mise run architecture` (coach 0.12.0, which reads imports through tsc) |
 | Import cycles, including cycles made only of types, a package imported but not declared in the importing package's `package.json`, deprecated Node core modules | Biome (`noImportCycles`, `noUndeclaredDependencies`, `noRestrictedImports`) in `mise run lint`. Tests and tool configuration may use the root's tooling |
 | An import that does not resolve | `mise run typecheck` (tsc) |
 | A production source file saved as UTF-16 (tsc reads it, coach does not: [lousy-agents/coach#585](https://github.com/lousy-agents/coach/issues/585)), or with a UTF-8 byte-order mark (coach reads it; rejected for uniformity) | `scripts/architecture-gate/production-source-encoding.test.ts`, in `mise run test` |
-| A `.mts`, `.cts`, `.js`, `.mjs`, `.cjs` or `.jsx` file under `packages/*/src`, which coach 0.11.0 does not analyze while tsc and Biome accept it | `scripts/architecture-gate/project-policy.test.ts`, in `mise run test`. Write the file as `.ts` or `.tsx` |
+| A `.mts`, `.cts`, `.js`, `.mjs`, `.cjs` or `.jsx` file under `packages/*/src`, which coach 0.12.0 does not analyze while tsc and Biome accept it | `scripts/architecture-gate/project-policy.test.ts`, in `mise run test`. Write the file as `.ts` or `.tsx` |
 | Any triple-slash reference directive (`/// <reference …>`, `types` and `lib` included) in a source file under `packages/*/src`: a `path` one pulls a file in as an import does, and coach does not count it | `scripts/architecture-gate/production-source-references.test.ts`, in `mise run test` |
 | An npm package or `node:` module, such as a use case importing `node:fs` or a framework | Nothing. The layer rules do not look at them, so the rules above about frameworks and global APIs are enforced by review |
-| `typeof import("x")` or `import("x").Type` in a type position | Nothing. Coach 0.11.0 does not count them ([lousy-agents/coach#591](https://github.com/lousy-agents/coach/issues/591)), and no production file uses one. A reviewer sees an `import(` where a type belongs |
-| `import(path)` or `require(name)` with a specifier that is not a string literal | Nothing fails. Coach cannot read it statically and reports a `project_import_non_literal` diagnostic, so the layer verdict for that file is incomplete, but the run still exits 0 |
-| Anything in tests, or outside `packages/*/src` (the scaffold templates under `packages/cli`), and the two declaration files inside it, `packages/agent-shell/src/types/copilot-sdk.d.ts` and `packages/lint/src/index.d.ts`, which belong to no layer | Nothing |
+| `typeof import("x")` or `import("x").Type` in a type position | Nothing. Coach 0.12.0 does not count them ([lousy-agents/coach#591](https://github.com/lousy-agents/coach/issues/591)), and no production file uses one. A reviewer sees an `import(` where a type belongs |
+| `import(path)` or `require(name)` with a specifier that is not a string literal | `mise run architecture` fails on coach's `project_import_non_literal` diagnostic, except the reviewed `import(sdkPath)` in `copilot-sdk-loader.ts` |
+| An import of a workspace package by name, such as `@lousy-agents/core/gateways/…`, `@lousy-agents/lint` or `@lousy-agents/agentic-doctor` | `mise run architecture`. Core's `exports` point at `src/`. Lint and doctor publish from `dist/`, so each also exports a `lousy-agents-source` condition that points at `src/index.ts`, and the root `tsconfig.json` turns it on with `customConditions`. tsc and coach then resolve the import to source, while Node, rspack and published consumers ignore the condition. A new workspace package that publishes from `dist/` needs the same condition, or coach counts imports of it as external |
+| Anything in tests, and `packages/lint/src/index.d.ts`, which coach does not analyze | Nothing |
 
 ## Anti-Patterns
 
