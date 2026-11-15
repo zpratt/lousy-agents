@@ -954,9 +954,13 @@ jobs:
             },
         );
 
-        it.each(["webapp", "api", "cli"] as const)(
-            "should create .gitignore for %s project type",
-            async (projectType) => {
+        it.each([
+            { projectType: "webapp", ignoresNextBuildOutput: true },
+            { projectType: "api", ignoresNextBuildOutput: false },
+            { projectType: "cli", ignoresNextBuildOutput: false },
+        ] as const)(
+            "should create .gitignore for $projectType project type",
+            async ({ projectType, ignoresNextBuildOutput }) => {
                 // Arrange
                 const projectName = chance.word().toLowerCase();
                 mockPrompt = createMockPrompt(projectType, projectName);
@@ -974,11 +978,7 @@ jobs:
                 await expect(access(gitignoreFile)).resolves.toBeUndefined();
                 const content = await readFile(gitignoreFile, "utf-8");
                 expect(content).toContain("node_modules/");
-                if (projectType === "webapp") {
-                    expect(content).toContain(".next/");
-                } else {
-                    expect(content).not.toContain(".next/");
-                }
+                expect(content.includes(".next/")).toBe(ignoresNextBuildOutput);
             },
         );
 

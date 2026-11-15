@@ -58,7 +58,7 @@ describe("scanRepository", () => {
             expect(claudeRecords[0].constructType).toBe("instruction");
         });
 
-        it("should assign id in '${harness}:${path}' format", async () => {
+        it("should assign id in '<harness>:<path>' format", async () => {
             const records = await scanRepository(fixture("pure-claude"));
             for (const r of records) {
                 expect(r.id).toMatch(/^[a-z-]+:.+/);
@@ -317,7 +317,7 @@ describe("scanRepository", () => {
     });
 
     describe("InventoryRecord id format", () => {
-        it("should produce ids matching the ${harness}:${path} pattern for all records", async () => {
+        it("should produce ids matching the <harness>:<path> pattern for all records", async () => {
             const records = await scanRepository(fixture("accidental-sprawl"));
 
             for (const r of records) {

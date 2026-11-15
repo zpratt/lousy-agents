@@ -98,10 +98,12 @@ const writeHandlers = [
 ];
 
 function createProtoPayload(value: Record<string, unknown>): object {
-    const obj = Object.create(null);
-    // biome-ignore lint/complexity/useLiteralKeys: Using computed key intentionally to create own property, not prototype chain
-    obj["__proto__"] = value;
-    return obj;
+    return Object.defineProperty(Object.create(null), "__proto__", {
+        value,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+    });
 }
 
 const prototypePollutionPayload = fc.oneof(
@@ -184,16 +186,18 @@ describe("MCP Server Fuzzing", { timeout: 30_000 }, () => {
         describe("given adversarial targetDir values to read-only handlers", () => {
             for (const { name, handler } of readOnlyHandlers) {
                 it(`${name} handler never throws on adversarial targetDir`, async () => {
-                    await fc.assert(
-                        fc.asyncProperty(
-                            adversarialTargetDirReadOnly,
-                            async (targetDir) => {
-                                const result = await handler({ targetDir });
-                                assertValidToolResult(result);
-                            },
+                    await expect(
+                        fc.assert(
+                            fc.asyncProperty(
+                                adversarialTargetDirReadOnly,
+                                async (targetDir) => {
+                                    const result = await handler({ targetDir });
+                                    assertValidToolResult(result);
+                                },
+                            ),
+                            { numRuns: 50 },
                         ),
-                        { numRuns: 50 },
-                    );
+                    ).resolves.toBeUndefined();
                 });
             }
         });
@@ -201,26 +205,33 @@ describe("MCP Server Fuzzing", { timeout: 30_000 }, () => {
         describe("given adversarial targetDir values to write handlers (sandbox-isolated)", () => {
             for (const { name, handler } of writeHandlers) {
                 it(`${name} handler never throws on adversarial targetDir within sandbox`, async () => {
-                    await fc.assert(
-                        fc.asyncProperty(
-                            fc.oneof(
-                                fc.constant(testDir),
-                                fc.constant(join(testDir, "subdir")),
-                                fc.constant(join(testDir, "deep/nested/path")),
-                                fc.constant(join(testDir, "a".repeat(200))),
-                                fc
-                                    .string({ minLength: 1, maxLength: 50 })
-                                    .map((s) =>
-                                        join(testDir, s.replace(/[/\\]/g, "_")),
+                    await expect(
+                        fc.assert(
+                            fc.asyncProperty(
+                                fc.oneof(
+                                    fc.constant(testDir),
+                                    fc.constant(join(testDir, "subdir")),
+                                    fc.constant(
+                                        join(testDir, "deep/nested/path"),
                                     ),
+                                    fc.constant(join(testDir, "a".repeat(200))),
+                                    fc
+                                        .string({ minLength: 1, maxLength: 50 })
+                                        .map((s) =>
+                                            join(
+                                                testDir,
+                                                s.replace(/[/\\]/g, "_"),
+                                            ),
+                                        ),
+                                ),
+                                async (targetDir) => {
+                                    const result = await handler({ targetDir });
+                                    assertValidToolResult(result);
+                                },
                             ),
-                            async (targetDir) => {
-                                const result = await handler({ targetDir });
-                                assertValidToolResult(result);
-                            },
+                            { numRuns: 20 },
                         ),
-                        { numRuns: 20 },
-                    );
+                    ).resolves.toBeUndefined();
                 });
             }
         });
@@ -228,63 +239,70 @@ describe("MCP Server Fuzzing", { timeout: 30_000 }, () => {
         describe("given completely arbitrary argument objects to read-only handlers", () => {
             for (const { name, handler } of readOnlyHandlers) {
                 it(`${name} handler returns valid ToolResult for arbitrary objects`, async () => {
-                    await fc.assert(
-                        fc.asyncProperty(
-                            fc.record({
-                                targetDir: fc.oneof(
-                                    fc.string(),
-                                    fc.constant("/nonexistent"),
-                                ),
-                            }),
-                            async (args) => {
-                                const result = await handler(args);
-                                assertValidToolResult(result);
-                            },
+                    await expect(
+                        fc.assert(
+                            fc.asyncProperty(
+                                fc.record({
+                                    targetDir: fc.oneof(
+                                        fc.string(),
+                                        fc.constant("/nonexistent"),
+                                    ),
+                                }),
+                                async (args) => {
+                                    const result = await handler(args);
+                                    assertValidToolResult(result);
+                                },
+                            ),
+                            { numRuns: 30 },
                         ),
-                        { numRuns: 30 },
-                    );
+                    ).resolves.toBeUndefined();
                 });
             }
         });
 
         describe("given adversarial inputs to create_copilot_setup_workflow (sandbox-isolated)", () => {
             it("never throws on arbitrary CreateWorkflowArgs within sandbox", async () => {
-                await fc.assert(
-                    fc.asyncProperty(
-                        fc.constant(undefined).map(() => testDir),
-                        adversarialResolvedVersions,
-                        async (targetDir, resolvedVersions) => {
-                            const result =
-                                await createCopilotSetupWorkflowHandler({
-                                    targetDir,
-                                    resolvedVersions,
-                                });
-                            assertValidToolResult(result);
-                        },
+                await expect(
+                    fc.assert(
+                        fc.asyncProperty(
+                            fc.constant(undefined).map(() => testDir),
+                            adversarialResolvedVersions,
+                            async (targetDir, resolvedVersions) => {
+                                const result =
+                                    await createCopilotSetupWorkflowHandler({
+                                        targetDir,
+                                        resolvedVersions,
+                                    });
+                                assertValidToolResult(result);
+                            },
+                        ),
+                        { numRuns: 30 },
                     ),
-                    { numRuns: 30 },
-                );
+                ).resolves.toBeUndefined();
             });
         });
 
         describe("given adversarial inputs to resolve_action_versions", () => {
             it("never throws on arbitrary ResolveActionsArgs", async () => {
-                await fc.assert(
-                    fc.asyncProperty(
-                        adversarialTargetDirReadOnly,
-                        adversarialActions,
-                        adversarialResolvedVersions,
-                        async (targetDir, actions, resolvedVersions) => {
-                            const result = await resolveActionVersionsHandler({
-                                targetDir,
-                                actions,
-                                resolvedVersions,
-                            });
-                            assertValidToolResult(result);
-                        },
+                await expect(
+                    fc.assert(
+                        fc.asyncProperty(
+                            adversarialTargetDirReadOnly,
+                            adversarialActions,
+                            adversarialResolvedVersions,
+                            async (targetDir, actions, resolvedVersions) => {
+                                const result =
+                                    await resolveActionVersionsHandler({
+                                        targetDir,
+                                        actions,
+                                        resolvedVersions,
+                                    });
+                                assertValidToolResult(result);
+                            },
+                        ),
+                        { numRuns: 30 },
                     ),
-                    { numRuns: 30 },
-                );
+                ).resolves.toBeUndefined();
             });
         });
     });
@@ -499,14 +517,14 @@ describe("MCP Server Fuzzing", { timeout: 30_000 }, () => {
                         assertValidToolResult(result);
                         const parsed = JSON.parse(result.content[0].text);
                         expect(parsed.success).toBe(true);
-                        if (
+                        const everyActionResolved =
                             actions.length > 0 &&
                             actions.every((a) =>
                                 resolvedVersions.some((rv) => rv.action === a),
-                            )
-                        ) {
-                            expect(parsed.actionsToResolve).toEqual([]);
-                        }
+                            );
+                        expect(parsed.actionsToResolve).toEqual(
+                            everyActionResolved ? [] : expect.anything(),
+                        );
                     },
                 ),
                 { numRuns: 30 },
