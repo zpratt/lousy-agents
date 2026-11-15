@@ -165,7 +165,7 @@ __Depth.__ `includeFile` receives only the file name. It cannot see the repo-rel
 
 Chosen mechanism: __per-catalog-root walks__, plus one repository-root walk for the nested instruction filenames only.
 
-- Each directory-prefix catalog entry is walked from that entry. `maxDepth` is the construct budget. Instructions use 10, so the catalog root is depth 0 and D = 10 is listed while D = 11 is not entered. Agents and subagents use 32, matching `markdown-file-discovery.ts`. The nested-filename walk starts at the repository root with `maxDepth` 10, which is doctor's current cap for `CLAUDE.md` and `AGENTS.md` outside a catalog root
+- Each directory-prefix catalog entry is walked from that entry. `maxDepth` is the construct budget. Instructions use 10, so the catalog root is depth 0 and D = 10 is listed while D = 11 is not entered. Agents and subagents use 32. The nested-filename walk starts at the repository root with `maxDepth` 10, which is doctor's current cap for `CLAUDE.md` and `AGENTS.md` outside a catalog root
 - `skipDirectoryNames` on every walk: `node_modules`, `.git`, `dist`
 - `skipDirectory`: the fixture predicate moved out of `packages/doctor/src/gateways/scanner.ts`. Same rule: `tests`/`fixtures` as a parent and child, using the scan root's own name when the relative path has no parent; `__fixtures__` and `testdata` at any depth. The start directory is never skipped
 - After the walk, the classifier drops paths it does not claim. `includeFile` may stay name-based (`*.md`, `*.instructions.md`) because the path rules run on `WalkedFile.relativePath`

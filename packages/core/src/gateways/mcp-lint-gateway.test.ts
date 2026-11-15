@@ -1,4 +1,4 @@
-import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
@@ -88,6 +88,36 @@ describe("FileSystemMcpServersLintGateway", () => {
                 // Assert
                 expect(files).toHaveLength(2);
             });
+        });
+
+        describe("given a .vscode directory symlink that leaves the repository", () => {
+            it.skipIf(process.platform === "win32")(
+                "should not discover or read mcp.json through that link",
+                async () => {
+                    const outside = await mkdtemp(
+                        join(tmpdir(), "mcp-outside-"),
+                    );
+                    try {
+                        await mkdir(join(outside, "vscode-target"));
+                        const secret = "secret-mcp-body";
+                        await writeFile(
+                            join(outside, "vscode-target", "mcp.json"),
+                            secret,
+                        );
+                        await symlink(
+                            join(outside, "vscode-target"),
+                            join(testDir, ".vscode"),
+                        );
+
+                        const files =
+                            await gateway.discoverMcpConfigFiles(testDir);
+
+                        expect(files).toEqual([]);
+                    } finally {
+                        await rm(outside, { recursive: true, force: true });
+                    }
+                },
+            );
         });
 
         describe("given a symlinked .mcp.json", () => {
