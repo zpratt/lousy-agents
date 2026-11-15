@@ -199,11 +199,7 @@ export async function scanRepositoryWithReport(
         );
     }
     for (const walk of constructWalks) {
-        for (const path of walk.skippedOutsideRoot) {
-            if (!skippedOutsideRoot.includes(path)) {
-                skippedOutsideRoot.push(path);
-            }
-        }
+        appendSkippedLinks(skippedOutsideRoot, walk.skippedOutsideRoot);
     }
 
     const edgeContext: EdgeResolutionContext = {

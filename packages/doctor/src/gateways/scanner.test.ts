@@ -1633,6 +1633,30 @@ describe("scanRepository", () => {
         });
     });
 
+    describe("when .claude is a symbolic link to a directory outside the repository", () => {
+        it("should name only .claude as skipped, not the subagent directory below it", async () => {
+            const outside = join(
+                await realpath(tmpdir()),
+                `doctor-outside-${chance.guid()}`,
+            );
+            await mkdir(join(outside, "agents"), { recursive: true });
+            try {
+                await withTempRepo(
+                    { [CLAUDE_MD]: "# Claude\n" },
+                    async (repoRoot) => {
+                        await symlink(outside, join(repoRoot, ".claude"));
+
+                        const report = await scanRepositoryWithReport(repoRoot);
+
+                        expect(report.skippedOutsideRoot).toEqual([".claude"]);
+                    },
+                );
+            } finally {
+                await rm(outside, { recursive: true, force: true });
+            }
+        });
+    });
+
     describe("when .github is a symbolic link to a directory outside the repository", () => {
         it("should name only .github as skipped, not the catalog directories below it", async () => {
             const outside = join(
