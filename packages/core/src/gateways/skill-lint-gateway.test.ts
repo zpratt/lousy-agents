@@ -48,6 +48,30 @@ describe("SkillLintGateway", () => {
             ]);
         });
 
+        describe("given a skill whose directory has references, scripts, and nested subdirectories", () => {
+            it("should report no discovery limit, because a SKILL.md below the skill directory is never a skill file", async () => {
+                const skill = join(testDir, ".claude", "skills", "pdf");
+                await mkdir(join(skill, "references", "forms"), {
+                    recursive: true,
+                });
+                await mkdir(join(skill, "scripts"), { recursive: true });
+                await writeFile(join(skill, "SKILL.md"), "# pdf\n");
+                await writeFile(
+                    join(skill, "scripts", "fill.py"),
+                    "print(1)\n",
+                );
+                const diagnostics: { ruleId: string; message: string }[] = [];
+
+                const skills = await gateway.discoverSkills(
+                    testDir,
+                    (diagnostic) => diagnostics.push(diagnostic),
+                );
+
+                expect(skills.map((s) => s.skillName)).toEqual(["pdf"]);
+                expect(diagnostics).toEqual([]);
+            });
+        });
+
         describe("given a directory with skill files", () => {
             it("should discover all SKILL.md files", async () => {
                 // Arrange

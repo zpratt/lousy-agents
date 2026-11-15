@@ -171,7 +171,10 @@ export async function discoverSubagentFiles(
 
 /**
  * `SKILL.md` files one directory below a skill root. A `SKILL.md` in the root
- * itself, or nested further, is not a skill file.
+ * itself, or nested further, is not a skill file. The walk stops at that
+ * depth by definition, so meeting a skill's own subdirectory, such as
+ * `references/` or `scripts/`, is not a depth limit: nothing below it could
+ * be a skill file.
  */
 export async function discoverSkillFiles(
     targetDir: string,
@@ -186,6 +189,7 @@ export async function discoverSkillFiles(
     );
     return {
         ...walked,
+        depthLimitReached: false,
         files: walked.files.filter((file) =>
             skillDirectoryRoots().some((root) =>
                 isSkillFileUnderRoot(root, file.relativePath),
