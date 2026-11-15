@@ -71,10 +71,9 @@ describe("ClaudePreToolUseHookInputSchema", () => {
             };
 
             const result = ClaudePreToolUseHookInputSchema.safeParse(payload);
+
             expect(result.success).toBe(true);
-            if (result.success) {
-                expect(result.data.tool_input.file_path).toBe("src/foo.ts");
-            }
+            expect(result.data?.tool_input.file_path).toBe("src/foo.ts");
         });
     });
 });

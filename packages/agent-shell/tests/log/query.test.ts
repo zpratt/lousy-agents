@@ -300,9 +300,7 @@ describe("event querying", () => {
             // Assert
             expect(result.events).toHaveLength(1);
             expect(result.events[0].event).toBe("script_end");
-            if (result.events[0].event === "script_end") {
-                expect(result.events[0].exit_code).not.toBe(0);
-            }
+            expect(result.events[0]).not.toHaveProperty("exit_code", 0);
         });
 
         it("should read all files and filter by time window when last is set", async () => {
