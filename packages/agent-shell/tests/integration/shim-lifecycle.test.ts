@@ -236,14 +236,15 @@ describe("Shim lifecycle integration", { timeout: 30_000 }, () => {
             expect(exitCode).toBe(143);
 
             const events = await readEvents(defaultEventsDir(tmpDir));
-            if (events.length > 0) {
-                const event = events.find(
+            const firstScriptEndSignals = events
+                .filter(
                     (e: Record<string, unknown>) => e.event === "script_end",
-                );
-                if (event) {
-                    expect(event.signal).toBe("SIGTERM");
-                }
-            }
+                )
+                .slice(0, 1)
+                .map((e: Record<string, unknown>) => e.signal);
+            expect(firstScriptEndSignals).toEqual(
+                firstScriptEndSignals.map(() => "SIGTERM"),
+            );
         });
     });
 
