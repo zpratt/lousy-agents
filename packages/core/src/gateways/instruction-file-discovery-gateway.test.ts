@@ -596,7 +596,7 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
     });
 
     describe("when .github/instructions has a dist subdirectory", () => {
-        it("should discover the instruction files in it, because only node_modules and .git are skipped", async () => {
+        it("should leave the instruction files in it undiscovered, the same as doctor", async () => {
             const directory = join(testDir, ".github", "instructions", "dist");
             await mkdir(directory, { recursive: true });
             await writeFile(
@@ -606,14 +606,7 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
 
             const files = await gateway.discoverInstructionFiles(testDir);
 
-            expect(files.map((f) => relative(testDir, f.filePath))).toEqual([
-                join(
-                    ".github",
-                    "instructions",
-                    "dist",
-                    "built.instructions.md",
-                ),
-            ]);
+            expect(files.map((f) => relative(testDir, f.filePath))).toEqual([]);
         });
     });
 
