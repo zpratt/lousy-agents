@@ -95,6 +95,26 @@ function toSourceFile(
  * entries examined across all of them, are what bound a fan-out of aliases.
  * Each real file is read once however many locations reach it.
  */
+/**
+ * Adds the links a catalog walk skipped, leaving out a path already listed
+ * and a path below one already listed. A catalog walk that starts below a
+ * link out of the repository reports its own start directory, which is not
+ * a link; the link itself is already in the list.
+ */
+function appendSkippedLinks(
+    skipped: string[],
+    additions: readonly string[],
+): void {
+    for (const path of additions) {
+        const covered = skipped.some(
+            (listed) => path === listed || path.startsWith(`${listed}/`),
+        );
+        if (!covered) {
+            skipped.push(path);
+        }
+    }
+}
+
 export async function scanRepositoryWithReport(
     repoRoot: string,
     options: ScanOptions = {},
@@ -152,11 +172,10 @@ export async function scanRepositoryWithReport(
         catalogWalks.some((location) => location.walked.entryLimitReached);
     const skippedOutsideRoot = [...walked.skippedOutsideRoot];
     for (const location of catalogWalks) {
-        for (const path of location.walked.skippedOutsideRoot) {
-            if (!skippedOutsideRoot.includes(path)) {
-                skippedOutsideRoot.push(path);
-            }
-        }
+        appendSkippedLinks(
+            skippedOutsideRoot,
+            location.walked.skippedOutsideRoot,
+        );
     }
 
     const edgeContext: EdgeResolutionContext = {
