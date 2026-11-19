@@ -170,6 +170,9 @@ interface DoctorFinding {
 }
 
 interface DoctorReport {
+    readonly archetype: string;
+    readonly evaluation: string;
+    readonly intent?: { readonly status: string };
     readonly inventory: InventoryItem[];
     readonly findings: readonly DoctorFinding[];
 }
@@ -994,6 +997,11 @@ describe("lint and doctor discovery", () => {
                 const doctor = await runDoctor(repo);
 
                 expect(doctor.exitCode).toBe(1);
+                expect(doctor.report.archetype).toBe("none");
+                expect(doctor.report.evaluation).toBe("completed");
+                expect(doctor.report.intent).toEqual(
+                    expect.objectContaining({ status: "absent" }),
+                );
                 expect(blockingFinding(doctor.report, relativePath)).toEqual(
                     expect.objectContaining({
                         severity: expect.stringMatching(/^(high|critical)$/),

@@ -26,7 +26,7 @@ The implementation package is `@lousy-agents/agentic-doctor` (bin: `agentic-doct
 3. Load optional declared intent from `.agentic-doctor/intent.json` in the current working directory, and record whether it loaded or why it was rejected (see [Intent load status](#intent-load-status)).
 4. For human output on an interactive TTY without `--ci`, optionally ask short ambiguity questions when no intent file exists (status `absent`). JSON output never prompts, so stdout is always a single JSON document. A present-but-rejected file is reported instead of prompting. Answers are only acknowledged (`Noted.`); they are **not** written to disk and **do not** change findings for that run. Doctor re-reads `.agentic-doctor/intent.json` afterward in case you created it in another terminal.
 5. Evaluate the criteria catalog against inventory, archetype, and intent.
-6. Print a human report or JSON. Exit `1` when any **critical** or **high** finding is classified as a **defect**. When the archetype is `none`, human mode prints that no agentic constructs were found and skips the full findings layout, and the command exits `0`.
+6. Print a human report or JSON. Exit `1` when any **critical** or **high** finding is classified as a **defect**. When the archetype is `none` and no MCP config is malformed, human mode prints that no agentic constructs were found and skips the full findings layout, and the command exits `0`. A repository whose only file is a broken `.mcp.json` or `.vscode/mcp.json` stays archetype `none`, but a full evaluate still runs: intent is loaded, the finding is printed, and the command exits `1`.
 
 This is a tight feedback loop for multi-agent work: inventory what the fleet can see, name the composition pattern, fail CI only on blocking defects.
 
@@ -98,7 +98,7 @@ Paths come from the shared agentic location catalog in `@lousy-agents/core` (the
 
 - JSON sources are enumerated (for example `.mcp.json` attributed as `shared`, `.vscode/mcp.json` as `copilot`).
 - VS Code-style configs that use a top-level `servers` key are recognized.
-- A missing `.mcp.json` or `.vscode/mcp.json` is not a finding. A file that is present but is not valid JSON, does not match the config schema (for example `{"mcpServers":[]}`), or names a server `__proto__`, `constructor`, or `prototype` is a high defect, `malformed-mcp-config`. The finding's target is that file's repo-relative path, and `doctor --ci` exits 1. No server record is invented for a file that did not parse.
+- A missing `.mcp.json` or `.vscode/mcp.json` is not a finding. A file that is present but is not valid JSON, does not match the config schema (for example `{"mcpServers":[]}`), or names a server `__proto__`, `constructor`, or `prototype` is a high defect, `malformed-mcp-config`. The finding's target is that file's repo-relative path. A full evaluate exits 1, including when that file is the only file in the repository. `doctor --summary --ci` still exits 0. No server record is invented for a file that did not parse.
 - Codex TOML `[mcp_servers.*]` in `.codex/config.toml` is not enumerated yet.
 
 **Filesystem notes:**
@@ -148,6 +148,7 @@ Advisories never fail the process on their own. Medium defects (for example miss
 | `missing-claude-md` | claude | high | defect | missing-required | Neither a `CLAUDE.md` (at the root or in a subdirectory) nor `.claude/` is present while the Claude harness is attributed. In practice Claude is usually detected only via those paths, so this finding is rare. |
 | `missing-agents-md` | codex | high | defect | missing-required | Neither `AGENTS.md` nor `AGENTS.override.md` is present while Codex is attributed (for example via `.agents/skills/` or `.codex/`). Blocks CI. |
 | `malformed-claude-import` | claude | high | defect | malformed-reference | A Claude `@path` hard-import points to a file inside the repository that does not exist (edge reason `missing-target`). Blocks CI. Imports that resolve outside the working directory are not defects; see `external-claude-import`, and imports lint refuses to read are not defects either; see `unread-claude-import`. |
+| `malformed-mcp-config` | all | high | defect | malformed-reference | A present `.mcp.json` or `.vscode/mcp.json` is not valid JSON, does not match the config schema, or names a server `__proto__`, `constructor`, or `prototype`. Blocks CI. The target is that file's repo-relative path. No server record is invented for a file that did not parse. A missing file is not a finding. |
 | `unread-claude-import` | claude | medium | advisory | malformed-reference | A Claude `@path` hard-import points to a file inside the repository that lint and doctor do not read, for the same reasons lint's import expansion refuses it: a directory or other file that is not regular, such as a named pipe or a symbolic link that loops (edge reason `not-regular`), a file with more than one hard link (`hard-link`), a file over 1 MiB (`too-large`), or a file the system would not open or that changed while it was being read, such as when the process has run out of file descriptors or is denied access (`unreadable`). A target that could not be read is never reported as missing. Visible, never blocks CI. |
 | `external-claude-import` | claude | medium | advisory | malformed-reference | A Claude `@path` hard-import resolves outside the working directory: a `~/` path, an absolute path outside the repository, or a `../` path that leaves it, or a symlink whose real target is outside the repository (edge reasons `home`, `absolute`, `path-traversal`, `symlink-outside`; lint reports the symlink as `instruction/import-symlink`). One finding per import, naming its path. Claude Code loads such an import only after a one-time approval in an interactive session; in headless, `-p` or CI runs it was not loaded in testing (Claude Code 2.1.316, absolute path outside the working directory). **The `~/` case is docs-based and was not observed in testing.** Visible, never blocks CI. An absolute path *inside* the repository is a valid import and produces no finding. |
 | `cross-harness-drift` | all | high | advisory | drift | Archetype is `accidental-sprawl`: multiple harnesses with no cross-harness references. Does not block CI. |
@@ -237,10 +238,10 @@ Tags are `[SEVERITY][classification]`. Findings with `assumedIntent: true` appen
 | `totalRecords` | number | Length of inventory |
 | `harnessBreakdown` | `{ harness, count }[]` | Sorted by harness name |
 | `crossHarnessEdges` | number | Count of edges with `crossHarness: true` |
-| `evaluation` | `completed` \| `skipped` \| `not-applicable` | `completed` on a full run; `skipped` with `--summary`; `not-applicable` when the archetype is `none`, because there was nothing to evaluate. Only `completed` with an empty `findings` array means the criteria ran and found nothing, so never read an absent or empty `findings` array as a clean result without checking `evaluation`. |
+| `evaluation` | `completed` \| `skipped` \| `not-applicable` | `completed` on a full run; `skipped` with `--summary`; `not-applicable` when the archetype is `none` and no MCP config is malformed, because there was nothing to evaluate. A malformed `.mcp.json` or `.vscode/mcp.json` keeps the archetype `none` and still reports `completed`. Only `completed` with an empty `findings` array means the criteria ran and found nothing, so never read an absent or empty `findings` array as a clean result without checking `evaluation`. |
 | `inventory` | array | One entry per construct |
 | `edges` | array | Flattened composition edges |
-| `intent` | object | Intent load status: `{ status, checkedPath, reason?, issues?, omittedIssueCount? }`. Present only on full evaluate (not on `--summary` or when the archetype is `none`). See [Intent load status](#intent-load-status). |
+| `intent` | object | Intent load status: `{ status, checkedPath, reason?, issues?, omittedIssueCount? }`. Present only on full evaluate (not on `--summary`). Omitted when the archetype is `none` and no MCP config is malformed. A malformed `.mcp.json` or `.vscode/mcp.json` is evaluated, so `intent` is present even though the archetype stays `none`. See [Intent load status](#intent-load-status). |
 | `findings` | array | Criteria results (empty array when none). Present only on full evaluate, not on `--summary`. |
 | `snapshotRef` | string? | Present when a local `wisdom/` graph is available |
 
@@ -398,13 +399,13 @@ Interactive prompts on a TTY do not write this file, and yes/no answers are not 
 - Full evaluate (`doctor` or `doctor --format json`, without `--summary`) sets exit code `1` only when `hasBlockingFindings` is true: at least one finding with `severity` of `critical` or `high` **and** `classification` of `defect`.
 - High **advisories** (for example `cross-harness-drift`) never fail the process on their own, and neither do the advisories `discovery-limit-reached`, `discovery-symlink-skipped`, `import-limit-reached`, `instruction-file-unread`, `external-claude-import` and `unread-claude-import`.
 - Medium **defects** (for example `missing-intent-artifact`) appear in the report and do not set exit code `1`.
-- A repository with no agentic constructs exits `0`. Its JSON report says `evaluation: "not-applicable"`, so a pipeline can tell "nothing to check" from "checked and clean" (`completed`).
+- A repository with no agentic constructs and no malformed MCP config exits `0`. Its JSON report says `evaluation: "not-applicable"`, so a pipeline can tell "nothing to check" from "checked and clean" (`completed`). A broken `.mcp.json` or `.vscode/mcp.json` with no other constructs stays archetype `none`, reports `completed`, and exits `1` on a full evaluate.
 - `--summary` skips evaluate. Exit code stays `0`. Use it for composition snapshots, not as a merge gate.
 - Prefer writing JSON to a file in the same step that gates, so the step exit code is doctor's exit code (avoid bare pipes that drop status unless `pipefail` is on).
 
 | Exit code | When |
 | --------- | ---- |
-| `0` | No blocking findings, or `--summary` (no evaluate), or no agentic constructs were found (the archetype is `none`, so nothing was evaluated) |
+| `0` | No blocking findings, or `--summary` (no evaluate), or no agentic constructs were found and no MCP config is malformed (the archetype is `none`, so nothing was evaluated) |
 | `1` | At least one critical or high **defect** on a full evaluate |
 | `2` | Returned only by the exported `runDoctorCommand` when it is given invalid options, for example a non-boolean `summary` or `ci`. Nothing is written to stdout. The command line never exits `2`: its parser coerces the boolean flags, and an unsupported `--format` value warns and falls back to `human`. |
 
