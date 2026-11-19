@@ -170,6 +170,9 @@ interface DoctorFinding {
 }
 
 interface DoctorReport {
+    readonly archetype: string;
+    readonly evaluation: string;
+    readonly intent?: { readonly status: string };
     readonly inventory: InventoryItem[];
     readonly findings: readonly DoctorFinding[];
 }
@@ -994,6 +997,11 @@ describe("lint and doctor discovery", () => {
                 const doctor = await runDoctor(repo);
 
                 expect(doctor.exitCode).toBe(1);
+                expect(doctor.report.archetype).toBe("none");
+                expect(doctor.report.evaluation).toBe("completed");
+                expect(doctor.report.intent).toEqual(
+                    expect.objectContaining({ status: "absent" }),
+                );
                 expect(blockingFinding(doctor.report, relativePath)).toEqual(
                     expect.objectContaining({
                         severity: expect.stringMatching(/^(high|critical)$/),
@@ -1070,25 +1078,25 @@ describe("lint and doctor discovery", () => {
             },
         );
 
-        it.fails("should fail doctor --ci when .mcp.json is not valid JSON", async () => {
+        it("should fail doctor --ci when .mcp.json is not valid JSON", async () => {
             await expect(
                 assertDoctorBlocks(MCP, malformed),
             ).resolves.toBeUndefined();
         });
 
-        it.fails("should fail doctor --ci when .vscode/mcp.json is not valid JSON", async () => {
+        it("should fail doctor --ci when .vscode/mcp.json is not valid JSON", async () => {
             await expect(
                 assertDoctorBlocks(MCP_VSCODE, malformed),
             ).resolves.toBeUndefined();
         });
 
-        it.fails("should fail doctor --ci when MCP JSON parses but fails the schema", async () => {
+        it("should fail doctor --ci when MCP JSON parses but fails the schema", async () => {
             await expect(
                 assertDoctorBlocks(MCP, schemaInvalid),
             ).resolves.toBeUndefined();
         });
 
-        it.fails.each(RESERVED_SERVER_NAMES)(
+        it.each(RESERVED_SERVER_NAMES)(
             "should fail doctor --ci when .mcp.json names the reserved server %s",
             async (name) => {
                 await expect(
@@ -1099,6 +1107,79 @@ describe("lint and doctor discovery", () => {
                 ).resolves.toBeUndefined();
             },
         );
+
+        it("should fail doctor --ci when a server declares an empty type, as lint does", async () => {
+            await expect(
+                assertDoctorBlocks(
+                    MCP,
+                    JSON.stringify({ mcpServers: { a: { type: "" } } }),
+                ),
+            ).resolves.toBeUndefined();
+        });
+
+        it("should fail doctor --ci with the cause when .mcp.json is a directory", async () => {
+            const repo = await makeRoot("mcp-doctor-dir");
+            try {
+                await mkdir(absolutePath(repo, MCP), { recursive: true });
+                const doctor = await runDoctor(repo);
+
+                expect(doctor.exitCode).toBe(1);
+                expect(blockingFinding(doctor.report, MCP)).toEqual(
+                    expect.objectContaining({
+                        description: expect.stringContaining(
+                            "could not be read as a regular file",
+                        ),
+                    }),
+                );
+                expect(JSON.stringify(doctor.report.findings)).not.toContain(
+                    repo,
+                );
+            } finally {
+                await rm(repo, { recursive: true, force: true });
+            }
+        });
+
+        it("should name the cause of a schema failure without echoing the file content", async () => {
+            const repo = await makeRoot("mcp-doctor-cause");
+            const secret = `secret-${chance.guid()}`;
+            try {
+                await writeRepo(repo, {
+                    [MCP]: JSON.stringify({ mcpServers: [secret] }),
+                });
+                const doctor = await runDoctor(repo);
+
+                expect(blockingFinding(doctor.report, MCP)).toEqual(
+                    expect.objectContaining({
+                        description: expect.stringContaining(
+                            "does not match the MCP config schema",
+                        ),
+                    }),
+                );
+                expect(JSON.stringify(doctor.report.findings)).not.toContain(
+                    secret,
+                );
+            } finally {
+                await rm(repo, { recursive: true, force: true });
+            }
+        });
+
+        it("should exit 0 for doctor --summary --ci even when .mcp.json is malformed", async () => {
+            const repo = await makeRoot("mcp-doctor-summary");
+            try {
+                await writeRepo(repo, { [MCP]: malformed });
+                const summary = await runCli(repo, [
+                    "doctor",
+                    "--summary",
+                    "--ci",
+                    "--format",
+                    "json",
+                ]);
+
+                expect(summary.exitCode).toBe(0);
+            } finally {
+                await rm(repo, { recursive: true, force: true });
+            }
+        });
     });
 
     describe("when a nested CLAUDE.md sits at the root walk's segment boundary", () => {

@@ -17,6 +17,10 @@ import {
 } from "./discovery-limit-finding.js";
 import { evaluate } from "./evaluate-engine.js";
 import {
+    type McpConfigDefectNotice,
+    mcpConfigFindings,
+} from "./mcp-config-finding.js";
+import {
     type ImportLimitNotice,
     importLimitFindings,
     skippedSymlinkFindings,
@@ -42,6 +46,12 @@ export interface RepositoryScan {
     importLimit?: ImportLimitNotice;
     /** Present when the scan could not read some instruction files */
     unreadFiles?: readonly string[];
+    /**
+     * Present when a recognized MCP config file was there but was not valid
+     * JSON, failed the schema, or used a reserved server name. No server
+     * record is invented for that file.
+     */
+    mcpConfigDefects?: readonly McpConfigDefectNotice[];
 }
 
 export interface DoctorRunPorts {
@@ -115,6 +125,7 @@ async function completeRun(
     input: DoctorRunInput,
     ports: DoctorRunPorts,
     base: DoctorRunBase,
+    mcpConfigDefects: readonly McpConfigDefectNotice[],
 ): Promise<DoctorRun> {
     const { records, classification } = base;
     const snapshotRef = await ports.loadSnapshotRef(input.repoPath);
@@ -122,11 +133,12 @@ async function completeRun(
         ...base,
         ...(snapshotRef !== undefined ? { snapshotRef } : {}),
     };
+    const configFindings = mcpConfigFindings(mcpConfigDefects);
 
     if (input.summaryOnly) {
         return { kind: "summary", ...withSnapshot };
     }
-    if (classification.archetype === "none") {
+    if (classification.archetype === "none" && configFindings.length === 0) {
         return { kind: "no-constructs", ...withSnapshot };
     }
 
@@ -136,12 +148,15 @@ async function completeRun(
         classification,
         ports,
     );
-    const findings = evaluate(CRITERIA, {
-        records,
-        classification,
-        intent: loaded.intent,
-        intentLoadStatus: loaded.report.status,
-    });
+    const findings = [
+        ...evaluate(CRITERIA, {
+            records,
+            classification,
+            intent: loaded.intent,
+            intentLoadStatus: loaded.report.status,
+        }),
+        ...configFindings,
+    ];
     return {
         kind: "evaluated",
         ...withSnapshot,
@@ -170,7 +185,12 @@ export async function runDoctor(
         ],
     };
     try {
-        return await completeRun(input, ports, base);
+        return await completeRun(
+            input,
+            ports,
+            base,
+            scan.mcpConfigDefects ?? [],
+        );
     } catch (error: unknown) {
         throw new DoctorRunFailure(error, base.scanWarnings);
     }

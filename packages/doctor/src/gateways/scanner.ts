@@ -28,7 +28,7 @@ import {
     mcpServerRecords,
     type ReadMarkdownContent,
 } from "./inventory-records.js";
-import { enumerateMcpServers } from "./mcp-config.js";
+import { inspectMcpConfigs } from "./mcp-config.js";
 import { createTargetClassifier } from "./target-classifier.js";
 
 const SCANNABLE_EXTENSIONS = new Set([
@@ -214,13 +214,16 @@ export async function scanRepositoryWithReport(
         filesOverImportLimit,
         unreadFiles,
     } = await buildFileInventory(files, edgeContext, options.readContent);
-    const mcpServers = await enumerateMcpServers(absRoot);
+    const mcpConfigs = await inspectMcpConfigs(absRoot);
 
     return {
         records: [
             ...markReferencedRecords(fileRecords),
-            ...mcpServerRecords(mcpServers),
+            ...mcpServerRecords(mcpConfigs.records),
         ],
+        ...(mcpConfigs.defects.length > 0
+            ? { mcpConfigDefects: mcpConfigs.defects }
+            : {}),
         ...(directoryLimitReached
             ? {
                   directoryLimit: {
