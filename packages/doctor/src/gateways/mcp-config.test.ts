@@ -1,7 +1,9 @@
-import { dirname, resolve } from "node:path";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { enumerateMcpServers } from "./mcp-config.js";
+import { enumerateMcpServers, inspectMcpConfigs } from "./mcp-config.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = resolve(__dirname, "../../tests/fixtures");
@@ -82,6 +84,59 @@ describe("enumerateMcpServers", () => {
             // with how a schema-validation failure is handled), not
             // partially inventoried with the reserved-name server missing.
             expect(records).toEqual([]);
+        });
+    });
+
+    describe("when a config file is present but cannot be read as servers", () => {
+        it("should report invalid JSON and keep no server record", async () => {
+            const root = await mkdtemp(join(tmpdir(), "mcp-json-"));
+            await writeFile(join(root, ".mcp.json"), "{not json", "utf8");
+
+            const inspected = await inspectMcpConfigs(root);
+
+            expect(inspected.records).toEqual([]);
+            expect(inspected.defects).toEqual([
+                { path: ".mcp.json", reason: "invalid-json" },
+            ]);
+        });
+
+        it("should report a schema failure for an array of servers and keep no server record", async () => {
+            const root = await mkdtemp(join(tmpdir(), "mcp-schema-"));
+            await writeFile(
+                join(root, ".mcp.json"),
+                JSON.stringify({ mcpServers: [] }),
+                "utf8",
+            );
+
+            const inspected = await inspectMcpConfigs(root);
+
+            expect(inspected.records).toEqual([]);
+            expect(inspected.defects).toEqual([
+                { path: ".mcp.json", reason: "invalid-schema" },
+            ]);
+        });
+
+        it("should report a reserved server name and keep no server record", async () => {
+            const root = await mkdtemp(join(tmpdir(), "mcp-reserved-"));
+            await mkdir(join(root, ".vscode"));
+            await writeFile(
+                join(root, ".vscode", "mcp.json"),
+                '{"mcpServers":{"__proto__":{"command":"x"}}}\n',
+                "utf8",
+            );
+
+            const inspected = await inspectMcpConfigs(root);
+
+            expect(inspected.records).toEqual([]);
+            expect(inspected.defects).toEqual([
+                { path: ".vscode/mcp.json", reason: "reserved-name" },
+            ]);
+        });
+
+        it("should not report a defect when the config file is absent", async () => {
+            const inspected = await inspectMcpConfigs(fixture("empty-repo"));
+
+            expect(inspected.defects).toEqual([]);
         });
     });
 

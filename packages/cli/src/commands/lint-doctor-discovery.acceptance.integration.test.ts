@@ -1070,25 +1070,25 @@ describe("lint and doctor discovery", () => {
             },
         );
 
-        it.fails("should fail doctor --ci when .mcp.json is not valid JSON", async () => {
+        it("should fail doctor --ci when .mcp.json is not valid JSON", async () => {
             await expect(
                 assertDoctorBlocks(MCP, malformed),
             ).resolves.toBeUndefined();
         });
 
-        it.fails("should fail doctor --ci when .vscode/mcp.json is not valid JSON", async () => {
+        it("should fail doctor --ci when .vscode/mcp.json is not valid JSON", async () => {
             await expect(
                 assertDoctorBlocks(MCP_VSCODE, malformed),
             ).resolves.toBeUndefined();
         });
 
-        it.fails("should fail doctor --ci when MCP JSON parses but fails the schema", async () => {
+        it("should fail doctor --ci when MCP JSON parses but fails the schema", async () => {
             await expect(
                 assertDoctorBlocks(MCP, schemaInvalid),
             ).resolves.toBeUndefined();
         });
 
-        it.fails.each(RESERVED_SERVER_NAMES)(
+        it.each(RESERVED_SERVER_NAMES)(
             "should fail doctor --ci when .mcp.json names the reserved server %s",
             async (name) => {
                 await expect(
