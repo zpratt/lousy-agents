@@ -409,18 +409,21 @@ describe("doctor command", () => {
             textStdout: string,
             report: z.infer<typeof ReportSchema>,
         ): void {
-            expect(textStdout).toContain(`Intent: ${report.intent.status}`);
-            expect(textStdout).toContain(
+            const reasonLines =
+                report.intent.reason === undefined
+                    ? []
+                    : [`Reason: ${report.intent.reason}`];
+            const expectedFragments = [
+                `Intent: ${report.intent.status}`,
                 `Checked path: ${report.intent.checkedPath}`,
-            );
-            if (report.intent.reason !== undefined) {
-                expect(textStdout).toContain(`Reason: ${report.intent.reason}`);
-            }
-            for (const issue of report.intent.issues ?? []) {
-                expect(textStdout).toContain(`${issue.path}: ${issue.message}`);
-            }
-            for (const { criterionId } of report.findings) {
-                expect(textStdout).toContain(`${criterionId}:`);
+                ...reasonLines,
+                ...(report.intent.issues ?? []).map(
+                    (issue) => `${issue.path}: ${issue.message}`,
+                ),
+                ...report.findings.map(({ criterionId }) => `${criterionId}:`),
+            ];
+            for (const fragment of expectedFragments) {
+                expect(textStdout).toContain(fragment);
             }
         }
 

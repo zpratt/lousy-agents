@@ -40,7 +40,7 @@
             "test": "all"
         },
         "rules": {
-            "recommended": true,
+            "preset": "recommended",
             "style": {
                 "noParameterAssign": "error",
                 "noRestrictedImports": {

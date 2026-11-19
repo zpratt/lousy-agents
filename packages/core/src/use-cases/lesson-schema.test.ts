@@ -42,13 +42,12 @@ describe("LessonFrontmatterSchema", () => {
         it("should reject with an error", () => {
             const data = { ...validFrontmatter(), type: "unknown" };
             const result = LessonFrontmatterSchema.safeParse(data);
+
             expect(result.success).toBe(false);
-            if (!result.success) {
-                const messages = result.error.issues.map((i) => i.message);
-                expect(messages.join(" ")).toMatch(
-                    /invalid_enum_value|Invalid enum value|Invalid option/i,
-                );
-            }
+            const messages = (result.error?.issues ?? []).map((i) => i.message);
+            expect(messages.join(" ")).toMatch(
+                /invalid_enum_value|Invalid enum value|Invalid option/i,
+            );
         });
     });
 
@@ -56,11 +55,10 @@ describe("LessonFrontmatterSchema", () => {
         it("should reject with a slug format error", () => {
             const data = { ...validFrontmatter(), slug: "bad/slug" };
             const result = LessonFrontmatterSchema.safeParse(data);
+
             expect(result.success).toBe(false);
-            if (!result.success) {
-                const messages = result.error.issues.map((i) => i.message);
-                expect(messages.join(" ")).toContain("^[a-z0-9-]+$");
-            }
+            const messages = (result.error?.issues ?? []).map((i) => i.message);
+            expect(messages.join(" ")).toContain("^[a-z0-9-]+$");
         });
     });
 
@@ -68,11 +66,10 @@ describe("LessonFrontmatterSchema", () => {
         it("should reject with a slug format error", () => {
             const data = { ...validFrontmatter(), slug: "bad..slug" };
             const result = LessonFrontmatterSchema.safeParse(data);
+
             expect(result.success).toBe(false);
-            if (!result.success) {
-                const messages = result.error.issues.map((i) => i.message);
-                expect(messages.join(" ")).toContain("^[a-z0-9-]+$");
-            }
+            const messages = (result.error?.issues ?? []).map((i) => i.message);
+            expect(messages.join(" ")).toContain("^[a-z0-9-]+$");
         });
     });
 
@@ -163,12 +160,13 @@ describe("LessonFrontmatterSchema", () => {
     describe("when required fields are missing", () => {
         it("should reject with errors naming the missing fields", () => {
             const result = LessonFrontmatterSchema.safeParse({});
+
             expect(result.success).toBe(false);
-            if (!result.success) {
-                const paths = result.error.issues.map((i) => i.path.join("."));
-                expect(paths).toContain("slug");
-                expect(paths).toContain("title");
-            }
+            const paths = (result.error?.issues ?? []).map((i) =>
+                i.path.join("."),
+            );
+            expect(paths).toContain("slug");
+            expect(paths).toContain("title");
         });
     });
 
@@ -180,13 +178,10 @@ describe("LessonFrontmatterSchema", () => {
                 revised: "2026-05-01",
             };
             const result = LessonFrontmatterSchema.safeParse(data);
+
             expect(result.success).toBe(false);
-            if (!result.success) {
-                const messages = result.error.issues.map((i) => i.message);
-                expect(messages.join(" ")).toContain(
-                    "revised must be on or after",
-                );
-            }
+            const messages = (result.error?.issues ?? []).map((i) => i.message);
+            expect(messages.join(" ")).toContain("revised must be on or after");
         });
     });
 
@@ -241,11 +236,12 @@ describe("LessonFrontmatterSchema", () => {
         it("should reject with a validation error", () => {
             const data = { ...validFrontmatter(), title: "a".repeat(201) };
             const result = LessonFrontmatterSchema.safeParse(data);
+
             expect(result.success).toBe(false);
-            if (!result.success) {
-                const paths = result.error.issues.map((i) => i.path.join("."));
-                expect(paths).toContain("title");
-            }
+            const paths = (result.error?.issues ?? []).map((i) =>
+                i.path.join("."),
+            );
+            expect(paths).toContain("title");
         });
     });
 });
