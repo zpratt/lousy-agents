@@ -98,6 +98,7 @@ Paths come from the shared agentic location catalog in `@lousy-agents/core` (the
 
 - JSON sources are enumerated (for example `.mcp.json` attributed as `shared`, `.vscode/mcp.json` as `copilot`).
 - VS Code-style configs that use a top-level `servers` key are recognized.
+- A missing `.mcp.json` or `.vscode/mcp.json` is not a finding. A file that is present but is not valid JSON, does not match the config schema (for example `{"mcpServers":[]}`), or names a server `__proto__`, `constructor`, or `prototype` is a high defect, `malformed-mcp-config`. The finding's target is that file's repo-relative path, and `doctor --ci` exits 1. No server record is invented for a file that did not parse.
 - Codex TOML `[mcp_servers.*]` in `.codex/config.toml` is not enumerated yet.
 
 **Filesystem notes:**

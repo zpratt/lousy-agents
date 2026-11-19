@@ -15,6 +15,21 @@ export interface McpServerRecord {
     path: string;
 }
 
+export type McpConfigDefectReason =
+    | "invalid-json"
+    | "invalid-schema"
+    | "reserved-name";
+
+export interface McpConfigDefect {
+    readonly path: string;
+    readonly reason: McpConfigDefectReason;
+}
+
+export interface McpConfigInspection {
+    readonly records: readonly McpServerRecord[];
+    readonly defects: readonly McpConfigDefect[];
+}
+
 const McpServerEntrySchema = z
     .object({
         type: z.string().optional(),
@@ -67,10 +82,20 @@ const McpConfigSchema = z
     })
     .passthrough();
 
+function defect(
+    source: McpConfigSource,
+    reason: McpConfigDefectReason,
+): McpConfigInspection {
+    return {
+        records: [],
+        defects: [{ path: source.relPath, reason }],
+    };
+}
+
 async function readMcpServersFromSource(
     repoRoot: string,
     source: McpConfigSource,
-): Promise<McpServerRecord[]> {
+): Promise<McpConfigInspection> {
     let content: string;
     try {
         content = await readTextWithinRoot(
@@ -79,23 +104,23 @@ async function readMcpServersFromSource(
             MAX_MCP_CONFIG_BYTES,
         );
     } catch {
-        return [];
+        return { records: [], defects: [] };
     }
 
     let raw: unknown;
     try {
         raw = JSON.parse(content);
     } catch {
-        return [];
+        return defect(source, "invalid-json");
     }
 
     if (hasReservedServerName(raw)) {
-        return [];
+        return defect(source, "reserved-name");
     }
 
     const result = McpConfigSchema.safeParse(raw);
     if (!result.success) {
-        return [];
+        return defect(source, "invalid-schema");
     }
 
     const servers = {
@@ -103,26 +128,38 @@ async function readMcpServersFromSource(
         ...(result.data.servers ?? {}),
     };
 
-    return Object.entries(servers).map(
-        ([serverName, entry]): McpServerRecord => ({
-            serverName,
-            harness: source.harnessHint,
-            path: source.relPath,
-            ...(entry.transport !== undefined
-                ? { transport: entry.transport }
-                : entry.type !== undefined
-                  ? { transport: entry.type }
-                  : {}),
-        }),
-    );
+    return {
+        records: Object.entries(servers).map(
+            ([serverName, entry]): McpServerRecord => ({
+                serverName,
+                harness: source.harnessHint,
+                path: source.relPath,
+                ...(entry.transport !== undefined
+                    ? { transport: entry.transport }
+                    : entry.type !== undefined
+                      ? { transport: entry.type }
+                      : {}),
+            }),
+        ),
+        defects: [],
+    };
+}
+
+export async function inspectMcpConfigs(
+    repoRoot: string,
+): Promise<McpConfigInspection> {
+    const records: McpServerRecord[] = [];
+    const defects: McpConfigDefect[] = [];
+    for (const source of MCP_CONFIG_SOURCES) {
+        const read = await readMcpServersFromSource(repoRoot, source);
+        records.push(...read.records);
+        defects.push(...read.defects);
+    }
+    return { records, defects };
 }
 
 export async function enumerateMcpServers(
     repoRoot: string,
 ): Promise<McpServerRecord[]> {
-    const records: McpServerRecord[] = [];
-    for (const source of MCP_CONFIG_SOURCES) {
-        records.push(...(await readMcpServersFromSource(repoRoot, source)));
-    }
-    return records;
+    return [...(await inspectMcpConfigs(repoRoot)).records];
 }
