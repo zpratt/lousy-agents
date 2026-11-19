@@ -10,6 +10,7 @@ name: CI
     branches:
       - main
       - beta
+      - cursor/lint-doctor-shared-constructs-d9e9
 
 permissions: {}
 
