@@ -6,12 +6,15 @@
  * server declaration.
  */
 
-import { z } from "zod";
+import type { z } from "zod";
+import { McpConfigSchema } from "../entities/mcp-config-schema.js";
 import type {
     DiscoveredMcpConfigFile,
     McpServerLintDiagnostic,
     McpServerLintResult,
 } from "../entities/mcp-server.js";
+
+export { McpConfigSchema };
 
 const INVALID_JSON_MESSAGE_PREFIX =
     "Invalid JSON in MCP server configuration file";
@@ -31,28 +34,6 @@ const RESERVED_SERVER_NAMES = [
 ] as const;
 
 const SERVER_MAP_FIELDS = ["mcpServers", "servers"] as const;
-
-/**
- * Zod schema for a single MCP server declaration.
- * Baseline shape only: an object whose optional `type`/`transport` fields,
- * when present, must be non-empty strings. Unknown fields are preserved.
- */
-const McpServerEntrySchema = z
-    .object({
-        type: z.string().min(1, "type must not be empty").optional(),
-        transport: z.string().min(1, "transport must not be empty").optional(),
-    })
-    .passthrough();
-
-/**
- * Zod schema for the MCP config file shape.
- */
-export const McpConfigSchema = z
-    .object({
-        mcpServers: z.record(z.string(), McpServerEntrySchema).optional(),
-        servers: z.record(z.string(), McpServerEntrySchema).optional(),
-    })
-    .passthrough();
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;

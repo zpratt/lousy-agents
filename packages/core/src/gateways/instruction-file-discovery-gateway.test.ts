@@ -1,10 +1,11 @@
-import { link, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { access, link, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { InstructionDiscoveryDiagnostic } from "../entities/instruction-quality.js";
 import { instructionDiscoveryEntries } from "../lib/agentic-location-matchers.js";
+import { createClaudeInstructionImportExpander } from "./claude-instruction-import-expander.js";
 import { FileSystemInstructionFileDiscoveryGateway } from "./instruction-file-discovery-gateway.js";
 import { DEFAULT_MAX_WALK_DEPTH } from "./repository-walk.js";
 
@@ -637,22 +638,6 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
     });
 
     describe("when one root agents file is reachable under two names", () => {
-        describe("when AGENTS.md and agents.md are two names for one file, as on a case-insensitive file system", () => {
-            it("should discover it once, under the catalog name AGENTS.md", async () => {
-                await writeFile(join(testDir, "agents.md"), chance.sentence());
-                await link(
-                    join(testDir, "agents.md"),
-                    join(testDir, "AGENTS.md"),
-                );
-
-                const files = await gateway.discoverInstructionFiles(testDir);
-
-                expect(files.map((f) => relative(testDir, f.filePath))).toEqual(
-                    ["AGENTS.md"],
-                );
-            });
-        });
-
         describe("when the root AGENTS.md is a symbolic link to docs/AGENTS.md", () => {
             it("should discover it once, under the root path a harness loads", async () => {
                 const docs = join(testDir, "docs");
@@ -682,6 +667,23 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
                     files.map((f) => relative(testDir, f.filePath)).sort(),
                 ).toEqual(["AGENTS.md", "agents.md"]);
             });
+        });
+    });
+
+    describe("when two CLAUDE.md files in different directories are hard links to one inode", () => {
+        it("should discover both paths, because Claude Code loads each one", async () => {
+            const firstPath = join("lib", "CLAUDE.md");
+            const secondPath = join("pkg", "CLAUDE.md");
+            await mkdir(join(testDir, "lib"), { recursive: true });
+            await mkdir(join(testDir, "pkg"), { recursive: true });
+            await writeFile(join(testDir, secondPath), chance.sentence());
+            await link(join(testDir, secondPath), join(testDir, firstPath));
+
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            expect(files.map((f) => relative(testDir, f.filePath))).toEqual(
+                expect.arrayContaining([firstPath, secondPath]),
+            );
         });
     });
 
@@ -750,6 +752,7 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
     describe("when .github/instructions is nested deeper than the depth limit", () => {
         const DiscoveryLimitRuleId = "instruction/discovery-limit-reached";
         const instructionsPath = join(".github", "instructions");
+        const NestedFilenameDepthMessage = `Instruction file discovery did not go more than ${DEFAULT_MAX_WALK_DEPTH} directories deep, so CLAUDE.md, AGENTS.md, AGENTS.MD, and agents.md files in deeper directories may not have been analyzed.`;
 
         async function writeNested(levels: number, name: string) {
             const directory = join(
@@ -798,13 +801,18 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
             ]);
         });
 
-        it("should report nothing for a tree whose deepest directory is exactly at the limit", async () => {
+        it("should report only the nested filename limit for a tree whose deepest directory is exactly at the limit", async () => {
             await writeNested(DEFAULT_MAX_WALK_DEPTH, "edge");
 
             const { files, diagnostics } = await discover();
 
             expect(files).toHaveLength(1);
-            expect(diagnostics).toEqual([]);
+            expect(diagnostics).toEqual([
+                {
+                    ruleId: DiscoveryLimitRuleId,
+                    message: NestedFilenameDepthMessage,
+                },
+            ]);
         });
 
         it("should report the directory limit and the depth limit together in one diagnostic", async () => {
@@ -826,7 +834,7 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
             expect(diagnostics).toEqual([
                 {
                     ruleId: DiscoveryLimitRuleId,
-                    message: `Instruction file discovery stopped after listing ${DEFAULT_MAX_WALK_DEPTH + 2} directories, so instruction files in the remaining directories were not analyzed. Instruction file discovery did not go more than ${DEFAULT_MAX_WALK_DEPTH} directories deep, so instruction files in deeper directories were not analyzed.`,
+                    message: `Instruction file discovery stopped after listing ${DEFAULT_MAX_WALK_DEPTH + 2} directories, so instruction files in the remaining directories were not analyzed. Instruction file discovery did not go more than ${DEFAULT_MAX_WALK_DEPTH} directories deep, so instruction files in deeper directories were not analyzed. ${NestedFilenameDepthMessage}`,
                 },
             ]);
         });
@@ -1008,6 +1016,190 @@ describe("FileSystemInstructionFileDiscoveryGateway", () => {
                     message: expect.stringContaining("0 directories"),
                 }),
             ]);
+        });
+    });
+
+    describe("when pkg/CLAUDE.md is a symlink to .github/agents/CLAUDE.md", () => {
+        it("should keep the Claude path and expand its @ import", async () => {
+            const agents = join(testDir, ".github", "agents");
+            await mkdir(agents, { recursive: true });
+            await writeFile(join(agents, "CLAUDE.md"), "@./missing-guide.md\n");
+            const pkg = join(testDir, "pkg");
+            await mkdir(pkg);
+            await symlink(join(agents, "CLAUDE.md"), join(pkg, "CLAUDE.md"));
+
+            const files = await gateway.discoverInstructionFiles(testDir);
+            const claude = files.find((file) =>
+                file.filePath.endsWith(`${join("pkg", "CLAUDE.md")}`),
+            );
+
+            expect(claude).toMatchObject({ format: "claude-md" });
+            const expanded =
+                await createClaudeInstructionImportExpander().expandClaudeEntrypoint(
+                    {
+                        repoRoot: testDir,
+                        absoluteFilePath:
+                            claude?.contentPath ?? claude?.filePath ?? "",
+                    },
+                );
+            expect(
+                expanded.expansionDiagnostics.some(
+                    (diagnostic) =>
+                        diagnostic.ruleId === "instruction/import-unresolved",
+                ),
+            ).toBe(true);
+        });
+    });
+
+    describe("when a directory is reachable through a symlink that a catalog entry owns", () => {
+        const aliasedAgents = join("docs", "skill", "AGENTS.md");
+
+        it("should discover the real AGENTS.md when a skills directory links to its directory", async () => {
+            await mkdir(join(testDir, "docs", "skill"), { recursive: true });
+            await mkdir(join(testDir, ".github", "skills"), {
+                recursive: true,
+            });
+            await writeFile(join(testDir, aliasedAgents), chance.sentence());
+            await symlink(
+                join(testDir, "docs", "skill"),
+                join(testDir, ".github", "skills", "docs"),
+            );
+
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            expect(
+                files.map((f) => ({
+                    path: relative(testDir, f.filePath),
+                    format: f.format,
+                })),
+            ).toEqual([{ path: aliasedAgents, format: "agents-md" }]);
+        });
+
+        it("should report the real CLAUDE.md of a directory that an instructions symlink points at under its real path", async () => {
+            const realClaude = join("pkg", "CLAUDE.md");
+            await mkdir(join(testDir, "pkg"), { recursive: true });
+            await mkdir(join(testDir, ".github", "instructions"), {
+                recursive: true,
+            });
+            await writeFile(join(testDir, realClaude), chance.sentence());
+            await symlink(
+                join(testDir, "pkg"),
+                join(testDir, ".github", "instructions", "x"),
+            );
+
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            expect(files.map((f) => relative(testDir, f.filePath))).toEqual([
+                realClaude,
+            ]);
+        });
+    });
+
+    describe("when a nested instruction filename sits below the depth limit", () => {
+        const DiscoveryLimitRuleId = "instruction/discovery-limit-reached";
+
+        async function discoverDiagnostics(
+            segments: readonly string[],
+        ): Promise<InstructionDiscoveryDiagnostic[]> {
+            await mkdir(join(testDir, ...segments), { recursive: true });
+            const diagnostics: InstructionDiscoveryDiagnostic[] = [];
+
+            await gateway.discoverInstructionFiles(testDir, (diagnostic) =>
+                diagnostics.push(diagnostic),
+            );
+
+            return diagnostics;
+        }
+
+        const levels = (count: number) =>
+            Array.from({ length: count }, (_, level) => `n${level}`);
+
+        it("should report a possible miss for a directory eleven segments deep under .github/instructions, where a CLAUDE.md is analyzed", async () => {
+            const diagnostics = await discoverDiagnostics([
+                ".github",
+                "instructions",
+                ...levels(DEFAULT_MAX_WALK_DEPTH - 1),
+            ]);
+
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    ruleId: DiscoveryLimitRuleId,
+                    message: expect.stringContaining(
+                        "CLAUDE.md, AGENTS.md, AGENTS.MD, and agents.md",
+                    ),
+                }),
+            ]);
+        });
+
+        it("should stay silent for a deep directory under .claude/skills, where a CLAUDE.md belongs to the skill", async () => {
+            const diagnostics = await discoverDiagnostics([
+                ".claude",
+                "skills",
+                ...levels(DEFAULT_MAX_WALK_DEPTH),
+            ]);
+
+            expect(diagnostics).toEqual([]);
+        });
+
+        it("should stay silent for a deep directory under .claude/hooks, where a CLAUDE.md belongs to the hook", async () => {
+            const diagnostics = await discoverDiagnostics([
+                ".claude",
+                "hooks",
+                ...levels(DEFAULT_MAX_WALK_DEPTH),
+            ]);
+
+            expect(diagnostics).toEqual([]);
+        });
+
+        it("should stay silent for a deep directory under .github/agents, where a CLAUDE.md is an agent", async () => {
+            const diagnostics = await discoverDiagnostics([
+                ".github",
+                "agents",
+                ...levels(DEFAULT_MAX_WALK_DEPTH),
+            ]);
+
+            expect(diagnostics).toEqual([]);
+        });
+    });
+
+    describe("when agents.md is the only AGENTS.md spelling on disk and the file system ignores case", () => {
+        it("should discover the one file once", async (context) => {
+            await writeFile(join(testDir, "agents.md"), chance.sentence());
+            const isCaseInsensitive = await access(
+                join(testDir, "AGENTS.md"),
+            ).then(
+                () => true,
+                () => false,
+            );
+            if (!isCaseInsensitive) {
+                context.skip();
+            }
+
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            expect(files).toHaveLength(1);
+        });
+    });
+
+    describe("when AGENTS.md and agents.md are hard links to one file on a case-sensitive file system", () => {
+        it("should discover both, because they are two directory entries Claude and Codex load separately", async (context) => {
+            await writeFile(join(testDir, "agents.md"), chance.sentence());
+            const isCaseInsensitive = await access(
+                join(testDir, "AGENTS.md"),
+            ).then(
+                () => true,
+                () => false,
+            );
+            if (isCaseInsensitive) {
+                context.skip();
+            }
+            await link(join(testDir, "agents.md"), join(testDir, "AGENTS.md"));
+
+            const files = await gateway.discoverInstructionFiles(testDir);
+
+            expect(
+                files.map((f) => relative(testDir, f.filePath)).sort(),
+            ).toEqual(["AGENTS.md", "agents.md"]);
         });
     });
 });

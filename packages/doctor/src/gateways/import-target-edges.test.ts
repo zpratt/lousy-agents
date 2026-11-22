@@ -344,3 +344,40 @@ describe("doctor edges for @ import targets that lint refuses", () => {
         });
     });
 });
+
+describe("doctor findings for an agent file far below .claude/agents", () => {
+    let repoRoot: string;
+
+    beforeEach(async () => {
+        repoRoot = await realpath(
+            await mkdtemp(join(tmpdir(), "doctor-deep-agent-")),
+        );
+    });
+
+    afterEach(async () => {
+        await rm(repoRoot, { recursive: true, force: true });
+    });
+
+    it("should report a missing @ import as malformed-claude-import and block", async () => {
+        const directory = join(
+            repoRoot,
+            ".claude",
+            "agents",
+            ...Array.from({ length: 20 }, (_, index) => String(index + 1)),
+        );
+        await mkdir(directory, { recursive: true });
+        await writeFile(join(directory, "reviewer.md"), "@./gone.md\n");
+
+        const records = await scanRepository(repoRoot);
+        const findings = evaluate(CRITERIA, {
+            records,
+            classification: classifyArchetype(records),
+            intent: null,
+        });
+
+        expect(findings.map((f) => f.criterionId)).toContain(
+            "malformed-claude-import",
+        );
+        expect(hasBlockingFindings(findings)).toBe(true);
+    });
+});

@@ -1,8 +1,9 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { DISCOVERY_LIMIT_REACHED_RULE_ID } from "../entities/lint-rules.js";
 import { skillDirectoryRoots } from "../lib/agentic-location-matchers.js";
 import { FileSystemSkillLintGateway } from "./skill-lint-gateway.js";
 
@@ -23,6 +24,87 @@ describe("SkillLintGateway", () => {
     });
 
     describe("discoverSkills", () => {
+        it.skipIf(process.getuid?.() === 0)(
+            "should surface a skills directory it is not permitted to list",
+            async () => {
+                const locked = join(testDir, ".claude", "skills");
+                await mkdir(join(locked, "one"), { recursive: true });
+                await writeFile(join(locked, "one", "SKILL.md"), "# skill\n");
+                await chmod(locked, 0o000);
+
+                try {
+                    await expect(
+                        gateway.discoverSkills(testDir),
+                    ).rejects.toMatchObject({ code: "EACCES" });
+                } finally {
+                    await chmod(locked, 0o755);
+                }
+            },
+        );
+
+        it("should not enter a symbolic link to a skill directory", async () => {
+            await mkdir(join(testDir, "real"), { recursive: true });
+            await writeFile(join(testDir, "real", "SKILL.md"), "# skill\n");
+            await mkdir(join(testDir, ".claude", "skills"), {
+                recursive: true,
+            });
+            await symlink(
+                join(testDir, "real"),
+                join(testDir, ".claude", "skills", "linked"),
+            );
+
+            const found = await gateway.discoverSkills(testDir);
+
+            expect(found).toEqual([]);
+        });
+        it("should report a directory cap hit instead of dropping it", async () => {
+            await mkdir(join(testDir, ".github", "skills", "one"), {
+                recursive: true,
+            });
+            await writeFile(
+                join(testDir, ".github", "skills", "one", "SKILL.md"),
+                "# skill\n",
+            );
+            const diagnostics: { ruleId: string; message: string }[] = [];
+            const capped = new FileSystemSkillLintGateway({
+                maxDirectories: 1,
+            });
+
+            await capped.discoverSkills(testDir, (diagnostic) =>
+                diagnostics.push(diagnostic),
+            );
+
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    ruleId: DISCOVERY_LIMIT_REACHED_RULE_ID,
+                }),
+            ]);
+        });
+
+        describe("given a skill whose directory has references, scripts, and nested subdirectories", () => {
+            it("should report no discovery limit, because a SKILL.md below the skill directory is never a skill file", async () => {
+                const skill = join(testDir, ".claude", "skills", "pdf");
+                await mkdir(join(skill, "references", "forms"), {
+                    recursive: true,
+                });
+                await mkdir(join(skill, "scripts"), { recursive: true });
+                await writeFile(join(skill, "SKILL.md"), "# pdf\n");
+                await writeFile(
+                    join(skill, "scripts", "fill.py"),
+                    "print(1)\n",
+                );
+                const diagnostics: { ruleId: string; message: string }[] = [];
+
+                const skills = await gateway.discoverSkills(
+                    testDir,
+                    (diagnostic) => diagnostics.push(diagnostic),
+                );
+
+                expect(skills.map((s) => s.skillName)).toEqual(["pdf"]);
+                expect(diagnostics).toEqual([]);
+            });
+        });
+
         describe("given a directory with skill files", () => {
             it("should discover all SKILL.md files", async () => {
                 // Arrange
