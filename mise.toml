@@ -22,23 +22,27 @@ yamllint = "1.38.0"                # Created with `mise use --pin yamllint`
 "pipx:semgrep" = "1.177.0"
 devcontainer-cli = "0.87.0"
 "pipx:graphifyy" = "0.9.61"
-"github:lousy-agents/coach" = "0.11.0"
+"github:lousy-agents/coach" = "0.12.0"
 
 [tasks.coach-check-project]
 description = "Read-only TypeScript readiness for coach project-config (compiler, Node, policy, package manager)"
-run = "coach codesignal --baseline --check-project --project-language typescript --project-config project.json"
+run = "coach codesignal --baseline --check-project --project-language typescript --project-config .lousy-agents/coach.json"
 
 [tasks.coach-baseline]
-description = "Advisory baseline scan with project.json architecture policy; exit 3 when required coverage is incomplete"
-run = "coach codesignal --baseline --project-config project.json --project-language typescript --no-interactive --fail-on-incomplete-coverage"
+description = "Advisory baseline scan with the .lousy-agents/coach.json architecture policy; exit 3 when required coverage is incomplete"
+run = "coach codesignal --baseline --project-config .lousy-agents/coach.json --project-language typescript --no-interactive --fail-on-incomplete-coverage"
 
 [tasks.coach-branch]
-description = "Advisory scan of this branch vs main with project.json architecture policy; exit 3 when required coverage is incomplete"
-run = "coach codesignal --base main --project-config project.json --project-language typescript --no-interactive --fail-on-incomplete-coverage"
+description = "Advisory scan of this branch vs main with the .lousy-agents/coach.json architecture policy; exit 3 when required coverage is incomplete"
+run = "coach codesignal --base main --project-config .lousy-agents/coach.json --project-language typescript --no-interactive --fail-on-incomplete-coverage"
+
+[tasks.coach-worktree]
+description = "Advisory scan of uncommitted changes (and this branch) vs main, before you commit; uses coach's experimental --worktree mode and reads the policy from HEAD"
+run = "coach codesignal --worktree --base main --project-config .lousy-agents/coach.json --project-language typescript --no-interactive --fail-on-incomplete-coverage"
 
 [tasks.coach-top]
 description = "Narrow the baseline report to high-severity findings (output only; does not replace coach-baseline)"
-run = "coach codesignal --baseline --project-config project.json --project-language typescript --no-interactive --fail-on-incomplete-coverage --min-severity high --top 10"
+run = "coach codesignal --baseline --project-config .lousy-agents/coach.json --project-language typescript --no-interactive --fail-on-incomplete-coverage --min-severity high --top 10"
 
 [tasks.yamllint]
 description = "Running yamllint locally on all yaml files"

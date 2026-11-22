@@ -20,7 +20,7 @@ const READ_BY_COACH = /\.tsx?$/;
 
 /**
  * Whether a tracked path is a script under a workspace package's `src` folder
- * that coach 0.11.0 does not analyze: `.mts`, `.cts`, `.js`, `.mjs`, `.cjs`
+ * that coach 0.12.0 does not analyze: `.mts`, `.cts`, `.js`, `.mjs`, `.cjs`
  * or `.jsx`, or any of them in another letter case (`.TS`, `.mJs`). Neither
  * the layer rules nor the policy tests ever see such a file, while tsc and
  * Biome accept it, so it would hide its imports. Only script extensions

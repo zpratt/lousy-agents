@@ -39,10 +39,23 @@ function trackedProductionFiles(): string[] {
     return trackedFiles().filter(isProductionSourceFile);
 }
 
+const TYPESCRIPT_SOURCE = /\.tsx?$/;
+const TEST_SOURCE = /\.(?:test|spec)\.tsx?$/;
+
+/**
+ * Every tracked TypeScript file that is not a test, the set a non-production
+ * layer (tooling, scaffold templates) and a declaration-file prefix draw from.
+ */
+function trackedTypeScriptFiles(): string[] {
+    return trackedFiles().filter(
+        (path) => TYPESCRIPT_SOURCE.test(path) && !TEST_SOURCE.test(path),
+    );
+}
+
 // Coach says nothing about an import to or from a file that no layer claims,
 // so these checks read the file list and the policy directly instead of
 // trusting coach's report to reveal a hole in its own coverage.
-describe("the committed layering policy (project.json)", () => {
+describe(`the committed layering policy (${POLICY_PATH})`, () => {
     const policy = committedPolicy();
     const files = trackedProductionFiles();
 
@@ -67,7 +80,7 @@ describe("the committed layering policy (project.json)", () => {
                 "packages/core/src/entities",
                 "packages/doctor/src/entities",
             ],
-            // biome-ignore lint/style/useNamingConvention: layer name in project.json
+            // biome-ignore lint/style/useNamingConvention: layer name in the policy
             use_cases: [
                 "packages/agent-shell/src/use-cases",
                 "packages/core/src/use-cases",
@@ -81,6 +94,7 @@ describe("the committed layering policy (project.json)", () => {
                 "packages/action/src/validate-inputs.ts",
                 "packages/agent-shell/src/gateways",
                 "packages/agent-shell/src/lib",
+                "packages/agent-shell/src/types/copilot-sdk.d.ts",
                 "packages/cli/src/commands",
                 "packages/cli/src/lib",
                 "packages/core/src/gateways",
@@ -97,7 +111,7 @@ describe("the committed layering policy (project.json)", () => {
                 "packages/core/src/formatters",
                 "packages/doctor/src/formatters",
             ],
-            // biome-ignore lint/style/useNamingConvention: layer name in project.json
+            // biome-ignore lint/style/useNamingConvention: layer name in the policy
             composition_root: [
                 "packages/action/src/index.ts",
                 "packages/agent-shell/src/index.ts",
@@ -107,21 +121,41 @@ describe("the committed layering policy (project.json)", () => {
                 "packages/mcp/src/mcp-server.ts",
                 "packages/mcp/src/server.ts",
             ],
-            // biome-ignore lint/style/useNamingConvention: layer name in project.json
+            // biome-ignore lint/style/useNamingConvention: layer name in the policy
             core_barrel: ["packages/core/src/index.ts"],
-            // biome-ignore lint/style/useNamingConvention: layer name in project.json
+            // biome-ignore lint/style/useNamingConvention: layer name in the policy
             package_api: [
                 "packages/doctor/src/index.ts",
                 "packages/mcp/src/index.ts",
             ],
-            // biome-ignore lint/style/useNamingConvention: layer name in project.json
+            // biome-ignore lint/style/useNamingConvention: layer name in the policy
             lint_api: ["packages/lint/src/index.ts"],
-            // biome-ignore lint/style/useNamingConvention: layer name in project.json
+            // biome-ignore lint/style/useNamingConvention: layer name in the policy
             lint_validate_directory: [
                 "packages/lint/src/validate-directory.ts",
             ],
-            // biome-ignore lint/style/useNamingConvention: layer name in project.json
+            // biome-ignore lint/style/useNamingConvention: layer name in the policy
             lint_errors: ["packages/lint/src/lint-errors.ts"],
+            // biome-ignore lint/style/useNamingConvention: layer name in the policy
+            scaffold_templates: [
+                "packages/cli/api",
+                "packages/cli/cli",
+                "packages/cli/ui",
+            ],
+            tooling: [
+                ".semgrep",
+                "packages/action/rspack.config.ts",
+                "packages/agent-shell/rspack.config.ts",
+                "packages/cli/rspack.config.ts",
+                "packages/doctor/rspack.config.ts",
+                "packages/doctor/vitest.config.ts",
+                "packages/lint/rspack.config.ts",
+                "packages/mcp/rspack.config.ts",
+                "scripts",
+                "vitest.config.ts",
+                "vitest.integration.config.ts",
+                "vitest.setup.ts",
+            ],
         });
     });
 
@@ -149,16 +183,16 @@ describe("the committed layering policy (project.json)", () => {
         expect(nested).toEqual([]);
     });
 
-    it("should have no layer prefix that matches no production source file", () => {
+    it("should have no layer prefix that matches no tracked TypeScript file", () => {
         // Act
-        const stale = findStalePrefixes(files, policy);
+        const stale = findStalePrefixes(trackedTypeScriptFiles(), policy);
 
         // Assert
         expect(stale).toEqual([]);
     });
 });
 
-// Coach 0.11.0 analyzes `.ts` and `.tsx` and nothing else, so a script in
+// Coach 0.12.0 analyzes `.ts` and `.tsx` and nothing else, so a script in
 // another format under src would sit outside every check here while tsc and
 // Biome accept it.
 describe("the tracked files under packages/*/src", () => {
@@ -168,7 +202,7 @@ describe("the tracked files under packages/*/src", () => {
             .filter(isScriptCoachDoesNotRead)
             .map(
                 (path) =>
-                    `${path} is a script that coach 0.11.0 does not analyze: write it as .ts or .tsx`,
+                    `${path} is a script that coach 0.12.0 does not analyze: write it as .ts or .tsx`,
             );
 
         // Assert

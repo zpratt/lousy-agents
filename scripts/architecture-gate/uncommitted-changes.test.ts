@@ -140,7 +140,7 @@ describe("describeUncommittedChanges", () => {
 
         // Assert
         expect(notice).toBe(
-            `architecture gate: coach analyzed the committed HEAD only; 1 uncommitted change under packages/ was not checked (${path}). Commit it to include it.`,
+            `architecture gate: coach analyzed the committed HEAD only; 1 uncommitted change under packages/ was not checked (${path}). Commit it to include it, or run \`mise run coach-worktree\` to scan it first.`,
         );
     });
 
@@ -153,7 +153,7 @@ describe("describeUncommittedChanges", () => {
 
         // Assert
         expect(notice).toBe(
-            "architecture gate: coach analyzed the committed HEAD only; 2 uncommitted changes under packages/ were not checked (packages/a/x.ts, packages/b/y.ts). Commit them to include them.",
+            "architecture gate: coach analyzed the committed HEAD only; 2 uncommitted changes under packages/ were not checked (packages/a/x.ts, packages/b/y.ts). Commit them to include them, or run `mise run coach-worktree` to scan them first.",
         );
     });
 
