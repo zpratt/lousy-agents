@@ -7,6 +7,7 @@ import {
     agentDirectoryRoots,
     constructTypesForPath,
     entriesMatchingPath,
+    formatForAdditionalInstructionFile,
     hookConfigPaths,
     instructionDiscoveryEntries,
     isExcludedBySuffix,
@@ -595,5 +596,36 @@ describe("isExcludedBySuffix", () => {
         const escapingPath = "../.github/instructions/notes.md";
 
         expect(isExcludedBySuffix(escapingPath)).toBe(false);
+    });
+});
+
+describe("formatForAdditionalInstructionFile", () => {
+    it.each([
+        ["packages/foo/CLAUDE.md", "claude-md"],
+        ["packages/bar/AGENTS.md", "agents-md"],
+        ["packages/foo/AGENTS.MD", "agents-md"],
+        ["packages/foo/agents.md", "agents-md"],
+        ["AGENTS.MD", "agents-md"],
+        ["agents.md", "agents-md"],
+        [".github/instructions/CLAUDE.md", "claude-md"],
+        [".github/instructions/nested/CLAUDE.md", "claude-md"],
+        [".github/instructions/AGENTS.md", "agents-md"],
+        ["src/fixtures/CLAUDE.md", "claude-md"],
+        ["1/2/3/4/5/6/7/8/9/10/CLAUDE.md", "claude-md"],
+    ] as const)("should format %s as %s", (path, format) => {
+        expect(formatForAdditionalInstructionFile(path)).toBe(format);
+    });
+
+    it.each([
+        "CLAUDE.md",
+        "AGENTS.md",
+        ".claude/CLAUDE.md",
+        ".github/agents/CLAUDE.md",
+        ".github/agents/team/CLAUDE.md",
+        ".claude/skills/example/AGENTS.md",
+        ".github/instructions/README.md",
+        ".github/instructions/rules.instructions.md",
+    ])("should leave %s to the catalog entry that already loads it", (path) => {
+        expect(formatForAdditionalInstructionFile(path)).toBeNull();
     });
 });

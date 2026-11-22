@@ -170,6 +170,9 @@ interface DoctorFinding {
 }
 
 interface DoctorReport {
+    readonly archetype: string;
+    readonly evaluation: string;
+    readonly intent?: { readonly status: string };
     readonly inventory: InventoryItem[];
     readonly findings: readonly DoctorFinding[];
 }
@@ -518,7 +521,7 @@ describe("lint and doctor discovery", () => {
             expect(constructOf(inventory, NESTED_AGENTS)).toBe("instruction");
         });
 
-        it.fails("should discover a nested CLAUDE.md and a nested AGENTS.md when lint analyzes the repository", () => {
+        it("should discover a nested CLAUDE.md and a nested AGENTS.md when lint analyzes the repository", () => {
             expect(instructionFormat(full, root, NESTED_CLAUDE)).toBe(
                 "claude-md",
             );
@@ -530,7 +533,7 @@ describe("lint and doctor discovery", () => {
             );
         });
 
-        it.fails("should resolve an @ import written in a nested CLAUDE.md", () => {
+        it("should resolve an @ import written in a nested CLAUDE.md", () => {
             expect(resolvedImports(full, root, NESTED_CLAUDE)).toEqual([
                 NESTED_GUIDE,
             ]);
@@ -545,7 +548,7 @@ describe("lint and doctor discovery", () => {
             expect(constructOf(inventory, INSTRUCTIONS_README)).toBeUndefined();
         });
 
-        it.fails("should treat CLAUDE.md and AGENTS.md inside .github/instructions as Claude and shared instructions", () => {
+        it("should treat CLAUDE.md and AGENTS.md inside .github/instructions as Claude and shared instructions", () => {
             expect(instructionFormat(full, root, INSTRUCTIONS_CLAUDE)).toBe(
                 "claude-md",
             );
@@ -611,7 +614,7 @@ describe("lint and doctor discovery", () => {
             );
         });
 
-        it.fails("should keep CLAUDE.md under src/fixtures, test/fixtures, spec/fixtures, and tests/unit/fixtures", () => {
+        it("should keep CLAUDE.md under src/fixtures, test/fixtures, spec/fixtures, and tests/unit/fixtures", () => {
             expect(analyzedPaths(full, root, "instruction")).toEqual(
                 expect.arrayContaining(
                     VISIBLE_FIXTURE_LAYOUTS.map((path) => path),
@@ -622,7 +625,7 @@ describe("lint and doctor discovery", () => {
             );
         });
 
-        it.fails("should discover an instruction file exactly ten directories below .github/instructions in both tools", () => {
+        it("should discover an instruction file exactly ten directories below .github/instructions in both tools", () => {
             expect(analyzedPaths(full, root, "instruction")).toContain(
                 AT_LIMIT,
             );
@@ -646,7 +649,7 @@ describe("lint and doctor discovery", () => {
             expect(sortedPaths(inventory)).not.toContain(SKILL_DIST);
         });
 
-        it.fails("should discover the same agentic paths with lint and with doctor", () => {
+        it("should discover the same agentic paths with lint and with doctor", () => {
             const doctorPaths = sortedPaths(inventory).filter(
                 (path) => !INTENTIONAL_DOCTOR_ONLY.has(path),
             );
@@ -717,7 +720,7 @@ describe("lint and doctor discovery", () => {
             expect(harnessOf(inventory, nestedCaps)).toBe("shared");
         });
 
-        it.fails("should discover root and nested AGENTS.MD as agents-md instructions", () => {
+        it("should discover root and nested AGENTS.MD as agents-md instructions", () => {
             expect(instructionFormat(full, root, rootCaps)).toBe("agents-md");
             expect(instructionFormat(full, root, nestedCaps)).toBe("agents-md");
             expect(analyzedPaths(full, root, "instruction")).toEqual(
@@ -762,7 +765,7 @@ describe("lint and doctor discovery", () => {
             expect(harnessOf(inventory, nestedLower)).toBe("shared");
         });
 
-        it.fails("should discover root and nested agents.md as agents-md instructions", () => {
+        it("should discover root and nested agents.md as agents-md instructions", () => {
             expect(instructionFormat(full, root, rootLower)).toBe("agents-md");
             expect(instructionFormat(full, root, nestedLower)).toBe(
                 "agents-md",
@@ -810,7 +813,7 @@ describe("lint and doctor discovery", () => {
             expect(sortedPaths(inventory)).toEqual([kept]);
         });
 
-        it.fails("should discover src/CLAUDE.md and skip fixtures when lint starts in tests", () => {
+        it("should discover src/CLAUDE.md and skip fixtures when lint starts in tests", () => {
             expect(instructionFormat(full, root, kept)).toBe("claude-md");
             expect(analyzedPaths(full, root, "instruction")).not.toContain(
                 skipped,
@@ -858,7 +861,7 @@ describe("lint and doctor discovery", () => {
             expect(sortedPaths(inventory)).toEqual([rootClaude, nested]);
         });
 
-        it.fails("should discover the root and nested CLAUDE.md when lint is pointed at tests/fixtures", () => {
+        it("should discover the root and nested CLAUDE.md when lint is pointed at tests/fixtures", () => {
             expect(instructionFormat(full, root, rootClaude)).toBe("claude-md");
             expect(instructionFormat(full, root, nested)).toBe("claude-md");
         });
@@ -994,6 +997,11 @@ describe("lint and doctor discovery", () => {
                 const doctor = await runDoctor(repo);
 
                 expect(doctor.exitCode).toBe(1);
+                expect(doctor.report.archetype).toBe("none");
+                expect(doctor.report.evaluation).toBe("completed");
+                expect(doctor.report.intent).toEqual(
+                    expect.objectContaining({ status: "absent" }),
+                );
                 expect(blockingFinding(doctor.report, relativePath)).toEqual(
                     expect.objectContaining({
                         severity: expect.stringMatching(/^(high|critical)$/),
@@ -1070,25 +1078,25 @@ describe("lint and doctor discovery", () => {
             },
         );
 
-        it.fails("should fail doctor --ci when .mcp.json is not valid JSON", async () => {
+        it("should fail doctor --ci when .mcp.json is not valid JSON", async () => {
             await expect(
                 assertDoctorBlocks(MCP, malformed),
             ).resolves.toBeUndefined();
         });
 
-        it.fails("should fail doctor --ci when .vscode/mcp.json is not valid JSON", async () => {
+        it("should fail doctor --ci when .vscode/mcp.json is not valid JSON", async () => {
             await expect(
                 assertDoctorBlocks(MCP_VSCODE, malformed),
             ).resolves.toBeUndefined();
         });
 
-        it.fails("should fail doctor --ci when MCP JSON parses but fails the schema", async () => {
+        it("should fail doctor --ci when MCP JSON parses but fails the schema", async () => {
             await expect(
                 assertDoctorBlocks(MCP, schemaInvalid),
             ).resolves.toBeUndefined();
         });
 
-        it.fails.each(RESERVED_SERVER_NAMES)(
+        it.each(RESERVED_SERVER_NAMES)(
             "should fail doctor --ci when .mcp.json names the reserved server %s",
             async (name) => {
                 await expect(
@@ -1099,6 +1107,79 @@ describe("lint and doctor discovery", () => {
                 ).resolves.toBeUndefined();
             },
         );
+
+        it("should fail doctor --ci when a server declares an empty type, as lint does", async () => {
+            await expect(
+                assertDoctorBlocks(
+                    MCP,
+                    JSON.stringify({ mcpServers: { a: { type: "" } } }),
+                ),
+            ).resolves.toBeUndefined();
+        });
+
+        it("should fail doctor --ci with the cause when .mcp.json is a directory", async () => {
+            const repo = await makeRoot("mcp-doctor-dir");
+            try {
+                await mkdir(absolutePath(repo, MCP), { recursive: true });
+                const doctor = await runDoctor(repo);
+
+                expect(doctor.exitCode).toBe(1);
+                expect(blockingFinding(doctor.report, MCP)).toEqual(
+                    expect.objectContaining({
+                        description: expect.stringContaining(
+                            "could not be read as a regular file",
+                        ),
+                    }),
+                );
+                expect(JSON.stringify(doctor.report.findings)).not.toContain(
+                    repo,
+                );
+            } finally {
+                await rm(repo, { recursive: true, force: true });
+            }
+        });
+
+        it("should name the cause of a schema failure without echoing the file content", async () => {
+            const repo = await makeRoot("mcp-doctor-cause");
+            const secret = `secret-${chance.guid()}`;
+            try {
+                await writeRepo(repo, {
+                    [MCP]: JSON.stringify({ mcpServers: [secret] }),
+                });
+                const doctor = await runDoctor(repo);
+
+                expect(blockingFinding(doctor.report, MCP)).toEqual(
+                    expect.objectContaining({
+                        description: expect.stringContaining(
+                            "does not match the MCP config schema",
+                        ),
+                    }),
+                );
+                expect(JSON.stringify(doctor.report.findings)).not.toContain(
+                    secret,
+                );
+            } finally {
+                await rm(repo, { recursive: true, force: true });
+            }
+        });
+
+        it("should exit 0 for doctor --summary --ci even when .mcp.json is malformed", async () => {
+            const repo = await makeRoot("mcp-doctor-summary");
+            try {
+                await writeRepo(repo, { [MCP]: malformed });
+                const summary = await runCli(repo, [
+                    "doctor",
+                    "--summary",
+                    "--ci",
+                    "--format",
+                    "json",
+                ]);
+
+                expect(summary.exitCode).toBe(0);
+            } finally {
+                await rm(repo, { recursive: true, force: true });
+            }
+        });
     });
 
     describe("when a nested CLAUDE.md sits at the root walk's segment boundary", () => {
@@ -1139,7 +1220,7 @@ describe("lint and doctor discovery", () => {
             expect(sortedPaths(inventory)).not.toContain(parentEleven);
         });
 
-        it.fails("should discover a CLAUDE.md whose parent has 10 segments as claude-md", () => {
+        it("should discover a CLAUDE.md whose parent has 10 segments as claude-md", () => {
             expect(instructionFormat(full, root, parentTen)).toBe("claude-md");
             expect(analyzedPaths(full, root, "instruction")).toContain(
                 parentTen,
@@ -1164,7 +1245,7 @@ describe("lint and doctor discovery", () => {
             }
         });
 
-        it.fails("should warn on a nested CLAUDE.md and still exit 0", async () => {
+        it("should warn on a nested CLAUDE.md and still exit 0", async () => {
             const result = await runCli(root, [
                 "lint",
                 "--instructions",
@@ -1264,7 +1345,7 @@ describe("lint and doctor discovery", () => {
             root = await makeRoot("error-severity");
             await writeRepo(root, {
                 [NESTED_CLAUDE]: "# Nested only\n",
-                ".lousy-agentsrc.json": JSON.stringify({
+                "lousy-agents.config.json": JSON.stringify({
                     lint: {
                         rules: {
                             instructions: {
@@ -1283,7 +1364,7 @@ describe("lint and doctor discovery", () => {
             }
         });
 
-        it.fails("should exit 1 when the only broken instruction file is a nested CLAUDE.md", async () => {
+        it("should exit 1 when the only broken instruction file is a nested CLAUDE.md", async () => {
             const result = await runCli(root, [
                 "lint",
                 "--instructions",

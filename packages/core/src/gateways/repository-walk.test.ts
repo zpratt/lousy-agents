@@ -730,6 +730,7 @@ describe("walkRepository", () => {
                 files: [],
                 directoryLimitReached: false,
                 depthLimitReached: false,
+                depthLimitedDirectories: [],
                 entryLimitReached: false,
                 skippedOutsideRoot: [],
                 limits: {

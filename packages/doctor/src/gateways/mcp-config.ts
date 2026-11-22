@@ -1,10 +1,14 @@
+import { McpConfigSchema } from "@lousy-agents/core/entities/mcp-config-schema.js";
 import {
     MCP_CONFIG_SOURCES,
     type McpConfigSource,
 } from "@lousy-agents/core/entities/mcp-config-source.js";
 import { readTextWithinRoot } from "@lousy-agents/core/gateways/file-system-utils.js";
-import { z } from "zod";
 import type { HarnessName } from "../entities/edge-types.js";
+import type {
+    McpConfigDefect,
+    McpConfigDefectReason,
+} from "../entities/mcp-config-defect.js";
 
 const MAX_MCP_CONFIG_BYTES = 1_048_576;
 
@@ -15,12 +19,10 @@ export interface McpServerRecord {
     path: string;
 }
 
-const McpServerEntrySchema = z
-    .object({
-        type: z.string().optional(),
-        transport: z.string().optional(),
-    })
-    .passthrough();
+export interface McpConfigInspection {
+    readonly records: readonly McpServerRecord[];
+    readonly defects: readonly McpConfigDefect[];
+}
 
 /**
  * Property names that must never be used as MCP server names: assigning
@@ -56,21 +58,55 @@ function hasReservedServerName(parsed: unknown): boolean {
     return false;
 }
 
-// Accepts both Claude Code's `.mcp.json` convention (`mcpServers`) and VS
-// Code's `.vscode/mcp.json` convention (`servers`) regardless of which
-// source file is being read, since either config file could in practice
-// use either key.
-const McpConfigSchema = z
-    .object({
-        mcpServers: z.record(z.string(), McpServerEntrySchema).optional(),
-        servers: z.record(z.string(), McpServerEntrySchema).optional(),
-    })
-    .passthrough();
+const MISSING_ERROR_CODES: ReadonlySet<string> = new Set([
+    "not-found",
+    "ENOENT",
+    "ENOTDIR",
+]);
+
+function codeOf(value: unknown): string | undefined {
+    if (typeof value !== "object" || value === null || !("code" in value)) {
+        return undefined;
+    }
+    return typeof value.code === "string" ? value.code : undefined;
+}
+
+/**
+ * Classifies a read failure. Only a genuinely missing file (or a missing
+ * parent directory) is silent: `undefined`. Anything else means something
+ * is at the path that doctor could not inventory, so it is a defect. The
+ * reason is chosen from the error's codes only, never its message, which
+ * carries absolute paths.
+ */
+function unreadableReason(error: unknown): McpConfigDefectReason | undefined {
+    const code = codeOf(error);
+    if (code !== undefined && MISSING_ERROR_CODES.has(code)) {
+        return undefined;
+    }
+    const causeCode = error instanceof Error ? codeOf(error.cause) : undefined;
+    if (causeCode === "symlink") {
+        return "symlink";
+    }
+    if (causeCode === "too-large") {
+        return "too-large";
+    }
+    return "unreadable";
+}
+
+function defect(
+    source: McpConfigSource,
+    reason: McpConfigDefectReason,
+): McpConfigInspection {
+    return {
+        records: [],
+        defects: [{ path: source.relPath, reason }],
+    };
+}
 
 async function readMcpServersFromSource(
     repoRoot: string,
     source: McpConfigSource,
-): Promise<McpServerRecord[]> {
+): Promise<McpConfigInspection> {
     let content: string;
     try {
         content = await readTextWithinRoot(
@@ -78,24 +114,27 @@ async function readMcpServersFromSource(
             source.relPath,
             MAX_MCP_CONFIG_BYTES,
         );
-    } catch {
-        return [];
+    } catch (error: unknown) {
+        const reason = unreadableReason(error);
+        return reason === undefined
+            ? { records: [], defects: [] }
+            : defect(source, reason);
     }
 
     let raw: unknown;
     try {
         raw = JSON.parse(content);
     } catch {
-        return [];
+        return defect(source, "invalid-json");
     }
 
     if (hasReservedServerName(raw)) {
-        return [];
+        return defect(source, "reserved-name");
     }
 
     const result = McpConfigSchema.safeParse(raw);
     if (!result.success) {
-        return [];
+        return defect(source, "invalid-schema");
     }
 
     const servers = {
@@ -103,26 +142,38 @@ async function readMcpServersFromSource(
         ...(result.data.servers ?? {}),
     };
 
-    return Object.entries(servers).map(
-        ([serverName, entry]): McpServerRecord => ({
-            serverName,
-            harness: source.harnessHint,
-            path: source.relPath,
-            ...(entry.transport !== undefined
-                ? { transport: entry.transport }
-                : entry.type !== undefined
-                  ? { transport: entry.type }
-                  : {}),
-        }),
-    );
+    return {
+        records: Object.entries(servers).map(
+            ([serverName, entry]): McpServerRecord => ({
+                serverName,
+                harness: source.harnessHint,
+                path: source.relPath,
+                ...(entry.transport !== undefined
+                    ? { transport: entry.transport }
+                    : entry.type !== undefined
+                      ? { transport: entry.type }
+                      : {}),
+            }),
+        ),
+        defects: [],
+    };
+}
+
+export async function inspectMcpConfigs(
+    repoRoot: string,
+): Promise<McpConfigInspection> {
+    const records: McpServerRecord[] = [];
+    const defects: McpConfigDefect[] = [];
+    for (const source of MCP_CONFIG_SOURCES) {
+        const read = await readMcpServersFromSource(repoRoot, source);
+        records.push(...read.records);
+        defects.push(...read.defects);
+    }
+    return { records, defects };
 }
 
 export async function enumerateMcpServers(
     repoRoot: string,
 ): Promise<McpServerRecord[]> {
-    const records: McpServerRecord[] = [];
-    for (const source of MCP_CONFIG_SOURCES) {
-        records.push(...(await readMcpServersFromSource(repoRoot, source)));
-    }
-    return records;
+    return [...(await inspectMcpConfigs(repoRoot)).records];
 }
