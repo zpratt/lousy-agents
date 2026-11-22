@@ -52,6 +52,74 @@ function hasHooksSection(parsed: unknown): boolean {
     return hooks !== null && typeof hooks === "object" && !Array.isArray(hooks);
 }
 
+/** Error messages that mean a hook config path must be left out, not fail the run. */
+const UNSAFE_PATH_MESSAGE_PREFIXES = [
+    "Resolved path is outside target directory:",
+    "Path contains symbolic link:",
+] as const;
+
+function isMissingPathError(error: unknown): boolean {
+    return (
+        error instanceof Error &&
+        "code" in error &&
+        (error.code === "ENOENT" || error.code === "ENOTDIR")
+    );
+}
+
+function isUnsafePathError(error: unknown): boolean {
+    return (
+        error instanceof Error &&
+        UNSAFE_PATH_MESSAGE_PREFIXES.some((prefix) =>
+            error.message.startsWith(prefix),
+        )
+    );
+}
+
+function isRejectedFileError(error: unknown): boolean {
+    return (
+        error instanceof Error &&
+        (error.message.startsWith("Symlinks are not allowed") ||
+            error.message.includes("exceeds size limit"))
+    );
+}
+
+/**
+ * Resolves a catalog hook config path inside the target directory.
+ * Returns undefined when the path is missing, leaves the directory, or
+ * crosses a symbolic link. Any other failure is rethrown.
+ */
+async function resolveHookConfigPath(
+    targetDir: string,
+    relativePath: string,
+): Promise<string | undefined> {
+    try {
+        return await resolveSafePath(targetDir, relativePath);
+    } catch (error: unknown) {
+        if (isMissingPathError(error) || isUnsafePathError(error)) {
+            return undefined;
+        }
+        throw error;
+    }
+}
+
+/**
+ * Reads a hook config file without following symbolic links.
+ * Returns undefined when the file is missing, is a symlink, or is too large.
+ * Any other failure is rethrown.
+ */
+async function readHookConfigContent(
+    safePath: string,
+): Promise<string | undefined> {
+    try {
+        return await readFileNoFollow(safePath, MAX_CONFIG_FILE_BYTES);
+    } catch (error: unknown) {
+        if (isMissingPathError(error) || isRejectedFileError(error)) {
+            return undefined;
+        }
+        throw error;
+    }
+}
+
 /**
  * File system implementation of the hook config lint gateway.
  */
@@ -69,61 +137,18 @@ export class FileSystemHookConfigGateway implements HookConfigLintGateway {
             if (!present.has(config.posixPath)) {
                 continue;
             }
-            let safePath: string;
-            try {
-                safePath = await resolveSafePath(
-                    targetDir,
-                    config.relativePath,
-                );
-            } catch (error: unknown) {
-                if (
-                    error instanceof Error &&
-                    "code" in error &&
-                    (error.code === "ENOENT" || error.code === "ENOTDIR")
-                ) {
-                    continue;
-                }
-                if (
-                    error instanceof Error &&
-                    (error.message.startsWith(
-                        "Resolved path is outside target directory:",
-                    ) ||
-                        error.message.startsWith(
-                            "Path contains symbolic link:",
-                        ))
-                ) {
-                    continue;
-                }
-                throw error;
+
+            const safePath = await resolveHookConfigPath(
+                targetDir,
+                config.relativePath,
+            );
+            if (safePath === undefined) {
+                continue;
             }
 
-            let content: string;
-            try {
-                content = await readFileNoFollow(
-                    safePath,
-                    MAX_CONFIG_FILE_BYTES,
-                );
-            } catch (error: unknown) {
-                if (
-                    error instanceof Error &&
-                    "code" in error &&
-                    (error.code === "ENOENT" || error.code === "ENOTDIR")
-                ) {
-                    continue;
-                }
-                if (
-                    error instanceof Error &&
-                    error.message.startsWith("Symlinks are not allowed")
-                ) {
-                    continue;
-                }
-                if (
-                    error instanceof Error &&
-                    error.message.includes("exceeds size limit")
-                ) {
-                    continue;
-                }
-                throw error;
+            const content = await readHookConfigContent(safePath);
+            if (content === undefined) {
+                continue;
             }
 
             if (this.mayContainHookSection(content, config.platform)) {
