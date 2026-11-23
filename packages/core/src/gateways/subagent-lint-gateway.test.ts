@@ -1,8 +1,9 @@
-import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Chance from "chance";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { DISCOVERY_LIMIT_REACHED_RULE_ID } from "../entities/lint-rules.js";
 import { subagentDirectoryRoots } from "../lib/agentic-location-matchers.js";
 import { FileSystemSubagentLintGateway } from "./subagent-lint-gateway.js";
 
@@ -23,6 +24,83 @@ describe("FileSystemSubagentLintGateway", () => {
     });
 
     describe("discoverSubagents", () => {
+        it("should not spend its directory budget on a linked tree, so a later directory is still discovered", async () => {
+            const rootDir = join(testDir, ".claude", "agents");
+            await mkdir(rootDir, { recursive: true });
+            for (const name of ["1", "2", "3", "4"]) {
+                await mkdir(join(testDir, "vendor", name), {
+                    recursive: true,
+                });
+            }
+            await symlink(join(testDir, "vendor"), join(rootDir, "a-vendor"));
+            await mkdir(join(rootDir, "z-team"), { recursive: true });
+            await writeFile(join(rootDir, "z-team", "reviewer.md"), "# a\n");
+            const diagnostics: { ruleId: string; message: string }[] = [];
+            const capped = new FileSystemSubagentLintGateway({
+                maxDirectories: 3,
+            });
+
+            const found = await capped.discoverSubagents(
+                testDir,
+                (diagnostic) => diagnostics.push(diagnostic),
+            );
+
+            expect(found.map((file) => file.subagentName)).toEqual([
+                "reviewer",
+            ]);
+            expect(diagnostics).toEqual([]);
+        });
+
+        it("should skip a file whose name contains two dots", async () => {
+            const rootDir = join(testDir, ".claude", "agents");
+            await mkdir(rootDir, { recursive: true });
+            await writeFile(join(rootDir, "review..strict.md"), "# a\n");
+            await writeFile(join(rootDir, "plain.md"), "# a\n");
+
+            const found = await gateway.discoverSubagents(testDir);
+
+            expect(found.map((file) => file.subagentName)).toEqual(["plain"]);
+        });
+
+        it.skipIf(process.getuid?.() === 0)(
+            "should surface a directory it is not permitted to list",
+            async () => {
+                const locked = join(testDir, ".claude", "agents", "team");
+                await mkdir(locked, { recursive: true });
+                await writeFile(join(locked, "reviewer.md"), "# a\n");
+                await chmod(locked, 0o000);
+
+                try {
+                    await expect(
+                        gateway.discoverSubagents(testDir),
+                    ).rejects.toMatchObject({
+                        code: "EACCES",
+                    });
+                } finally {
+                    await chmod(locked, 0o755);
+                }
+            },
+        );
+        it("should report a directory cap hit instead of dropping it", async () => {
+            const agentsDir = join(testDir, ".claude", "agents");
+            await mkdir(join(agentsDir, "one"), { recursive: true });
+            await writeFile(join(agentsDir, "one", "helper.md"), "# helper\n");
+            const diagnostics: { ruleId: string; message: string }[] = [];
+            const capped = new FileSystemSubagentLintGateway({
+                maxDirectories: 1,
+            });
+
+            await capped.discoverSubagents(testDir, (diagnostic) =>
+                diagnostics.push(diagnostic),
+            );
+
+            expect(diagnostics).toEqual([
+                expect.objectContaining({
+                    ruleId: DISCOVERY_LIMIT_REACHED_RULE_ID,
+                }),
+            ]);
+        });
+
         describe("when .claude/agents/ does not exist", () => {
             it("should return an empty array", async () => {
                 // Act

@@ -8,6 +8,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DEFAULT_MAX_WALK_DEPTH } from "@lousy-agents/core/gateways/repository-walk.js";
 import { DEFAULT_MAX_EDGES } from "@lousy-agents/core/lib/instruction-import-expand.js";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Edge } from "../entities/edge-types.js";
@@ -158,5 +159,75 @@ describe("scanning a repository that holds symbolic links out of the repository"
         const scan = await scanRepositoryWithReport(repoRoot);
 
         expect(scan).not.toHaveProperty("skippedOutsideRoot");
+    });
+
+    it("should name an outside symlink that only the instruction catalog walk can see", async () => {
+        const segments = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+        const directory = join(
+            repoRoot,
+            ".github",
+            "instructions",
+            ...segments,
+        );
+        await mkdir(directory, { recursive: true });
+        await writeFile(join(outsideRoot, "secret.md"), "secret\n");
+        await symlink(
+            join(outsideRoot, "secret.md"),
+            join(directory, "leak.instructions.md"),
+        );
+
+        const scan = await scanRepositoryWithReport(repoRoot);
+
+        expect(scan.skippedOutsideRoot).toContain(
+            [
+                ".github",
+                "instructions",
+                ...segments,
+                "leak.instructions.md",
+            ].join("/"),
+        );
+    });
+
+    it("should name an outside symlink that only the agent walk can see", async () => {
+        const segments = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+        const directory = join(repoRoot, ".github", "agents", ...segments);
+        await mkdir(directory, { recursive: true });
+        await writeFile(join(outsideRoot, "secret.md"), "secret\n");
+        await symlink(
+            join(outsideRoot, "secret.md"),
+            join(directory, "leak.md"),
+        );
+
+        const scan = await scanRepositoryWithReport(repoRoot);
+
+        expect(scan.skippedOutsideRoot).toContain(
+            [".github", "agents", ...segments, "leak.md"].join("/"),
+        );
+    });
+
+    it("should report a directory cap hit only by the agent walk and keep the root depth number", async () => {
+        const deep = [
+            ".github",
+            "agents",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+        ];
+        await mkdir(join(repoRoot, ...deep), { recursive: true });
+        for (const name of ["9", "9a", "9b", "9c"]) {
+            await mkdir(join(repoRoot, ...deep, name));
+        }
+
+        const scan = await scanRepositoryWithReport(repoRoot, {
+            maxDirectories: 12,
+        });
+
+        expect(scan.directoryLimit).toEqual({ maxDirectories: 12 });
+        expect(scan.depthLimit?.maxDepth).toBe(DEFAULT_MAX_WALK_DEPTH);
     });
 });

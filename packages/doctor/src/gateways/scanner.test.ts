@@ -58,7 +58,7 @@ describe("scanRepository", () => {
             expect(claudeRecords[0].constructType).toBe("instruction");
         });
 
-        it("should assign id in '${harness}:${path}' format", async () => {
+        it("should assign id in '<harness>:<path>' format", async () => {
             const records = await scanRepository(fixture("pure-claude"));
             for (const r of records) {
                 expect(r.id).toMatch(/^[a-z-]+:.+/);
@@ -317,7 +317,7 @@ describe("scanRepository", () => {
     });
 
     describe("InventoryRecord id format", () => {
-        it("should produce ids matching the ${harness}:${path} pattern for all records", async () => {
+        it("should produce ids matching the <harness>:<path> pattern for all records", async () => {
             const records = await scanRepository(fixture("accidental-sprawl"));
 
             for (const r of records) {
@@ -823,6 +823,137 @@ describe("scanRepository", () => {
                     "/",
                 );
 
+            it("should inventory an agent file within 32 directories of .github/agents that the root walk cannot reach", async () => {
+                const segments = [
+                    ".github",
+                    "agents",
+                    ...Array.from({ length: 11 }, (_, index) =>
+                        String(index + 1),
+                    ),
+                    "reviewer.md",
+                ];
+                const agentPath = segments.join("/");
+
+                await withTempRepo(
+                    { [agentPath]: "# agent\n" },
+                    async (repoRoot) => {
+                        const records = await scanRepository(repoRoot);
+
+                        expect(records.map((record) => record.path)).toContain(
+                            agentPath,
+                        );
+                    },
+                );
+            });
+
+            describe.each([
+                [".github", ".github/agents"],
+                [".claude", ".claude/agents"],
+            ])("below %s agents", (_harnessDirectory, agentRoot) => {
+                const agentPathAt = (levels: number) =>
+                    [
+                        ...agentRoot.split("/"),
+                        ...Array.from({ length: levels }, (_, index) =>
+                            String(index + 1),
+                        ),
+                        "reviewer.md",
+                    ].join("/");
+
+                it("should inventory an agent exactly 32 directories below its root", async () => {
+                    const atLimit = agentPathAt(32);
+
+                    await withTempRepo(
+                        { [atLimit]: "# agent\n" },
+                        async (repoRoot) => {
+                            const records = await scanRepository(repoRoot);
+
+                            expect(
+                                records.map((record) => record.path),
+                            ).toContain(atLimit);
+                        },
+                    );
+                });
+
+                it("should leave out an agent 33 directories below its root", async () => {
+                    const pastLimit = agentPathAt(33);
+
+                    await withTempRepo(
+                        { [pastLimit]: "# agent\n" },
+                        async (repoRoot) => {
+                            const records = await scanRepository(repoRoot);
+
+                            expect(
+                                records.map((record) => record.path),
+                            ).not.toContain(pastLimit);
+                        },
+                    );
+                });
+            });
+
+            it("should report a directory limit reached only by the instruction catalog walk", async () => {
+                const deep = [
+                    ".github",
+                    "instructions",
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                    "6",
+                    "7",
+                    "8",
+                ];
+                await withTempRepo({}, async (repoRoot) => {
+                    await mkdir(join(repoRoot, ...deep), { recursive: true });
+                    for (const name of ["9", "9a", "9b"]) {
+                        await mkdir(join(repoRoot, ...deep, name));
+                    }
+
+                    const report = await scanRepositoryWithReport(repoRoot, {
+                        maxDirectories: 11,
+                    });
+
+                    expect(report.directoryLimit).toEqual({
+                        maxDirectories: 11,
+                    });
+                });
+            });
+
+            it("should report an entry limit reached only by the instruction catalog walk", async () => {
+                const deep = [
+                    ".github",
+                    "instructions",
+                    "1",
+                    "2",
+                    "3",
+                    "4",
+                    "5",
+                    "6",
+                    "7",
+                    "8",
+                    "9",
+                ];
+                await withTempRepo({}, async (repoRoot) => {
+                    await mkdir(join(repoRoot, ...deep), { recursive: true });
+                    for (let index = 0; index < 10; index += 1) {
+                        await writeFile(
+                            join(
+                                repoRoot,
+                                ...deep,
+                                `f${index}.instructions.md`,
+                            ),
+                            "# deep\n",
+                        );
+                    }
+
+                    const report = await scanRepositoryWithReport(repoRoot, {
+                        maxEntries: 13,
+                    });
+
+                    expect(report.entryLimit).toEqual({ maxEntries: 13 });
+                });
+            });
+
             it("should report the depth limit when a directory lies below it", async () => {
                 await withTempRepo(
                     {
@@ -837,6 +968,40 @@ describe("scanRepository", () => {
                             maxDepth: DEFAULT_MAX_WALK_DEPTH,
                         });
                         expect(report.directoryLimit).toBeUndefined();
+                    },
+                );
+            });
+
+            it("should inventory an instruction file ten directories below .github/instructions", async () => {
+                const atLimit = [
+                    ".github/instructions",
+                    ...Array.from({ length: 10 }, (_, index) =>
+                        String(index + 1),
+                    ),
+                    "at-limit.instructions.md",
+                ].join("/");
+                const pastLimit = [
+                    ".github/instructions",
+                    ...Array.from({ length: 11 }, (_, index) =>
+                        String(index + 1),
+                    ),
+                    "past-limit.instructions.md",
+                ].join("/");
+
+                await withTempRepo(
+                    {
+                        [atLimit]: "# at limit\n",
+                        [pastLimit]: "# past limit\n",
+                    },
+                    async (repoRoot) => {
+                        const records = await scanRepository(repoRoot);
+
+                        expect(records.map((record) => record.path)).toContain(
+                            atLimit,
+                        );
+                        expect(
+                            records.map((record) => record.path),
+                        ).not.toContain(pastLimit);
                     },
                 );
             });
@@ -1509,6 +1674,55 @@ describe("scanRepository", () => {
                     }),
                 );
             });
+        });
+    });
+
+    describe("when .claude is a symbolic link to a directory outside the repository", () => {
+        it("should name only .claude as skipped, not the subagent directory below it", async () => {
+            const outside = join(
+                await realpath(tmpdir()),
+                `doctor-outside-${chance.guid()}`,
+            );
+            await mkdir(join(outside, "agents"), { recursive: true });
+            try {
+                await withTempRepo(
+                    { [CLAUDE_MD]: "# Claude\n" },
+                    async (repoRoot) => {
+                        await symlink(outside, join(repoRoot, ".claude"));
+
+                        const report = await scanRepositoryWithReport(repoRoot);
+
+                        expect(report.skippedOutsideRoot).toEqual([".claude"]);
+                    },
+                );
+            } finally {
+                await rm(outside, { recursive: true, force: true });
+            }
+        });
+    });
+
+    describe("when .github is a symbolic link to a directory outside the repository", () => {
+        it("should name only .github as skipped, not the catalog directories below it", async () => {
+            const outside = join(
+                await realpath(tmpdir()),
+                `doctor-outside-${chance.guid()}`,
+            );
+            await mkdir(join(outside, "agents"), { recursive: true });
+            await mkdir(join(outside, "instructions"), { recursive: true });
+            try {
+                await withTempRepo(
+                    { [CLAUDE_MD]: "# Claude\n" },
+                    async (repoRoot) => {
+                        await symlink(outside, join(repoRoot, ".github"));
+
+                        const report = await scanRepositoryWithReport(repoRoot);
+
+                        expect(report.skippedOutsideRoot).toEqual([".github"]);
+                    },
+                );
+            } finally {
+                await rm(outside, { recursive: true, force: true });
+            }
         });
     });
 });

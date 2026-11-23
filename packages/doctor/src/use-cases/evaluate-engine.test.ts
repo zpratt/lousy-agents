@@ -712,7 +712,7 @@ describe("evaluate", () => {
     });
 
     describe("finding id format", () => {
-        it("should produce ids in ${criterionId}:${targetId} format", () => {
+        it("should produce ids in <criterionId>:<targetId> format", () => {
             const records: InventoryRecord[] = [
                 makeRecord({
                     harness: "claude",

@@ -144,10 +144,12 @@ describe("API template lint", () => {
 
     describe("given a scaffolded API project with dependencies installed", () => {
         it("should pass npm run lint without errors", () => {
-            execFileSync("npm", ["run", "lint"], {
-                cwd: projectDir,
-                stdio: "pipe",
-            });
+            expect(() =>
+                execFileSync("npm", ["run", "lint"], {
+                    cwd: projectDir,
+                    stdio: "pipe",
+                }),
+            ).not.toThrow();
         });
     });
 });
@@ -345,10 +347,12 @@ describe("Webapp template lint", () => {
 
     describe("given a scaffolded webapp project with dependencies installed", () => {
         it("should pass npm run lint without errors", () => {
-            execFileSync("npm", ["run", "lint"], {
-                cwd: projectDir,
-                stdio: "pipe",
-            });
+            expect(() =>
+                execFileSync("npm", ["run", "lint"], {
+                    cwd: projectDir,
+                    stdio: "pipe",
+                }),
+            ).not.toThrow();
         });
     });
 });

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { DeclaredIntentArtifact } from "../entities/declared-intent.js";
 import type { InventoryRecord } from "../entities/edge-types.js";
 import type { IntentLoadReport } from "../entities/intent-load.js";
+import type { McpConfigDefect } from "../entities/mcp-config-defect.js";
 import type {
     DiscoveryDepthLimit,
     DiscoveryDirectoryLimit,
@@ -136,13 +137,17 @@ describe("runDoctor", () => {
                 ports,
             );
 
-            expect(run.kind).toBe("evaluated");
-            if (run.kind === "evaluated") {
-                expect(run.intentLoad).toEqual(loaded.report);
-                expect(run.findings.map((f) => f.criterionId)).toContain(
-                    "invalid-intent-artifact",
-                );
-            }
+            expect(run).toEqual(
+                expect.objectContaining({
+                    kind: "evaluated",
+                    intentLoad: loaded.report,
+                    findings: expect.arrayContaining([
+                        expect.objectContaining({
+                            criterionId: "invalid-intent-artifact",
+                        }),
+                    ]),
+                }),
+            );
         });
 
         it("should pass the snapshot reference through", async () => {
@@ -204,12 +209,16 @@ describe("runDoctor", () => {
                 ports,
             );
 
-            expect(run.kind).toBe("evaluated");
-            if (run.kind === "evaluated") {
-                expect(run.findings.map((f) => f.criterionId)).not.toContain(
-                    "discovery-limit-reached",
-                );
-            }
+            expect(run).toEqual(
+                expect.objectContaining({
+                    kind: "evaluated",
+                    findings: expect.not.arrayContaining([
+                        expect.objectContaining({
+                            criterionId: "discovery-limit-reached",
+                        }),
+                    ]),
+                }),
+            );
         });
 
         it("should still evaluate the records it found", async () => {
@@ -229,12 +238,16 @@ describe("runDoctor", () => {
                 ports,
             );
 
-            expect(run.kind).toBe("evaluated");
-            if (run.kind === "evaluated") {
-                expect(run.findings.map((f) => f.criterionId)).toContain(
-                    "invalid-intent-artifact",
-                );
-            }
+            expect(run).toEqual(
+                expect.objectContaining({
+                    kind: "evaluated",
+                    findings: expect.arrayContaining([
+                        expect.objectContaining({
+                            criterionId: "invalid-intent-artifact",
+                        }),
+                    ]),
+                }),
+            );
         });
     });
 
@@ -550,6 +563,131 @@ describe("runDoctor", () => {
                 expect(run.scanWarnings).toEqual([]);
             },
         );
+    });
+
+    describe("when the scan found a malformed MCP config", () => {
+        const defect: McpConfigDefect = {
+            path: ".mcp.json",
+            reason: "invalid-schema",
+        };
+        const malformedFinding = expect.objectContaining({
+            criterionId: "malformed-mcp-config",
+            targetId: defect.path,
+            severity: "high",
+            classification: "defect",
+        });
+
+        function scanWithDefect(records: InventoryRecord[]): RepositoryScan {
+            return { ...scanOf(records), mcpConfigDefects: [defect] };
+        }
+
+        it("should evaluate and report the defect when it is the only thing in the repository", async () => {
+            const ports = buildPorts({
+                scanRepository: vi.fn().mockResolvedValue(scanWithDefect([])),
+            });
+
+            const run = await runDoctor(
+                { repoPath, summaryOnly: false },
+                ports,
+            );
+
+            expect(run).toEqual(
+                expect.objectContaining({
+                    kind: "evaluated",
+                    findings: [malformedFinding],
+                }),
+            );
+        });
+
+        it("should report the defect alongside the findings of other constructs", async () => {
+            const ports = buildPorts({
+                scanRepository: vi
+                    .fn()
+                    .mockResolvedValue(scanWithDefect(sprawlRecords())),
+            });
+
+            const run = await runDoctor(
+                { repoPath, summaryOnly: false },
+                ports,
+            );
+
+            expect(run).toEqual(
+                expect.objectContaining({
+                    kind: "evaluated",
+                    findings: expect.arrayContaining([malformedFinding]),
+                }),
+            );
+        });
+
+        it.each([
+            ["no agentic constructs", [] as InventoryRecord[]],
+            ["agentic constructs", [buildRecord()]],
+        ])(
+            "should still return a summary without findings when --summary is set and the repository has %s",
+            async (_name, records) => {
+                const ports = buildPorts({
+                    scanRepository: vi
+                        .fn()
+                        .mockResolvedValue(scanWithDefect(records)),
+                });
+
+                const run = await runDoctor(
+                    { repoPath, summaryOnly: true },
+                    ports,
+                );
+
+                expect(run.kind).toBe("summary");
+                expect(run).not.toHaveProperty("findings");
+            },
+        );
+    });
+
+    describe("when the scan found no malformed MCP config", () => {
+        it("should return no-constructs for an empty repository, as when the config file is missing", async () => {
+            const ports = buildPorts({
+                scanRepository: vi.fn().mockResolvedValue(scanOf([])),
+            });
+
+            const run = await runDoctor(
+                { repoPath, summaryOnly: false },
+                ports,
+            );
+
+            expect(run.kind).toBe("no-constructs");
+        });
+
+        it("should return no-constructs when the scan reports an empty defect list for a valid config", async () => {
+            const ports = buildPorts({
+                scanRepository: vi
+                    .fn()
+                    .mockResolvedValue({ ...scanOf([]), mcpConfigDefects: [] }),
+            });
+
+            const run = await runDoctor(
+                { repoPath, summaryOnly: false },
+                ports,
+            );
+
+            expect(run.kind).toBe("no-constructs");
+        });
+
+        it("should add no malformed-mcp-config finding to an evaluated run", async () => {
+            const ports = buildPorts();
+
+            const run = await runDoctor(
+                { repoPath, summaryOnly: false },
+                ports,
+            );
+
+            expect(run.kind).toBe("evaluated");
+            expect(
+                run.kind === "evaluated" &&
+                    run.findings.some(
+                        (finding) =>
+                            finding.criterionId === "malformed-mcp-config",
+                    ),
+            ).toBe(false);
+        });
     });
 
     describe("when an intent elicitor is provided", () => {
