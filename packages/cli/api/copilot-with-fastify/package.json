@@ -29,7 +29,7 @@
     },
     "devDependencies": {
         "@biomejs/biome": "2.6.9",
-        "@lousy-agents/mcp": "5.23.13",
+        "@lousy-agents/mcp": "5.23.14",
         "@modelcontextprotocol/server-sequential-thinking": "2026.8.31",
         "@testcontainers/postgresql": "12.2.2",
         "@types/node": "26.6.11",
